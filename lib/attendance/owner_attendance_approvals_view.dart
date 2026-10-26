@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../auth/auth_controller.dart';
-import '../main.dart' show kPrimary, toast;
+import '../main.dart' show Db, kPrimary, toast;
 import '../shared/tek_pos_strings.dart';
 import 'attendance_models.dart';
 import 'attendance_service.dart';
@@ -28,10 +28,17 @@ class _OwnerAttendanceApprovalsViewState
   String _filterStaff = 'All';
   DateTime? _filterDate;
 
+  String get _effectiveShopId {
+    if (widget.shopId.isNotEmpty) return widget.shopId;
+    final a = AuthController.instance.shopId;
+    if (a.isNotEmpty) return a;
+    return Db.setting('shop_id');
+  }
+
   Future<void> _approveRecord(AttendanceRecord r, String ownerUid) async {
     try {
       await AttendanceService.instance.approveAttendance(
-        shopId: widget.shopId,
+        shopId: _effectiveShopId,
         docId: r.id,
         ownerUid: ownerUid,
       );
@@ -60,7 +67,7 @@ class _OwnerAttendanceApprovalsViewState
 
     try {
       await AttendanceService.instance.bulkApprovePending(
-        shopId: widget.shopId,
+        shopId: _effectiveShopId,
         ownerUid: ownerUid,
         docIds: records.map((e) => e.id).toList(),
       );
@@ -223,7 +230,7 @@ class _OwnerAttendanceApprovalsViewState
                 try {
                   if (activeTab == 0) {
                     await AttendanceService.instance.adjustAttendance(
-                      shopId: widget.shopId,
+                      shopId: _effectiveShopId,
                       docId: r.id,
                       ownerUid: ownerUid,
                       adjustedCheckIn: inTime,
@@ -234,7 +241,7 @@ class _OwnerAttendanceApprovalsViewState
                     if (mounted) toast(context, 'അറ്റൻഡൻസ് സമയം തിരുത്തി അപ്രൂവ് ചെയ്തു');
                   } else {
                     await AttendanceService.instance.rejectAttendance(
-                      shopId: widget.shopId,
+                      shopId: _effectiveShopId,
                       docId: r.id,
                       ownerUid: ownerUid,
                       reason: reasonCtrl.text.trim(),
@@ -264,10 +271,28 @@ class _OwnerAttendanceApprovalsViewState
         title: const Text(TekStrings.approvalsTitle),
       ),
       body: StreamBuilder<List<AttendanceRecord>>(
-        stream: AttendanceService.instance.streamPendingApprovals(widget.shopId),
+        stream: AttendanceService.instance.streamPendingApprovals(_effectiveShopId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline_rounded, color: Colors.red, size: 48),
+                    const SizedBox(height: 12),
+                    Text('അപ്രൂവൽ വിവരങ്ങൾ ലഭിക്കുന്നതിൽ പിശക്: ${snapshot.error}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.red)),
+                  ],
+                ),
+              ),
+            );
           }
 
           final allPending = snapshot.data ?? [];

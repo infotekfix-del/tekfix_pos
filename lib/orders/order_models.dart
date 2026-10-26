@@ -141,24 +141,27 @@ class StaffOrder {
     this.updatedBy,
   });
 
-  Map<String, dynamic> toMap({bool useServerTimestamp = true}) => {
-        'orderId': orderId,
-        'shopId': shopId,
-        'staffId': staffId,
-        'staffName': staffName,
-        'createdDate': createdDate,
-        'createdTime': createdTime,
-        'createdAt': useServerTimestamp ? FieldValue.serverTimestamp() : Timestamp.fromDate(createdAt),
-        'products': products.map((p) => p.toMap()).toList(),
-        'totalTypes': totalTypes,
-        'totalQuantity': totalQuantity,
-        'generalRemarks': generalRemarks,
-        'status': status.name,
-        'whatsappDeliveryStatus': whatsappDeliveryStatus.name,
-        'whatsappMessageId': whatsappMessageId,
-        'updatedAt': useServerTimestamp ? FieldValue.serverTimestamp() : Timestamp.fromDate(updatedAt ?? createdAt),
-        'updatedBy': updatedBy,
-      };
+  Map<String, dynamic> toMap({bool useServerTimestamp = true}) {
+    final m = <String, dynamic>{
+      'orderId': orderId,
+      'shopId': shopId,
+      'staffId': staffId,
+      'staffName': staffName,
+      'createdDate': createdDate,
+      'createdTime': createdTime,
+      'createdAt': useServerTimestamp ? FieldValue.serverTimestamp() : Timestamp.fromDate(createdAt),
+      'products': products.map((p) => p.toMap()).toList(),
+      'totalTypes': totalTypes,
+      'totalQuantity': totalQuantity,
+      'generalRemarks': generalRemarks,
+      'status': status.name,
+      'whatsappDeliveryStatus': whatsappDeliveryStatus.name,
+      'updatedAt': useServerTimestamp ? FieldValue.serverTimestamp() : Timestamp.fromDate(updatedAt ?? createdAt),
+    };
+    if (whatsappMessageId != null) m['whatsappMessageId'] = whatsappMessageId;
+    if (updatedBy != null) m['updatedBy'] = updatedBy;
+    return m;
+  }
 
   factory StaffOrder.fromMap(String id, Map<String, dynamic> m) {
     final rawProducts = (m['products'] as List?) ?? [];

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
@@ -180,7 +181,9 @@ class AttendanceService {
   }) async {
     final now = DateTime.now();
     final today = _dateKey.format(now);
-    final docId = '${staffId}_$today';
+    final authUid = FirebaseAuth.instance.currentUser?.uid;
+    final effectiveStaffId = (authUid != null && authUid.isNotEmpty) ? authUid : staffId;
+    final docId = '${effectiveStaffId}_$today';
     final ref = FirebaseFirestore.instance
         .collection('shops')
         .doc(shopId)
@@ -188,7 +191,7 @@ class AttendanceService {
         .doc(docId);
 
     // Auto-reconcile previous forgotten check-outs first
-    await autoCloseForgottenCheckOut(shopId, staffId);
+    await autoCloseForgottenCheckOut(shopId, effectiveStaffId);
 
     DocumentSnapshot<Map<String, dynamic>>? snap;
     try {
@@ -224,7 +227,7 @@ class AttendanceService {
 
         final newRecord = AttendanceRecord(
           id: docId,
-          staffId: staffId,
+          staffId: effectiveStaffId,
           staffName: staffName,
           date: today,
           checkIn: now,
@@ -242,7 +245,7 @@ class AttendanceService {
         );
 
         await ref.set(newRecord.toMap(useServerTimestamp: true), SetOptions(merge: true));
-        await _cacheLocalAttendance(staffId, newRecord);
+        await _cacheLocalAttendance(effectiveStaffId, newRecord);
         return (isCheckIn: true, record: newRecord);
       } else {
         // Check-out calculation
@@ -453,14 +456,20 @@ class AttendanceService {
 
   /// Stream of pending approvals for Owner Dashboard
   Stream<List<AttendanceRecord>> streamPendingApprovals(String shopId) {
+    if (shopId.isEmpty) return const Stream.empty();
     return FirebaseFirestore.instance
         .collection('shops')
         .doc(shopId)
         .collection('attendance')
         .where('approvalStatus', isEqualTo: 'pending_approval')
         .snapshots()
-        .map((snap) =>
-            snap.docs.map((d) => AttendanceRecord.fromMap(d.id, d.data())).toList());
+        .map((snap) {
+      final list =
+          snap.docs.map((d) => AttendanceRecord.fromMap(d.id, d.data())).toList();
+      list.sort((a, b) => (b.checkIn ?? DateTime.fromMillisecondsSinceEpoch(0))
+          .compareTo(a.checkIn ?? DateTime.fromMillisecondsSinceEpoch(0)));
+      return list;
+    });
   }
 
   /// Owner: Approve an attendance record

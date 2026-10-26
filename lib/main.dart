@@ -846,20 +846,74 @@ class AppModule {
   const AppModule(this.label, this.icon, this.view);
 }
 
-const List<AppModule> _modules = [
-  AppModule('Home', Icons.dashboard_rounded, HomeView()),
-  AppModule('Sale / POS', Icons.point_of_sale_rounded, SaleView()),
-  AppModule('Items / Stock', Icons.inventory_2_rounded, ItemsView()),
-  AppModule('Parties', Icons.groups_rounded, PartiesView()),
-  AppModule(
-      'Purchase & Expense', Icons.shopping_bag_rounded, PurchaseExpenseView()),
-  AppModule('Staff & Attendance', Icons.badge_rounded, StaffView()),
-  AppModule('Cash & Bank', Icons.account_balance_rounded, CashBankView()),
-  AppModule('Reports', Icons.bar_chart_rounded, ReportsView()),
-  AppModule('Services / Repairs', Icons.build_circle_rounded, ServicesView()),
-  AppModule('Audit / Change History', Icons.history_rounded, AuditLogView()),
-  AppModule('Backup & Sync', Icons.cloud_sync_rounded, BackupSyncView()),
-  AppModule('Settings & Print', Icons.settings_rounded, SettingsView()),
+class NavCategory {
+  final String title;
+  final IconData icon;
+  final List<AppModule> items;
+  const NavCategory({
+    required this.title,
+    required this.icon,
+    required this.items,
+  });
+}
+
+List<NavCategory> _getNavCategories(String shopId) => [
+  const NavCategory(
+    title: 'Core POS & Operations',
+    icon: Icons.storefront_rounded,
+    items: [
+      AppModule('Home', Icons.dashboard_rounded, HomeView()),
+      AppModule('Sale / POS', Icons.point_of_sale_rounded, SaleView()),
+      AppModule('Items / Stock', Icons.inventory_2_rounded, ItemsView()),
+      AppModule('Services / Repairs', Icons.build_circle_rounded, ServicesView()),
+    ],
+  ),
+  const NavCategory(
+    title: 'Finance & Accounts',
+    icon: Icons.account_balance_wallet_rounded,
+    items: [
+      AppModule('Purchase & Expense', Icons.shopping_bag_rounded, PurchaseExpenseView()),
+      AppModule('Parties', Icons.groups_rounded, PartiesView()),
+      AppModule('Cash & Bank', Icons.account_balance_rounded, CashBankView()),
+      AppModule('Reports', Icons.bar_chart_rounded, ReportsView()),
+    ],
+  ),
+  NavCategory(
+    title: 'Staff Management',
+    icon: Icons.people_alt_rounded,
+    items: [
+      const AppModule('Staff & Attendance', Icons.badge_rounded, StaffView()),
+      AppModule('Attendance Approvals', Icons.fact_check_rounded,
+          OwnerAttendanceApprovalsView(shopId: shopId)),
+      AppModule('Attendance Dashboard', Icons.co_present_rounded,
+          OwnerAttendanceDashboard(shopId: shopId)),
+      const AppModule('Staff Live Tracking', Icons.monitor_heart_rounded, StaffTrackingView()),
+      const AppModule('Staff Logins', Icons.manage_accounts_rounded, StaffAccountsView()),
+      AppModule('Staff Orders', Icons.shopping_basket_rounded,
+          OwnerOrdersView(shopId: shopId)),
+    ],
+  ),
+  const NavCategory(
+    title: 'Customer Management',
+    icon: Icons.support_agent_rounded,
+    items: [
+      AppModule('Payment Reminders', Icons.notification_important_rounded,
+          RemindersScreen()),
+      AppModule('After-Sales Follow-ups', Icons.mark_chat_read_rounded,
+          FollowupsScreen()),
+    ],
+  ),
+  const NavCategory(
+    title: 'Settings & System',
+    icon: Icons.settings_suggest_rounded,
+    items: [
+      AppModule('App Updates & Releases', Icons.system_update_rounded,
+          AppUpdateManagementView()),
+      AppModule('Backup & Sync', Icons.cloud_sync_rounded, BackupSyncView()),
+      AppModule('Audit / Change History', Icons.history_rounded, AuditLogView()),
+      AppModule('Settings & Print', Icons.settings_rounded, SettingsView()),
+    ],
+  ),
 ];
 
 class AppShell extends StatefulWidget {
@@ -869,27 +923,95 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-
-final List<AppModule> _ownerExtra = [
-  const AppModule(
-      'Staff Live Tracking', Icons.monitor_heart_rounded, StaffTrackingView()),
-  const AppModule('Staff Logins', Icons.manage_accounts_rounded, StaffAccountsView()),
-  AppModule('Attendance Approvals', Icons.fact_check_rounded,
-      OwnerAttendanceApprovalsView(shopId: Db.setting('shop_id'))),
-  AppModule('Attendance Dashboard', Icons.co_present_rounded,
-      OwnerAttendanceDashboard(shopId: Db.setting('shop_id'))),
-  const AppModule('Payment Reminders', Icons.notification_important_rounded,
-      RemindersScreen()),
-  const AppModule('After-Sales Follow-ups', Icons.mark_chat_read_rounded,
-      FollowupsScreen()),
-  const AppModule('App Updates & Releases', Icons.system_update_rounded,
-      AppUpdateManagementView()),
-  AppModule('Staff Orders', Icons.shopping_basket_rounded,
-      OwnerOrdersView(shopId: Db.setting('shop_id'))),
-];
-
 class _AppShellState extends State<AppShell> {
   int _index = 0;
+  bool _sidebarCollapsed = false;
+  final Set<String> _expandedCategories = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _sidebarCollapsed = Db.setting('sidebar_collapsed', 'false') == 'true';
+    final saved = Db.settings.get('expanded_nav_categories');
+    if (saved is List && saved.isNotEmpty) {
+      _expandedCategories.addAll(saved.cast<String>());
+    } else {
+      _expandedCategories.addAll([
+        'Core POS & Operations',
+        'Finance & Accounts',
+        'Staff Management',
+        'Customer Management',
+        'Settings & System',
+      ]);
+    }
+  }
+
+  void _toggleCategory(String catTitle) {
+    setState(() {
+      if (_expandedCategories.contains(catTitle)) {
+        _expandedCategories.remove(catTitle);
+      } else {
+        _expandedCategories.add(catTitle);
+      }
+      Db.settings.put('expanded_nav_categories', _expandedCategories.toList());
+    });
+  }
+
+  void _toggleSidebar() {
+    setState(() {
+      _sidebarCollapsed = !_sidebarCollapsed;
+      Db.settings.put('sidebar_collapsed', _sidebarCollapsed ? 'true' : 'false');
+    });
+  }
+
+  Widget _buildPendingBadge(String shopId, {bool iconOnly = false}) {
+    return StreamBuilder<List<AttendanceRecord>>(
+      stream: AttendanceService.instance.streamPendingApprovals(shopId),
+      builder: (context, snap) {
+        final count = snap.data?.length ?? 0;
+        if (count == 0) return const SizedBox.shrink();
+        if (iconOnly) {
+          return Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: Colors.redAccent,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.red.withValues(alpha: 0.6),
+                  blurRadius: 4,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+          );
+        }
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.red.shade600,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.red.withValues(alpha: 0.4),
+                blurRadius: 4,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Text(
+            '$count',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -903,15 +1025,17 @@ class _AppShellState extends State<AppShell> {
         staffName: auth.name,
       );
     }
-    final mods = [..._modules, ..._ownerExtra];
+
+    final categories = _getNavCategories(auth.shopId);
+    final mods = categories.expand((c) => c.items).toList();
     final wide = MediaQuery.of(context).size.width >= 900;
-    if (wide) return _wideLayout(mods);
+    if (wide) return _wideLayout(mods, categories);
 
     final tabs = owner
-        ? [mods[0], mods[1], mods[2], _ownerExtra[0]]
+        ? [mods[0], mods[1], mods[2], mods[8]] // Home, Sale, Stock, Staff Tracking
         : mods.sublist(0, 4);
     final more = mods.where((m) => !tabs.contains(m)).toList();
-    final idx = _index > tabs.length ? tabs.length : _index;
+    final idx = _index >= tabs.length ? tabs.length : _index;
     return Scaffold(
       body: IndexedStack(
         index: idx,
@@ -927,7 +1051,7 @@ class _AppShellState extends State<AppShell> {
           for (final m in tabs)
             NavigationDestination(
                 icon: Icon(m.icon),
-                label: m == _ownerExtra[0] ? 'Live' : m.label.split(' ').first),
+                label: m.label.split(' ').first),
           const NavigationDestination(
               icon: Icon(Icons.apps_rounded), label: 'More'),
         ],
@@ -935,83 +1059,296 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  Widget _wideLayout(List<AppModule> mods) {
+  Widget _wideLayout(List<AppModule> mods, List<NavCategory> categories) {
     final safeIndex = _index < mods.length ? _index : 0;
+    final activeModule = mods[safeIndex];
     final auth = context.watch<AuthController>();
+
+    // Automatically expand the section containing the active page
+    for (final cat in categories) {
+      if (cat.items.any((m) => m.label == activeModule.label)) {
+        if (!_expandedCategories.contains(cat.title)) {
+          _expandedCategories.add(cat.title);
+          Db.settings.put('expanded_nav_categories', _expandedCategories.toList());
+        }
+        break;
+      }
+    }
+
     return Scaffold(
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            width: 240,
+          // Sidebar
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeInOut,
+            width: _sidebarCollapsed ? 68 : 256,
             child: ColoredBox(
-              color: const Color(0xFF0F172A),
+              color: const Color(0xFF0F172A), // Dark Slate
               child: Column(
                 children: [
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 22, horizontal: 18),
-                    child: Row(
-                      children: [
-                        Icon(Icons.storefront_rounded,
-                            color: Colors.lightBlueAccent, size: 28),
-                        SizedBox(width: 10),
-                        Text('TEKFIX ERP',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800)),
-                      ],
+                  // Sidebar Header
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      vertical: 16,
+                      horizontal: _sidebarCollapsed ? 10 : 16,
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 0, 18, 10),
-                    child: Row(children: [
-                      RoleBadge(owner: auth.isOwner),
-                      const SizedBox(width: 8),
-                      Expanded(
-                          child: Text(auth.name,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  color: Colors.white70, fontSize: 12))),
-                      IconButton(
-                        tooltip: 'Sign out',
-                        icon: const Icon(Icons.logout_rounded,
-                            color: Colors.white70, size: 18),
-                        onPressed: () =>
-                            context.read<AuthController>().signOut(),
-                      ),
-                    ]),
+                    child: _sidebarCollapsed
+                        ? Column(
+                            children: [
+                              IconButton(
+                                tooltip: 'Expand Sidebar (വികസിപ്പിക്കുക)',
+                                icon: const Icon(Icons.menu_rounded, color: Colors.lightBlueAccent, size: 22),
+                                onPressed: _toggleSidebar,
+                              ),
+                              const SizedBox(height: 6),
+                              IconButton(
+                                tooltip: 'Sign out',
+                                icon: const Icon(Icons.logout_rounded, color: Colors.white70, size: 18),
+                                onPressed: () => context.read<AuthController>().signOut(),
+                              ),
+                            ],
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.storefront_rounded,
+                                      color: Colors.lightBlueAccent, size: 26),
+                                  const SizedBox(width: 10),
+                                  const Expanded(
+                                    child: Text(
+                                      'TEKFIX ERP',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Collapse Sidebar (ചെറുതാക്കുക)',
+                                    icon: const Icon(Icons.menu_open_rounded, color: Colors.white70, size: 20),
+                                    onPressed: _toggleSidebar,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  RoleBadge(owner: auth.isOwner),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      auth.name,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Sign out',
+                                    icon: const Icon(Icons.logout_rounded, color: Colors.white70, size: 17),
+                                    onPressed: () => context.read<AuthController>().signOut(),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                   ),
                   const Divider(color: Colors.white12, height: 1),
+
+                  // Categorized Navigation List
                   Expanded(
-                    child: Material(
-                      color: Colors.transparent,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(8),
-                        itemCount: mods.length,
-                        itemBuilder: (context, i) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 2),
-                          child: ListTile(
-                            dense: true,
-                            selected: safeIndex == i,
-                            selectedTileColor: kPrimary,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10)),
-                            onTap: () => setState(() => _index = i),
-                            leading: Icon(mods[i].icon,
-                                color: Colors.white70, size: 20),
-                            title: Text(mods[i].label,
-                                style: const TextStyle(
-                                    color: Colors.white, fontSize: 13.5)),
-                          ),
-                        ),
-                      ),
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: categories.length,
+                      itemBuilder: (context, catIdx) {
+                        final cat = categories[catIdx];
+                        final isExpanded = _expandedCategories.contains(cat.title);
+
+                        if (_sidebarCollapsed) {
+                          // Collapsed mode: icon buttons with tooltips
+                          return Column(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                child: Tooltip(
+                                  message: cat.title,
+                                  waitDuration: const Duration(milliseconds: 200),
+                                  child: Container(
+                                    height: 1,
+                                    width: 32,
+                                    color: Colors.white12,
+                                  ),
+                                ),
+                              ),
+                              for (final item in cat.items) ...[
+                                Builder(builder: (context) {
+                                  final itemIdx = mods.indexOf(item);
+                                  final isSelected = safeIndex == itemIdx;
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 8),
+                                    child: Tooltip(
+                                      message: '${cat.title} • ${item.label}',
+                                      waitDuration: const Duration(milliseconds: 200),
+                                      child: Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          Material(
+                                            color: isSelected ? kPrimary : Colors.transparent,
+                                            borderRadius: BorderRadius.circular(10),
+                                            child: InkWell(
+                                              borderRadius: BorderRadius.circular(10),
+                                              onTap: () => setState(() => _index = itemIdx),
+                                              child: Container(
+                                                width: double.infinity,
+                                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                                child: Center(
+                                                  child: Icon(
+                                                    item.icon,
+                                                    size: 20,
+                                                    color: isSelected ? Colors.white : Colors.white70,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          if (item.label == 'Attendance Approvals')
+                                            Positioned(
+                                              top: 4,
+                                              right: 4,
+                                              child: _buildPendingBadge(auth.shopId, iconOnly: true),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                }),
+                              ],
+                            ],
+                          );
+                        }
+
+                        // Expanded mode: category accordion with chevron & smooth animation
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Category Header Button
+                            InkWell(
+                              onTap: () => _toggleCategory(cat.title),
+                              borderRadius: BorderRadius.circular(6),
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(14, 12, 10, 6),
+                                child: Row(
+                                  children: [
+                                    Icon(cat.icon, size: 14, color: Colors.blueGrey.shade400),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        cat.title.toUpperCase(),
+                                        style: TextStyle(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 0.8,
+                                          color: Colors.blueGrey.shade300,
+                                        ),
+                                      ),
+                                    ),
+                                    AnimatedRotation(
+                                      turns: isExpanded ? 0.25 : 0.0,
+                                      duration: const Duration(milliseconds: 200),
+                                      child: const Icon(
+                                        Icons.chevron_right_rounded,
+                                        color: Colors.blueGrey,
+                                        size: 16,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+
+                            // Accordion Body
+                            AnimatedCrossFade(
+                              crossFadeState: isExpanded
+                                  ? CrossFadeState.showFirst
+                                  : CrossFadeState.showSecond,
+                              duration: const Duration(milliseconds: 200),
+                              firstChild: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                child: Column(
+                                  children: [
+                                    for (final item in cat.items) ...[
+                                      Builder(builder: (context) {
+                                        final itemIdx = mods.indexOf(item);
+                                        final isSelected = safeIndex == itemIdx;
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(vertical: 1.5),
+                                          child: Material(
+                                            color: isSelected ? kPrimary : Colors.transparent,
+                                            borderRadius: BorderRadius.circular(8),
+                                            child: InkWell(
+                                              borderRadius: BorderRadius.circular(8),
+                                              onTap: () => setState(() => _index = itemIdx),
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 10,
+                                                  vertical: 8,
+                                                ),
+                                                child: Row(
+                                                  children: [
+                                                    Icon(
+                                                      item.icon,
+                                                      size: 18,
+                                                      color: isSelected
+                                                          ? Colors.white
+                                                          : Colors.white70,
+                                                    ),
+                                                    const SizedBox(width: 10),
+                                                    Expanded(
+                                                      child: Text(
+                                                        item.label,
+                                                        style: TextStyle(
+                                                          color: isSelected
+                                                              ? Colors.white
+                                                              : Colors.white70,
+                                                          fontSize: 13,
+                                                          fontWeight: isSelected
+                                                              ? FontWeight.w600
+                                                              : FontWeight.normal,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    if (item.label == 'Attendance Approvals')
+                                                      _buildPendingBadge(auth.shopId),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      }),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              secondChild: const SizedBox.shrink(),
+                            ),
+                            const SizedBox(height: 4),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ],
               ),
             ),
           ),
+
+          // Main View Content
           Expanded(
             child: ClipRect(
               child: KeyedSubtree(

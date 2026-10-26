@@ -2,21 +2,57 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{db}/documents {
 
-    function signedIn()  { return request.auth != null; }
+    function signedIn() { return request.auth != null; }
+
+    function shopDoc(shop) {
+      return /databases/$(db)/documents/shops/$(shop);
+    }
+
     function userDoc(shop) {
       return /databases/$(db)/documents/shops/$(shop)/users/$(request.auth.uid);
     }
-    function member(shop) {
-      return signedIn() && exists(userDoc(shop)) && get(userDoc(shop)).data.active == true;
+
+    function staffDoc(shop) {
+      return /databases/$(db)/documents/shops/$(shop)/staff/$(request.auth.uid);
     }
-    function owner(shop) { return member(shop) && get(userDoc(shop)).data.role == 'owner'; }
+
+    function isShopOwner(shop) {
+      return signedIn() && (
+        (exists(shopDoc(shop)) && get(shopDoc(shop)).data.ownerUid == request.auth.uid) ||
+        (exists(userDoc(shop)) && get(userDoc(shop)).data.get('role', '') == 'owner')
+      );
+    }
+
+    function isShopMember(shop) {
+      return signedIn() && (
+        isShopOwner(shop) ||
+        (exists(userDoc(shop)) &&
+         get(userDoc(shop)).data.get('active', true) != false &&
+         get(userDoc(shop)).data.get('approved', true) != false) ||
+        exists(staffDoc(shop))
+      );
+    }
+
+    function owner(shop) { return isShopOwner(shop); }
+    function member(shop) { return isShopMember(shop); }
+
+    function isStaffMatch(fieldVal) {
+      return signedIn() && (
+        fieldVal == request.auth.uid ||
+        (request.auth.token.email != null && fieldVal == request.auth.token.email)
+      );
+    }
+
     function changesOnly(keys) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
-    function ownRow() { return resource.data.staffId == request.auth.uid; }
+
+    function ownRow() {
+      return isStaffMatch(resource.data.staffId);
+    }
 
     match /shops/{shop} {
-      // first owner registers the shop (shop id must be unused)
+      // First owner registers the shop (shop id must be unused)
       allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
       allow read: if member(shop);
       allow update, delete: if false;
@@ -25,9 +61,9 @@ service cloud.firestore {
         allow read: if signedIn() && (uid == request.auth.uid || owner(shop));
         allow create: if signedIn() && (
           (uid == request.auth.uid && request.resource.data.role == 'owner' &&
-            getAfter(/databases/$(db)/documents/shops/$(shop)).data.ownerUid == request.auth.uid)
+            getAfter(shopDoc(shop)).data.ownerUid == request.auth.uid)
           || (owner(shop) && request.resource.data.role == 'staff'));
-        allow update: if owner(shop) && uid != request.auth.uid && changesOnly(['active', 'name']);
+        allow update: if owner(shop) && uid != request.auth.uid && changesOnly(['active', 'name', 'approved']);
         allow delete: if false;
       }
 
@@ -80,10 +116,10 @@ service cloud.firestore {
         allow create: if signedIn() && (
           owner(shop) || (
             member(shop) &&
-            request.resource.data.staffId == request.auth.uid &&
+            isStaffMatch(request.resource.data.staffId) &&
             request.resource.data.attendanceDocId != null &&
             exists(/databases/$(db)/documents/shops/$(shop)/attendance/$(request.resource.data.attendanceDocId)) &&
-            get(/databases/$(db)/documents/shops/$(shop)/attendance/$(request.resource.data.attendanceDocId)).data.checkOut == null
+            get(/databases/$(db)/documents/shops/$(shop)/attendance/$(request.resource.data.attendanceDocId)).data.get('checkOut', null) == null
           )
         );
         allow update: if owner(shop);
@@ -96,22 +132,25 @@ service cloud.firestore {
 
       // ---- attendance: staff can only create pending_approval and update check-out; approval & adjustments are owner-only
       match /attendance/{id} {
-        allow read: if owner(shop) || (signedIn() && resource.data.staffId == request.auth.uid);
+        allow read: if owner(shop) || (signedIn() && isStaffMatch(resource.data.staffId));
         allow create: if signedIn() && (
           owner(shop) || (
             member(shop) &&
-            request.resource.data.staffId == request.auth.uid &&
+            isStaffMatch(request.resource.data.staffId) &&
             request.resource.data.approvalStatus == 'pending_approval' &&
-            !request.resource.data.keys().hasAny([
-              'approvedBy', 'approvedAt', 'adjustedBy', 'adjustReason', 'originalCheckIn', 'originalCheckOut'
-            ])
+            request.resource.data.get('approvedBy', null) == null &&
+            request.resource.data.get('approvedAt', null) == null &&
+            request.resource.data.get('adjustedBy', null) == null &&
+            request.resource.data.get('adjustReason', null) == null &&
+            request.resource.data.get('originalCheckIn', null) == null &&
+            request.resource.data.get('originalCheckOut', null) == null
           )
         );
         allow update: if signedIn() && (
           owner(shop) || (
             member(shop) &&
-            resource.data.staffId == request.auth.uid &&
-            request.resource.data.staffId == request.auth.uid &&
+            isStaffMatch(resource.data.staffId) &&
+            isStaffMatch(request.resource.data.staffId) &&
             !request.resource.data.diff(resource.data).affectedKeys().hasAny([
               'approvalStatus', 'approvedBy', 'approvedAt', 'adjustedBy', 'adjustReason', 'originalCheckIn', 'originalCheckOut', 'staffId'
             ])
@@ -148,7 +187,7 @@ service cloud.firestore {
       }
       match /activity_logs/{id} {
         allow read: if owner(shop);
-        allow create: if member(shop) && request.resource.data.staffId == request.auth.uid;
+        allow create: if member(shop) && isStaffMatch(request.resource.data.staffId);
         allow update: if member(shop) && changesOnly(['_st']);   // log content is immutable
         allow delete: if false;
       }
@@ -168,15 +207,27 @@ service cloud.firestore {
 
       // ---- staff orders: unified ecosystem orders with RBAC
       match /orders/{id} {
-        allow read: if owner(shop) || (signedIn() && resource.data.staffId == request.auth.uid);
-        allow create: if signedIn() && (owner(shop) || (member(shop) && request.resource.data.staffId == request.auth.uid));
-        allow update: if owner(shop) || (member(shop) && resource.data.staffId == request.auth.uid && changesOnly(['whatsappDeliveryStatus', 'whatsappMessageId', 'updatedAt']));
+        allow read: if owner(shop) || (signedIn() && isStaffMatch(resource.data.staffId));
+        allow create: if signedIn() && (
+          owner(shop) || (
+            member(shop) &&
+            isStaffMatch(request.resource.data.staffId) &&
+            request.resource.data.shopId == shop &&
+            request.resource.data.status in ['submitted', 'pending'] &&
+            request.resource.data.get('updatedBy', null) == null
+          )
+        );
+        allow update: if owner(shop) || (
+          member(shop) &&
+          isStaffMatch(resource.data.staffId) &&
+          changesOnly(['whatsappDeliveryStatus', 'whatsappMessageId', 'updatedAt'])
+        );
         allow delete: if owner(shop);
       }
 
       // ---- sequential order counters
       match /counters/{id} {
-        allow read, write: if member(shop);
+        allow read, write: if signedIn() && (owner(shop) || member(shop));
       }
     }
 

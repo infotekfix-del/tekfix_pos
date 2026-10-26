@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../main.dart' show Db, kPrimary, toast;
@@ -594,10 +595,16 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
       // Generate sequential order ID
       final orderId = await OrderService.instance.generateOrderId(widget.shopId);
 
+      // Resolve effective staff ID (prefer current auth UID to guarantee rule matching)
+      final authUid = FirebaseAuth.instance.currentUser?.uid;
+      final effectiveStaffId = (authUid != null && authUid.isNotEmpty)
+          ? authUid
+          : (widget.staffId.isNotEmpty ? widget.staffId : Db.setting('staff_logged_id'));
+
       final order = StaffOrder(
         orderId: orderId,
         shopId: widget.shopId,
-        staffId: widget.staffId,
+        staffId: effectiveStaffId,
         staffName: widget.staffName,
         createdDate: dateStr,
         createdTime: timeStr,
@@ -1077,11 +1084,34 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
   }
 
   Widget _buildOrderHistoryTab() {
+    final authUid = FirebaseAuth.instance.currentUser?.uid;
+    final effectiveStaffId = (authUid != null && authUid.isNotEmpty)
+        ? authUid
+        : (widget.staffId.isNotEmpty ? widget.staffId : Db.setting('staff_logged_id'));
+
     return StreamBuilder<List<StaffOrder>>(
-      stream: OrderService.instance.streamStaffOrders(widget.shopId, widget.staffId),
+      stream: OrderService.instance.streamStaffOrders(widget.shopId, effectiveStaffId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline_rounded, color: Colors.red, size: 48),
+                  const SizedBox(height: 12),
+                  Text('ഓർഡറുകൾ ലോഡ് ചെയ്യുന്നതിൽ പിശക്: ${snapshot.error}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.red)),
+                ],
+              ),
+            ),
+          );
         }
 
         final orders = snapshot.data ?? [];

@@ -72,27 +72,35 @@ class OrderService {
 
   /// Real-time stream of orders submitted by a specific staff member
   Stream<List<StaffOrder>> streamStaffOrders(String shopId, String staffId) {
+    if (shopId.isEmpty) return const Stream.empty();
     return _db
         .collection('shops')
         .doc(shopId)
         .collection('orders')
         .where('staffId', isEqualTo: staffId)
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snap) =>
-            snap.docs.map((d) => StaffOrder.fromMap(d.id, d.data())).toList());
+        .map((snap) {
+      final list =
+          snap.docs.map((d) => StaffOrder.fromMap(d.id, d.data())).toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
   }
 
   /// Real-time stream of all staff orders across the company for Owner panel
   Stream<List<StaffOrder>> streamAllOrders(String shopId) {
+    if (shopId.isEmpty) return const Stream.empty();
     return _db
         .collection('shops')
         .doc(shopId)
         .collection('orders')
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snap) =>
-            snap.docs.map((d) => StaffOrder.fromMap(d.id, d.data())).toList());
+        .map((snap) {
+      final list =
+          snap.docs.map((d) => StaffOrder.fromMap(d.id, d.data())).toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
   }
 
   /// Owner: Update order status

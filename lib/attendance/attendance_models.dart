@@ -72,54 +72,54 @@ class AttendanceRecord {
   });
 
   Map<String, dynamic> toMap({bool useServerTimestamp = true}) {
-    return {
+    final m = <String, dynamic>{
       'id': id,
       'staffId': staffId,
       'staffName': staffName,
       'date': date,
-      'checkIn': checkIn != null
-          ? (useServerTimestamp && checkOut == null
-              ? FieldValue.serverTimestamp()
-              : Timestamp.fromDate(checkIn!))
-          : null,
-      'checkOut': checkOut != null
-          ? (useServerTimestamp
-              ? FieldValue.serverTimestamp()
-              : Timestamp.fromDate(checkOut!))
-          : null,
-      'checkInLat': checkInLat,
-      'checkInLng': checkInLng,
-      'checkInAccuracy': checkInAccuracy,
-      'checkInMocked': checkInMocked,
-      'checkInStatus': checkInStatus,
-      'checkOutLat': checkOutLat,
-      'checkOutLng': checkOutLng,
-      'checkOutAccuracy': checkOutAccuracy,
-      'checkOutMocked': checkOutMocked,
-      'checkOutStatus': checkOutStatus,
-      'syncedLate': syncedLate,
-      'manualEditNote': manualEditNote,
-      'updatedAt': useServerTimestamp
-          ? FieldValue.serverTimestamp()
-          : (updatedAt != null ? Timestamp.fromDate(updatedAt!) : null),
       'status': status,
       'dutyStage': dutyStage,
       'workedHours': workedHours > 0 ? workedHours : workingHours,
       'isLate': isLate,
       'approvalStatus': approvalStatus,
-      'approvedBy': approvedBy,
-      'approvedAt': approvedAt != null ? Timestamp.fromDate(approvedAt!) : null,
-      'originalCheckIn': originalCheckIn != null
-          ? Timestamp.fromDate(originalCheckIn!)
-          : null,
-      'originalCheckOut': originalCheckOut != null
-          ? Timestamp.fromDate(originalCheckOut!)
-          : null,
-      'adjustedBy': adjustedBy,
-      'adjustReason': adjustReason,
-      'shiftSalesSummary': shiftSalesSummary,
-      'cashRegister': cashRegister,
+      'checkInMocked': checkInMocked,
+      'checkInStatus': checkInStatus,
+      'syncedLate': syncedLate,
+      'updatedAt': useServerTimestamp
+          ? FieldValue.serverTimestamp()
+          : (updatedAt != null ? Timestamp.fromDate(updatedAt!) : FieldValue.serverTimestamp()),
     };
+
+    if (checkIn != null) {
+      m['checkIn'] = (useServerTimestamp && checkOut == null)
+          ? FieldValue.serverTimestamp()
+          : Timestamp.fromDate(checkIn!);
+    }
+    if (checkOut != null) {
+      m['checkOut'] = useServerTimestamp
+          ? FieldValue.serverTimestamp()
+          : Timestamp.fromDate(checkOut!);
+    }
+    if (checkInLat != null) m['checkInLat'] = checkInLat;
+    if (checkInLng != null) m['checkInLng'] = checkInLng;
+    if (checkInAccuracy != null) m['checkInAccuracy'] = checkInAccuracy;
+    if (checkOutLat != null) m['checkOutLat'] = checkOutLat;
+    if (checkOutLng != null) m['checkOutLng'] = checkOutLng;
+    if (checkOutAccuracy != null) m['checkOutAccuracy'] = checkOutAccuracy;
+    m['checkOutMocked'] = checkOutMocked;
+    if (checkOutStatus != null) m['checkOutStatus'] = checkOutStatus;
+    if (manualEditNote != null) m['manualEditNote'] = manualEditNote;
+
+    if (approvedBy != null) m['approvedBy'] = approvedBy;
+    if (approvedAt != null) m['approvedAt'] = Timestamp.fromDate(approvedAt!);
+    if (originalCheckIn != null) m['originalCheckIn'] = Timestamp.fromDate(originalCheckIn!);
+    if (originalCheckOut != null) m['originalCheckOut'] = Timestamp.fromDate(originalCheckOut!);
+    if (adjustedBy != null) m['adjustedBy'] = adjustedBy;
+    if (adjustReason != null) m['adjustReason'] = adjustReason;
+    if (shiftSalesSummary != null) m['shiftSalesSummary'] = shiftSalesSummary;
+    if (cashRegister != null) m['cashRegister'] = cashRegister;
+
+    return m;
   }
 
   factory AttendanceRecord.fromMap(String docId, Map<String, dynamic> m) {
