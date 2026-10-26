@@ -1,0 +1,26 @@
+{
+    "flutter":  {
+                    "platforms":  {
+                                      "android":  {
+                                                      "default":  {
+                                                                      "projectId":  "tekfix-45b38",
+                                                                      "appId":  "1:98579461691:android:06404e04285c5577268e1e",
+                                                                      "fileOutput":  "android/app/google-services.json"
+                                                                  }
+                                                  },
+                                      "dart":  {
+                                                   "lib/firebase_options.dart":  {
+                                                                                     "projectId":  "tekfix-45b38",
+                                                                                     "configurations":  {
+                                                                                                            "android":  "1:98579461691:android:06404e04285c5577268e1e",
+                                                                                                            "windows":  "1:98579461691:web:5b06f5af6ef340ee268e1e"
+                                                                                                        }
+                                                                                 }
+                                               }
+                                  }
+                },
+    "firestore":  {
+                      "indexes":  "firebase/firestore.indexes.json",
+                      "rules":  "firebase/firestore.rules"
+                  }
+}

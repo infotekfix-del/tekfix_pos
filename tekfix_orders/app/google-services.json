@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "98579461691",
+    "project_id": "tekfix-45b38",
+    "storage_bucket": "tekfix-45b38.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:98579461691:android:06404e04285c5577268e1e",
+        "android_client_info": {
+          "package_name": "com.tekfix.orders"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCybuasPLyEDNIjJktETBJjZa2QH-GzuHs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

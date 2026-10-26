@@ -1,0 +1,14 @@
+{
+  "name": "tekfix-orders-functions",
+  "description": "Cloud Functions for Tekfix Orders FCM Push Notifications",
+  "version": "1.0.0",
+  "engines": {
+    "node": "18"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "firebase-functions": "^4.5.0"
+  },
+  "private": true
+}

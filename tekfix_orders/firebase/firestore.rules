@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function isAdmin() {
+      return signedIn() && exists(userDoc()) && get(userDoc()).data.role == 'admin' && get(userDoc()).data.active == true;
+    }
+
+    function isStaff() {
+      return signedIn() && exists(userDoc()) && get(userDoc()).data.active == true;
+    }
+
+    // --- Users Collection ---
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow create: if signedIn();
+      allow update: if isAdmin() || (signedIn() && request.auth.uid == uid && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'active']));
+      allow delete: if isAdmin();
+    }
+
+    // --- Products Collection ---
+    match /products/{productId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    // --- Orders Collection ---
+    match /orders/{orderId} {
+      // Staff see only their own orders; Admin sees all
+      allow read: if isAdmin() || (isStaff() && resource.data.staffId == request.auth.uid);
+      // Staff can create their own order
+      allow create: if isStaff() && request.resource.data.staffId == request.auth.uid;
+      // Admin can update status; staff cannot modify submitted orders
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // --- Sequential ID Counters ---
+    match /counters/{counterId} {
+      allow read, write: if isStaff();
+    }
+
+    // --- App Settings ---
+    match /settings/{settingId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+  }
+}

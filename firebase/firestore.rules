@@ -1,0 +1,183 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+
+    function signedIn()  { return request.auth != null; }
+    function userDoc(shop) {
+      return /databases/$(db)/documents/shops/$(shop)/users/$(request.auth.uid);
+    }
+    function member(shop) {
+      return signedIn() && exists(userDoc(shop)) && get(userDoc(shop)).data.active == true;
+    }
+    function owner(shop) { return member(shop) && get(userDoc(shop)).data.role == 'owner'; }
+    function changesOnly(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+    function ownRow() { return resource.data.staffId == request.auth.uid; }
+
+    match /shops/{shop} {
+      // first owner registers the shop (shop id must be unused)
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow read: if member(shop);
+      allow update, delete: if false;
+
+      match /users/{uid} {
+        allow read: if signedIn() && (uid == request.auth.uid || owner(shop));
+        allow create: if signedIn() && (
+          (uid == request.auth.uid && request.resource.data.role == 'owner' &&
+            getAfter(/databases/$(db)/documents/shops/$(shop)).data.ownerUid == request.auth.uid)
+          || (owner(shop) && request.resource.data.role == 'staff'));
+        allow update: if owner(shop) && uid != request.auth.uid && changesOnly(['active', 'name']);
+        allow delete: if false;
+      }
+
+      match /meta/{doc} {
+        allow read: if member(shop);
+        allow create: if owner(shop);
+        allow update, delete: if false;
+      }
+
+      match /settings/{doc} {
+        allow read: if member(shop);
+        allow write: if owner(shop);
+      }
+
+      // ---- shared catalogue: staff may sell (stock / balance deltas only)
+      match /items/{id} {
+        allow read: if member(shop);
+        allow create: if owner(shop);
+        allow update: if owner(shop) || (member(shop) && changesOnly(['stock', '_u', '_by', '_st', 'updatedAt']));
+        allow delete: if false;
+      }
+
+      match /inventory/{id} {
+        allow read: if member(shop);
+        allow create, delete: if owner(shop);
+        allow update: if owner(shop) || (member(shop) && changesOnly(['stock', 'updatedAt']));
+      }
+
+      // Cost price is stored separately and is NEVER readable or writable by staff
+      match /inventory_private/{itemId} {
+        allow read, write: if owner(shop);
+      }
+
+      match /parties/{id} {
+        allow read: if member(shop);
+        allow create: if member(shop);
+        allow update: if owner(shop) || (member(shop) && changesOnly(['balance', '_u', '_by', '_st']));
+        allow delete: if false;
+      }
+
+      match /services/{id} {
+        allow read: if member(shop);
+        allow create, update: if member(shop);
+        allow delete: if false;
+      }
+
+      // ---- sales: staff can only create if currently checked in (attendance doc exists & checkOut is null)
+      match /sales/{id} {
+        allow read: if owner(shop) || (member(shop) && ownRow());
+        allow create: if signedIn() && (
+          owner(shop) || (
+            member(shop) &&
+            request.resource.data.staffId == request.auth.uid &&
+            request.resource.data.attendanceDocId != null &&
+            exists(/databases/$(db)/documents/shops/$(shop)/attendance/$(request.resource.data.attendanceDocId)) &&
+            get(/databases/$(db)/documents/shops/$(shop)/attendance/$(request.resource.data.attendanceDocId)).data.checkOut == null
+          )
+        );
+        allow update: if owner(shop);
+        allow delete: if false;
+      }
+
+      match /purchases/{id} { allow read, write: if owner(shop); }
+      match /expenses/{id}  { allow read, write: if owner(shop); }
+      match /staff/{id}     { allow read: if member(shop); allow write: if owner(shop); }
+
+      // ---- attendance: staff can only create pending_approval and update check-out; approval & adjustments are owner-only
+      match /attendance/{id} {
+        allow read: if owner(shop) || (signedIn() && resource.data.staffId == request.auth.uid);
+        allow create: if signedIn() && (
+          owner(shop) || (
+            member(shop) &&
+            request.resource.data.staffId == request.auth.uid &&
+            request.resource.data.approvalStatus == 'pending_approval' &&
+            !request.resource.data.keys().hasAny([
+              'approvedBy', 'approvedAt', 'adjustedBy', 'adjustReason', 'originalCheckIn', 'originalCheckOut'
+            ])
+          )
+        );
+        allow update: if signedIn() && (
+          owner(shop) || (
+            member(shop) &&
+            resource.data.staffId == request.auth.uid &&
+            request.resource.data.staffId == request.auth.uid &&
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'approvalStatus', 'approvedBy', 'approvedAt', 'adjustedBy', 'adjustReason', 'originalCheckIn', 'originalCheckOut', 'staffId'
+            ])
+          )
+        );
+        allow delete: if owner(shop);
+      }
+
+      // ---- append-only audit & approvals
+      match /attendanceAudit/{id} {
+        allow read: if owner(shop);
+        allow create: if owner(shop);
+        allow update, delete: if false;
+      }
+
+      match /priceApprovals/{id} {
+        allow read: if owner(shop);
+        allow create: if member(shop);
+        allow update, delete: if false;
+      }
+
+      match /stockMovements/{id} {
+        allow read: if owner(shop);
+        allow create: if member(shop);
+        allow update, delete: if false;
+      }
+
+      // ---- append-only streams written by every device, read by owner
+      match /stock_moves/{id} {
+        allow read: if owner(shop);
+        allow create: if member(shop);
+        allow update: if member(shop) && changesOnly(['_st', '_by', '_u']);
+        allow delete: if false;
+      }
+      match /activity_logs/{id} {
+        allow read: if owner(shop);
+        allow create: if member(shop) && request.resource.data.staffId == request.auth.uid;
+        allow update: if member(shop) && changesOnly(['_st']);   // log content is immutable
+        allow delete: if false;
+      }
+      match /bank_txns/{id} {
+        allow read: if owner(shop);
+        allow create: if member(shop);
+        allow update: if member(shop) && changesOnly(['_st', '_by']);
+        allow delete: if false;
+      }
+      // cash / bank balances: staff may only add deltas, never read
+      match /bank/{id} {
+        allow read: if owner(shop);
+        allow create: if member(shop) && request.resource.data.keys().hasOnly(['v', '_by', '_st']);
+        allow update: if member(shop) && changesOnly(['v', '_by', '_st']);
+        allow delete: if false;
+      }
+
+      // ---- staff orders: unified ecosystem orders with RBAC
+      match /orders/{id} {
+        allow read: if owner(shop) || (signedIn() && resource.data.staffId == request.auth.uid);
+        allow create: if signedIn() && (owner(shop) || (member(shop) && request.resource.data.staffId == request.auth.uid));
+        allow update: if owner(shop) || (member(shop) && resource.data.staffId == request.auth.uid && changesOnly(['whatsappDeliveryStatus', 'whatsappMessageId', 'updatedAt']));
+        allow delete: if owner(shop);
+      }
+
+      // ---- sequential order counters
+      match /counters/{id} {
+        allow read, write: if member(shop);
+      }
+    }
+  }
+}

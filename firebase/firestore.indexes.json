@@ -1,0 +1,13 @@
+﻿{
+  "indexes": [
+    {
+      "collectionGroup": "sales",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "staffId", "order": "ASCENDING" },
+        { "fieldPath": "_st", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

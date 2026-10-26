@@ -1,0 +1,10 @@
+CompileFlags:
+  Add:
+    - "-ID:/tekfix_pos/windows/flutter/ephemeral/cpp_client_wrapper/include"
+    - "-ID:/tekfix_pos/windows/flutter/ephemeral"
+    - "-ID:/tekfix_pos/windows/runner"
+    - "-ID:/tekfix_pos/windows"
+    - "-std=c++17"
+    - "-DNOMINMAX"
+    - "-DUNICODE"
+    - "-D_UNICODE"

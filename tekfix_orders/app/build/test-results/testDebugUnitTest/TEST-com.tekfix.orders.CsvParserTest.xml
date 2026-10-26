@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.tekfix.orders.CsvParserTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-26T13:17:16.543Z" hostname="TEKFIX" time="0.047">
+  <properties/>
+  <testcase name="testParseCsv_validAndDuplicates" classname="com.tekfix.orders.CsvParserTest" time="0.04"/>
+  <testcase name="testParseCsv_missingNameColumn" classname="com.tekfix.orders.CsvParserTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
