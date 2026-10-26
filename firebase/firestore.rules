@@ -179,5 +179,11 @@ service cloud.firestore {
         allow read, write: if member(shop);
       }
     }
+
+    // ---- Global In-App Auto-Update Configuration
+    match /app_config/{doc} {
+      allow read: if signedIn();
+      allow write: if signedIn();
+    }
   }
 }
