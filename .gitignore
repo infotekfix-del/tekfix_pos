@@ -1,48 +1,106 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
-.DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
+# ==============================================================================
+# Comprehensive .gitignore for TekFix Unified Ecosystem (Flutter + Android / Kotlin)
+# ==============================================================================
 
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
-.idea/
-
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
-
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
+# ------------------------------------------------------------------------------
+# 1. Build Outputs, Binaries, and Compilations
+# ------------------------------------------------------------------------------
+/build/
+**/build/
 .dart_tool/
-.flutter-plugins-dependencies
 .pub-cache/
 .pub/
-/build/
-/coverage/
+.flutter-plugins-dependencies
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+/android/app/debug/
+/android/app/profile/
+/android/app/release/
 
-# Symbolication related
+# Gradle Build Cache and Temporary Outputs
+.gradle/
+**/.gradle/
+**/build-cache/
+**/reports/
+**/test-results/
+*.class
+*.dex
+
+# Packaging & Release Artifacts
+*.apk
+*.ap_
+*.aab
+*.ipa
+*.exe
+*.dll
+*.lib
+*.obj
+*.exp
+*.pdb
+*.zip
+*.tar.gz
+*.7z
+*.rar
+
+# Symbolication & Obfuscation
 app.*.symbols
-
-# Obfuscation related
 app.*.map.json
 
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
-
-# Widget Preview related
+# ------------------------------------------------------------------------------
+# 2. IDE, Editor & Workspace Files
+# ------------------------------------------------------------------------------
+.idea/
+**/.idea/
+.vscode/
+**/.vscode/
+*.iml
+**/*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+.history/
+.atom/
+.buildlog/
 .widget_preview/
+
+# ------------------------------------------------------------------------------
+# 3. Sensitive Credentials, Keystores, Secrets & Environment
+# ------------------------------------------------------------------------------
+# Android Keystores & Signing Keys
+*.keystore
+*.jks
+*.key
+*.p12
+*.pem
+*.cer
+key.properties
+**/key.properties
+
+# Firebase Client Secrets & Local Configs
+google-services.json
+**/google-services.json
+GoogleService-Info.plist
+**/GoogleService-Info.plist
+
+# Local SDK and Environment Paths
+local.properties
+**/local.properties
+.env*
+!*.env.example
+
+# ------------------------------------------------------------------------------
+# 4. OS & Miscellaneous
+# ------------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.log
+*.swp
+*~

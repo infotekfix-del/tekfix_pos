@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="gcm_defaultSenderId" translatable="false">98579461691</string>
-    <string name="google_api_key" translatable="false">AIzaSyCybuasPLyEDNIjJktETBJjZa2QH-GzuHs</string>
-    <string name="google_app_id" translatable="false">1:98579461691:android:06404e04285c5577268e1e</string>
-    <string name="google_crash_reporting_api_key" translatable="false">AIzaSyCybuasPLyEDNIjJktETBJjZa2QH-GzuHs</string>
-    <string name="google_storage_bucket" translatable="false">tekfix-45b38.firebasestorage.app</string>
-    <string name="project_id" translatable="false">tekfix-45b38</string>
-</resources>
