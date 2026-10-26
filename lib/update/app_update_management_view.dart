@@ -71,13 +71,13 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView> {
         _releaseNotesController.text = (data['release_notes'] ?? '').toString();
         _isMandatory = data['is_mandatory'] ?? true;
       } else {
-        // Pre-fill with v1.0.1 release defaults
-        _versionController.text = '1.0.1';
+        // Pre-fill with v1.0.2 release defaults
+        _versionController.text = '1.0.2';
         _buildNumberController.text = '2';
         _apkUrlController.text =
-            'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.1/app-release.apk';
+            'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.2/app-release.apk';
         _releaseNotesController.text =
-            '• Unified TekFix Orders Module (പുതിയ ഓർഡർ സിസ്റ്റം)\n• WhatsApp Group Order Dispatch\n• Real-Time Cloud Sync & Performance Improvements';
+            '• Modern Staff Portal UI (Attendance, Home Dashboard, and Orders Catalog)\n• Real-Time Shift Overview & Live Working Timer\n• Quick Access 2x2 Action Grid & Floating Navigation\n• Dynamic Stock Health Badges & Incremental Cart Counter\n• Mobile Order Placement & Attendance Approval Permissions Fixed';
         _isMandatory = true;
       }
     } catch (e) {
