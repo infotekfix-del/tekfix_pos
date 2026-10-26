@@ -62,18 +62,22 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView> {
 
       if (doc.exists && doc.data() != null) {
         final data = doc.data()!;
-        _versionController.text = (data['latest_version'] ?? '1.0.0').toString();
+        _versionController.text = (data['latest_version'] ?? '1.0.1').toString();
         _buildNumberController.text =
-            (data['latest_build_number'] ?? '1').toString();
-        _apkUrlController.text = (data['apk_url'] ?? '').toString();
+            (data['latest_build_number'] ?? '2').toString();
+        _apkUrlController.text = (data['apk_url'] != null && data['apk_url'].toString().isNotEmpty)
+            ? data['apk_url'].toString()
+            : 'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.1/app-release.apk';
         _releaseNotesController.text = (data['release_notes'] ?? '').toString();
         _isMandatory = data['is_mandatory'] ?? true;
       } else {
-        // Pre-fill with sensible defaults
+        // Pre-fill with v1.0.1 release defaults
         _versionController.text = '1.0.1';
         _buildNumberController.text = '2';
+        _apkUrlController.text =
+            'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.1/app-release.apk';
         _releaseNotesController.text =
-            '• Bug fixes & performance improvements\n• Attendance Geofencing updates\n• Seamless Auto-Updates';
+            '• Unified TekFix Orders Module (പുതിയ ഓർഡർ സിസ്റ്റം)\n• WhatsApp Group Order Dispatch\n• Real-Time Cloud Sync & Performance Improvements';
         _isMandatory = true;
       }
     } catch (e) {
