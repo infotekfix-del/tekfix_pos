@@ -60,3 +60,9 @@
 # URL Launcher
 -keep class io.flutter.plugins.urllauncher.** { *; }
 -dontwarn io.flutter.plugins.urllauncher.**
+
+# File Picker & Apache Tika
+-keep class com.mr.flutter.plugin.filepicker.** { *; }
+-dontwarn com.mr.flutter.plugin.filepicker.**
+-dontwarn org.apache.tika.**
+-dontwarn javax.xml.stream.**
