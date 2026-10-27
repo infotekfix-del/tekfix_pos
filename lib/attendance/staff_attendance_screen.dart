@@ -37,9 +37,18 @@ class StaffAttendanceScreen extends StatefulWidget {
 
 class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
   int _activeTab = 0;
+  final Set<int> _visitedTabs = {0};
   bool _loading = false;
   final _timeFormat = DateFormat('hh:mm a');
   final _dateFormat = DateFormat('EEEE, dd MMMM yyyy');
+
+  void _switchTab(int idx) {
+    if (_activeTab == idx && _visitedTabs.contains(idx)) return;
+    setState(() {
+      _activeTab = idx;
+      _visitedTabs.add(idx);
+    });
+  }
 
   late Stream<AttendanceRecord?> _attendanceStream;
   late Stream<int> _unreadCountStream;
@@ -214,9 +223,7 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
         );
 
         // Optimistic access: auto-switch immediately to POS Sales Dashboard!
-        setState(() {
-          _activeTab = 3;
-        });
+        _switchTab(3);
       } catch (e) {
         if (mounted) _showErrorDialog(e);
       } finally {
@@ -465,28 +472,36 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
         index: _activeTab,
         children: [
           _buildAttendanceScaffold(context),
-          StaffRepairsScreen(
-            shopId: widget.shopId,
-            staffId: widget.staffId,
-            staffName: widget.staffName,
-          ),
-          StaffNotificationsScreen(
-            shopId: widget.shopId,
-            staffId: widget.staffId,
-            staffName: widget.staffName,
-            onNavigateTab: (targetTab) => setState(() => _activeTab = targetTab),
-          ),
-          StaffPosScreen(
-            shopId: widget.shopId,
-            staffId: widget.staffId,
-            staffName: widget.staffName,
-            onNavigateToAttendance: () => setState(() => _activeTab = 0),
-          ),
-          StaffOrdersScreen(
-            shopId: widget.shopId,
-            staffId: widget.staffId,
-            staffName: widget.staffName,
-          ),
+          _visitedTabs.contains(1)
+              ? StaffRepairsScreen(
+                  shopId: widget.shopId,
+                  staffId: widget.staffId,
+                  staffName: widget.staffName,
+                )
+              : const SizedBox.shrink(),
+          _visitedTabs.contains(2)
+              ? StaffNotificationsScreen(
+                  shopId: widget.shopId,
+                  staffId: widget.staffId,
+                  staffName: widget.staffName,
+                  onNavigateTab: _switchTab,
+                )
+              : const SizedBox.shrink(),
+          _visitedTabs.contains(3)
+              ? StaffPosScreen(
+                  shopId: widget.shopId,
+                  staffId: widget.staffId,
+                  staffName: widget.staffName,
+                  onNavigateToAttendance: () => _switchTab(0),
+                )
+              : const SizedBox.shrink(),
+          _visitedTabs.contains(4)
+              ? StaffOrdersScreen(
+                  shopId: widget.shopId,
+                  staffId: widget.staffId,
+                  staffName: widget.staffName,
+                )
+              : const SizedBox.shrink(),
         ],
       ),
       bottomNavigationBar: _buildFloatingBottomNav(),
@@ -529,7 +544,7 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                   behavior: HitTestBehavior.opaque,
                   onTap: () {
                     HapticFeedback.selectionClick();
-                    setState(() => _activeTab = idx);
+                    _switchTab(idx);
                   },
                   child: Center(
                     child: AnimatedContainer(
@@ -831,7 +846,7 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                         shopId: widget.shopId,
                         staffId: widget.staffId,
                         staffName: widget.staffName,
-                        onNavigateTab: (idx) => setState(() => _activeTab = idx),
+                        onNavigateTab: _switchTab,
                       );
                     },
                   );
@@ -1408,7 +1423,7 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                 badgeText: 'Instant',
                 onTap: () {
                   HapticFeedback.lightImpact();
-                  setState(() => _activeTab = 3);
+                  _switchTab(3);
                 },
               ),
             ),
@@ -1423,7 +1438,7 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                 badgeText: 'Repairs',
                 onTap: () {
                   HapticFeedback.lightImpact();
-                  setState(() => _activeTab = 1);
+                  _switchTab(1);
                 },
               ),
             ),
@@ -1442,7 +1457,7 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                 badgeText: 'Catalog',
                 onTap: () {
                   HapticFeedback.lightImpact();
-                  setState(() => _activeTab = 4);
+                  _switchTab(4);
                 },
               ),
             ),
@@ -1635,15 +1650,35 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
               );
             }
 
-            return ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: list.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final r = list[index];
-                return _buildHistoryCard(r);
-              },
+            final displayList = list.take(14).toList();
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: displayList.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final r = displayList[index];
+                    return _buildHistoryCard(r);
+                  },
+                ),
+                if (list.length > 14) ...[
+                  const SizedBox(height: 8),
+                  const Center(
+                    child: Text(
+                      'കഴിഞ്ഞ 14 ദിവസങ്ങളിലെ വിവരങ്ങൾ കാണിക്കുന്നു (Showing recent 14 records)',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: TekColors.textMuted,
+                        fontFamilyFallback: TekTypography.malayalamFallback,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             );
           },
         ),

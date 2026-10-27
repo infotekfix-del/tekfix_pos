@@ -2,9 +2,11 @@
 // TEKFIX ERP & POS  —  single-file Flutter app (Hive storage)  •  v2
 // (Dark-theme fixed: all text/background colors now follow the active theme)
 // =============================================================================
+import 'dart:async';
+import 'dart:convert';
+import 'dart:ui';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -373,63 +375,175 @@ Future<bool> guardedDelete(BuildContext c, String msg,
 // -----------------------------------------------------------------------------
 // APP ENTRY
 // -----------------------------------------------------------------------------
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  // Firebase is optional — the app is offline-first and must start without it.
+Future<void> _openBoxWithRecovery(String b) async {
   try {
-    await Firebase.initializeApp(
-            options: DefaultFirebaseOptions.currentPlatform)
-        .timeout(const Duration(seconds: 2));
-    // must run before the first Firestore call: local cache for offline use
-    FirebaseFirestore.instance.settings = const Settings(
-        persistenceEnabled: true, cacheSizeBytes: 100 * 1024 * 1024);
+    if (Hive.isBoxOpen(b)) return;
+    await Hive.openBox(b);
   } catch (e) {
-    debugPrint('Firebase init skipped: $e');
-  }
-  await Hive.initFlutter();
-  if (!Hive.isAdapterRegistered(42)) {
-    Hive.registerAdapter(TimestampAdapter());
-  }
-  for (final b in allBoxes) {
+    debugPrint('[TekFix Startup] Corrupted/unopenable Hive box detected: $b ($e). Recovering...');
     try {
+      await Hive.deleteBoxFromDisk(b);
+      debugPrint('[TekFix Startup] Cleared corrupted box file from disk: $b');
       await Hive.openBox(b);
-    } catch (e) {
-      debugPrint('Hive openBox error on $b: $e');
-      try {
-        await Future.delayed(const Duration(milliseconds: 100));
-        await Hive.openBox(b);
-      } catch (_) {}
+      debugPrint('[TekFix Startup] Reopened fresh box: $b');
+    } catch (e2) {
+      debugPrint('[TekFix Startup] Fatal: Unable to recreate box $b: $e2');
     }
   }
-  await SyncEngine.instance.openBoxes();
-  const defaults = <String, dynamic>{
-    'shop_name': 'TEKFIX',
-    'shop_address': 'Irumbuzhi, Kerala 676509',
-    'shop_phone': '7034093101',
-    'shop_email': 'INFOTEKFIX@GMAIL.COM',
-    'admin_pass': 'admin123',
-    'active_user': 'Admin',
-    'invoice_prefix': 'INV',
-    'gst_rate': '0',
-    'gstin': '',
-    'invoice_footer': 'Thank you for your business!',
-  };
-  final s = Hive.box(boxSettings);
-  for (final e in defaults.entries) {
-    if (!s.containsKey(e.key)) await s.put(e.key, e.value);
-  }
-  await AuthController.instance.init();
-  ErrorWidget.builder = (details) => Material(
-        color: Colors.white,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: SelectableText(
-            '${details.exception}\n\n${details.stack}',
-            style: const TextStyle(color: Colors.red, fontSize: 12),
-          ),
-        ),
+}
+
+Future<void> main() async {
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+
+    // 1. Hook FlutterError.onError so errors show on screen / in logs instead of crashing
+    FlutterError.onError = (FlutterErrorDetails details) {
+      FlutterError.presentError(details);
+      debugPrint('[TekFix FlutterError] ${details.exceptionAsString()}');
+      debugPrint('[TekFix FlutterError Stack] ${details.stack}');
+    };
+
+    // PlatformDispatcher error hook for uncaught async platform errors
+    PlatformDispatcher.instance.onError = (error, stack) {
+      debugPrint('[TekFix PlatformError] $error');
+      debugPrint('[TekFix PlatformError Stack] $stack');
+      return true; // prevent app process termination
+    };
+
+    debugPrint('[TekFix Startup] 1. Flutter engine binding initialized');
+
+    // 2. Firebase Initialization (Optional, offline-first app starts even without it)
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      ).timeout(const Duration(seconds: 3));
+
+      FirebaseFirestore.instance.settings = const Settings(
+        persistenceEnabled: true,
+        cacheSizeBytes: 100 * 1024 * 1024,
       );
-  runApp(const TekFixApp());
+      debugPrint('[TekFix Startup] 2. Firebase initialized with offline persistence');
+    } catch (e) {
+      debugPrint('[TekFix Startup] 2. Firebase init skipped or failed: $e');
+    }
+
+    // 3. Hive Initialization with Corrupt Box Recovery
+    debugPrint('[TekFix Startup] 3. Initializing Hive storage...');
+    try {
+      await Hive.initFlutter();
+      if (!Hive.isAdapterRegistered(42)) {
+        Hive.registerAdapter(TimestampAdapter());
+      }
+    } catch (e) {
+      debugPrint('[TekFix Startup] Hive.initFlutter warning: $e');
+    }
+
+    final allTargetBoxes = [
+      ...allBoxes,
+      'tek_sync_meta',
+      'tek_sync_outbox',
+    ];
+
+    for (final b in allTargetBoxes) {
+      await _openBoxWithRecovery(b);
+    }
+
+    try {
+      await SyncEngine.instance.openBoxes();
+    } catch (e) {
+      debugPrint('[TekFix Startup] SyncEngine.openBoxes error: $e');
+    }
+
+    debugPrint('[TekFix Startup] 3. Hive initialized & all boxes verified');
+
+    // 4. Default Settings Seeding
+    const defaults = <String, dynamic>{
+      'shop_name': 'TEKFIX',
+      'shop_address': 'Irumbuzhi, Kerala 676509',
+      'shop_phone': '7034093101',
+      'shop_email': 'INFOTEKFIX@GMAIL.COM',
+      'admin_pass': 'admin123',
+      'active_user': 'Admin',
+      'invoice_prefix': 'INV',
+      'gst_rate': '0',
+      'gstin': '',
+      'invoice_footer': 'Thank you for your business!',
+    };
+    try {
+      if (Hive.isBoxOpen(boxSettings)) {
+        final s = Hive.box(boxSettings);
+        for (final e in defaults.entries) {
+          if (!s.containsKey(e.key)) await s.put(e.key, e.value);
+        }
+      }
+    } catch (e) {
+      debugPrint('[TekFix Startup] Settings seeding warning: $e');
+    }
+
+    // 5. AuthController Init
+    debugPrint('[TekFix Startup] 4. Initializing AuthController...');
+    try {
+      await AuthController.instance.init().timeout(const Duration(seconds: 4));
+    } catch (e) {
+      debugPrint('[TekFix Startup] AuthController init warning: $e');
+    }
+
+    // 6. Custom on-screen error builder
+    ErrorWidget.builder = (details) => Material(
+          color: const Color(0xFF0F172A),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Icon(Icons.error_outline_rounded, size: 52, color: Colors.amberAccent),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'ഒരു തകരാർ സംഭവിച്ചു (An Error Occurred)',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E293B),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white24),
+                      ),
+                      child: SingleChildScrollView(
+                        child: SelectableText(
+                          '${details.exception}\n\n${details.stack}',
+                          style: const TextStyle(color: Colors.white70, fontSize: 11, fontFamily: 'monospace'),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('ആപ്പ് വീണ്ടും തുറക്കുക (Reload App)'),
+                    onPressed: () => runApp(const TekFixApp()),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+    debugPrint('[TekFix Startup] 5. Launching TekFixApp UI...');
+    runApp(const TekFixApp());
+  }, (error, stack) {
+    debugPrint('[TekFix FATAL Uncaught Zone Error] $error');
+    debugPrint('[TekFix FATAL StackTrace] $stack');
+  });
 }
 
 ThemeData _buildTheme([Brightness b = Brightness.light]) {

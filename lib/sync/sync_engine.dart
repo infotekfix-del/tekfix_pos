@@ -17,7 +17,8 @@ import '../main.dart'
         boxStaff,
         boxServices,
         boxStockMoves,
-        boxAudit;
+        boxAudit,
+        boxBank;
 
 enum SyncState { synced, syncing, offline, error }
 
@@ -126,9 +127,26 @@ class SyncEngine extends ChangeNotifier {
   /// existing backup/restore (allBoxes) is untouched.
   Future<void> openBoxes() async {
     if (_boxesOpen) return;
-    _meta = await Hive.openBox('tek_sync_meta');
-    _outbox = await Hive.openBox('tek_sync_outbox');
-    _boxesOpen = true;
+    try {
+      _meta = Hive.isBoxOpen('tek_sync_meta')
+          ? Hive.box('tek_sync_meta')
+          : await Hive.openBox('tek_sync_meta');
+      _outbox = Hive.isBoxOpen('tek_sync_outbox')
+          ? Hive.box('tek_sync_outbox')
+          : await Hive.openBox('tek_sync_outbox');
+      _boxesOpen = true;
+    } catch (e) {
+      debugPrint('[TekFix SyncEngine] openBoxes error ($e). Auto-recovering sync boxes...');
+      try {
+        await Hive.deleteBoxFromDisk('tek_sync_meta');
+        await Hive.deleteBoxFromDisk('tek_sync_outbox');
+        _meta = await Hive.openBox('tek_sync_meta');
+        _outbox = await Hive.openBox('tek_sync_outbox');
+        _boxesOpen = true;
+      } catch (e2) {
+        debugPrint('[TekFix SyncEngine] Fatal: could not recover sync boxes: $e2');
+      }
+    }
   }
 
   // ---------------------------------------------------------------- lifecycle
@@ -155,7 +173,7 @@ class SyncEngine extends ChangeNotifier {
         _refreshState();
       }
     });
-    _buildIndex();
+    await _buildIndex();
     _watchLocal();
     _refreshState();
     await _begin();
@@ -258,8 +276,9 @@ class SyncEngine extends ChangeNotifier {
   }
 
   // ------------------------------------------------------------ local -> outbox
-  void _buildIndex() {
+  Future<void> _buildIndex() async {
     for (final c in _cols) {
+      if (!Hive.isBoxOpen(c.box)) continue;
       final box = Hive.box(c.box);
       for (final k in box.keys) {
         final rec = _asMap(box.get(k));
@@ -273,18 +292,24 @@ class SyncEngine extends ChangeNotifier {
         final h = _hash(rec);
         _hashes[kk] = h;
         if (_meta.get('ph:$kk') != h) {
-          _enqueue(c.box, uid, 'upsert'); // edited while engine was off
+          _enqueueRaw(c.box, uid, 'upsert'); // edited while engine was off
         }
       }
+      // Yield to Flutter event loop so frame rendering and touch events are processed!
+      await Future.delayed(Duration.zero);
     }
     // bank counters + txn log
-    for (final k in const ['cash_in_hand', 'bank_balance']) {
-      if (_meta.containsKey('ls:bank|$k') &&
-          _num(Db.bank.get(k)) != _num(_meta.get('ls:bank|$k'))) {
-        _enqueue('bank', k, 'upsert');
+    if (Hive.isBoxOpen(boxBank)) {
+      for (final k in const ['cash_in_hand', 'bank_balance']) {
+        if (_meta.containsKey('ls:bank|$k') &&
+            _num(Db.bank.get(k)) != _num(_meta.get('ls:bank|$k'))) {
+          _enqueueRaw('bank', k, 'upsert');
+        }
       }
+      _stampTxnLog();
     }
-    _stampTxnLog();
+    _schedule();
+    _refreshState();
   }
 
   void _stampLegacyAndQueue() {
@@ -377,11 +402,15 @@ class SyncEngine extends ChangeNotifier {
     if (changed) Db.bank.put('txn_log', out);
   }
 
-  void _enqueue(String box, String id, String op) {
+  void _enqueueRaw(String box, String id, String op) {
     final k = '$box|$id';
     final prev = _outbox.get(k);
     if (prev is Map && prev['op'] == 'delete' && op == 'upsert') return;
     _outbox.put(k, {'op': op, 't': DateTime.now().millisecondsSinceEpoch});
+  }
+
+  void _enqueue(String box, String id, String op) {
+    _enqueueRaw(box, id, op);
     _schedule();
     _refreshState();
   }
@@ -502,6 +531,8 @@ class SyncEngine extends ChangeNotifier {
           // keep entries that were edited again while the batch was in flight
           if (_asMap(_outbox.get(k))['t'] == seen[k]) await _outbox.delete(k);
         }
+        // Yield 25ms to let Flutter process user input and render frames smoothly
+        await Future.delayed(const Duration(milliseconds: 25));
       }
       lastSyncAt = DateTime.now();
       lastError = null;

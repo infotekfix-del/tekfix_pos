@@ -52,6 +52,7 @@ class AppUpdateService {
 
   bool _isChecking = false;
   bool _dialogShowing = false;
+  DateTime? _lastAutoCheck;
 
   /// Helper to compare semantic versions (e.g. "1.0.1" vs "1.0.0").
   static bool isVersionGreater(String remote, String current) {
@@ -101,10 +102,12 @@ class AppUpdateService {
       }
 
       // 2. Fetch version config from Firestore (collection: app_config, doc: version)
+      // Guarded with a 4-second timeout to prevent UI hang on slow/offline connections.
       final doc = await FirebaseFirestore.instance
           .collection('app_config')
           .doc('version')
-          .get();
+          .get()
+          .timeout(const Duration(seconds: 4));
 
       if (!doc.exists || doc.data() == null) {
         debugPrint('AppUpdateService: No app_config/version document found in Firestore.');
@@ -139,30 +142,41 @@ class AppUpdateService {
   /// Convenience method to check and automatically display update dialog on app launch.
   Future<void> checkForUpdate(BuildContext context,
       {bool autoShowDialog = true, bool showToastIfLatest = false}) async {
+    // Throttle automatic checks so repeated widget mounts do not trigger duplicate queries
+    if (autoShowDialog) {
+      final now = DateTime.now();
+      if (_lastAutoCheck != null && now.difference(_lastAutoCheck!).inMinutes < 15) {
+        return;
+      }
+      _lastAutoCheck = now;
+    }
+
     if (_isChecking || _dialogShowing) return;
     _isChecking = true;
 
     try {
       final info = await checkUpdateAvailable();
-      _isChecking = false;
 
       if (!context.mounted) return;
 
       if (info != null) {
         if (autoShowDialog) {
           _dialogShowing = true;
-          final packageInfo = await PackageInfo.fromPlatform();
-          if (!context.mounted) return;
+          try {
+            final packageInfo = await PackageInfo.fromPlatform();
+            if (!context.mounted) return;
 
-          await showDialog(
-            context: context,
-            barrierDismissible: !info.isMandatory,
-            builder: (ctx) => AppUpdateDialog(
-              updateInfo: info,
-              currentVersion: '${packageInfo.version}+${packageInfo.buildNumber}',
-            ),
-          );
-          _dialogShowing = false;
+            await showDialog(
+              context: context,
+              barrierDismissible: !info.isMandatory,
+              builder: (ctx) => AppUpdateDialog(
+                updateInfo: info,
+                currentVersion: '${packageInfo.version}+${packageInfo.buildNumber}',
+              ),
+            );
+          } finally {
+            _dialogShowing = false;
+          }
         }
       } else if (showToastIfLatest) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -179,8 +193,9 @@ class AppUpdateService {
         );
       }
     } catch (e) {
-      _isChecking = false;
       debugPrint('AppUpdateService: check error: $e');
+    } finally {
+      _isChecking = false;
     }
   }
 }
