@@ -345,28 +345,59 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       // Brand Header & Avatar
                       Container(
-                        width: 72,
-                        height: 72,
+                        width: 76,
+                        height: 76,
                         decoration: BoxDecoration(
-                          gradient: TekColors.primaryGradient,
-                          borderRadius: BorderRadius.circular(22),
-                          boxShadow: TekColors.primaryGlow,
+                          gradient: TekColors.heroGradient,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: TekColors.electricCyan.withValues(alpha: 0.4),
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: TekColors.primaryBlue.withValues(alpha: 0.35),
+                              blurRadius: 20,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
                         ),
                         child: const Icon(
                           Icons.bolt_rounded,
-                          size: 42,
+                          size: 44,
                           color: Colors.white,
                         ),
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'TEKFIX DIGITAL',
+                        'TEKFIX ERP',
                         style: TekTypography.titleLarge.copyWith(
-                          fontSize: 24,
-                          letterSpacing: 1.2,
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.0,
+                          color: TekColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Tekfix Digital • Irumbuzhi, Kerala',
+                        style: TextStyle(
+                          color: TekColors.electricCyan,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.4,
                         ),
                       ),
                       const SizedBox(height: 4),
+                      const Text(
+                        '"Smarter Business. Greater Growth."',
+                        style: TextStyle(
+                          color: TekColors.textSecondary,
+                          fontSize: 12.5,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       Text(
                         _mode == 1
                             ? 'ജീവനക്കാരുടെ പോർട്ടൽ • Staff Portal'
@@ -376,10 +407,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         textAlign: TextAlign.center,
                         style: TekTypography.bodySecondary.copyWith(
                           color: TekColors.textSecondary,
-                          fontSize: 13,
+                          fontSize: 12.5,
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 22),
 
                       // Mode Switcher (Staff vs Owner)
                       Container(

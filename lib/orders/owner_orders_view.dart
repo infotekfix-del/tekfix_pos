@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../auth/auth_controller.dart';
 import '../main.dart' show Db, kPrimary, toast;
+import '../theme/tek_tokens.dart';
+import '../ui/tek_feedback.dart';
 import 'order_models.dart';
 import 'order_service.dart';
 
@@ -40,11 +42,11 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
         ownerName: ownerName,
       );
       if (mounted) {
-        toast(context, '${order.orderId} സ്റ്റാറ്റസ് ${newStatus.label} ആക്കി മാറ്റി');
+        TekFeedback.showSuccess(context, '${order.orderId} സ്റ്റാറ്റസ് ${newStatus.label} ആക്കി മാറ്റി');
       }
     } catch (e) {
       if (mounted) {
-        toast(context, 'സ്റ്റാറ്റസ് മാറ്റാൻ സാധിച്ചില്ല: $e', error: true);
+        TekFeedback.showError(context, 'സ്റ്റാറ്റസ് മാറ്റാൻ സാധിച്ചില്ല: $e');
       }
     }
   }
@@ -581,14 +583,30 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
                         itemBuilder: (ctx, i) {
                           final o = filtered[i];
-                          return Card(
-                            elevation: 1,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              side: BorderSide(color: Colors.grey.shade300),
+                          final isPending = o.status == StaffOrderStatus.pending ||
+                              o.status == StaffOrderStatus.submitted;
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: TekColors.cardBg,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: isPending
+                                    ? TekColors.warning.withValues(alpha: 0.45)
+                                    : TekColors.border,
+                                width: isPending ? 1.4 : 1.0,
+                              ),
+                              boxShadow: isPending
+                                  ? [
+                                      BoxShadow(
+                                        color: TekColors.warning.withValues(alpha: 0.08),
+                                        blurRadius: 12,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ]
+                                  : TekColors.cardShadow,
                             ),
                             child: Padding(
-                              padding: const EdgeInsets.all(12),
+                              padding: const EdgeInsets.all(14),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
@@ -762,19 +780,29 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
   Widget _buildKpiCard(
       String title, String value, IconData icon, Color color, bool isWide) {
     return Container(
-      width: isWide ? 170 : 150,
+      width: isWide ? 175 : 150,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
+        color: TekColors.cardBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.35), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: color.withValues(alpha: 0.18),
-            child: Icon(icon, color: color, size: 18),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 20),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -785,17 +813,17 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                 Text(
                   value,
                   style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
                     color: color,
                   ),
                 ),
                 Text(
                   title,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 11,
-                    color: Colors.grey.shade800,
-                    fontWeight: FontWeight.w500,
+                    color: TekColors.textSecondary,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
