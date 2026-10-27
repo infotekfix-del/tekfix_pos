@@ -104,3 +104,4 @@ Thumbs.db
 *.log
 *.swp
 *~
+test_hive_data/

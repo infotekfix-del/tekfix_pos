@@ -51,7 +51,7 @@ class OrderService {
 
     await orderRef.set(order.toMap(useServerTimestamp: true));
 
-    // Log action to unified activity logs
+    // 1. Log action to unified activity logs
     try {
       await ActivityLog.record(
         action: 'Created Staff Order',
@@ -65,6 +65,27 @@ class OrderService {
         },
         reason: order.generalRemarks,
       );
+    } catch (_) {}
+
+    // 2. Real-time live notification to the authorized Owner
+    try {
+      await _db
+          .collection('shops')
+          .doc(shopId)
+          .collection('notifications')
+          .add({
+        'shopId': shopId,
+        'type': 'systemAlert',
+        'title': 'പുതിയ സ്റ്റാഫ് ഓർഡർ (${order.orderId})',
+        'message': '${order.staffName} ${order.totalTypes} ഇനം സാധനങ്ങൾ ഓർഡർ ചെയ്തു (${order.totalQuantity} എണ്ണം).',
+        'priority': 'urgent',
+        'sender': order.staffName,
+        'createdAt': FieldValue.serverTimestamp(),
+        'metadata': {
+          'orderId': order.orderId,
+          'action': 'staff_orders',
+        },
+      });
     } catch (_) {}
 
     return order;
@@ -130,6 +151,27 @@ class OrderService {
         newValue: {'status': newStatus.name, 'updatedBy': ownerName},
         reason: 'Status changed to ${newStatus.label}',
       );
+    } catch (_) {}
+
+    // Real-time synchronization notification to staff
+    try {
+      await _db
+          .collection('shops')
+          .doc(shopId)
+          .collection('notifications')
+          .add({
+        'shopId': shopId,
+        'type': 'systemAlert',
+        'title': 'ഓർഡർ സ്റ്റാറ്റസ് മാറ്റി (${newStatus.label})',
+        'message': 'ഓർഡർ $orderId ഉടമ $ownerName അപ്ഡേറ്റ് ചെയ്തു: ${newStatus.label}.',
+        'priority': 'normal',
+        'sender': ownerName,
+        'createdAt': FieldValue.serverTimestamp(),
+        'metadata': {
+          'orderId': orderId,
+          'action': 'staff_orders',
+        },
+      });
     } catch (_) {}
   }
 

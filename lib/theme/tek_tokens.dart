@@ -9,53 +9,74 @@ import 'package:flutter/material.dart';
 class TekColors {
   TekColors._();
 
-  // Core Surfaces
-  static const Color bgMain = Color(0xFF080D1C);          // Main Background
-  static const Color bgSecondary = Color(0xFF10182B);     // Secondary Background
-  static const Color bgCard = Color(0xFF151F38);          // Card Background
-  static const Color bgCardHover = Color(0xFF1E2A4B);     // Interactive Card Hover
+  // Core Surfaces (Enterprise SaaS Palette)
+  static const Color mainBg = Color(0xFF070B18);           // Main Background (#070B18)
+  static const Color sidebarBg = Color(0xFF0B1226);        // Sidebar Background (#0B1226)
+  static const Color cardBg = Color(0xFF111B35);           // Card Background (#111B35)
+  static const Color elevatedSurface = Color(0xFF172442);  // Elevated Surface (#172442)
 
-  // Accents & Brand Primary
-  static const Color primary = Color(0xFF7957FF);         // Primary Accent (#7957FF)
-  static const Color primaryLight = Color(0xFF9074FF);    // Lighter Lavender Accent
-  static const Color primaryDark = Color(0xFF6038F6);     // Deeper Purple
-  static const Color secondary = Color(0xFFA78BFA);       // Secondary Accent (#A78BFA)
-  static const Color secondarySoft = Color(0xFFC4B5FD);   // Soft Violet Tint
+  // Backward compatibility surface aliases
+  static const Color bgMain = mainBg;
+  static const Color bgSecondary = sidebarBg;
+  static const Color bgCard = cardBg;
+  static const Color bgCardHover = elevatedSurface;
+
+  // Accents & Brand Primaries
+  static const Color primaryBlue = Color(0xFF1677FF);      // Primary Blue (#1677FF)
+  static const Color electricCyan = Color(0xFF00D4FF);     // Electric Cyan (#00D4FF)
+  static const Color premiumPurple = Color(0xFF8B5CF6);    // Premium Purple (#8B5CF6)
+  static const Color primary = primaryBlue;                // Alias: Primary Blue
+  static const Color primaryLight = Color(0xFF4096FF);     // Lighter Blue Accent
+  static const Color primaryDark = Color(0xFF0958D9);      // Deeper Blue
+  static const Color secondary = premiumPurple;            // Alias: Premium Purple
+  static const Color secondarySoft = Color(0xFFA78BFA);    // Soft Violet Tint
 
   // Status & Feedback Badges
-  static const Color success = Color(0xFF22C55E);         // Success Green (#22C55E)
-  static const Color warning = Color(0xFFFBBF24);         // Warning Amber (#FBBF24)
-  static const Color error = Color(0xFFFB7185);           // Error Coral/Rose (#FB7185)
-  static const Color info = Color(0xFF38BDF8);            // Sky Info Accent
+  static const Color success = Color(0xFF22C55E);          // Success Green (#22C55E)
+  static const Color warning = Color(0xFFF59E0B);          // Warning Orange (#F59E0B)
+  static const Color error = Color(0xFFF43F5E);            // Error Red (#F43F5E)
+  static const Color info = electricCyan;                  // Electric Cyan
 
   // Typography & Borders
-  static const Color textPrimary = Color(0xFFF8FAFC);     // Primary Text (#F8FAFC)
-  static const Color textSecondary = Color(0xFFA6B0C3);   // Secondary Text (#A6B0C3)
-  static const Color textMuted = Color(0xFF6B7A99);       // Muted Hint Text
-  static const Color border = Color(0xFF293550);          // Standard Border (#293550)
-  static const Color borderSubtle = Color(0xFF1C263D);    // Subtle Divider Border
+  static const Color textPrimary = Color(0xFFF8FAFC);      // Primary Text (#F8FAFC)
+  static const Color textSecondary = Color(0xFF94A3B8);    // Secondary Text (#94A3B8)
+  static const Color textMuted = Color(0xFF64748B);        // Muted Text
+  static const Color border = Color(0xFF263452);           // Border (#263452)
+  static const Color borderSubtle = Color(0xFF1A2640);     // Subtle Divider Border
 
   // Gradients
   static const LinearGradient primaryGradient = LinearGradient(
-    colors: [Color(0xFF7957FF), Color(0xFF6038F6)],
+    colors: [primaryBlue, premiumPurple],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static const LinearGradient cyanBlueGradient = LinearGradient(
+    colors: [electricCyan, primaryBlue],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const LinearGradient accentGradient = LinearGradient(
-    colors: [Color(0xFF7957FF), Color(0xFFA78BFA)],
+    colors: [electricCyan, premiumPurple],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static const LinearGradient heroGradient = LinearGradient(
+    colors: [Color(0xFF111B35), Color(0xFF172442), Color(0xFF0F1A33)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const LinearGradient cardGradient = LinearGradient(
-    colors: [Color(0xFF151F38), Color(0xFF10182B)],
+    colors: [Color(0xFF111B35), Color(0xFF0B1226)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
 
   static const LinearGradient glowGradient = LinearGradient(
-    colors: [Color(0x337957FF), Colors.transparent],
+    colors: [Color(0x331677FF), Colors.transparent],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
@@ -63,25 +84,25 @@ class TekColors {
   // Shadows
   static List<BoxShadow> get cardShadow => [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.35),
-          blurRadius: 16,
-          offset: const Offset(0, 6),
+          color: Colors.black.withValues(alpha: 0.45),
+          blurRadius: 18,
+          offset: const Offset(0, 8),
         ),
       ];
 
   static List<BoxShadow> get primaryGlow => [
         BoxShadow(
-          color: primary.withValues(alpha: 0.35),
-          blurRadius: 14,
+          color: primaryBlue.withValues(alpha: 0.35),
+          blurRadius: 16,
           offset: const Offset(0, 4),
         ),
       ];
 
   static List<BoxShadow> get floatingNavShadow => [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.5),
-          blurRadius: 24,
-          offset: const Offset(0, 8),
+          color: Colors.black.withValues(alpha: 0.6),
+          blurRadius: 28,
+          offset: const Offset(0, 10),
         ),
       ];
 }
@@ -99,9 +120,9 @@ class TekTypography {
 
   static TextStyle get titleLarge => const TextStyle(
         color: TekColors.textPrimary,
-        fontSize: 20,
+        fontSize: 22,
         fontWeight: FontWeight.bold,
-        letterSpacing: -0.3,
+        letterSpacing: -0.4,
         fontFamilyFallback: malayalamFallback,
       );
 
@@ -123,7 +144,7 @@ class TekTypography {
         color: TekColors.textSecondary,
         fontSize: 13,
         fontWeight: FontWeight.normal,
-        height: 1.35,
+        height: 1.4,
         fontFamilyFallback: malayalamFallback,
       );
 

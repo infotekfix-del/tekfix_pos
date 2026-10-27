@@ -18,15 +18,17 @@ void main() {
     });
 
     test('TekTheme Dark theme uses standard brand palette tokens', () {
-      expect(TekColors.bgMain.value, equals(0xFF080D1C));
-      expect(TekColors.bgSecondary.value, equals(0xFF10182B));
-      expect(TekColors.bgCard.value, equals(0xFF151F38));
-      expect(TekColors.primary.value, equals(0xFF7957FF));
-      expect(TekColors.secondary.value, equals(0xFFA78BFA));
+      expect(TekColors.bgMain.value, equals(0xFF070B18));
+      expect(TekColors.sidebarBg.value, equals(0xFF0B1226));
+      expect(TekColors.bgCard.value, equals(0xFF111B35));
+      expect(TekColors.elevatedSurface.value, equals(0xFF172442));
+      expect(TekColors.primaryBlue.value, equals(0xFF1677FF));
+      expect(TekColors.electricCyan.value, equals(0xFF00D4FF));
+      expect(TekColors.premiumPurple.value, equals(0xFF8B5CF6));
       expect(TekColors.success.value, equals(0xFF22C55E));
-      expect(TekColors.warning.value, equals(0xFFFBBF24));
-      expect(TekColors.error.value, equals(0xFFFB7185));
-      expect(TekColors.border.value, equals(0xFF293550));
+      expect(TekColors.warning.value, equals(0xFFF59E0B));
+      expect(TekColors.error.value, equals(0xFFF43F5E));
+      expect(TekColors.border.value, equals(0xFF263452));
     });
   });
 

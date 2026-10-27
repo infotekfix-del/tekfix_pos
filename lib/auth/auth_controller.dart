@@ -35,6 +35,7 @@ class AuthController extends ChangeNotifier {
   String get uid => _user?.uid ?? Db.setting('staff_logged_id');
   String get shopId => _shopId.isNotEmpty ? _shopId : Db.setting('shop_id');
   String get roleLabel => isOwner ? 'OWNER' : 'STAFF';
+  String get email => _user?.email ?? '';
 
   void notify() => notifyListeners();
 
