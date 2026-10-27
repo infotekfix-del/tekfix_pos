@@ -5,6 +5,8 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
 
+import com.google.firebase.firestore.PersistentCacheSettings
+
 class TekfixOrdersApp : Application() {
     override fun onCreate() {
         super.onCreate()
@@ -13,7 +15,7 @@ class TekfixOrdersApp : Application() {
         // Enable Firestore offline persistence for robust network handling
         val firestore = FirebaseFirestore.getInstance()
         val settings = FirebaseFirestoreSettings.Builder()
-            .setPersistenceEnabled(true)
+            .setLocalCacheSettings(PersistentCacheSettings.newBuilder().build())
             .build()
         firestore.firestoreSettings = settings
     }

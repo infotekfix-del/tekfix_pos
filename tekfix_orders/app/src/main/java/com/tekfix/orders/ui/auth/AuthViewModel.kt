@@ -35,6 +35,16 @@ class AuthViewModel(
             _uiState.value = _uiState.value.copy(isLoading = true)
             val result = authRepository.getUserProfile(firebaseUser.uid)
             result.onSuccess { user ->
+                if (!user.active) {
+                    authRepository.logout()
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        currentUser = null,
+                        errorMessage = "നിങ്ങളുടെ അക്കൗണ്ട് താൽക്കാലികമായി റദ്ദാക്കിയിരിക്കുന്നു (Account deactivated)."
+                    )
+                    onResolved(null)
+                    return@launch
+                }
                 _uiState.value = _uiState.value.copy(isLoading = false, currentUser = user)
                 onResolved(user)
             }.onFailure {

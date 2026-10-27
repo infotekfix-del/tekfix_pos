@@ -469,9 +469,11 @@ class PosService {
     buf.writeln('Thank you for choosing $shopName!');
 
     final text = Uri.encodeComponent(buf.toString());
-    final phone = invoice.customerPhone.replaceAll(RegExp(r'[^0-9]'), '');
+    var phone = invoice.customerPhone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (phone.startsWith('0')) phone = phone.substring(1);
+    if (!phone.startsWith('91') && phone.length == 10) phone = '91$phone';
     final url = phone.isNotEmpty
-        ? 'https://wa.me/91$phone?text=$text'
+        ? 'https://wa.me/$phone?text=$text'
         : 'https://api.whatsapp.com/send?text=$text';
 
     final uri = Uri.parse(url);
