@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -27,6 +28,7 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView> {
   @override
   void initState() {
     super.initState();
+    _applyLocalDefaults();
     _loadCurrentAppInfo();
     _fetchFirestoreConfig();
   }
@@ -38,6 +40,16 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView> {
     _apkUrlController.dispose();
     _releaseNotesController.dispose();
     super.dispose();
+  }
+
+  void _applyLocalDefaults() {
+    _versionController.text = '1.0.2';
+    _buildNumberController.text = '2';
+    _apkUrlController.text =
+        'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.2/app-release.apk';
+    _releaseNotesController.text =
+        '• Modern Staff Portal UI (Attendance, Home Dashboard, and Orders Catalog)\n• Real-Time Shift Overview & Live Working Timer\n• Quick Access 2x2 Action Grid & Floating Navigation\n• Dynamic Stock Health Badges & Incremental Cart Counter\n• Mobile Order Placement & Attendance Approval Permissions Fixed';
+    _isMandatory = true;
   }
 
   Future<void> _loadCurrentAppInfo() async {
@@ -52,9 +64,21 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView> {
     }
   }
 
-  Future<void> _fetchFirestoreConfig() async {
+  Future<void> _fetchFirestoreConfig({bool showNoticeOnFailure = false}) async {
     setState(() => _loading = true);
     try {
+      // 1. Ensure Firebase Auth session is active before querying protected config
+      if (FirebaseAuth.instance.currentUser == null) {
+        try {
+          await FirebaseAuth.instance
+              .authStateChanges()
+              .firstWhere((u) => u != null)
+              .timeout(const Duration(seconds: 4));
+        } catch (_) {
+          debugPrint('AppUpdateManagementView: Firebase Auth session wait timeout.');
+        }
+      }
+
       final doc = await FirebaseFirestore.instance
           .collection('app_config')
           .doc('version')
@@ -62,28 +86,42 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView> {
 
       if (doc.exists && doc.data() != null) {
         final data = doc.data()!;
-        _versionController.text = (data['latest_version'] ?? '1.0.1').toString();
+        _versionController.text = (data['latest_version'] ?? '1.0.2').toString();
         _buildNumberController.text =
             (data['latest_build_number'] ?? '2').toString();
         _apkUrlController.text = (data['apk_url'] != null && data['apk_url'].toString().isNotEmpty)
             ? data['apk_url'].toString()
-            : 'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.1/app-release.apk';
+            : 'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.2/app-release.apk';
         _releaseNotesController.text = (data['release_notes'] ?? '').toString();
         _isMandatory = data['is_mandatory'] ?? true;
       } else {
-        // Pre-fill with v1.0.2 release defaults
-        _versionController.text = '1.0.2';
-        _buildNumberController.text = '2';
-        _apkUrlController.text =
-            'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.2/app-release.apk';
-        _releaseNotesController.text =
-            '• Modern Staff Portal UI (Attendance, Home Dashboard, and Orders Catalog)\n• Real-Time Shift Overview & Live Working Timer\n• Quick Access 2x2 Action Grid & Floating Navigation\n• Dynamic Stock Health Badges & Incremental Cart Counter\n• Mobile Order Placement & Attendance Approval Permissions Fixed';
-        _isMandatory = true;
+        _applyLocalDefaults();
       }
     } catch (e) {
-      if (mounted) {
+      debugPrint('AppUpdateManagementView: Error loading config from Firestore: $e');
+      _applyLocalDefaults();
+      if (showNoticeOnFailure && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Firebase config load error: $e')),
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.amberAccent, size: 20),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'ഓഫ്ലൈൻ ഡിഫോൾട്ട് വിവരങ്ങൾ ലോഡ് ചെയ്തു (Loaded offline release defaults).',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF1E293B),
+            action: SnackBarAction(
+              label: 'വീണ്ടും ശ്രമിക്കുക (Retry)',
+              textColor: Colors.amberAccent,
+              onPressed: () => _fetchFirestoreConfig(showNoticeOnFailure: true),
+            ),
+          ),
         );
       }
     } finally {

@@ -113,6 +113,69 @@ class PosService {
     return '$prefix-$staffTag-$seq';
   }
 
+  final Set<String> _inFlightInvoices = {};
+
+  /// Real-time stream of catalog products with live stock tracking from Firestore
+  Stream<List<PosItem>> streamCatalogItems(String shopId) {
+    if (shopId.isEmpty) {
+      return Stream.value(getCatalogItems());
+    }
+
+    return FirebaseFirestore.instance
+        .collection('shops')
+        .doc(shopId)
+        .collection('items')
+        .snapshots()
+        .map((snapshot) {
+      if (snapshot.docs.isEmpty) {
+        return getCatalogItems();
+      }
+
+      final list = <PosItem>[];
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final item = PosItem.fromMap(doc.id, data);
+        list.add(item);
+
+        // Background update to local Hive cache
+        _cacheLocalItem(item);
+      }
+      return list;
+    }).handleError((e) {
+      debugPrint('Error streaming catalog items: $e. Falling back to local cache.');
+      return getCatalogItems();
+    });
+  }
+
+  void _cacheLocalItem(PosItem it) {
+    try {
+      dynamic matchKey;
+      for (final k in Db.items.keys) {
+        final cur = tekM(Db.items.get(k));
+        if (cur['_id'] == it.id || '$k' == it.id) {
+          matchKey = k;
+          break;
+        }
+      }
+      final payload = {
+        '_id': it.id,
+        'name': it.name,
+        'sku': it.sku,
+        'barcode': it.barcode,
+        'category': it.category,
+        'sellingPrice': it.sellingPrice,
+        'minPrice': it.minPrice,
+        'stock': it.stock,
+        'lowStockLevel': it.lowStockLevel,
+      };
+      if (matchKey != null) {
+        Db.items.put(matchKey, payload);
+      } else {
+        Db.items.add(payload);
+      }
+    } catch (_) {}
+  }
+
   /// Loads products from Hive / Firestore (Cost price is NEVER exposed).
   List<PosItem> getCatalogItems() {
     final List<PosItem> list = [];
@@ -124,7 +187,12 @@ class PosService {
     return list;
   }
 
-  /// Completes sale atomically via Firestore batch & Hive local storage
+  /// Completes sale atomically via Firestore Transaction & Hive local storage
+  /// Enforces:
+  /// 1. Double-submission prevention (idempotency guard)
+  /// 2. Unauthorized discount prevention (hard floor prices)
+  /// 3. Atomic stock decrement & negative-stock prevention
+  /// 4. Atomic cash register / daily sales counter updates
   Future<PosInvoice> completeSale({
     required String shopId,
     required String staffId,
@@ -137,8 +205,39 @@ class PosService {
     String customerName = 'Walk-in Customer',
     String customerPhone = '',
   }) async {
+    if (cartItems.isEmpty) {
+      throw Exception('കാർട്ടിൽ ഉൽപ്പന്നങ്ങളൊന്നുമില്ല (Cart is empty).');
+    }
+
+    // 1. Unauthorized discount verification
+    for (final line in cartItems) {
+      if (line.isBelowFloor && !line.hasValidOverride) {
+        throw Exception(
+          'അംഗീകാരമില്ലാത്ത ഡിസ്കൗണ്ട് അനുവദനീയമല്ല: "${line.item.name}" മിനിമം വില ₹${line.item.minPrice.toStringAsFixed(0)} ആണ് (Unauthorized price below floor price).',
+        );
+      }
+    }
+
+    if (discount > 0) {
+      final allowedMaxDiscount = cartItems.fold(0.0, (acc, l) {
+        final floor = l.hasValidOverride ? l.unitPrice : l.item.minPrice;
+        return acc + ((l.item.sellingPrice - floor) * l.qty);
+      });
+      if (discount > (allowedMaxDiscount + 0.01)) {
+        throw Exception(
+          'ഡിസ്കൗണ്ട് തുക അനുവദനീയമായ പരിധിക്ക് പുറത്താണ് (Discount exceeds maximum allowed limit).',
+        );
+      }
+    }
+
     final now = DateTime.now();
     final invoiceId = await generateStaffInvoiceId(shopId, staffName);
+
+    // 2. Double-submission prevention (In-flight memory lock)
+    if (_inFlightInvoices.contains(invoiceId)) {
+      throw Exception('ഈ ഇൻവോയ്സ് ഇതിനകം സമർപ്പിച്ചുകൊണ്ടിരിക്കുകയാണ് (Duplicate submission blocked).');
+    }
+    _inFlightInvoices.add(invoiceId);
 
     final lineMaps = cartItems.map((c) => {
       'itemId': c.item.id,
@@ -173,94 +272,150 @@ class PosService {
       status: 'completed',
     );
 
-    // 1. Update Hive local storage immediately
-    for (final line in cartItems) {
-      // Find item key in Db.items
-      for (final k in Db.items.keys) {
-        final cur = tekM(Db.items.get(k));
-        if (cur['_id'] == line.item.id || '$k' == line.item.id || cur['name'] == line.item.name) {
-          final curStock = (cur['stock'] as num?)?.toInt() ?? 0;
-          cur['stock'] = curStock - line.qty;
-          await Db.items.put(k, cur);
-          await Db.stockMove(k, line.item.name, -line.qty, 'POS Sale $invoiceId');
-          break;
+    try {
+      // 3. Firestore Atomic Transaction
+      if (shopId.isNotEmpty) {
+        await FirebaseFirestore.instance.runTransaction((transaction) async {
+          final invRef = FirebaseFirestore.instance
+              .collection('shops')
+              .doc(shopId)
+              .collection('sales')
+              .doc(invoiceId);
+
+          // Check if invoice already exists (Idempotency)
+          final invSnap = await transaction.get(invRef);
+          if (invSnap.exists) {
+            debugPrint('Invoice $invoiceId already exists in Firestore. Aborting duplicate.');
+            return;
+          }
+
+          // READ PHASE: Read all item documents & verify live stock
+          final itemSnapshots = <String, DocumentSnapshot<Map<String, dynamic>>>{};
+          for (final line in cartItems) {
+            final itemRef = FirebaseFirestore.instance
+                .collection('shops')
+                .doc(shopId)
+                .collection('items')
+                .doc(line.item.id);
+
+            final snap = await transaction.get(itemRef);
+            itemSnapshots[line.item.id] = snap;
+
+            if (snap.exists) {
+              final curStock = (snap.data()?['stock'] as num?)?.toInt() ?? 0;
+              if (curStock < line.qty) {
+                throw Exception(
+                  'ആവശ്യത്തിന് സ്റ്റോക്കില്ല: "${line.item.name}" (ലഭ്യമായത്: $curStock, ആവശ്യപ്പെട്ടത്: ${line.qty})',
+                );
+              }
+            }
+          }
+
+          // WRITE PHASE:
+          // 3a. Save Invoice
+          transaction.set(invRef, invoice.toMap());
+
+          // 3b. Decrement live stock atomically and log stock movements
+          for (final line in cartItems) {
+            final itemRef = FirebaseFirestore.instance
+                .collection('shops')
+                .doc(shopId)
+                .collection('items')
+                .doc(line.item.id);
+
+            final snap = itemSnapshots[line.item.id];
+            if (snap != null && snap.exists) {
+              final curStock = (snap.data()?['stock'] as num?)?.toInt() ?? 0;
+              transaction.update(itemRef, {
+                'stock': curStock - line.qty,
+                'updatedAt': FieldValue.serverTimestamp(),
+              });
+            } else {
+              transaction.update(itemRef, {
+                'stock': FieldValue.increment(-line.qty),
+                'updatedAt': FieldValue.serverTimestamp(),
+              });
+            }
+
+            final moveRef = FirebaseFirestore.instance
+                .collection('shops')
+                .doc(shopId)
+                .collection('stockMovements')
+                .doc();
+            transaction.set(moveRef, {
+              'itemId': line.item.id,
+              'itemName': line.item.name,
+              'qtyChange': -line.qty,
+              'reason': 'POS Sale $invoiceId',
+              'staffId': staffId,
+              'staffName': staffName,
+              'timestamp': FieldValue.serverTimestamp(),
+            });
+          }
+
+          // 3c. Update daily sales counters & cash register
+          final counterRef = FirebaseFirestore.instance
+              .collection('shops')
+              .doc(shopId)
+              .collection('counters')
+              .doc('daily_sales_$todayStr');
+
+          transaction.set(counterRef, {
+            'totalSales': FieldValue.increment(total),
+            'cashSales': FieldValue.increment(payment.cashAmount),
+            'upiSales': FieldValue.increment(payment.upiAmount),
+            'cardSales': FieldValue.increment(payment.cardAmount),
+            'billCount': FieldValue.increment(1),
+            'lastUpdated': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        });
+      }
+
+      // 4. Update Hive local storage (instant offline sync & local sales view)
+      for (final line in cartItems) {
+        for (final k in Db.items.keys) {
+          final cur = tekM(Db.items.get(k));
+          if (cur['_id'] == line.item.id || '$k' == line.item.id || cur['name'] == line.item.name) {
+            final curStock = (cur['stock'] as num?)?.toInt() ?? 0;
+            cur['stock'] = curStock - line.qty;
+            await Db.items.put(k, cur);
+            await Db.stockMove(k, line.item.name, -line.qty, 'POS Sale $invoiceId');
+            break;
+          }
         }
       }
-    }
 
-    final billData = <String, dynamic>{
-      'invoice': invoiceId,
-      'createdAt': now.toIso8601String(),
-      'customerName': invoice.customerName,
-      'customerPhone': invoice.customerPhone,
-      'items': lineMaps,
-      'subtotal': subtotal,
-      'discount': discount,
-      'total': total,
-      'cash': payment.cashAmount,
-      'upi': payment.upiAmount,
-      'card': payment.cardAmount,
-      'due': 0.0,
-      'status': 'SOLD',
-      'staffId': staffId,
-      'staffName': staffName,
-    };
+      final billData = <String, dynamic>{
+        'invoice': invoiceId,
+        'createdAt': now.toIso8601String(),
+        'customerName': invoice.customerName,
+        'customerPhone': invoice.customerPhone,
+        'items': lineMaps,
+        'subtotal': subtotal,
+        'discount': discount,
+        'total': total,
+        'cash': payment.cashAmount,
+        'upi': payment.upiAmount,
+        'card': payment.cardAmount,
+        'due': 0.0,
+        'status': 'SOLD',
+        'staffId': staffId,
+        'staffName': staffName,
+      };
 
-    await Db.sales.add(billData);
+      await Db.sales.add(billData);
 
-    if (payment.cashAmount > 0) {
-      await Db.moveMoney('Cash', payment.cashAmount, 'Sale $invoiceId');
-    }
-    if (payment.upiAmount > 0) {
-      await Db.moveMoney('UPI', payment.upiAmount, 'Sale $invoiceId');
-    }
-
-    // 2. Synchronize to Firestore atomically
-    try {
-      final batch = FirebaseFirestore.instance.batch();
-
-      // Write invoice
-      final invRef = FirebaseFirestore.instance
-          .collection('shops')
-          .doc(shopId)
-          .collection('sales')
-          .doc(invoiceId);
-      batch.set(invRef, invoice.toMap());
-
-      // Deduct inventory stock
-      for (final line in cartItems) {
-        final itemRef = FirebaseFirestore.instance
-            .collection('shops')
-            .doc(shopId)
-            .collection('items')
-            .doc(line.item.id);
-        batch.update(itemRef, {
-          'stock': FieldValue.increment(-line.qty),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-
-        // Stock movement record
-        final moveRef = FirebaseFirestore.instance
-            .collection('shops')
-            .doc(shopId)
-            .collection('stockMovements')
-            .doc();
-        batch.set(moveRef, {
-          'itemId': line.item.id,
-          'itemName': line.item.name,
-          'qtyChange': -line.qty,
-          'reason': 'POS Sale $invoiceId',
-          'staffId': staffId,
-          'timestamp': FieldValue.serverTimestamp(),
-        });
+      if (payment.cashAmount > 0) {
+        await Db.moveMoney('Cash', payment.cashAmount, 'Sale $invoiceId');
+      }
+      if (payment.upiAmount > 0) {
+        await Db.moveMoney('UPI', payment.upiAmount, 'Sale $invoiceId');
       }
 
-      await batch.commit();
-    } catch (e) {
-      debugPrint('Firestore atomic sale batch failed (will sync later): $e');
+      return invoice;
+    } finally {
+      _inFlightInvoices.remove(invoiceId);
     }
-
-    return invoice;
   }
 
   /// Formats UPI Pay URI

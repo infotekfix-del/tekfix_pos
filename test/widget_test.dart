@@ -2,6 +2,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:tekfix_erp_pos/main.dart';
+import 'package:tekfix_erp_pos/auth/auth_controller.dart';
 
 void main() {
   setUpAll(() async {
@@ -10,6 +11,8 @@ void main() {
     for (final box in allBoxes) {
       await Hive.openBox(box);
     }
+    await Db.settings.put('staff_logged_in', 'false');
+    await AuthController.instance.init();
   });
 
   tearDownAll(() async {

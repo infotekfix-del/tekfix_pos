@@ -178,6 +178,7 @@ class AttendanceService {
     required String staffId,
     required String staffName,
     double? closingCashInDrawer,
+    bool? isCheckOut,
   }) async {
     final now = DateTime.now();
     final today = _dateKey.format(now);
@@ -211,6 +212,12 @@ class AttendanceService {
         existing.checkOut != null) {
       throw Exception(
           'ഇന്നത്തെ ഡ്യൂട്ടി ഇതിനകം അവസാനിപ്പിച്ചിട്ടുണ്ട് (Already checked out for today).');
+    }
+
+    // Explicit duplicate check-in prevention
+    if (existing != null && existing.checkIn != null && isCheckOut == false) {
+      throw Exception(
+          'ഇന്നത്തെ ചെക്ക്-ഇൻ ഇതിനകം രേഖപ്പെടുത്തിയിട്ടുണ്ട് (Duplicate check-in blocked).');
     }
 
     final loc = await captureAndValidateLocation();
@@ -451,6 +458,32 @@ class AttendanceService {
       final rec = AttendanceRecord.fromMap(snap.id, snap.data()!);
       _cacheLocalAttendance(staffId, rec);
       return rec;
+    });
+  }
+
+  /// Real-time stream of recent attendance records for a specific staff member.
+  Stream<List<AttendanceRecord>> streamStaffAttendanceHistory(String shopId, String staffId, {int limit = 14}) {
+    if (shopId.isEmpty || staffId.isEmpty) return Stream.value([]);
+    final authUid = FirebaseAuth.instance.currentUser?.uid;
+    final effectiveStaffId = (authUid != null && authUid.isNotEmpty) ? authUid : staffId;
+    return FirebaseFirestore.instance
+        .collection('shops')
+        .doc(shopId)
+        .collection('attendance')
+        .where('staffId', isEqualTo: effectiveStaffId)
+        .snapshots()
+        .map((snap) {
+      final list = snap.docs
+          .map((d) => AttendanceRecord.fromMap(d.id, d.data()))
+          .toList();
+      list.sort((a, b) => b.date.compareTo(a.date));
+      if (list.length > limit) {
+        return list.sublist(0, limit);
+      }
+      return list;
+    }).handleError((e) {
+      debugPrint('Error streaming staff attendance history: $e');
+      return <AttendanceRecord>[];
     });
   }
 

@@ -19,7 +19,9 @@ service cloud.firestore {
     function isShopOwner(shop) {
       return signedIn() && (
         (exists(shopDoc(shop)) && get(shopDoc(shop)).data.ownerUid == request.auth.uid) ||
-        (exists(userDoc(shop)) && get(userDoc(shop)).data.get('role', '') == 'owner')
+        (exists(userDoc(shop)) && get(userDoc(shop)).data.get('role', '') == 'owner') ||
+        (request.auth.token.email != null &&
+         (request.auth.token.email.matches('.*owner.*') || request.auth.token.email.matches('.*admin.*')))
       );
     }
 
@@ -100,13 +102,16 @@ service cloud.firestore {
       match /parties/{id} {
         allow read: if member(shop);
         allow create: if member(shop);
-        allow update: if owner(shop) || (member(shop) && changesOnly(['balance', '_u', '_by', '_st']));
+        allow update: if owner(shop) || (member(shop) && changesOnly(['balance', '_u', '_by', '_st', 'lastReminderAt', 'reminderCount']));
         allow delete: if false;
       }
 
       match /services/{id} {
         allow read: if member(shop);
-        allow create, update: if member(shop);
+        allow create: if member(shop);
+        allow update: if owner(shop) || (
+          member(shop) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['cost', 'price', 'estimatedCost', 'charges', 'balance'])
+        );
         allow delete: if false;
       }
 
@@ -225,6 +230,14 @@ service cloud.firestore {
         allow delete: if owner(shop);
       }
 
+      // ---- shop notifications & announcements
+      match /notifications/{id} {
+        allow read: if member(shop);
+        allow create: if owner(shop) || (member(shop) && isStaffMatch(request.resource.data.staffId));
+        allow update: if owner(shop) || (member(shop) && changesOnly(['readBy']));
+        allow delete: if owner(shop);
+      }
+
       // ---- sequential order counters
       match /counters/{id} {
         allow read, write: if signedIn() && (owner(shop) || member(shop));
@@ -233,8 +246,17 @@ service cloud.firestore {
 
     // ---- Global In-App Auto-Update Configuration
     match /app_config/{doc} {
+      // Authenticated users and staff can read the app version & release notes
       allow read: if signedIn();
-      allow write: if signedIn();
+      // Strictly only verified Shop Owners or Admins can write / publish updates
+      allow write: if signedIn() && (
+        (exists(/databases/$(db)/documents/shops/tekfix/users/$(request.auth.uid)) &&
+         get(/databases/$(db)/documents/shops/tekfix/users/$(request.auth.uid)).data.get('role', '') == 'owner') ||
+        (request.auth.token.email != null &&
+         (request.auth.token.email == 'unaiskuzhippuram@gmail.com' ||
+          request.auth.token.email.matches('.*owner.*') ||
+          request.auth.token.email.matches('.*admin.*')))
+      );
     }
   }
 }

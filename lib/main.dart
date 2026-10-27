@@ -38,7 +38,9 @@ import 'package:geolocator/geolocator.dart';
 import 'update/app_update_management_view.dart';
 import 'utils/tek_helpers.dart';
 import 'utils/timestamp_adapter.dart';
+import 'theme/tek_tokens.dart';
 export 'utils/tek_helpers.dart';
+export 'theme/tek_tokens.dart';
 
 // -----------------------------------------------------------------------------
 // CONSTANTS, FORMATTERS & SMALL HELPERS
@@ -419,16 +421,13 @@ Future<void> main() async {
           ),
         ),
       );
-  runApp(MultiProvider(
-    providers: [
-      ChangeNotifierProvider.value(value: AuthController.instance),
-      ChangeNotifierProvider.value(value: SyncEngine.instance),
-    ],
-    child: const TekFixApp(),
-  ));
+  runApp(const TekFixApp());
 }
 
 ThemeData _buildTheme([Brightness b = Brightness.light]) {
+  if (b == Brightness.dark) {
+    return TekTheme.darkTheme;
+  }
   final dark = b == Brightness.dark;
   final scheme =
       ColorScheme.fromSeed(seedColor: kPrimary, brightness: b).copyWith(
@@ -482,14 +481,20 @@ class TekFixApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'TekFix ERP & POS',
-      debugShowCheckedModeBanner: false,
-      theme: _buildTheme(),
-      darkTheme: _buildTheme(Brightness.dark),
-      // Change to ThemeMode.light to always use the light theme.
-      themeMode: ThemeMode.system,
-      home: const AuthGate(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: AuthController.instance),
+        ChangeNotifierProvider.value(value: SyncEngine.instance),
+      ],
+      child: MaterialApp(
+        title: 'TekFix ERP & POS',
+        debugShowCheckedModeBanner: false,
+        theme: _buildTheme(),
+        darkTheme: _buildTheme(Brightness.dark),
+        // Change to ThemeMode.light to always use the light theme.
+        themeMode: ThemeMode.system,
+        home: const AuthGate(),
+      ),
     );
   }
 }

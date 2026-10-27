@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../attendance/attendance_models.dart';
 import '../attendance/attendance_service.dart';
-import '../main.dart' show Db, kPrimary, toast;
+import '../main.dart' show Db, toast;
 import '../shared/tek_pos_strings.dart';
+import '../theme/tek_tokens.dart';
 import 'pos_models.dart';
 import 'pos_service.dart';
 
@@ -41,10 +43,12 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
   final List<String> _categories = [
     'All',
     'Tempered Glass',
-    'Cases',
+    'Cases & Covers',
     'Chargers',
     'Cables',
-    'Earbuds',
+    'Earbuds & Audio',
+    'Displays & Screens',
+    'Batteries',
     'Others',
   ];
 
@@ -75,8 +79,10 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
         toast(context, 'പരമാവധി ലഭ്യമായ സ്റ്റോക്ക്: ${item.stock}', error: true);
         return;
       }
+      HapticFeedback.lightImpact();
       setState(() => current.qty++);
     } else {
+      HapticFeedback.lightImpact();
       setState(() {
         _cart.add(PosCartItem(
           item: item,
@@ -88,6 +94,7 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
   }
 
   void _updateCartQty(PosCartItem cartItem, int newQty) {
+    HapticFeedback.lightImpact();
     if (newQty <= 0) {
       setState(() => _cart.remove(cartItem));
     } else if (newQty > cartItem.item.stock) {
@@ -104,35 +111,53 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, set) => AlertDialog(
-          title: Text('${cartItem.item.name} - വില തിരുത്തുക'),
+        builder: (ctx, setD) => AlertDialog(
+          backgroundColor: TekColors.bgCard,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: TekColors.border),
+          ),
+          title: Text(
+            '${cartItem.item.name} - വില തിരുത്തുക',
+            style: const TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('MRP: ₹${cartItem.item.sellingPrice.toStringAsFixed(0)} | Min Floor: ₹${cartItem.item.minPrice.toStringAsFixed(0)}'),
-              const SizedBox(height: 12),
+              Text(
+                'MRP: ₹${cartItem.item.sellingPrice.toStringAsFixed(0)} | Min Floor: ₹${cartItem.item.minPrice.toStringAsFixed(0)}',
+                style: const TextStyle(color: TekColors.textSecondary, fontSize: 12),
+              ),
+              const SizedBox(height: 14),
               TextField(
                 controller: priceCtrl,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                style: const TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.bold),
                 decoration: InputDecoration(
                   labelText: 'പുതിയ യൂണിറ്റ് വില (Unit Price)',
+                  labelStyle: const TextStyle(color: TekColors.textSecondary),
                   prefixText: '₹ ',
+                  prefixStyle: const TextStyle(color: TekColors.secondary, fontWeight: FontWeight.bold),
                   errorText: err,
                 ),
               ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('റദ്ദാക്കുക')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('റദ്ദാക്കുക', style: TextStyle(color: TekColors.textSecondary)),
+            ),
             FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: TekColors.primary),
               onPressed: () async {
                 final newPrice = double.tryParse(priceCtrl.text) ?? cartItem.unitPrice;
                 if (newPrice < cartItem.item.minPrice) {
                   // Below Floor Price!
-                  set(() => err = TekStrings.errPriceBelowFloor.replaceAll('{min}', cartItem.item.minPrice.toStringAsFixed(0)));
+                  setD(() => err = TekStrings.errPriceBelowFloor.replaceAll('{min}', cartItem.item.minPrice.toStringAsFixed(0)));
 
-                  // Offer Owner Approval / PIN dialog
+                  // Offer Owner PIN approval dialog
                   final approved = await _requestOwnerPinApproval(cartItem.item, newPrice);
                   if (approved != null) {
                     setState(() {
@@ -166,21 +191,29 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, set) => AlertDialog(
-          icon: const Icon(Icons.lock_person_rounded, size: 40, color: Colors.orange),
-          title: const Text(TekStrings.pinApprovalTitle),
+        builder: (ctx, setD) => AlertDialog(
+          backgroundColor: TekColors.bgCard,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: TekColors.border),
+          ),
+          icon: const Icon(Icons.lock_person_rounded, size: 40, color: TekColors.warning),
+          title: const Text(
+            TekStrings.pinApprovalTitle,
+            style: TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.bold),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 '${item.name}\nMRP: ₹${item.sellingPrice.toStringAsFixed(0)} ➔ ₹${requestedPrice.toStringAsFixed(0)} (Floor: ₹${item.minPrice.toStringAsFixed(0)})',
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(fontWeight: FontWeight.bold, color: TekColors.textPrimary, fontSize: 13),
               ),
               const SizedBox(height: 12),
               const Text(
                 TekStrings.pinApprovalSub,
-                style: TextStyle(fontSize: 12),
+                style: TextStyle(fontSize: 12, color: TekColors.textSecondary),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
@@ -190,17 +223,23 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                 keyboardType: TextInputType.number,
                 maxLength: 6,
                 autofocus: true,
+                style: const TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.bold, letterSpacing: 4),
                 decoration: InputDecoration(
                   labelText: 'Owner PIN',
-                  prefixIcon: const Icon(Icons.key_rounded),
+                  labelStyle: const TextStyle(color: TekColors.textSecondary),
+                  prefixIcon: const Icon(Icons.key_rounded, color: TekColors.secondary),
                   errorText: pinErr,
                 ),
               ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('വേണ്ട (Cancel)')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, null),
+              child: const Text('വേണ്ട (Cancel)', style: TextStyle(color: TekColors.textSecondary)),
+            ),
             FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: TekColors.primary),
               onPressed: () async {
                 final res = await PosService.instance.verifyOwnerPinAndApprove(
                   shopId: widget.shopId,
@@ -212,7 +251,7 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                 );
 
                 if (!res.success) {
-                  set(() => pinErr = res.error);
+                  setD(() => pinErr = res.error);
                 } else {
                   if (ctx.mounted) Navigator.pop(ctx, res.approvalId);
                 }
@@ -239,9 +278,7 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) {
           final double cashReceived = double.tryParse(_cashReceivedCtrl.text) ?? _total;
@@ -251,36 +288,160 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
             invoiceId: 'PREVIEW',
           );
 
-          return Padding(
+          return Container(
             padding: EdgeInsets.only(
               left: 20,
               right: 20,
               top: 20,
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
             ),
+            decoration: const BoxDecoration(
+              color: TekColors.bgCard,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              border: Border(top: BorderSide(color: TekColors.border, width: 1.5)),
+            ),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: TekColors.border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'ചെക്ക്ഔട്ട് (Checkout)',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        'ചെക്ക്ഔട്ട് (Checkout & Billing)',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: TekColors.textPrimary,
+                          fontFamilyFallback: TekTypography.malayalamFallback,
+                        ),
                       ),
                       Text(
                         '₹${_total.toStringAsFixed(2)}',
                         style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF16A34A),
+                          color: TekColors.success,
                         ),
                       ),
                     ],
                   ),
-                  const Divider(height: 24),
+                  const Divider(height: 24, color: TekColors.border),
+
+                  // Cart Item Summary Review
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: TekColors.bgSecondary,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: TekColors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          'Cart Items (തിരഞ്ഞെടുത്ത ഇനങ്ങൾ)',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: TekColors.textSecondary),
+                        ),
+                        const SizedBox(height: 8),
+                        ..._cart.map((c) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      c.item.name,
+                                      style: const TextStyle(color: TekColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          '₹${c.unitPrice.toStringAsFixed(0)} each',
+                                          style: const TextStyle(color: TekColors.textSecondary, fontSize: 11),
+                                        ),
+                                        if (c.hasValidOverride) ...[
+                                          const SizedBox(width: 4),
+                                          const Icon(Icons.verified_user_rounded, size: 12, color: TekColors.success),
+                                        ],
+                                        const SizedBox(width: 4),
+                                        InkWell(
+                                          onTap: () async {
+                                            await _editItemPrice(c);
+                                            setSheet(() {});
+                                          },
+                                          child: const Icon(Icons.edit_outlined, size: 14, color: TekColors.secondary),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.remove_circle_outline_rounded, size: 18, color: TekColors.textSecondary),
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () {
+                                      _updateCartQty(c, c.qty - 1);
+                                      if (_cart.isEmpty) {
+                                        Navigator.pop(ctx);
+                                      } else {
+                                        setSheet(() {});
+                                      }
+                                    },
+                                  ),
+                                  Text(
+                                    '${c.qty}',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, color: TekColors.textPrimary, fontSize: 13),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.add_circle_outline_rounded, size: 18, color: TekColors.primary),
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () {
+                                      _updateCartQty(c, c.qty + 1);
+                                      setSheet(() {});
+                                    },
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '₹${c.lineTotal.toStringAsFixed(2)}',
+                                style: const TextStyle(color: TekColors.secondary, fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        )),
+                        const Divider(height: 16, color: TekColors.border),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Grand Total (ആകെ തുക):', style: TextStyle(fontWeight: FontWeight.bold, color: TekColors.textPrimary)),
+                            Text('₹${_total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: TekColors.success, fontSize: 16)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
 
                   // Customer details (Optional)
                   Row(
@@ -288,9 +449,11 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                       Expanded(
                         child: TextField(
                           controller: _custNameCtrl,
+                          style: const TextStyle(color: TekColors.textPrimary),
                           decoration: const InputDecoration(
                             labelText: TekStrings.customerName,
-                            prefixIcon: Icon(Icons.person_outline, size: 18),
+                            labelStyle: TextStyle(color: TekColors.textSecondary),
+                            prefixIcon: Icon(Icons.person_outline, size: 18, color: TekColors.secondary),
                             isDense: true,
                           ),
                         ),
@@ -300,9 +463,11 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                         child: TextField(
                           controller: _custPhoneCtrl,
                           keyboardType: TextInputType.phone,
+                          style: const TextStyle(color: TekColors.textPrimary),
                           decoration: const InputDecoration(
                             labelText: TekStrings.customerPhone,
-                            prefixIcon: Icon(Icons.phone_outlined, size: 18),
+                            labelStyle: TextStyle(color: TekColors.textSecondary),
+                            prefixIcon: Icon(Icons.phone_outlined, size: 18, color: TekColors.secondary),
                             isDense: true,
                           ),
                         ),
@@ -314,9 +479,15 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                   // Payment mode selector
                   const Text(
                     TekStrings.paymentMode,
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: TekColors.textPrimary,
+                      fontFamilyFallback: TekTypography.malayalamFallback,
+                    ),
                   ),
                   const SizedBox(height: 8),
+
                   SegmentedButton<String>(
                     segments: const [
                       ButtonSegment(value: 'Cash', label: Text('Cash')),
@@ -337,35 +508,38 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                           child: TextField(
                             controller: _cashReceivedCtrl,
                             keyboardType: TextInputType.number,
+                            style: const TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.bold),
                             onChanged: (_) => setSheet(() {}),
                             decoration: const InputDecoration(
                               labelText: TekStrings.cashReceived,
+                              labelStyle: TextStyle(color: TekColors.textSecondary),
                               prefixText: '₹ ',
+                              prefixStyle: TextStyle(color: TekColors.secondary, fontWeight: FontWeight.bold),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 14),
                         Expanded(
                           child: Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.green.shade50,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: Colors.green.shade200),
+                              color: TekColors.success.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: TekColors.success.withValues(alpha: 0.4)),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text(
                                   TekStrings.changeDue,
-                                  style: TextStyle(fontSize: 11, color: Colors.green),
+                                  style: TextStyle(fontSize: 11, color: TekColors.success, fontWeight: FontWeight.bold),
                                 ),
                                 Text(
                                   '₹${changeDue.toStringAsFixed(2)}',
                                   style: const TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.green,
+                                    color: TekColors.success,
                                   ),
                                 ),
                               ],
@@ -378,26 +552,33 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.blue.shade200),
+                        color: TekColors.bgSecondary,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: TekColors.border),
                       ),
                       child: Column(
                         children: [
                           const Text(
                             TekStrings.upiScanPrompt,
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: TekColors.textPrimary),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: QrImageView(
+                              data: upiUri,
+                              version: QrVersions.auto,
+                              size: 160.0,
+                            ),
                           ),
                           const SizedBox(height: 10),
-                          QrImageView(
-                            data: upiUri,
-                            version: QrVersions.auto,
-                            size: 160.0,
-                          ),
-                          const SizedBox(height: 8),
                           Text(
                             'Amount: ₹${_total.toStringAsFixed(2)}',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: TekColors.secondary, fontSize: 15),
                           ),
                         ],
                       ),
@@ -409,7 +590,12 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                           child: TextField(
                             controller: _splitCashCtrl,
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(labelText: 'Cash Amount', prefixText: '₹ '),
+                            style: const TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.bold),
+                            decoration: const InputDecoration(
+                              labelText: 'Cash Amount',
+                              labelStyle: TextStyle(color: TekColors.textSecondary),
+                              prefixText: '₹ ',
+                            ),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -417,7 +603,12 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                           child: TextField(
                             controller: _splitUpiCtrl,
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(labelText: 'UPI Amount', prefixText: '₹ '),
+                            style: const TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.bold),
+                            decoration: const InputDecoration(
+                              labelText: 'UPI Amount',
+                              labelStyle: TextStyle(color: TekColors.textSecondary),
+                              prefixText: '₹ ',
+                            ),
                           ),
                         ),
                       ],
@@ -426,14 +617,12 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
 
                   const SizedBox(height: 24),
 
-                  FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      backgroundColor: const Color(0xFF16A34A),
-                    ),
-                    onPressed: _submitting
+                  // Complete Sale Action Button with atomic Firestore transaction and double submission lock
+                  GestureDetector(
+                    onTap: _submitting
                         ? null
                         : () async {
+                            HapticFeedback.heavyImpact();
                             setSheet(() => _submitting = true);
                             try {
                               double cashAmt = 0.0;
@@ -449,9 +638,15 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                               } else if (paymentMode == 'Split') {
                                 cashAmt = double.tryParse(_splitCashCtrl.text) ?? 0.0;
                                 upiAmt = double.tryParse(_splitUpiCtrl.text) ?? 0.0;
+                                final splitTotal = cashAmt + upiAmt;
+                                if ((splitTotal - _total).abs() > 0.01) {
+                                  toast(ctx, 'തുക കൃത്യമല്ല (Split total must equal ₹${_total.toStringAsFixed(2)})', error: true);
+                                  setSheet(() => _submitting = false);
+                                  return;
+                                }
                               }
 
-                              final pmt = PosPayment(
+                              final payment = PosPayment(
                                 mode: paymentMode,
                                 totalAmount: _total,
                                 cashAmount: cashAmt,
@@ -461,12 +656,13 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                                 changeDue: changeDue,
                               );
 
+                              // Execute atomic sale with Firestore transaction & stock check
                               final invoice = await PosService.instance.completeSale(
                                 shopId: widget.shopId,
                                 staffId: widget.staffId,
                                 staffName: widget.staffName,
-                                cartItems: List.from(_cart),
-                                payment: pmt,
+                                cartItems: _cart,
+                                payment: payment,
                                 subtotal: _subtotal,
                                 discount: _discount,
                                 total: _total,
@@ -474,27 +670,67 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                                 customerPhone: _custPhoneCtrl.text,
                               );
 
+                              if (!mounted) return;
                               if (ctx.mounted) Navigator.pop(ctx);
 
                               setState(() {
                                 _cart.clear();
                                 _custNameCtrl.clear();
                                 _custPhoneCtrl.clear();
+                                _cashReceivedCtrl.clear();
                               });
 
-                              if (mounted) _showSaleSuccessDialog(invoice);
+                              _showSaleSuccessDialog(invoice);
                             } catch (e) {
-                              if (mounted) toast(context, 'വിൽപ്പന പരാജയപ്പെട്ടു: $e', error: true);
+                              if (ctx.mounted) {
+                                showDialog(
+                                  context: ctx,
+                                  builder: (errCtx) => AlertDialog(
+                                    backgroundColor: TekColors.bgCard,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                                    icon: const Icon(Icons.error_outline_rounded, color: TekColors.error, size: 40),
+                                    title: const Text('ബില്ലിംഗ് തടസ്സപ്പെട്ടു', style: TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.bold)),
+                                    content: Text('$e', style: const TextStyle(color: TekColors.textSecondary)),
+                                    actions: [
+                                      FilledButton(
+                                        style: FilledButton.styleFrom(backgroundColor: TekColors.primary),
+                                        onPressed: () => Navigator.pop(errCtx),
+                                        child: const Text('OK'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }
                             } finally {
-                              setSheet(() => _submitting = false);
+                              if (mounted) setSheet(() => _submitting = false);
                             }
                           },
-                    icon: _submitting
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.check_circle_rounded),
-                    label: Text(
-                      _submitting ? 'പ്രോസസ്സ് ചെയ്യുന്നു...' : TekStrings.btnCompleteSale,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    child: Container(
+                      height: 52,
+                      decoration: BoxDecoration(
+                        gradient: _submitting
+                            ? const LinearGradient(colors: [Colors.grey, Colors.black45])
+                            : TekColors.primaryGradient,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: TekColors.primaryGlow,
+                      ),
+                      child: Center(
+                        child: _submitting
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                              )
+                            : const Text(
+                                'Complete Sale (ബില്ലിംഗ് പൂർത്തിയാക്കുക)',
+                                style: TextStyle(
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  fontFamilyFallback: TekTypography.malayalamFallback,
+                                ),
+                              ),
+                      ),
                     ),
                   ),
                 ],
@@ -511,32 +747,49 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 48),
-        title: const Text(TekStrings.saleSuccessTitle),
+        backgroundColor: TekColors.bgCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: TekColors.border),
+        ),
+        icon: const Icon(Icons.check_circle_rounded, color: TekColors.success, size: 48),
+        title: const Text(
+          TekStrings.saleSuccessTitle,
+          style: TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.bold),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${TekStrings.invoiceNo}: #${invoice.invoiceId}', style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text('${TekStrings.grandTotal}: ₹${invoice.total.toStringAsFixed(2)}'),
-            Text('കസ്റ്റമർ: ${invoice.customerName}'),
+            Text('${TekStrings.invoiceNo}: #${invoice.invoiceId}', style: const TextStyle(fontWeight: FontWeight.bold, color: TekColors.secondary)),
+            const SizedBox(height: 4),
+            Text('${TekStrings.grandTotal}: ₹${invoice.total.toStringAsFixed(2)}', style: const TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 2),
+            Text('കസ്റ്റമർ: ${invoice.customerName}', style: const TextStyle(color: TekColors.textSecondary)),
             const SizedBox(height: 12),
-            const Text('വിൽപ്പന വിജയകരമായി രേഖപ്പെടുത്തി.'),
+            const Text(
+              'വിൽപ്പന വിജയകരമായി രേഖപ്പെടുത്തി (Transaction atomic & synced with cash register).',
+              style: TextStyle(fontSize: 12, color: TekColors.textMuted),
+            ),
           ],
         ),
         actions: [
           OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Color(0xFF22C55E)),
+            ),
             onPressed: () {
               PosService.instance.shareReceiptWhatsApp(
                 invoice: invoice,
-                shopName: Db.setting('shop_name', 'TEKFIX MOBILE HUB'),
+                shopName: Db.setting('shop_name', 'TEKFIX DIGITAL'),
                 shopPhone: Db.setting('shop_phone', '7034093101'),
               );
             },
-            icon: const Icon(Icons.chat_rounded, color: Colors.green),
-            label: const Text(TekStrings.btnShareWhatsApp),
+            icon: const Icon(Icons.chat_rounded, color: Color(0xFF22C55E), size: 18),
+            label: const Text(TekStrings.btnShareWhatsApp, style: TextStyle(color: Color(0xFF22C55E))),
           ),
           FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: TekColors.primary),
             onPressed: () => Navigator.pop(ctx),
             child: const Text(TekStrings.btnNewSale),
           ),
@@ -566,8 +819,11 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
 
   Widget _buildLockedGatedState(BuildContext context, bool isCheckedOut) {
     return Scaffold(
+      backgroundColor: TekColors.bgMain,
       appBar: AppBar(
-        title: const Text(TekStrings.tabPos),
+        backgroundColor: TekColors.bgMain,
+        elevation: 0,
+        title: const Text('POS Billing (സെയിൽസ്)'),
       ),
       body: Center(
         child: Padding(
@@ -578,59 +834,71 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: Colors.red.shade50,
+                  color: TekColors.error.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
+                  border: Border.all(color: TekColors.error.withValues(alpha: 0.4)),
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.lock_rounded,
-                  size: 64,
-                  color: Colors.red.shade700,
+                  size: 56,
+                  color: TekColors.error,
                 ),
               ),
               const SizedBox(height: 24),
               const Text(
                 TekStrings.posLockedTitle,
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: TekColors.textPrimary),
               ),
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.amber.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.amber.shade300),
+                  color: TekColors.warning.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: TekColors.warning.withValues(alpha: 0.4)),
                 ),
                 child: Text(
                   isCheckedOut
                       ? 'ഇന്നത്തെ ഡ്യൂട്ടി പൂർത്തിയായി (Shift is completed for today). POS ക്ലോസ് ചെയ്തിരിക്കുന്നു.'
                       : TekStrings.posLockedBanner,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.amber.shade900,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    color: TekColors.warning,
                     fontWeight: FontWeight.w600,
                     height: 1.4,
+                    fontFamilyFallback: TekTypography.malayalamFallback,
                   ),
                   textAlign: TextAlign.center,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               const Text(
                 TekStrings.posLockedSub,
-                style: TextStyle(fontSize: 12.5, color: Colors.grey),
+                style: TextStyle(fontSize: 12, color: TekColors.textSecondary),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
               if (!isCheckedOut)
-                FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                    backgroundColor: kPrimary,
-                  ),
-                  onPressed: widget.onNavigateToAttendance,
-                  icon: const Icon(Icons.how_to_reg_rounded),
-                  label: const Text(
-                    TekStrings.btnCheckInNow,
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                GestureDetector(
+                  onTap: widget.onNavigateToAttendance,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    decoration: BoxDecoration(
+                      gradient: TekColors.primaryGradient,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: TekColors.primaryGlow,
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.how_to_reg_rounded, color: Colors.white, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          TekStrings.btnCheckInNow,
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
             ],
@@ -641,23 +909,15 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
   }
 
   Widget _buildUnlockedPos(BuildContext context, AttendanceRecord record) {
-    final catalog = PosService.instance.getCatalogItems();
-    final filtered = catalog.where((it) {
-      final matchesCat = _selectedCategory == 'All' || it.category == _selectedCategory;
-      final q = _searchQuery.toLowerCase();
-      final matchesSearch = q.isEmpty ||
-          it.name.toLowerCase().contains(q) ||
-          it.barcode.toLowerCase().contains(q) ||
-          it.sku.toLowerCase().contains(q);
-      return matchesCat && matchesSearch;
-    }).toList();
-
     return Scaffold(
+      backgroundColor: TekColors.bgMain,
       appBar: AppBar(
+        backgroundColor: TekColors.bgMain,
+        elevation: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(TekStrings.tabPos, style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('POS Billing (സെയിൽസ്)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
             _buildApprovalBadge(record),
           ],
         ),
@@ -665,17 +925,18 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
           Stack(
             children: [
               IconButton(
-                icon: const Icon(Icons.shopping_cart_rounded),
+                tooltip: 'Shopping Cart',
+                icon: const Icon(Icons.shopping_cart_rounded, color: TekColors.secondary, size: 24),
                 onPressed: _openCheckoutSheet,
               ),
               if (_cart.isNotEmpty)
                 Positioned(
-                  right: 8,
-                  top: 8,
+                  right: 6,
+                  top: 6,
                   child: Container(
                     padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    decoration: const BoxDecoration(color: TekColors.error, shape: BoxShape.circle),
+                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
                     child: Text(
                       '${_cart.length}',
                       style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
@@ -685,79 +946,123 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                 ),
             ],
           ),
+          const SizedBox(width: 6),
         ],
       ),
-      body: Column(
-        children: [
-          // Search Bar
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
-            child: TextField(
-              controller: _searchCtrl,
-              onChanged: (v) => setState(() => _searchQuery = v),
-              decoration: InputDecoration(
-                hintText: TekStrings.searchItems,
-                prefixIcon: const Icon(Icons.search_rounded),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear_rounded),
-                        onPressed: () {
-                          _searchCtrl.clear();
-                          setState(() => _searchQuery = '');
-                        },
-                      )
-                    : null,
-                isDense: true,
+      body: StreamBuilder<List<PosItem>>(
+        stream: PosService.instance.streamCatalogItems(widget.shopId),
+        builder: (context, snapshot) {
+          final catalog = snapshot.data ?? PosService.instance.getCatalogItems();
+          final filtered = catalog.where((it) {
+            final matchesCat = _selectedCategory == 'All' || it.category == _selectedCategory;
+            final q = _searchQuery.toLowerCase();
+            final matchesSearch = q.isEmpty ||
+                it.name.toLowerCase().contains(q) ||
+                it.barcode.toLowerCase().contains(q) ||
+                it.sku.toLowerCase().contains(q);
+            return matchesCat && matchesSearch;
+          }).toList();
+
+          return Column(
+            children: [
+              // Search Bar
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+                child: TextField(
+                  controller: _searchCtrl,
+                  style: const TextStyle(color: TekColors.textPrimary, fontSize: 14),
+                  onChanged: (v) => setState(() => _searchQuery = v.trim()),
+                  decoration: InputDecoration(
+                    hintText: TekStrings.searchItems,
+                    hintStyle: const TextStyle(color: TekColors.textMuted, fontSize: 13),
+                    prefixIcon: const Icon(Icons.search_rounded, color: TekColors.secondary, size: 20),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear_rounded, size: 18, color: TekColors.textSecondary),
+                            onPressed: () {
+                              _searchCtrl.clear();
+                              setState(() => _searchQuery = '');
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: TekColors.bgSecondary,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: TekColors.border)),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: TekColors.border)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: TekColors.primary, width: 1.5)),
+                  ),
+                ),
               ),
-            ),
-          ),
 
-          // Category Chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            child: Row(
-              children: _categories.map((cat) {
-                final isSel = _selectedCategory == cat;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: FilterChip(
-                    selected: isSel,
-                    label: Text(cat),
-                    onSelected: (val) => setState(() => _selectedCategory = cat),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
+              // Category Filter Chips
+              SizedBox(
+                height: 40,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: _categories.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (ctx, i) {
+                    final cat = _categories[i];
+                    final isSel = _selectedCategory == cat;
+                    return ChoiceChip(
+                      selected: isSel,
+                      label: Text(cat),
+                      labelStyle: TextStyle(
+                        fontSize: 12,
+                        fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
+                        color: isSel ? Colors.white : TekColors.textSecondary,
+                      ),
+                      selectedColor: TekColors.primary,
+                      backgroundColor: TekColors.bgSecondary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: BorderSide(color: isSel ? TekColors.primary : TekColors.border),
+                      ),
+                      onSelected: (val) {
+                        if (val) {
+                          HapticFeedback.selectionClick();
+                          setState(() => _selectedCategory = cat);
+                        }
+                      },
+                    );
+                  },
+                ),
+              ),
 
-          const Divider(height: 12),
+              const SizedBox(height: 8),
 
-          // Catalog Grid
-          Expanded(
-            child: filtered.isEmpty
-                ? const Center(
-                    child: Text('ഉൽപ്പന്നങ്ങൾ ലഭ്യമല്ല (No items found).'),
-                  )
-                : GridView.builder(
-                    padding: const EdgeInsets.all(12),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 0.85,
-                      crossAxisSpacing: 10,
-                      mainAxisSpacing: 10,
-                    ),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, idx) {
-                      final item = filtered[idx];
-                      return _buildItemCard(item);
-                    },
-                  ),
-          ),
+              // Catalog Grid
+              Expanded(
+                child: filtered.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'ഉൽപ്പന്നങ്ങൾ ലഭ്യമല്ല (No items found).',
+                          style: TextStyle(color: TekColors.textSecondary),
+                        ),
+                      )
+                    : GridView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 85),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 0.82,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                        ),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, idx) {
+                          final item = filtered[idx];
+                          return _buildItemCard(item);
+                        },
+                      ),
+              ),
 
-          // Floating Cart Summary Bar
-          if (_cart.isNotEmpty) _buildBottomCartBar(),
-        ],
+              // Floating Cart Summary Bar
+              if (_cart.isNotEmpty) _buildBottomCartBar(),
+            ],
+          );
+        },
       ),
     );
   }
@@ -768,16 +1073,16 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
 
     if (r.isApproved) {
       text = TekStrings.badgeApproved;
-      color = Colors.greenAccent;
+      color = TekColors.success;
     } else if (r.isRejected) {
       text = '${TekStrings.badgeRejected}: ${r.adjustReason ?? ''}';
-      color = Colors.redAccent;
+      color = TekColors.error;
     } else if (r.isAdjusted) {
       text = '${TekStrings.badgeAdjusted}: ${r.adjustReason ?? ''}';
-      color = Colors.purpleAccent;
+      color = TekColors.secondary;
     } else {
       text = TekStrings.badgePendingApproval;
-      color = Colors.amberAccent;
+      color = TekColors.warning;
     }
 
     return Text(
@@ -786,25 +1091,33 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
     );
   }
 
+
   Widget _buildItemCard(PosItem it) {
-    Color stockColor = Colors.green;
+    Color stockColor = TekColors.success;
     String stockText = '${it.stock} In Stock';
     if (it.isOutOfStock) {
-      stockColor = Colors.red;
+      stockColor = TekColors.error;
       stockText = TekStrings.outOfStock;
     } else if (it.isLowStock) {
-      stockColor = Colors.orange;
+      stockColor = TekColors.warning;
       stockText = 'Only ${it.stock} Left';
     }
 
-    return Card(
-      elevation: 1.5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    final cartIdx = _cart.indexWhere((c) => c.item.id == it.id);
+    final cartQty = cartIdx >= 0 ? _cart[cartIdx].qty : 0;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: TekColors.bgCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: cartQty > 0 ? TekColors.primary : TekColors.border),
+        boxShadow: TekColors.cardShadow,
+      ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         onTap: it.isOutOfStock ? null : () => _addToCart(it),
         child: Padding(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -814,18 +1127,20 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: stockColor.withAlpha(25),
+                      color: stockColor.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: stockColor.withAlpha(80)),
+                      border: Border.all(color: stockColor.withValues(alpha: 0.4)),
                     ),
                     child: Text(
                       stockText,
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: stockColor),
+                      style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: stockColor),
                     ),
                   ),
                   Text(
                     it.category,
-                    style: const TextStyle(fontSize: 10, color: Colors.grey),
+                    style: const TextStyle(fontSize: 10, color: TekColors.textMuted),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -834,9 +1149,9 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                 it.name,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: TekColors.textPrimary),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -845,15 +1160,34 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF16A34A),
+                      color: TekColors.secondary,
                     ),
                   ),
-                  IconButton.filledTonal(
-                    iconSize: 18,
-                    visualDensity: VisualDensity.compact,
-                    onPressed: it.isOutOfStock ? null : () => _addToCart(it),
-                    icon: const Icon(Icons.add_shopping_cart_rounded),
-                  ),
+                  if (cartQty > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: TekColors.primary,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'x$cartQty',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: it.isOutOfStock ? TekColors.bgSecondary : TekColors.primary.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.add_shopping_cart_rounded,
+                        size: 16,
+                        color: it.isOutOfStock ? TekColors.textMuted : TekColors.primary,
+                      ),
+                    ),
                 ],
               ),
             ],
@@ -864,136 +1198,41 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
   }
 
   Widget _buildBottomCartBar() {
-    final count = _cart.fold(0, (s, i) => s + i.qty);
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -3))],
+        color: TekColors.bgSecondary,
+        border: const Border(top: BorderSide(color: TekColors.border)),
+        boxShadow: TekColors.cardShadow,
       ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '$count Items • Cart',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-                Text(
-                  '₹${_total.toStringAsFixed(2)}',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF16A34A)),
-                ),
-              ],
-            ),
-            const Spacer(),
-            TextButton.icon(
-              onPressed: () => _showCartItemListModal(),
-              icon: const Icon(Icons.list_alt_rounded),
-              label: const Text('View Cart'),
-            ),
-            const SizedBox(width: 8),
-            FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF16A34A),
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-              ),
-              onPressed: _openCheckoutSheet,
-              icon: const Icon(Icons.arrow_forward_rounded),
-              label: const Text('Checkout', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showCartItemListModal() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setM) => Container(
-          height: MediaQuery.of(ctx).size.height * 0.65,
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('കാർട്ടിലെ സാധനങ്ങൾ (Cart Items)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close)),
-                ],
+              Text(
+                '${_cart.length} Products (${_cart.fold(0, (s, i) => s + i.qty)} Qty)',
+                style: const TextStyle(fontSize: 12, color: TekColors.textSecondary),
               ),
-              const Divider(),
-              Expanded(
-                child: ListView.separated(
-                  itemCount: _cart.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (ctx, idx) {
-                    final item = _cart[idx];
-                    return ListTile(
-                      title: Text(item.item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Row(
-                        children: [
-                          Text('₹${item.unitPrice.toStringAsFixed(0)}'),
-                          if (item.hasValidOverride)
-                            Container(
-                              margin: const EdgeInsets.only(left: 6),
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                              decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(4)),
-                              child: const Text('PIN Approved', style: TextStyle(fontSize: 9, color: Colors.orange)),
-                            ),
-                          const Spacer(),
-                          IconButton(
-                            icon: const Icon(Icons.edit_note_rounded, size: 20),
-                            onPressed: () async {
-                              await _editItemPrice(item);
-                              setM(() {});
-                              setState(() {});
-                            },
-                          ),
-                        ],
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.remove_circle_outline, size: 20),
-                            onPressed: () {
-                              _updateCartQty(item, item.qty - 1);
-                              setM(() {});
-                            },
-                          ),
-                          Text('${item.qty}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                          IconButton(
-                            icon: const Icon(Icons.add_circle_outline, size: 20),
-                            onPressed: () {
-                              _updateCartQty(item, item.qty + 1);
-                              setM(() {});
-                            },
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-              FilledButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _openCheckoutSheet();
-                },
-                child: Text('Checkout • ₹${_total.toStringAsFixed(2)}'),
+              Text(
+                '₹${_total.toStringAsFixed(2)}',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: TekColors.success),
               ),
             ],
           ),
-        ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: TekColors.primary,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            ),
+            icon: const Icon(Icons.shopping_cart_checkout_rounded, size: 18),
+            label: const Text('Checkout (ബിൽ)', style: TextStyle(fontWeight: FontWeight.bold)),
+            onPressed: _openCheckoutSheet,
+          ),
+        ],
       ),
     );
   }

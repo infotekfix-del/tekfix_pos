@@ -141,6 +141,38 @@ class ReminderService {
     return false;
   }
 
+  /// Opens device SMS app intent with pre-filled message text.
+  Future<bool> openSmsIntent(String phone, String message) async {
+    var clean = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    final uri = Uri.parse('sms:$clean?body=${Uri.encodeComponent(message)}');
+    if (await canLaunchUrl(uri)) {
+      return await launchUrl(uri);
+    }
+    return false;
+  }
+
+  /// Records a sent reminder without deducting or modifying the customer's balance.
+  Future<void> recordReminderSent({
+    required dynamic partyKey,
+    required Map party,
+    required String channel, // 'WhatsApp' or 'SMS'
+    required String message,
+  }) async {
+    final count = _i(party['reminderCount']) + 1;
+    party['lastReminderAt'] = DateTime.now().toIso8601String();
+    party['reminderCount'] = count;
+    // Strictly preserve balance!
+    await Db.parties.put(partyKey, party);
+
+    await logSentMessage(
+      type: 'Payment Reminder ($channel)',
+      customerName: '${party['name']}',
+      phone: '${party['phone'] ?? ''}',
+      text: message,
+      success: true,
+    );
+  }
+
   // ---- Template Formatting -------------------------------------------------
   String buildReminderMessage({
     required String customerName,

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:ota_update/ota_update.dart';
@@ -87,7 +88,19 @@ class AppUpdateService {
       debugPrint(
           'AppUpdateService: Installed Version=$currentVersion, Build=$currentBuild');
 
-      // Fetch version config from Firestore (collection: app_config, doc: version)
+      // 1. Ensure user is authenticated before querying protected Firestore config
+      if (FirebaseAuth.instance.currentUser == null) {
+        try {
+          await FirebaseAuth.instance
+              .authStateChanges()
+              .firstWhere((u) => u != null)
+              .timeout(const Duration(seconds: 3));
+        } catch (_) {
+          debugPrint('AppUpdateService: Auth wait timeout or offline session.');
+        }
+      }
+
+      // 2. Fetch version config from Firestore (collection: app_config, doc: version)
       final doc = await FirebaseFirestore.instance
           .collection('app_config')
           .doc('version')

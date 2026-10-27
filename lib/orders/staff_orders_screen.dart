@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../main.dart' show Db, toast;
 import '../pos/pos_models.dart';
+import '../pos/pos_service.dart';
+import '../theme/tek_tokens.dart';
 import 'order_models.dart';
 import 'order_service.dart';
 
@@ -29,6 +31,11 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchQuery = '';
   String _selectedCategory = 'All';
+
+  // Order history search & status filters
+  final TextEditingController _historySearchCtrl = TextEditingController();
+  String _historySearchQuery = '';
+  String _historyStatusFilter = 'All';
 
   // Current order cart items
   final List<StaffOrderProduct> _cart = [];
@@ -60,6 +67,7 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
   void dispose() {
     _tabController.dispose();
     _searchCtrl.dispose();
+    _historySearchCtrl.dispose();
     super.dispose();
   }
 
@@ -969,29 +977,29 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: TekColors.bgMain,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: TekColors.bgSecondary,
         elevation: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
               'TekFix Orders (ഓർഡറുകൾ)',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Colors.white),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: TekColors.textPrimary),
             ),
             Text(
               'Staff: ${widget.staffName} • ${widget.shopId.toUpperCase()}',
-              style: const TextStyle(fontSize: 11.5, color: Colors.white60),
+              style: const TextStyle(fontSize: 11.5, color: TekColors.textSecondary),
             ),
           ],
         ),
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: const Color(0xFF38BDF8),
+          indicatorColor: TekColors.primary,
           indicatorWeight: 3,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white54,
+          labelColor: TekColors.primary,
+          unselectedLabelColor: TekColors.textSecondary,
           labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
           tabs: const [
             Tab(icon: Icon(Icons.add_shopping_cart_rounded), text: 'New Order (പുതിയത്)'),
@@ -1113,27 +1121,33 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
   }
 
   Widget _buildNewOrderTab() {
-    final allItems = <PosItem>[];
-    for (final v in Db.items.values) {
-      if (v is Map) {
-        final m = Map<String, dynamic>.from(v);
-        allItems.add(PosItem.fromMap(m['id']?.toString() ?? '', m));
-      }
-    }
+    return StreamBuilder<List<PosItem>>(
+      stream: PosService.instance.streamCatalogItems(widget.shopId),
+      builder: (context, snapshot) {
+        final allItems = snapshot.data ?? () {
+          final list = <PosItem>[];
+          for (final v in Db.items.values) {
+            if (v is Map) {
+              final m = Map<String, dynamic>.from(v);
+              list.add(PosItem.fromMap(m['id']?.toString() ?? '', m));
+            }
+          }
+          return list;
+        }();
 
-    // Filter items by category & search query
-    final filtered = allItems.where((it) {
-      final matchesCat =
-          _selectedCategory == 'All' || it.category.toLowerCase() == _selectedCategory.toLowerCase();
-      final q = _searchQuery.toLowerCase();
-      final matchesQuery = q.isEmpty ||
-          it.name.toLowerCase().contains(q) ||
-          it.sku.toLowerCase().contains(q) ||
-          it.barcode.toLowerCase().contains(q);
-      return matchesCat && matchesQuery;
-    }).toList();
+        // Filter items by category & search query
+        final filtered = allItems.where((it) {
+          final matchesCat =
+              _selectedCategory == 'All' || it.category.toLowerCase() == _selectedCategory.toLowerCase();
+          final q = _searchQuery.toLowerCase();
+          final matchesQuery = q.isEmpty ||
+              it.name.toLowerCase().contains(q) ||
+              it.sku.toLowerCase().contains(q) ||
+              it.barcode.toLowerCase().contains(q);
+          return matchesCat && matchesQuery;
+        }).toList();
 
-    return Column(
+        return Column(
       children: [
         // Top Search and Add Custom Button
         Padding(
@@ -1544,10 +1558,12 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                     );
                   },
                 ),
-        ),
-      ],
-    );
-  }
+          ),
+        ],
+      );
+    },
+  );
+}
 
   Widget _buildOrderHistoryTab() {
     final authUid = FirebaseAuth.instance.currentUser?.uid;
@@ -1555,11 +1571,21 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
         ? authUid
         : (widget.staffId.isNotEmpty ? widget.staffId : Db.setting('staff_logged_id'));
 
+    final statusFilters = [
+      'All',
+      'Submitted',
+      'Pending',
+      'Confirmed',
+      'Processing',
+      'Completed',
+      'Cancelled',
+    ];
+
     return StreamBuilder<List<StaffOrder>>(
       stream: OrderService.instance.streamStaffOrders(widget.shopId, effectiveStaffId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: Color(0xFF38BDF8)));
+          return const Center(child: CircularProgressIndicator(color: TekColors.primary));
         }
 
         if (snapshot.hasError) {
@@ -1569,12 +1595,12 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 48),
+                  const Icon(Icons.error_outline_rounded, color: TekColors.error, size: 48),
                   const SizedBox(height: 12),
                   Text(
                     'ഓർഡറുകൾ ലോഡ് ചെയ്യുന്നതിൽ പിശക്: ${snapshot.error}',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.redAccent),
+                    style: const TextStyle(color: TekColors.error),
                   ),
                 ],
               ),
@@ -1582,243 +1608,581 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
           );
         }
 
-        final orders = snapshot.data ?? [];
-        if (orders.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.shopping_bag_outlined, size: 54, color: Colors.white24),
-                const SizedBox(height: 12),
-                const Text(
-                  'നിങ്ങൾ ഇതുവരെ ഓർഡറുകളൊന്നും സമർപ്പിച്ചിട്ടില്ല\n(No orders submitted yet)',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white54),
+        final allOrders = snapshot.data ?? [];
+
+        // Apply Search & Status Filter
+        final filteredOrders = allOrders.where((o) {
+          if (_historyStatusFilter != 'All') {
+            if (o.status.name.toLowerCase() != _historyStatusFilter.toLowerCase()) {
+              return false;
+            }
+          }
+
+          if (_historySearchQuery.isNotEmpty) {
+            final q = _historySearchQuery.toLowerCase();
+            final matchId = o.orderId.toLowerCase().contains(q);
+            final matchRemarks = o.generalRemarks.toLowerCase().contains(q);
+            final matchItems = o.products.any((p) => p.name.toLowerCase().contains(q));
+            return matchId || matchRemarks || matchItems;
+          }
+
+          return true;
+        }).toList();
+
+        return Column(
+          children: [
+            // History Search Bar
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+              child: TextField(
+                controller: _historySearchCtrl,
+                style: const TextStyle(color: TekColors.textPrimary, fontSize: 14),
+                onChanged: (val) => setState(() => _historySearchQuery = val.trim()),
+                decoration: InputDecoration(
+                  hintText: 'Search Order ID or products...',
+                  hintStyle: const TextStyle(color: TekColors.textMuted, fontSize: 13),
+                  prefixIcon: const Icon(Icons.search_rounded, color: TekColors.secondary, size: 20),
+                  suffixIcon: _historySearchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear_rounded, size: 18, color: TekColors.textSecondary),
+                          onPressed: () {
+                            _historySearchCtrl.clear();
+                            setState(() => _historySearchQuery = '');
+                          },
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: TekColors.bgSecondary,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: TekColors.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: TekColors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: TekColors.primary, width: 1.5),
+                  ),
                 ),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('പുതിയ ഓർഡർ ഉണ്ടാക്കുക (Create Order)'),
-                  onPressed: () => _tabController.animateTo(0),
+              ),
+            ),
+
+            // Horizontal Status Filter Chips
+            SizedBox(
+              height: 38,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: statusFilters.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (ctx, idx) {
+                  final st = statusFilters[idx];
+                  final isSel = _historyStatusFilter == st;
+                  return ChoiceChip(
+                    label: Text(
+                      st,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
+                        color: isSel ? Colors.white : TekColors.textSecondary,
+                      ),
+                    ),
+                    selected: isSel,
+                    selectedColor: TekColors.primary,
+                    backgroundColor: TekColors.bgSecondary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: BorderSide(color: isSel ? TekColors.primary : TekColors.border),
+                    ),
+                    onSelected: (val) {
+                      if (val) {
+                        HapticFeedback.selectionClick();
+                        setState(() => _historyStatusFilter = st);
+                      }
+                    },
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // Orders List
+            Expanded(
+              child: filteredOrders.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.shopping_bag_outlined, size: 54, color: TekColors.textMuted),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'ഓർഡറുകളൊന്നും കണ്ടെത്തിയില്ല\n(No matching orders)',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: TekColors.textSecondary, fontFamilyFallback: TekTypography.malayalamFallback),
+                          ),
+                          const SizedBox(height: 16),
+                          if (allOrders.isEmpty)
+                            FilledButton.icon(
+                              style: FilledButton.styleFrom(backgroundColor: TekColors.primary),
+                              icon: const Icon(Icons.add_rounded),
+                              label: const Text('പുതിയ ഓർഡർ ഉണ്ടാക്കുക (Create Order)'),
+                              onPressed: () => _tabController.animateTo(0),
+                            ),
+                        ],
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 85),
+                      itemCount: filteredOrders.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (ctx, i) {
+                        final o = filteredOrders[i];
+                        return _buildOrderCard(ctx, o);
+                      },
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildOrderCard(BuildContext ctx, StaffOrder o) {
+    return Container(
+      decoration: BoxDecoration(
+        color: TekColors.bgCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: TekColors.border),
+        boxShadow: TekColors.cardShadow,
+      ),
+      child: Theme(
+        data: Theme.of(ctx).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: o.status.color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.receipt_long_rounded, color: o.status.color, size: 22),
+          ),
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  o.orderId,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5, color: TekColors.textPrimary),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: o.status.color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: o.status.color.withValues(alpha: 0.4)),
+                ),
+                child: Text(
+                  '${o.status.label} (${o.status.labelMl})',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: o.status.color,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Row(
+              children: [
+                const Icon(Icons.access_time_rounded, size: 13, color: TekColors.textMuted),
+                const SizedBox(width: 4),
+                Text(
+                  '${o.createdDate} • ${o.createdTime}',
+                  style: const TextStyle(fontSize: 11.5, color: TekColors.textSecondary),
+                ),
+                const Spacer(),
+                Text(
+                  '${o.totalTypes} Types (${o.totalQuantity} Units)',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: TekColors.secondary),
                 ),
               ],
             ),
-          );
-        }
-
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: orders.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (ctx, i) {
-            final o = orders[i];
-            return Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF334155)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.25),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Theme(
-                data: Theme.of(ctx).copyWith(dividerColor: Colors.transparent),
-                child: ExpansionTile(
-                  tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: o.status.color.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.receipt_long_rounded, color: o.status.color, size: 22),
-                  ),
-                  title: Row(
+          ),
+          children: [
+            const Divider(height: 1, color: TekColors.border),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(
-                        child: Text(
-                          o.orderId,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5, color: Colors.white),
-                        ),
+                      const Text(
+                        'ഓർഡർ ചെയ്ത ഉൽപ്പന്നങ്ങൾ:',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: TekColors.textPrimary),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: o.status.color.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: o.status.color.withValues(alpha: 0.4)),
-                        ),
-                        child: Text(
-                          '${o.status.label} (${o.status.labelMl})',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: o.status.color,
-                          ),
+                      GestureDetector(
+                        onTap: () => _showOrderBreakdownDialog(o),
+                        child: const Row(
+                          children: [
+                            Text(
+                              'Detailed Breakdown',
+                              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: TekColors.secondary),
+                            ),
+                            Icon(Icons.chevron_right_rounded, size: 16, color: TekColors.secondary),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.access_time_rounded, size: 13, color: Colors.white54),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${o.createdDate} • ${o.createdTime}',
-                          style: const TextStyle(fontSize: 11.5, color: Colors.white60),
-                        ),
-                        const Spacer(),
-                        Text(
-                          '${o.totalTypes} Types (${o.totalQuantity} Units)',
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8)),
-                        ),
-                      ],
-                    ),
-                  ),
-                  children: [
-                    const Divider(height: 1, color: Color(0xFF334155)),
-                    Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                  const SizedBox(height: 8),
+                  ...o.products.map(
+                    (p) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'ഓർഡർ ചെയ്ത ഉൽപ്പന്നങ്ങൾ (Ordered Products):',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
-                          ),
-                          const SizedBox(height: 8),
-                          ...o.products.map(
-                            (p) => Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 4),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text('• ', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          p.name,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 13,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                        if (p.model.isNotEmpty || p.remarks.isNotEmpty)
-                                          Text(
-                                            [
-                                              if (p.model.isNotEmpty) 'Model: ${p.model}',
-                                              if (p.remarks.isNotEmpty) 'Note: ${p.remarks}',
-                                            ].join(' • '),
-                                            style: const TextStyle(fontSize: 11.5, color: Colors.white60),
-                                          ),
-                                      ],
-                                    ),
+                          const Text('• ', style: TextStyle(fontWeight: FontWeight.bold, color: TekColors.secondary)),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  p.name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                    color: TekColors.textPrimary,
                                   ),
+                                ),
+                                if (p.model.isNotEmpty || p.remarks.isNotEmpty)
                                   Text(
-                                    '${p.quantity} ${p.unit}',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                      color: Color(0xFF38BDF8),
-                                    ),
+                                    [
+                                      if (p.model.isNotEmpty) 'Model: ${p.model}',
+                                      if (p.remarks.isNotEmpty) 'Note: ${p.remarks}',
+                                    ].join(' • '),
+                                    style: const TextStyle(fontSize: 11.5, color: TekColors.textSecondary),
                                   ),
-                                ],
-                              ),
+                              ],
                             ),
                           ),
-                          if (o.generalRemarks.isNotEmpty) ...[
-                            const SizedBox(height: 10),
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0F172A),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: const Color(0xFF334155)),
-                              ),
-                              child: Text(
-                                'Remarks: ${o.generalRemarks}',
-                                style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.white70),
-                              ),
+                          Text(
+                            '${p.quantity} ${p.unit}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: TekColors.secondary,
                             ),
-                          ],
-                          const SizedBox(height: 14),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  style: OutlinedButton.styleFrom(
-                                    side: const BorderSide(color: Color(0xFF334155)),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                  ),
-                                  icon: const Icon(Icons.copy_rounded, size: 16, color: Colors.white70),
-                                  label: const Text('Copy Text', style: TextStyle(fontSize: 12, color: Colors.white)),
-                                  onPressed: () async {
-                                    final msg = OrderService.instance.formatWhatsAppMessage(o);
-                                    await OrderService.instance.copyOrderToClipboard(msg);
-                                    if (ctx.mounted) {
-                                      toast(ctx, 'ഓർഡർ മെസ്സേജ് കോപ്പി ചെയ്തു');
-                                    }
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF25D366),
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                  ),
-                                  icon: const Icon(Icons.send_rounded, size: 16),
-                                  label: const Text('WhatsApp', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                                  onPressed: () async {
-                                    final msg = OrderService.instance.formatWhatsAppMessage(o);
-                                    await OrderService.instance.copyOrderToClipboard(msg);
-                                    await OrderService.instance.openWhatsAppGroup(
-                                      'https://chat.whatsapp.com/GD5fTnnLRk9I0mPXdJ80n0?s=cl&p=a&mlu=4&ilr=4',
-                                    );
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              IconButton(
-                                tooltip: 'Reorder / Duplicate to Cart',
-                                style: IconButton.styleFrom(
-                                  backgroundColor: const Color(0xFF0F172A),
-                                  side: const BorderSide(color: Color(0xFF334155)),
-                                ),
-                                icon: const Icon(Icons.replay_rounded, size: 18, color: Color(0xFF38BDF8)),
-                                onPressed: () {
-                                  setState(() {
-                                    _cart.clear();
-                                    _cart.addAll(o.products);
-                                  });
-                                  _tabController.animateTo(0);
-                                  toast(context, 'ഉൽപ്പന്നങ്ങൾ കാർട്ടിലേക്ക് ചേർത്തു');
-                                },
-                              ),
-                            ],
                           ),
                         ],
                       ),
                     ),
+                  ),
+                  if (o.generalRemarks.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: TekColors.bgSecondary,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: TekColors.border),
+                      ),
+                      child: Text(
+                        'Remarks: ${o.generalRemarks}',
+                        style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: TekColors.textSecondary),
+                      ),
+                    ),
                   ],
-                ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: TekColors.border),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          icon: const Icon(Icons.copy_rounded, size: 16, color: TekColors.textSecondary),
+                          label: const Text('Copy Text', style: TextStyle(fontSize: 12, color: TekColors.textPrimary)),
+                          onPressed: () async {
+                            final msg = OrderService.instance.formatWhatsAppMessage(o);
+                            await OrderService.instance.copyOrderToClipboard(msg);
+                            if (ctx.mounted) {
+                              toast(ctx, 'ഓർഡർ മെസ്സേജ് കോപ്പി ചെയ്തു');
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF22C55E),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          icon: const Icon(Icons.send_rounded, size: 16),
+                          label: const Text('WhatsApp', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          onPressed: () async {
+                            final msg = OrderService.instance.formatWhatsAppMessage(o);
+                            await OrderService.instance.copyOrderToClipboard(msg);
+                            await OrderService.instance.openWhatsAppGroup(
+                              'https://chat.whatsapp.com/GD5fTnnLRk9I0mPXdJ80n0?s=cl&p=a&mlu=4&ilr=4',
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        tooltip: 'Reorder / Duplicate to Cart',
+                        style: IconButton.styleFrom(
+                          backgroundColor: TekColors.bgSecondary,
+                          side: const BorderSide(color: TekColors.border),
+                        ),
+                        icon: const Icon(Icons.replay_rounded, size: 18, color: TekColors.secondary),
+                        onPressed: () {
+                          setState(() {
+                            _cart.clear();
+                            _cart.addAll(o.products);
+                          });
+                          _tabController.animateTo(0);
+                          toast(context, 'ഉൽപ്പന്നങ്ങൾ കാർട്ടിലേക്ക് ചേർത്തു');
+                        },
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            );
-          },
-        );
-      },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showOrderBreakdownDialog(StaffOrder o) {
+    final statusSteps = [
+      StaffOrderStatus.submitted,
+      StaffOrderStatus.confirmed,
+      StaffOrderStatus.processing,
+      StaffOrderStatus.completed,
+    ];
+
+    int currentStepIndex = statusSteps.indexOf(o.status);
+    if (currentStepIndex < 0 && o.status == StaffOrderStatus.pending) currentStepIndex = 0;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: TekColors.bgCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+          side: const BorderSide(color: TekColors.border),
+        ),
+        icon: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: o.status.color.withValues(alpha: 0.15),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(Icons.receipt_long_rounded, color: o.status.color, size: 30),
+        ),
+        title: Column(
+          children: [
+            Text(
+              o.orderId,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: TekColors.textPrimary),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${o.createdDate} • ${o.createdTime}',
+              style: const TextStyle(fontSize: 12, color: TekColors.textSecondary),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Status Tracking Timeline Header
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: TekColors.bgSecondary,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: TekColors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.sync_rounded, size: 16, color: TekColors.secondary),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Status: ${o.status.label} (${o.status.labelMl})',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.bold,
+                          color: o.status.color,
+                        ),
+                      ),
+                      if (o.updatedBy != null && o.updatedBy!.isNotEmpty) ...[
+                        const Spacer(),
+                        Text(
+                          'By: ${o.updatedBy}',
+                          style: const TextStyle(fontSize: 11, color: TekColors.textSecondary),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Status Steps Tracker
+                if (o.status != StaffOrderStatus.cancelled) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: List.generate(statusSteps.length, (idx) {
+                      final st = statusSteps[idx];
+                      final isPassed = currentStepIndex >= idx;
+                      final isCurrent = currentStepIndex == idx;
+
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: isPassed ? TekColors.primary : TekColors.bgSecondary,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isCurrent ? TekColors.secondary : (isPassed ? TekColors.primary : TekColors.border),
+                                width: isCurrent ? 2 : 1,
+                              ),
+                            ),
+                            child: Icon(
+                              isPassed ? Icons.check : Icons.circle,
+                              size: isPassed ? 16 : 8,
+                              color: isPassed ? Colors.white : TekColors.textMuted,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            st.label,
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                              color: isPassed ? TekColors.textPrimary : TekColors.textMuted,
+                            ),
+                          ),
+                        ],
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                // Products breakdown list
+                const Text(
+                  'Ordered Products (ഉൽപ്പന്നങ്ങളുടെ വിവരം):',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: TekColors.textPrimary),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: TekColors.bgSecondary,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: TekColors.border),
+                  ),
+                  child: Column(
+                    children: o.products.map((p) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.circle, size: 6, color: TekColors.secondary),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  p.name,
+                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: TekColors.textPrimary),
+                                ),
+                                if (p.model.isNotEmpty || p.remarks.isNotEmpty)
+                                  Text(
+                                    [if (p.model.isNotEmpty) 'Model: ${p.model}', if (p.remarks.isNotEmpty) 'Note: ${p.remarks}'].join(' • '),
+                                    style: const TextStyle(fontSize: 11, color: TekColors.textSecondary),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: TekColors.primary.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '${p.quantity} ${p.unit}',
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: TekColors.secondary),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )).toList(),
+                  ),
+                ),
+
+                if (o.generalRemarks.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: TekColors.bgSecondary,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: TekColors.border),
+                    ),
+                    child: Text(
+                      'Remarks: ${o.generalRemarks}',
+                      style: const TextStyle(fontSize: 12, color: TekColors.textSecondary, fontStyle: FontStyle.italic),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(side: const BorderSide(color: TekColors.border)),
+            onPressed: () async {
+              final msg = OrderService.instance.formatWhatsAppMessage(o);
+              await OrderService.instance.copyOrderToClipboard(msg);
+              if (ctx.mounted) toast(ctx, 'ഓർഡർ കോപ്പി ചെയ്തു');
+            },
+            icon: const Icon(Icons.copy_rounded, size: 16, color: TekColors.textSecondary),
+            label: const Text('Copy', style: TextStyle(color: TekColors.textSecondary)),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: TekColors.primary),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
     );
   }
 }
