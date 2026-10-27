@@ -40,6 +40,26 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
     'Delivered',
   ];
 
+  late Stream<List<RepairJob>> _repairsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _initStream();
+  }
+
+  void _initStream() {
+    _repairsStream = RepairService.instance.streamRepairs(widget.shopId);
+  }
+
+  @override
+  void didUpdateWidget(StaffRepairsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shopId != widget.shopId) {
+      _initStream();
+    }
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -69,7 +89,7 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
     }
   }
 
-  void _showUpdateModal(RepairJob job) {
+  Future<void> _showUpdateModal(RepairJob job) async {
     String selectedStatus = job.status;
     final notesController = TextEditingController(text: job.notes);
     String? localError;
@@ -84,10 +104,11 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
       'Cancelled',
     ];
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    try {
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) {
           return Container(
@@ -378,6 +399,9 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
         },
       ),
     );
+  } finally {
+    notesController.dispose();
+  }
   }
 
   Color _getStatusColor(String status) {
@@ -458,7 +482,7 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
         ],
       ),
       body: StreamBuilder<List<RepairJob>>(
-        stream: RepairService.instance.streamRepairs(widget.shopId),
+        stream: _repairsStream,
         builder: (context, snapshot) {
           final allJobs = snapshot.data ?? [];
 
@@ -599,6 +623,7 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                     : filteredJobs.isEmpty
                         ? _buildEmptyState()
                         : ListView.separated(
+                            cacheExtent: 300,
                             padding: const EdgeInsets.fromLTRB(16, 6, 16, 85),
                             physics: const BouncingScrollPhysics(),
                             itemCount: filteredJobs.length,

@@ -54,13 +54,32 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
     'Others',
   ];
 
+  late Stream<List<PosItem>> _catalogStream;
+  late Stream<List<StaffOrder>> _ordersStream;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() {
-      if (mounted) setState(() {});
+      if (!_tabController.indexIsChanging && mounted) setState(() {});
     });
+    _initStreams();
+  }
+
+  void _initStreams() {
+    _catalogStream = PosService.instance.streamCatalogItems(widget.shopId);
+    final authUid = FirebaseAuth.instance.currentUser?.uid;
+    final effectiveStaffId = (authUid != null && authUid.isNotEmpty) ? authUid : widget.staffId;
+    _ordersStream = OrderService.instance.streamStaffOrders(widget.shopId, effectiveStaffId);
+  }
+
+  @override
+  void didUpdateWidget(StaffOrdersScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shopId != widget.shopId || oldWidget.staffId != widget.staffId) {
+      _initStreams();
+    }
   }
 
   @override
@@ -170,8 +189,9 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
     final remarksCtrl = TextEditingController(text: item.remarks);
     final unitCtrl = TextEditingController(text: item.unit);
 
-    await showDialog(
-      context: context,
+    try {
+      await showDialog(
+        context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1E293B),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -273,6 +293,12 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
         ],
       ),
     );
+    } finally {
+      modelCtrl.dispose();
+      variantCtrl.dispose();
+      remarksCtrl.dispose();
+      unitCtrl.dispose();
+    }
   }
 
   // Dialog to add custom non-catalog item
@@ -284,8 +310,9 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
     final remarksCtrl = TextEditingController();
     String customCategory = 'Others';
 
-    await showDialog(
-      context: context,
+    try {
+      await showDialog(
+        context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setD) => AlertDialog(
           backgroundColor: const Color(0xFF1E293B),
@@ -452,80 +479,92 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
         ),
       ),
     );
+    } finally {
+      nameCtrl.dispose();
+      modelCtrl.dispose();
+      qtyCtrl.dispose();
+      unitCtrl.dispose();
+      remarksCtrl.dispose();
+    }
   }
 
   // Quick Barcode Scan Dialog
   Future<void> _openQuickScannerDialog() async {
     final barcodeCtrl = TextEditingController();
-    await showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        icon: const Icon(Icons.qr_code_scanner_rounded, size: 40, color: Color(0xFF38BDF8)),
-        title: const Text(
-          'ബാർകോഡ് സ്കാനർ (Barcode Search)',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'ഉൽപ്പന്നത്തിന്റെ ബാർകോഡ് നൽകുക അല്ലെങ്കിൽ സ്കാൻ ചെയ്യുക:',
-              style: TextStyle(fontSize: 13, color: Colors.white70),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: barcodeCtrl,
-              autofocus: true,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              decoration: InputDecoration(
-                hintText: 'ബാർകോഡ് ഇവിടെ നൽകുക (Barcode)...',
-                prefixIcon: const Icon(Icons.barcode_reader, color: Color(0xFF38BDF8)),
-                filled: true,
-                fillColor: const Color(0xFF0F172A),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+    try {
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          icon: const Icon(Icons.qr_code_scanner_rounded, size: 40, color: Color(0xFF38BDF8)),
+          title: const Text(
+            'ബാർകോഡ് സ്കാനർ (Barcode Search)',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'ഉൽപ്പന്നത്തിന്റെ ബാർകോഡ് നൽകുക അല്ലെങ്കിൽ സ്കാൻ ചെയ്യുക:',
+                style: TextStyle(fontSize: 13, color: Colors.white70),
               ),
-              onSubmitted: (val) {
-                if (val.trim().isNotEmpty) {
-                  _searchCtrl.text = val.trim();
-                  setState(() => _searchQuery = val.trim());
-                  Navigator.pop(ctx);
+              const SizedBox(height: 14),
+              TextField(
+                controller: barcodeCtrl,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                decoration: InputDecoration(
+                  hintText: 'ബാർകോഡ് ഇവിടെ നൽകുക (Barcode)...',
+                  prefixIcon: const Icon(Icons.barcode_reader, color: Color(0xFF38BDF8)),
+                  filled: true,
+                  fillColor: const Color(0xFF0F172A),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onSubmitted: (val) {
+                  if (val.trim().isNotEmpty) {
+                    _searchCtrl.text = val.trim();
+                    setState(() => _searchQuery = val.trim());
+                    Navigator.pop(ctx);
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('റദ്ദാക്കുക', style: TextStyle(color: Colors.white70)),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
+              onPressed: () {
+                final val = barcodeCtrl.text.trim();
+                if (val.isNotEmpty) {
+                  _searchCtrl.text = val;
+                  setState(() => _searchQuery = val);
                 }
+                Navigator.pop(ctx);
               },
+              child: const Text('തിരയുക (Search)'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('റദ്ദാക്കുക', style: TextStyle(color: Colors.white70)),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
-            onPressed: () {
-              final val = barcodeCtrl.text.trim();
-              if (val.isNotEmpty) {
-                _searchCtrl.text = val;
-                setState(() => _searchQuery = val);
-              }
-              Navigator.pop(ctx);
-            },
-            child: const Text('തിരയുക (Search)'),
-          ),
-        ],
-      ),
-    );
+      );
+    } finally {
+      barcodeCtrl.dispose();
+    }
   }
 
   // Cart Review Bottom Sheet Modal with Glassmorphic Dark Styling
-  void _openCartReviewSheet() {
+  Future<void> _openCartReviewSheet() async {
     final remarksCtrl = TextEditingController();
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
+    try {
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
       backgroundColor: const Color(0xFF1E293B),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -783,6 +822,9 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
         },
       ),
     );
+  } finally {
+    remarksCtrl.dispose();
+  }
   }
 
   // Handle Order Submission with Idempotency guard and post-submission modal
@@ -1122,7 +1164,7 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
 
   Widget _buildNewOrderTab() {
     return StreamBuilder<List<PosItem>>(
-      stream: PosService.instance.streamCatalogItems(widget.shopId),
+      stream: _catalogStream,
       builder: (context, snapshot) {
         final allItems = snapshot.data ?? () {
           final list = <PosItem>[];
@@ -1240,6 +1282,7 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
         SizedBox(
           height: 44,
           child: ListView.separated(
+            cacheExtent: 300,
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: _categories.length,
@@ -1329,6 +1372,7 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                   ),
                 )
               : ListView.separated(
+                  cacheExtent: 300,
                   padding: EdgeInsets.fromLTRB(16, 6, 16, _cart.isNotEmpty ? 90 : 20),
                   itemCount: filtered.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -1566,11 +1610,6 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
 }
 
   Widget _buildOrderHistoryTab() {
-    final authUid = FirebaseAuth.instance.currentUser?.uid;
-    final effectiveStaffId = (authUid != null && authUid.isNotEmpty)
-        ? authUid
-        : (widget.staffId.isNotEmpty ? widget.staffId : Db.setting('staff_logged_id'));
-
     final statusFilters = [
       'All',
       'Submitted',
@@ -1582,7 +1621,7 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
     ];
 
     return StreamBuilder<List<StaffOrder>>(
-      stream: OrderService.instance.streamStaffOrders(widget.shopId, effectiveStaffId),
+      stream: _ordersStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator(color: TekColors.primary));
@@ -1674,6 +1713,7 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
             SizedBox(
               height: 38,
               child: ListView.separated(
+                cacheExtent: 300,
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: statusFilters.length,
@@ -1736,6 +1776,7 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                       ),
                     )
                   : ListView.separated(
+                      cacheExtent: 300,
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 85),
                       itemCount: filteredOrders.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 12),

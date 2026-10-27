@@ -40,26 +40,38 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
   bool _loading = false;
   final _timeFormat = DateFormat('hh:mm a');
   final _dateFormat = DateFormat('EEEE, dd MMMM yyyy');
-  Timer? _liveTimer;
+
+  late Stream<AttendanceRecord?> _attendanceStream;
+  late Stream<int> _unreadCountStream;
+  late Stream<List<AttendanceRecord>> _historyStream;
 
   @override
   void initState() {
     super.initState();
+    _initStreams();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkLocationConsent();
       AttendanceService.instance.syncOfflineQueue();
       AppUpdateService.instance.checkForUpdate(context, autoShowDialog: true);
     });
+  }
 
-    // Update worked hours counter every minute
-    _liveTimer = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (mounted) setState(() {});
-    });
+  void _initStreams() {
+    _attendanceStream = AttendanceService.instance.streamTodayAttendance(widget.shopId, widget.staffId);
+    _unreadCountStream = NotificationService.instance.streamUnreadCount(widget.shopId, widget.staffId);
+    _historyStream = AttendanceService.instance.streamStaffAttendanceHistory(widget.shopId, widget.staffId);
+  }
+
+  @override
+  void didUpdateWidget(StaffAttendanceScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shopId != widget.shopId || oldWidget.staffId != widget.staffId) {
+      _initStreams();
+    }
   }
 
   @override
   void dispose() {
-    _liveTimer?.cancel();
     super.dispose();
   }
 
@@ -224,7 +236,7 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
 
     final cashCtrl = TextEditingController(text: expectedCash.toStringAsFixed(0));
 
-    return showDialog<double?>(
+    final result = await showDialog<double?>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
@@ -376,6 +388,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
         },
       ),
     );
+    cashCtrl.dispose();
+    return result;
   }
 
   Widget _summaryRow(String label, String value, {bool isBold = false}) {
@@ -535,7 +549,7 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                         children: [
                           if (idx == 2)
                             StreamBuilder<int>(
-                              stream: NotificationService.instance.streamUnreadCount(widget.shopId, widget.staffId),
+                              stream: _unreadCountStream,
                               builder: (context, snap) {
                                 final count = snap.data ?? 0;
                                 return Badge(
@@ -611,7 +625,7 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
       backgroundColor: TekColors.bgMain,
       body: SafeArea(
         child: StreamBuilder<AttendanceRecord?>(
-          stream: AttendanceService.instance.streamTodayAttendance(widget.shopId, widget.staffId),
+          stream: _attendanceStream,
           builder: (context, snapshot) {
             final record = snapshot.data ?? AttendanceService.instance.getCachedTodayAttendance(widget.staffId);
             final isCheckedIn = record?.checkIn != null;
@@ -796,7 +810,7 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
 
               // Notification alerts shortcut with Live Unread Badge & Drawer
               StreamBuilder<int>(
-                stream: NotificationService.instance.streamUnreadCount(widget.shopId, widget.staffId),
+                stream: _unreadCountStream,
                 builder: (context, unreadSnap) {
                   final unreadCount = unreadSnap.data ?? 0;
                   return IconButton(
@@ -932,18 +946,6 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
     bool isCheckedOut,
     ShiftConfig shift,
   ) {
-    final double worked = isCheckedIn && record?.checkIn != null
-        ? (isCheckedOut
-            ? record!.workedHours
-            : DateTime.now().difference(record!.checkIn!).inMinutes / 60.0)
-        : 0.0;
-
-    final hours = worked.floor();
-    final minutes = ((worked - hours) * 60).round();
-    final timerDisplay = isCheckedIn
-        ? '${hours.toString().padLeft(2, '0')}h ${minutes.toString().padLeft(2, '0')}m'
-        : '-- : --';
-
     final checkInDisplay = isCheckedIn && record?.checkIn != null
         ? _timeFormat.format(record!.checkIn!)
         : 'Not started';
@@ -974,15 +976,12 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
           // 2x2 Metric Grid
           Row(
             children: [
-              // Metric 1: Live Working Timer
+              // Metric 1: Live Working Timer (Self-updating local ticker)
               Expanded(
-                child: _buildMetricTile(
-                  icon: Icons.timer_rounded,
-                  iconColor: TekColors.success,
-                  title: 'Working Time',
-                  value: timerDisplay,
-                  subtitle: isCheckedOut ? 'Final Duration' : (isCheckedIn ? 'Live Active' : 'Offline'),
-                  highlight: isCheckedIn && !isCheckedOut,
+                child: _LiveWorkingTimeTile(
+                  record: record,
+                  isCheckedIn: isCheckedIn,
+                  isCheckedOut: isCheckedOut,
                 ),
               ),
               const SizedBox(width: 10),
@@ -1053,7 +1052,7 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
     );
   }
 
-  Widget _buildMetricTile({
+  static Widget _buildMetricTile({
     required IconData icon,
     required Color iconColor,
     required String title,
@@ -1596,7 +1595,7 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
         ),
         const SizedBox(height: 12),
         StreamBuilder<List<AttendanceRecord>>(
-          stream: AttendanceService.instance.streamStaffAttendanceHistory(widget.shopId, widget.staffId),
+          stream: _historyStream,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
               return const Center(
@@ -1862,5 +1861,82 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
       await AuthController.instance.signOut();
       if (widget.onSignOut != null) widget.onSignOut!();
     }
+  }
+}
+
+/// Isolated local widget for live working time ticker.
+/// Automatically runs a 1-minute timer ONLY when checked-in and active,
+/// rebuilding exclusively this single tile instead of the entire screen or tab stack.
+class _LiveWorkingTimeTile extends StatefulWidget {
+  final AttendanceRecord? record;
+  final bool isCheckedIn;
+  final bool isCheckedOut;
+
+  const _LiveWorkingTimeTile({
+    required this.record,
+    required this.isCheckedIn,
+    required this.isCheckedOut,
+  });
+
+  @override
+  State<_LiveWorkingTimeTile> createState() => _LiveWorkingTimeTileState();
+}
+
+class _LiveWorkingTimeTileState extends State<_LiveWorkingTimeTile> {
+  Timer? _localTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkTimer();
+  }
+
+  @override
+  void didUpdateWidget(_LiveWorkingTimeTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _checkTimer();
+  }
+
+  void _checkTimer() {
+    if (widget.isCheckedIn && !widget.isCheckedOut) {
+      _localTimer ??= Timer.periodic(const Duration(minutes: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    } else {
+      _localTimer?.cancel();
+      _localTimer = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _localTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double worked = widget.isCheckedIn && widget.record?.checkIn != null
+        ? (widget.isCheckedOut
+            ? widget.record!.workedHours
+            : DateTime.now().difference(widget.record!.checkIn!).inMinutes / 60.0)
+        : 0.0;
+
+    final hours = worked.floor();
+    final minutes = ((worked - hours) * 60).round();
+    final timerDisplay = widget.isCheckedIn
+        ? '${hours.toString().padLeft(2, '0')}h ${minutes.toString().padLeft(2, '0')}m'
+        : '-- : --';
+
+    return _StaffAttendanceScreenState._buildMetricTile(
+      icon: Icons.timer_rounded,
+      iconColor: TekColors.success,
+      title: 'Working Time',
+      value: timerDisplay,
+      subtitle: widget.isCheckedOut
+          ? 'Final Duration'
+          : (widget.isCheckedIn ? 'Live Active' : 'Offline'),
+      highlight: widget.isCheckedIn && !widget.isCheckedOut,
+    );
   }
 }

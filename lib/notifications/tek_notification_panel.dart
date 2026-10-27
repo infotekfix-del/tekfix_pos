@@ -44,6 +44,13 @@ class TekNotificationPanel extends StatefulWidget {
 
 class _TekNotificationPanelState extends State<TekNotificationPanel> {
   bool _onlyUnread = false;
+  late Stream<List<TekNotification>> _notificationsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _notificationsStream = NotificationService.instance.streamNotifications(widget.shopId, widget.staffId);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +68,7 @@ class _TekNotificationPanelState extends State<TekNotificationPanel> {
       child: Material(
         color: Colors.transparent,
         child: StreamBuilder<List<TekNotification>>(
-          stream: NotificationService.instance.streamNotifications(widget.shopId, widget.staffId),
+          stream: _notificationsStream,
           builder: (context, snap) {
             final allNotifications = snap.data ?? [];
             final unreadCount = allNotifications.where((n) => !n.isRead).length;
@@ -205,6 +212,7 @@ class _TekNotificationPanelState extends State<TekNotificationPanel> {
                           ),
                         )
                       : ListView.separated(
+                          cacheExtent: 300,
                           padding: const EdgeInsets.all(14),
                           itemCount: displayList.length,
                           separatorBuilder: (ctx, i) => const SizedBox(height: 10),

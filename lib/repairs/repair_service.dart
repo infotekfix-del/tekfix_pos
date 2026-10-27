@@ -32,10 +32,10 @@ class RepairService {
         final data = doc.data();
         final job = RepairJob.fromMap(doc.id, data);
         list.add(job);
-
-        // Background cache update to Hive for offline resilience
-        _syncToLocalCache(job);
       }
+
+      // Single-pass background cache update to Hive for offline resilience (O(N) instead of O(N^2))
+      _syncAllToLocalCache(list);
 
       // Sort newest first
       list.sort((a, b) {
@@ -74,23 +74,25 @@ class RepairService {
     }
   }
 
-  void _syncToLocalCache(RepairJob job) {
+  void _syncAllToLocalCache(List<RepairJob> jobs) {
     try {
-      dynamic matchingKey;
+      // Build index map once in O(N)
+      final keyMap = <String, dynamic>{};
       for (final key in Db.services.keys) {
         final val = Db.services.get(key);
         if (val != null) {
           final m = tekM(val);
-          if ('${m['jobId']}' == job.id || '${m['_id']}' == job.id) {
-            matchingKey = key;
-            break;
-          }
+          final id = '${m['jobId'] ?? m['_id']}';
+          if (id.isNotEmpty) keyMap[id] = key;
         }
       }
-      if (matchingKey != null) {
-        Db.services.put(matchingKey, job.toMap());
-      } else {
-        Db.services.add(job.toMap());
+      for (final job in jobs) {
+        final existingKey = keyMap[job.id];
+        if (existingKey != null) {
+          Db.services.put(existingKey, job.toMap());
+        } else {
+          Db.services.add(job.toMap());
+        }
       }
     } catch (_) {}
   }

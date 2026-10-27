@@ -30,6 +30,7 @@ class TekTopNavBar extends StatefulWidget {
 class _TekTopNavBarState extends State<TekTopNavBar> {
   late DateTime _currentTime;
   Timer? _clockTimer;
+  late Stream<int> _unreadCountStream;
 
   @override
   void initState() {
@@ -38,6 +39,8 @@ class _TekTopNavBarState extends State<TekTopNavBar> {
     _clockTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() => _currentTime = DateTime.now());
     });
+    final auth = AuthController.instance;
+    _unreadCountStream = NotificationService.instance.streamUnreadCount(auth.shopId, auth.uid);
   }
 
   @override
@@ -209,7 +212,7 @@ class _TekTopNavBarState extends State<TekTopNavBar> {
 
           // 5. Notification Bell with Smart Red Signal Badge
           StreamBuilder<int>(
-            stream: NotificationService.instance.streamUnreadCount(auth.shopId, auth.uid),
+            stream: _unreadCountStream,
             builder: (context, snap) {
               final count = snap.data ?? 0;
               return Stack(

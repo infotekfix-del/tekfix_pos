@@ -32,6 +32,26 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
     'System',
   ];
 
+  late Stream<List<TekNotification>> _notificationsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _initStream();
+  }
+
+  void _initStream() {
+    _notificationsStream = NotificationService.instance.streamNotifications(widget.shopId, widget.staffId);
+  }
+
+  @override
+  void didUpdateWidget(StaffNotificationsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shopId != widget.shopId || oldWidget.staffId != widget.staffId) {
+      _initStream();
+    }
+  }
+
   void _showNotificationDetails(TekNotification notif) {
     NotificationService.instance.markAsRead(widget.staffId, notif.id);
 
@@ -145,90 +165,95 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
     );
   }
 
-  void _showNewAnnouncementDialog() {
+  Future<void> _showNewAnnouncementDialog() async {
     final titleCtrl = TextEditingController();
     final msgCtrl = TextEditingController();
     bool isUrgent = false;
 
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setD) => AlertDialog(
-          backgroundColor: TekColors.bgCard,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: TekColors.border),
-          ),
-          icon: const Icon(Icons.campaign_rounded, size: 38, color: TekColors.secondary),
-          title: const Text(
-            'New Announcement (അറിയിപ്പ് അയക്കുക)',
-            style: TextStyle(
-              color: TekColors.textPrimary,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-              fontFamilyFallback: TekTypography.malayalamFallback,
+    try {
+      await showDialog(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setD) => AlertDialog(
+            backgroundColor: TekColors.bgCard,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: const BorderSide(color: TekColors.border),
             ),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleCtrl,
-                  style: const TextStyle(color: TekColors.textPrimary),
-                  decoration: const InputDecoration(
-                    labelText: 'Title (തലക്കെട്ട്)',
-                    labelStyle: TextStyle(color: TekColors.textSecondary),
+            icon: const Icon(Icons.campaign_rounded, size: 38, color: TekColors.secondary),
+            title: const Text(
+              'New Announcement (അറിയിപ്പ് അയക്കുക)',
+              style: TextStyle(
+                color: TekColors.textPrimary,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                fontFamilyFallback: TekTypography.malayalamFallback,
+              ),
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: titleCtrl,
+                    style: const TextStyle(color: TekColors.textPrimary),
+                    decoration: const InputDecoration(
+                      labelText: 'Title (തലക്കെട്ട്)',
+                      labelStyle: TextStyle(color: TekColors.textSecondary),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: msgCtrl,
-                  maxLines: 3,
-                  style: const TextStyle(color: TekColors.textPrimary),
-                  decoration: const InputDecoration(
-                    labelText: 'Message (സന്ദേശം)',
-                    labelStyle: TextStyle(color: TekColors.textSecondary),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: msgCtrl,
+                    maxLines: 3,
+                    style: const TextStyle(color: TekColors.textPrimary),
+                    decoration: const InputDecoration(
+                      labelText: 'Message (സന്ദേശം)',
+                      labelStyle: TextStyle(color: TekColors.textSecondary),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: isUrgent,
-                  onChanged: (v) => setD(() => isUrgent = v ?? false),
-                  title: const Text(
-                    'Mark as Urgent (അടിയന്തിരം)',
-                    style: TextStyle(color: TekColors.textPrimary, fontSize: 13),
+                  const SizedBox(height: 12),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: isUrgent,
+                    onChanged: (v) => setD(() => isUrgent = v ?? false),
+                    title: const Text(
+                      'Mark as Urgent (അടിയന്തിരം)',
+                      style: TextStyle(color: TekColors.textPrimary, fontSize: 13),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel', style: TextStyle(color: TekColors.textSecondary)),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: TekColors.primary),
+                onPressed: () async {
+                  if (titleCtrl.text.trim().isEmpty || msgCtrl.text.trim().isEmpty) return;
+                  await NotificationService.instance.sendAnnouncement(
+                    shopId: widget.shopId,
+                    title: titleCtrl.text.trim(),
+                    message: msgCtrl.text.trim(),
+                    priority: isUrgent ? NotificationPriority.urgent : NotificationPriority.normal,
+                    sender: widget.staffName.isNotEmpty ? widget.staffName : 'Staff Member',
+                    staffId: widget.staffId,
+                  );
+                  if (ctx.mounted) Navigator.pop(ctx);
+                },
+                child: const Text('Broadcast'),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel', style: TextStyle(color: TekColors.textSecondary)),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: TekColors.primary),
-              onPressed: () async {
-                if (titleCtrl.text.trim().isEmpty || msgCtrl.text.trim().isEmpty) return;
-                await NotificationService.instance.sendAnnouncement(
-                  shopId: widget.shopId,
-                  title: titleCtrl.text.trim(),
-                  message: msgCtrl.text.trim(),
-                  priority: isUrgent ? NotificationPriority.urgent : NotificationPriority.normal,
-                  sender: widget.staffName.isNotEmpty ? widget.staffName : 'Staff Member',
-                  staffId: widget.staffId,
-                );
-                if (ctx.mounted) Navigator.pop(ctx);
-              },
-              child: const Text('Broadcast'),
-            ),
-          ],
         ),
-      ),
-    );
+      );
+    } finally {
+      titleCtrl.dispose();
+      msgCtrl.dispose();
+    }
   }
 
   IconData _getTypeIcon(NotificationType type) {
@@ -303,7 +328,7 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
         ],
       ),
       body: StreamBuilder<List<TekNotification>>(
-        stream: NotificationService.instance.streamNotifications(widget.shopId, widget.staffId),
+        stream: _notificationsStream,
         builder: (context, snapshot) {
           final allNotifs = snapshot.data ?? [];
           final unreadNotifs = allNotifs.where((n) => !n.isRead).toList();
@@ -443,6 +468,7 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
                     : filtered.isEmpty
                         ? _buildEmptyState()
                         : ListView.separated(
+                            cacheExtent: 300,
                             padding: const EdgeInsets.fromLTRB(16, 6, 16, 85),
                             physics: const BouncingScrollPhysics(),
                             itemCount: filtered.length,

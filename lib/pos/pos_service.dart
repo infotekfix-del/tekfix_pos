@@ -136,10 +136,11 @@ class PosService {
         final data = doc.data();
         final item = PosItem.fromMap(doc.id, data);
         list.add(item);
-
-        // Background update to local Hive cache
-        _cacheLocalItem(item);
       }
+
+      // Single-pass background update to local Hive cache in O(N)
+      _cacheAllLocalItems(list);
+
       return list;
     }).handleError((e) {
       debugPrint('Error streaming catalog items: $e. Falling back to local cache.');
@@ -147,31 +148,32 @@ class PosService {
     });
   }
 
-  void _cacheLocalItem(PosItem it) {
+  void _cacheAllLocalItems(List<PosItem> items) {
     try {
-      dynamic matchKey;
+      final keyMap = <String, dynamic>{};
       for (final k in Db.items.keys) {
         final cur = tekM(Db.items.get(k));
-        if (cur['_id'] == it.id || '$k' == it.id) {
-          matchKey = k;
-          break;
-        }
+        final id = cur['_id']?.toString() ?? '$k';
+        if (id.isNotEmpty) keyMap[id] = k;
       }
-      final payload = {
-        '_id': it.id,
-        'name': it.name,
-        'sku': it.sku,
-        'barcode': it.barcode,
-        'category': it.category,
-        'sellingPrice': it.sellingPrice,
-        'minPrice': it.minPrice,
-        'stock': it.stock,
-        'lowStockLevel': it.lowStockLevel,
-      };
-      if (matchKey != null) {
-        Db.items.put(matchKey, payload);
-      } else {
-        Db.items.add(payload);
+      for (final it in items) {
+        final matchKey = keyMap[it.id];
+        final payload = {
+          '_id': it.id,
+          'name': it.name,
+          'sku': it.sku,
+          'barcode': it.barcode,
+          'category': it.category,
+          'sellingPrice': it.sellingPrice,
+          'minPrice': it.minPrice,
+          'stock': it.stock,
+          'lowStockLevel': it.lowStockLevel,
+        };
+        if (matchKey != null) {
+          Db.items.put(matchKey, payload);
+        } else {
+          Db.items.add(payload);
+        }
       }
     } catch (_) {}
   }

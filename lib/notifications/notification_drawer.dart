@@ -4,7 +4,7 @@ import '../theme/tek_tokens.dart';
 import 'notification_models.dart';
 import 'notification_service.dart';
 
-class NotificationDrawer extends StatelessWidget {
+class NotificationDrawer extends StatefulWidget {
   final String shopId;
   final String staffId;
   final String staffName;
@@ -37,6 +37,31 @@ class NotificationDrawer extends StatelessWidget {
         onNavigateTab: onNavigateTab,
       ),
     );
+  }
+
+  @override
+  State<NotificationDrawer> createState() => _NotificationDrawerState();
+}
+
+class _NotificationDrawerState extends State<NotificationDrawer> {
+  late Stream<List<TekNotification>> _notificationsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _initStream();
+  }
+
+  @override
+  void didUpdateWidget(covariant NotificationDrawer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shopId != widget.shopId || oldWidget.staffId != widget.staffId) {
+      _initStream();
+    }
+  }
+
+  void _initStream() {
+    _notificationsStream = NotificationService.instance.streamNotifications(widget.shopId, widget.staffId);
   }
 
   @override
@@ -112,7 +137,7 @@ class NotificationDrawer extends StatelessWidget {
           // Stream Notifications List
           Expanded(
             child: StreamBuilder<List<TekNotification>>(
-              stream: NotificationService.instance.streamNotifications(shopId, staffId),
+              stream: _notificationsStream,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
                   return const Center(
@@ -136,16 +161,17 @@ class NotificationDrawer extends StatelessWidget {
 
                 return ListView.separated(
                   physics: const BouncingScrollPhysics(),
+                  cacheExtent: 300,
                   itemCount: list.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     final notif = list[index];
                     return InkWell(
                       onTap: () {
-                        NotificationService.instance.markAsRead(staffId, notif.id);
-                        if (notif.type == NotificationType.repairUpdate && onNavigateTab != null) {
+                        NotificationService.instance.markAsRead(widget.staffId, notif.id);
+                        if (notif.type == NotificationType.repairUpdate && widget.onNavigateTab != null) {
                           Navigator.pop(context);
-                          onNavigateTab!(1);
+                          widget.onNavigateTab!(1);
                         }
                       },
                       borderRadius: BorderRadius.circular(14),

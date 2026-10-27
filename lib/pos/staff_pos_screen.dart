@@ -52,6 +52,28 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
     'Others',
   ];
 
+  late Stream<AttendanceRecord?> _attendanceStream;
+  late Stream<List<PosItem>> _catalogStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _initStreams();
+  }
+
+  void _initStreams() {
+    _attendanceStream = AttendanceService.instance.streamTodayAttendance(widget.shopId, widget.staffId);
+    _catalogStream = PosService.instance.streamCatalogItems(widget.shopId);
+  }
+
+  @override
+  void didUpdateWidget(StaffPosScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shopId != widget.shopId || oldWidget.staffId != widget.staffId) {
+      _initStreams();
+    }
+  }
+
   @override
   void dispose() {
     _searchCtrl.dispose();
@@ -108,9 +130,10 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
     final priceCtrl = TextEditingController(text: cartItem.unitPrice.toStringAsFixed(0));
     String? err;
 
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
+    try {
+      await showDialog(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
         builder: (ctx, setD) => AlertDialog(
           backgroundColor: TekColors.bgCard,
           shape: RoundedRectangleBorder(
@@ -181,15 +204,19 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
         ),
       ),
     );
+    } finally {
+      priceCtrl.dispose();
+    }
   }
 
   Future<String?> _requestOwnerPinApproval(PosItem item, double requestedPrice) async {
     final pinCtrl = TextEditingController();
     String? pinErr;
 
-    return showDialog<String?>(
-      context: context,
-      barrierDismissible: false,
+    try {
+      return await showDialog<String?>(
+        context: context,
+        barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setD) => AlertDialog(
           backgroundColor: TekColors.bgCard,
@@ -262,6 +289,9 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
         ),
       ),
     );
+    } finally {
+      pinCtrl.dispose();
+    }
   }
 
   void _openCheckoutSheet() {
@@ -801,7 +831,7 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<AttendanceRecord?>(
-      stream: AttendanceService.instance.streamTodayAttendance(widget.shopId, widget.staffId),
+      stream: _attendanceStream,
       builder: (context, snapshot) {
         final record = snapshot.data ?? AttendanceService.instance.getCachedTodayAttendance(widget.staffId);
         final bool isCheckedIn = record != null && record.checkIn != null;
@@ -950,7 +980,7 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
         ],
       ),
       body: StreamBuilder<List<PosItem>>(
-        stream: PosService.instance.streamCatalogItems(widget.shopId),
+        stream: _catalogStream,
         builder: (context, snapshot) {
           final catalog = snapshot.data ?? PosService.instance.getCatalogItems();
           final filtered = catalog.where((it) {
@@ -999,6 +1029,7 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
               SizedBox(
                 height: 40,
                 child: ListView.separated(
+                  cacheExtent: 300,
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemCount: _categories.length,
@@ -1043,6 +1074,7 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                         ),
                       )
                     : GridView.builder(
+                        cacheExtent: 300,
                         padding: const EdgeInsets.fromLTRB(16, 4, 16, 85),
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,

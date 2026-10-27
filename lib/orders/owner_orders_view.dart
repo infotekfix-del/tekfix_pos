@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
 import '../auth/auth_controller.dart';
-import '../main.dart' show Db, kPrimary, toast;
+import '../main.dart' show kPrimary, toast;
 import '../theme/tek_tokens.dart';
 import '../ui/tek_feedback.dart';
 import 'order_models.dart';
@@ -22,6 +21,27 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
   String _searchQuery = '';
   String _selectedStatusFilter = 'All';
   String _selectedStaffFilter = 'All';
+
+  late Stream<List<StaffOrder>> _ordersStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _initStream();
+  }
+
+  void _initStream() {
+    final effectiveShopId = widget.shopId.isNotEmpty ? widget.shopId : AuthController.instance.shopId;
+    _ordersStream = OrderService.instance.streamAllOrders(effectiveShopId);
+  }
+
+  @override
+  void didUpdateWidget(OwnerOrdersView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shopId != widget.shopId) {
+      _initStream();
+    }
+  }
 
   @override
   void dispose() {
@@ -58,10 +78,16 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
     final apiUrlCtrl = TextEditingController(text: currentConfig.apiUrl);
     final apiTokenCtrl = TextEditingController(text: currentConfig.apiToken);
 
-    if (!mounted) return;
+    if (!mounted) {
+      groupUrlCtrl.dispose();
+      apiUrlCtrl.dispose();
+      apiTokenCtrl.dispose();
+      return;
+    }
 
-    await showDialog(
-      context: context,
+    try {
+      await showDialog(
+        context: context,
       builder: (ctx) => AlertDialog(
         title: const Row(
           children: [
@@ -138,6 +164,11 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
         ],
       ),
     );
+    } finally {
+      groupUrlCtrl.dispose();
+      apiUrlCtrl.dispose();
+      apiTokenCtrl.dispose();
+    }
   }
 
   // Open Full Order Details Modal
@@ -338,12 +369,6 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveShopId = widget.shopId.isNotEmpty
-        ? widget.shopId
-        : (context.watch<AuthController>().shopId.isNotEmpty
-            ? context.watch<AuthController>().shopId
-            : Db.setting('shop_id'));
-
     return Scaffold(
       appBar: AppBar(
         title: const Column(
@@ -368,7 +393,7 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
         ],
       ),
       body: StreamBuilder<List<StaffOrder>>(
-        stream: OrderService.instance.streamAllOrders(effectiveShopId),
+        stream: _ordersStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

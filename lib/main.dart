@@ -929,6 +929,93 @@ List<NavCategory> _getNavCategories(String shopId) => [
   ),
 ];
 
+class _AppShellPendingBadge extends StatefulWidget {
+  final String shopId;
+  final bool iconOnly;
+  const _AppShellPendingBadge({required this.shopId, this.iconOnly = false});
+
+  @override
+  State<_AppShellPendingBadge> createState() => _AppShellPendingBadgeState();
+}
+
+class _AppShellPendingBadgeState extends State<_AppShellPendingBadge> {
+  late Stream<List<AttendanceRecord>> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    _stream = AttendanceService.instance.streamPendingApprovals(widget.shopId);
+  }
+
+  @override
+  void didUpdateWidget(covariant _AppShellPendingBadge oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shopId != widget.shopId) {
+      _stream = AttendanceService.instance.streamPendingApprovals(widget.shopId);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<AttendanceRecord>>(
+      stream: _stream,
+      builder: (context, snap) {
+        final count = snap.data?.length ?? 0;
+        if (count == 0) return const SizedBox.shrink();
+        if (widget.iconOnly) {
+          return const TekRedSignalBadge(count: 1, pulse: true, size: 8);
+        }
+        return TekRedSignalBadge(count: count, pulse: true, size: 18);
+      },
+    );
+  }
+}
+
+class _AppShellOrdersBadge extends StatefulWidget {
+  final String shopId;
+  final bool iconOnly;
+  const _AppShellOrdersBadge({required this.shopId, this.iconOnly = false});
+
+  @override
+  State<_AppShellOrdersBadge> createState() => _AppShellOrdersBadgeState();
+}
+
+class _AppShellOrdersBadgeState extends State<_AppShellOrdersBadge> {
+  late Stream<List<StaffOrder>> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    _stream = OrderService.instance.streamAllOrders(widget.shopId);
+  }
+
+  @override
+  void didUpdateWidget(covariant _AppShellOrdersBadge oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shopId != widget.shopId) {
+      _stream = OrderService.instance.streamAllOrders(widget.shopId);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<StaffOrder>>(
+      stream: _stream,
+      builder: (context, snap) {
+        final orders = snap.data ?? [];
+        final count = orders.where((o) =>
+            o.status == StaffOrderStatus.submitted ||
+            o.status == StaffOrderStatus.pending).length;
+        if (count == 0) return const SizedBox.shrink();
+        if (widget.iconOnly) {
+          return const TekRedSignalBadge(count: 1, pulse: true, size: 8);
+        }
+        return TekRedSignalBadge(count: count, pulse: true, size: 18);
+      },
+    );
+  }
+}
+
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
 
@@ -978,34 +1065,11 @@ class _AppShellState extends State<AppShell> {
   }
 
   Widget _buildPendingBadge(String shopId, {bool iconOnly = false}) {
-    return StreamBuilder<List<AttendanceRecord>>(
-      stream: AttendanceService.instance.streamPendingApprovals(shopId),
-      builder: (context, snap) {
-        final count = snap.data?.length ?? 0;
-        if (count == 0) return const SizedBox.shrink();
-        if (iconOnly) {
-          return const TekRedSignalBadge(count: 1, pulse: true, size: 8);
-        }
-        return TekRedSignalBadge(count: count, pulse: true, size: 18);
-      },
-    );
+    return _AppShellPendingBadge(shopId: shopId, iconOnly: iconOnly);
   }
 
   Widget _buildOrdersBadge(String shopId, {bool iconOnly = false}) {
-    return StreamBuilder<List<StaffOrder>>(
-      stream: OrderService.instance.streamAllOrders(shopId),
-      builder: (context, snap) {
-        final orders = snap.data ?? [];
-        final count = orders.where((o) =>
-            o.status == StaffOrderStatus.submitted ||
-            o.status == StaffOrderStatus.pending).length;
-        if (count == 0) return const SizedBox.shrink();
-        if (iconOnly) {
-          return const TekRedSignalBadge(count: 1, pulse: true, size: 8);
-        }
-        return TekRedSignalBadge(count: count, pulse: true, size: 18);
-      },
-    );
+    return _AppShellOrdersBadge(shopId: shopId, iconOnly: iconOnly);
   }
 
   Widget _buildRemindersBadge({bool iconOnly = false}) {
@@ -1560,19 +1624,16 @@ void _open(BuildContext context, Widget page) {
   Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
 }
 
-class HomeView extends StatelessWidget {
-  const HomeView({super.key});
-
-  Widget _buildUrgentBanner({
-    required BuildContext context,
-    required IconData icon,
-    required int badgeCount,
-    required Color badgeColor,
-    required String title,
-    required String subtitle,
-    required String actionLabel,
-    required VoidCallback onTap,
-  }) {
+Widget _buildUrgentBanner({
+  required BuildContext context,
+  required IconData icon,
+  required int badgeCount,
+  required Color badgeColor,
+  required String title,
+  required String subtitle,
+  required String actionLabel,
+  required VoidCallback onTap,
+}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
@@ -1664,6 +1725,113 @@ class HomeView extends StatelessWidget {
       ),
     );
   }
+
+class _HomePendingApprovalsBanner extends StatefulWidget {
+  final String shopId;
+  const _HomePendingApprovalsBanner({required this.shopId});
+
+  @override
+  State<_HomePendingApprovalsBanner> createState() => _HomePendingApprovalsBannerState();
+}
+
+class _HomePendingApprovalsBannerState extends State<_HomePendingApprovalsBanner> {
+  late Stream<List<AttendanceRecord>> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    _stream = AttendanceService.instance.streamPendingApprovals(widget.shopId);
+  }
+
+  @override
+  void didUpdateWidget(covariant _HomePendingApprovalsBanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shopId != widget.shopId) {
+      _stream = AttendanceService.instance.streamPendingApprovals(widget.shopId);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<AttendanceRecord>>(
+      stream: _stream,
+      builder: (context, snap) {
+        final pendingCount = snap.data?.length ?? 0;
+        if (pendingCount == 0) return const SizedBox.shrink();
+        return _buildUrgentBanner(
+          context: context,
+          icon: Icons.fact_check_rounded,
+          badgeCount: pendingCount,
+          badgeColor: TekColors.error,
+          title: 'അറ്റൻഡൻസ് അംഗീകാരം ($pendingCount പെൻഡിംഗ്)',
+          subtitle: 'Staff attendance clock-in requests awaiting verification',
+          actionLabel: 'Review Approvals',
+          onTap: () => _open(
+            context,
+            OwnerAttendanceApprovalsView(shopId: widget.shopId),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _HomeOrdersBanner extends StatefulWidget {
+  final String shopId;
+  const _HomeOrdersBanner({required this.shopId});
+
+  @override
+  State<_HomeOrdersBanner> createState() => _HomeOrdersBannerState();
+}
+
+class _HomeOrdersBannerState extends State<_HomeOrdersBanner> {
+  late Stream<List<StaffOrder>> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    _stream = OrderService.instance.streamAllOrders(widget.shopId);
+  }
+
+  @override
+  void didUpdateWidget(covariant _HomeOrdersBanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shopId != widget.shopId) {
+      _stream = OrderService.instance.streamAllOrders(widget.shopId);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<StaffOrder>>(
+      stream: _stream,
+      builder: (context, snap) {
+        final pendingOrders = (snap.data ?? [])
+            .where((o) =>
+                o.status == StaffOrderStatus.pending ||
+                o.status == StaffOrderStatus.submitted)
+            .length;
+        if (pendingOrders == 0) return const SizedBox.shrink();
+        return _buildUrgentBanner(
+          context: context,
+          icon: Icons.shopping_bag_rounded,
+          badgeCount: pendingOrders,
+          badgeColor: TekColors.warning,
+          title: 'സ്റ്റാഫ് ഓർഡറുകൾ ($pendingOrders പുതിയത്)',
+          subtitle: 'Staff supply & customer item orders awaiting review',
+          actionLabel: 'Review Orders',
+          onTap: () => _open(
+            context,
+            OwnerOrdersView(shopId: widget.shopId),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class HomeView extends StatelessWidget {
+  const HomeView({super.key});
 
   Widget _buildHeroSection({
     required BuildContext context,
@@ -2067,55 +2235,11 @@ class HomeView extends StatelessWidget {
 
               // Smart Red Signal Urgent Alert 1: Attendance Approvals
               if (isOwner)
-                StreamBuilder<List<AttendanceRecord>>(
-                  stream: AttendanceService.instance
-                      .streamPendingApprovals(auth.shopId),
-                  builder: (context, snap) {
-                    final pendingCount = snap.data?.length ?? 0;
-                    if (pendingCount == 0) return const SizedBox.shrink();
-                    return _buildUrgentBanner(
-                      context: context,
-                      icon: Icons.fact_check_rounded,
-                      badgeCount: pendingCount,
-                      badgeColor: TekColors.error,
-                      title: 'അറ്റൻഡൻസ് അംഗീകാരം ($pendingCount പെൻഡിംഗ്)',
-                      subtitle: 'Staff attendance clock-in requests awaiting verification',
-                      actionLabel: 'Review Approvals',
-                      onTap: () => _open(
-                        context,
-                        OwnerAttendanceApprovalsView(shopId: auth.shopId),
-                      ),
-                    );
-                  },
-                ),
+                _HomePendingApprovalsBanner(shopId: auth.shopId),
 
               // Smart Red Signal Urgent Alert 2: Staff Orders
               if (isOwner)
-                StreamBuilder<List<StaffOrder>>(
-                  stream: OrderService.instance
-                      .streamAllOrders(auth.shopId),
-                  builder: (context, snap) {
-                    final pendingOrders = (snap.data ?? [])
-                        .where((o) =>
-                            o.status == StaffOrderStatus.pending ||
-                            o.status == StaffOrderStatus.submitted)
-                        .length;
-                    if (pendingOrders == 0) return const SizedBox.shrink();
-                    return _buildUrgentBanner(
-                      context: context,
-                      icon: Icons.shopping_bag_rounded,
-                      badgeCount: pendingOrders,
-                      badgeColor: TekColors.warning,
-                      title: 'സ്റ്റാഫ് ഓർഡറുകൾ ($pendingOrders പുതിയത്)',
-                      subtitle: 'Staff supply & customer item orders awaiting review',
-                      actionLabel: 'Review Orders',
-                      onTap: () => _open(
-                        context,
-                        OwnerOrdersView(shopId: auth.shopId),
-                      ),
-                    );
-                  },
-                ),
+                _HomeOrdersBanner(shopId: auth.shopId),
 
               // Quick Actions Bar (Section 9)
               TekQuickActions(
