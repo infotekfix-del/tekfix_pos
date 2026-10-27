@@ -88,11 +88,13 @@ class _TekGlobalSearchDialogState extends State<TekGlobalSearchDialog> {
       {'title': 'Sales / POS', 'icon': Icons.point_of_sale_rounded, 'index': 1},
       {'title': 'Items / Stock', 'icon': Icons.inventory_2_rounded, 'index': 2},
       {'title': 'Services / Repairs', 'icon': Icons.build_circle_rounded, 'index': 3},
-      {'title': 'Cash & Bank', 'icon': Icons.account_balance_rounded, 'index': 6},
-      {'title': 'Staff Orders', 'icon': Icons.shopping_basket_rounded, 'index': 13},
-      {'title': 'Attendance Approvals', 'icon': Icons.fact_check_rounded, 'index': 9},
-      {'title': 'Payment Reminders', 'icon': Icons.notification_important_rounded, 'index': 14},
-      {'title': 'Settings & System', 'icon': Icons.settings_suggest_rounded, 'index': 19},
+      {'title': 'Customer Returns & Warranty', 'icon': Icons.assignment_return_rounded, 'index': 4},
+      {'title': 'Purchase Bills & Vendor Payments', 'icon': Icons.receipt_long_rounded, 'index': 5},
+      {'title': 'Cash & Bank', 'icon': Icons.account_balance_rounded, 'index': 8},
+      {'title': 'Attendance Approvals', 'icon': Icons.fact_check_rounded, 'index': 11},
+      {'title': 'Staff Orders', 'icon': Icons.shopping_basket_rounded, 'index': 15},
+      {'title': 'Payment Reminders', 'icon': Icons.notification_important_rounded, 'index': 16},
+      {'title': 'Settings & System', 'icon': Icons.settings_suggest_rounded, 'index': 21},
     ];
 
     final matchedNav = navItems.where((m) {

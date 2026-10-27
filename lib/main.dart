@@ -45,12 +45,17 @@ import 'orders/order_service.dart';
 import 'orders/order_models.dart';
 import 'ui/tek_feedback.dart';
 import 'ui/tek_global_search_dialog.dart';
-import 'ui/tek_top_nav_bar.dart';
-import 'ui/tek_sales_chart.dart';
-import 'ui/tek_quick_actions.dart';
-import 'ui/tek_kpi_card.dart';
+import 'ui/dashboard/dashboard_tokens.dart';
+import 'ui/dashboard/dashboard_screen.dart';
+import 'ui/dashboard/sidebar.dart';
+import 'ui/dashboard/top_bar.dart';
+import 'notifications/notification_service.dart';
+import 'notifications/tek_notification_panel.dart';
+import 'returns/returns_dashboard_view.dart';
+import 'purchases/purchase_bills_dashboard_view.dart';
 export 'utils/tek_helpers.dart';
 export 'theme/tek_tokens.dart';
+export 'ui/dashboard/dashboard_screen.dart';
 
 // -----------------------------------------------------------------------------
 // CONSTANTS, FORMATTERS & SMALL HELPERS
@@ -67,6 +72,9 @@ const String boxAudit = 'tek_audit_logs';
 const String boxServices = 'tek_service_jobs';
 const String boxStockMoves = 'tek_stock_movements';
 const String boxSyncQueue = 'tek_sync_queue';
+const String boxReturns = 'tek_returns';
+const String boxPurchaseBills = 'tek_purchase_bills';
+const String boxVendorPayments = 'tek_vendor_payments';
 const List<String> allBoxes = [
   boxItems,
   boxParties,
@@ -80,6 +88,9 @@ const List<String> allBoxes = [
   boxServices,
   boxStockMoves,
   boxSyncQueue,
+  boxReturns,
+  boxPurchaseBills,
+  boxVendorPayments,
 ];
 
 const Color kPrimary = Color(0xFF1E3A8A);
@@ -142,6 +153,9 @@ class Db {
   static Box get services => Hive.box(boxServices);
   static Box get stockMoves => Hive.box(boxStockMoves);
   static Box get syncQueue => Hive.box(boxSyncQueue);
+  static Box get returns => Hive.box(boxReturns);
+  static Box get purchaseBills => Hive.box(boxPurchaseBills);
+  static Box get vendorPayments => Hive.box(boxVendorPayments);
 
   // ---- Cross-device references ---------------------------------------------
   // Hive keys (0,1,2...) differ on every device; the `_id` stamped by the sync
@@ -985,14 +999,16 @@ class NavCategory {
 }
 
 List<NavCategory> _getNavCategories(String shopId) => [
-  const NavCategory(
+  NavCategory(
     title: 'Core POS & Operations',
     icon: Icons.storefront_rounded,
     items: [
-      AppModule('Home', Icons.dashboard_rounded, HomeView()),
-      AppModule('Sale / POS', Icons.point_of_sale_rounded, SaleView()),
-      AppModule('Items / Stock', Icons.inventory_2_rounded, ItemsView()),
-      AppModule('Services / Repairs', Icons.build_circle_rounded, ServicesView()),
+      const AppModule('Home', Icons.dashboard_rounded, HomeView()),
+      const AppModule('Sale / POS', Icons.point_of_sale_rounded, SaleView()),
+      const AppModule('Items / Stock', Icons.inventory_2_rounded, ItemsView()),
+      const AppModule('Services / Repairs', Icons.build_circle_rounded, ServicesView()),
+      const AppModule('Customer Returns', Icons.assignment_return_rounded, ReturnsDashboardView()),
+      const AppModule('Purchase Bills', Icons.receipt_long_rounded, PurchaseBillsDashboardView()),
     ],
   ),
   const NavCategory(
@@ -1139,67 +1155,7 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _index = 0;
-  bool _sidebarCollapsed = false;
-  final Set<String> _expandedCategories = {};
 
-  @override
-  void initState() {
-    super.initState();
-    _sidebarCollapsed = Db.setting('sidebar_collapsed', 'false') == 'true';
-    final saved = Db.settings.get('expanded_nav_categories');
-    if (saved is List && saved.isNotEmpty) {
-      _expandedCategories.addAll(saved.cast<String>());
-    } else {
-      _expandedCategories.addAll([
-        'Core POS & Operations',
-        'Finance & Accounts',
-        'Staff Management',
-        'Customer Management',
-        'Settings & System',
-      ]);
-    }
-  }
-
-  void _toggleCategory(String catTitle) {
-    setState(() {
-      if (_expandedCategories.contains(catTitle)) {
-        _expandedCategories.remove(catTitle);
-      } else {
-        _expandedCategories.add(catTitle);
-      }
-      Db.settings.put('expanded_nav_categories', _expandedCategories.toList());
-    });
-  }
-
-  void _toggleSidebar() {
-    setState(() {
-      _sidebarCollapsed = !_sidebarCollapsed;
-      Db.settings.put('sidebar_collapsed', _sidebarCollapsed ? 'true' : 'false');
-    });
-  }
-
-  Widget _buildPendingBadge(String shopId, {bool iconOnly = false}) {
-    return _AppShellPendingBadge(shopId: shopId, iconOnly: iconOnly);
-  }
-
-  Widget _buildOrdersBadge(String shopId, {bool iconOnly = false}) {
-    return _AppShellOrdersBadge(shopId: shopId, iconOnly: iconOnly);
-  }
-
-  Widget _buildRemindersBadge({bool iconOnly = false}) {
-    int overdueCount = 0;
-    for (final v in Db.parties.values) {
-      if (v is Map && _d(v['balance']) > 0) {
-        final eval = ReminderService.instance.evaluateCustomerReminder(v);
-        if (eval['isDue'] == true) overdueCount++;
-      }
-    }
-    if (overdueCount == 0) return const SizedBox.shrink();
-    if (iconOnly) {
-      return const TekRedSignalBadge(count: 1, pulse: false, size: 8);
-    }
-    return TekRedSignalBadge(count: overdueCount, pulse: false, size: 18);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1266,410 +1222,172 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
+  String _getSidebarActiveLabel(int index) {
+    switch (index) {
+      case 0:
+        return 'Dashboard';
+      case 1:
+        return 'Sale / POS';
+      case 2:
+        return 'Items / Stock';
+      case 3:
+        return 'Services / Repairs';
+      case 4:
+        return 'Customer Returns';
+      case 5:
+        return 'Purchase Bills';
+      case 7:
+        return 'Customer Management';
+      case 10:
+      case 11:
+      case 12:
+      case 13:
+      case 14:
+      case 15:
+        return 'Staff Management';
+      case 16:
+        return 'Payment Reminders';
+      case 17:
+        return 'After-Sales Follow-ups';
+      case 18:
+        return 'App Updates & Releases';
+      case 19:
+        return 'Backup & Sync';
+      case 20:
+        return 'Audit / Change History';
+      case 21:
+        return 'Settings & Print';
+      default:
+        return '';
+    }
+  }
+
+  int _getSidebarItemIndex(String item) {
+    switch (item) {
+      case 'Dashboard':
+        return 0;
+      case 'Sale / POS':
+        return 1;
+      case 'Items / Stock':
+        return 2;
+      case 'Services / Repairs':
+        return 3;
+      case 'Customer Returns':
+        return 4;
+      case 'Purchase Bills':
+        return 5;
+      case 'Customer Management':
+        return 7;
+      case 'Staff Management':
+        return 10;
+      case 'Payment Reminders':
+        return 16;
+      case 'After-Sales Follow-ups':
+        return 17;
+      case 'App Updates & Releases':
+        return 18;
+      case 'Backup & Sync':
+        return 19;
+      case 'Audit / Change History':
+        return 20;
+      case 'Settings & Print':
+      case 'System Settings':
+        return 21;
+      default:
+        return 0;
+    }
+  }
+
   Widget _wideLayout(List<AppModule> mods, List<NavCategory> categories) {
     final safeIndex = _index < mods.length ? _index : 0;
-    final activeModule = mods[safeIndex];
     final auth = context.watch<AuthController>();
 
-    // Automatically expand the section containing the active page
-    for (final cat in categories) {
-      if (cat.items.any((m) => m.label == activeModule.label)) {
-        if (!_expandedCategories.contains(cat.title)) {
-          _expandedCategories.add(cat.title);
-          Db.settings.put('expanded_nav_categories', _expandedCategories.toList());
-        }
-        break;
-      }
-    }
+    return StreamBuilder<List<AttendanceRecord>>(
+      stream: AttendanceService.instance.streamPendingApprovals(auth.shopId),
+      builder: (context, attendanceSnap) {
+        final pendingAttendance = attendanceSnap.data?.length ?? 0;
 
-    return Scaffold(
-      backgroundColor: TekColors.mainBg,
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Premium Collapsible Sidebar
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeInOut,
-            width: _sidebarCollapsed ? 72 : 260,
-            decoration: const BoxDecoration(
-              color: TekColors.sidebarBg,
-              border: Border(right: BorderSide(color: TekColors.border, width: 1.2)),
-            ),
-            child: Column(
-              children: [
-                // Brand Header
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    vertical: 18,
-                    horizontal: _sidebarCollapsed ? 12 : 16,
-                  ),
-                  decoration: const BoxDecoration(
-                    border: Border(bottom: BorderSide(color: TekColors.border, width: 1.0)),
-                  ),
-                  child: _sidebarCollapsed
-                      ? Column(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                gradient: TekColors.cyanBlueGradient,
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: TekColors.primaryGlow,
-                              ),
-                              child: const Icon(Icons.bolt_rounded, color: Colors.white, size: 22),
-                            ),
-                            const SizedBox(height: 10),
-                            IconButton(
-                              tooltip: 'Expand Sidebar',
-                              icon: const Icon(Icons.menu_rounded, color: TekColors.electricCyan, size: 20),
-                              onPressed: _toggleSidebar,
-                            ),
-                          ],
-                        )
-                      : Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                gradient: TekColors.cyanBlueGradient,
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: TekColors.primaryGlow,
-                              ),
-                              child: const Icon(Icons.bolt_rounded, color: Colors.white, size: 22),
-                            ),
-                            const SizedBox(width: 12),
-                            const Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'TEKFIX ERP',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.6,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Smarter Business. Greater Growth.',
-                                    style: TextStyle(
-                                      color: TekColors.textSecondary,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Irumbuzhi, Kerala',
-                                    style: TextStyle(
-                                      color: TekColors.textMuted,
-                                      fontSize: 9.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            IconButton(
-                              tooltip: 'Collapse Sidebar',
-                              icon: const Icon(Icons.menu_open_rounded, color: TekColors.textSecondary, size: 19),
-                              onPressed: _toggleSidebar,
-                            ),
-                          ],
-                        ),
-                ),
+        return StreamBuilder<int>(
+          stream: NotificationService.instance.streamUnreadCount(auth.shopId, auth.uid),
+          builder: (context, notifSnap) {
+            final unreadNotifs = notifSnap.data ?? 0;
 
-                // Navigation Items Accordion
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: categories.length,
-                    itemBuilder: (context, catIdx) {
-                      final cat = categories[catIdx];
-                      final isExpanded = _expandedCategories.contains(cat.title);
+            return ValueListenableBuilder(
+              valueListenable: Db.parties.listenable(),
+              builder: (context, Box partiesBox, _) {
+                int overdueReminders = 0;
+                for (final v in partiesBox.values) {
+                  if (v is! Map) continue;
+                  final p = tekM(v);
+                  if (tekD(p['balance']) > 0) {
+                    final eval = ReminderService.instance.evaluateCustomerReminder(p);
+                    if (eval['isDue'] == true) overdueReminders++;
+                  }
+                }
 
-                      if (_sidebarCollapsed) {
-                        return Column(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 6),
-                              child: Tooltip(
-                                message: cat.title,
-                                waitDuration: const Duration(milliseconds: 200),
-                                child: Container(
-                                  height: 1,
-                                  width: 32,
-                                  color: TekColors.border,
-                                ),
-                              ),
-                            ),
-                            for (final item in cat.items) ...[
-                              Builder(builder: (context) {
-                                final itemIdx = mods.indexOf(item);
-                                final isSelected = safeIndex == itemIdx;
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 8),
-                                  child: Tooltip(
-                                    message: '${cat.title} • ${item.label}',
-                                    waitDuration: const Duration(milliseconds: 200),
-                                    child: Stack(
-                                      clipBehavior: Clip.none,
-                                      children: [
-                                        Material(
-                                          color: isSelected
-                                              ? TekColors.primaryBlue.withValues(alpha: 0.25)
-                                              : Colors.transparent,
-                                          borderRadius: BorderRadius.circular(10),
-                                          child: InkWell(
-                                            borderRadius: BorderRadius.circular(10),
-                                            onTap: () => setState(() => _index = itemIdx),
-                                            child: Container(
-                                              width: double.infinity,
-                                              padding: const EdgeInsets.symmetric(vertical: 10),
-                                              child: Center(
-                                                child: Icon(
-                                                  item.icon,
-                                                  size: 20,
-                                                  color: isSelected
-                                                      ? TekColors.electricCyan
-                                                      : TekColors.textSecondary,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        if (item.label == 'Attendance Approvals')
-                                          Positioned(
-                                            top: 4,
-                                            right: 4,
-                                            child: _buildPendingBadge(auth.shopId, iconOnly: true),
-                                          ),
-                                        if (item.label == 'Staff Orders')
-                                          Positioned(
-                                            top: 4,
-                                            right: 4,
-                                            child: _buildOrdersBadge(auth.shopId, iconOnly: true),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              }),
-                            ],
-                          ],
-                        );
-                      }
-
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          InkWell(
-                            onTap: () => _toggleCategory(cat.title),
-                            borderRadius: BorderRadius.circular(6),
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(14, 12, 10, 6),
-                              child: Row(
-                                children: [
-                                  Icon(cat.icon, size: 14, color: TekColors.textMuted),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      cat.title.toUpperCase(),
-                                      style: const TextStyle(
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: 0.8,
-                                        color: TekColors.textMuted,
-                                      ),
-                                    ),
-                                  ),
-                                  AnimatedRotation(
-                                    turns: isExpanded ? 0.25 : 0.0,
-                                    duration: const Duration(milliseconds: 200),
-                                    child: const Icon(
-                                      Icons.chevron_right_rounded,
-                                      color: TekColors.textMuted,
-                                      size: 16,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          AnimatedCrossFade(
-                            crossFadeState: isExpanded
-                                ? CrossFadeState.showFirst
-                                : CrossFadeState.showSecond,
-                            duration: const Duration(milliseconds: 200),
-                            firstChild: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
-                              child: Column(
-                                children: [
-                                  for (final item in cat.items) ...[
-                                    Builder(builder: (context) {
-                                      final itemIdx = mods.indexOf(item);
-                                      final isSelected = safeIndex == itemIdx;
-                                      return Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 1.5),
-                                        child: Material(
-                                          color: isSelected
-                                              ? TekColors.cardBg
-                                              : Colors.transparent,
-                                          borderRadius: BorderRadius.circular(10),
-                                          child: InkWell(
-                                            borderRadius: BorderRadius.circular(10),
-                                            onTap: () => setState(() => _index = itemIdx),
-                                            child: Container(
-                                              decoration: BoxDecoration(
-                                                borderRadius: BorderRadius.circular(10),
-                                                border: Border(
-                                                  left: BorderSide(
-                                                    color: isSelected
-                                                        ? TekColors.electricCyan
-                                                        : Colors.transparent,
-                                                    width: 3.5,
-                                                  ),
-                                                ),
-                                              ),
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 10,
-                                                vertical: 8,
-                                              ),
-                                              child: Row(
-                                                children: [
-                                                  Icon(
-                                                    item.icon,
-                                                    size: 18,
-                                                    color: isSelected
-                                                        ? TekColors.electricCyan
-                                                        : TekColors.textSecondary,
-                                                  ),
-                                                  const SizedBox(width: 10),
-                                                  Expanded(
-                                                    child: Text(
-                                                      item.label,
-                                                      style: TextStyle(
-                                                        color: isSelected
-                                                            ? Colors.white
-                                                            : TekColors.textSecondary,
-                                                        fontSize: 13,
-                                                        fontWeight: isSelected
-                                                            ? FontWeight.bold
-                                                            : FontWeight.normal,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  if (item.label == 'Attendance Approvals')
-                                                    _buildPendingBadge(auth.shopId),
-                                                  if (item.label == 'Staff Orders')
-                                                    _buildOrdersBadge(auth.shopId),
-                                                  if (item.label == 'Payment Reminders')
-                                                    _buildRemindersBadge(),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    }),
-                                  ],
-                                ],
-                              ),
-                            ),
-                            secondChild: const SizedBox.shrink(),
-                          ),
-                          const SizedBox(height: 4),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-
-                // User Profile Footer
-                if (!_sidebarCollapsed)
-                  Container(
-                    padding: const EdgeInsets.all(12),
+                return Scaffold(
+                  backgroundColor: DashboardColors.bgDarkNavyStart,
+                  body: Container(
                     decoration: const BoxDecoration(
-                      color: TekColors.cardBg,
-                      border: Border(top: BorderSide(color: TekColors.border)),
+                      gradient: DashboardColors.backgroundGradient,
                     ),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor: TekColors.primaryBlue.withValues(alpha: 0.3),
-                          child: Text(
-                            auth.name.isNotEmpty ? auth.name[0].toUpperCase() : 'O',
-                            style: const TextStyle(
-                              color: TekColors.electricCyan,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                          ),
+                        // Left Fixed Sidebar
+                        TekSidebar(
+                          activeItem: _getSidebarActiveLabel(safeIndex),
+                          onItemSelected: (item) {
+                            final idx = _getSidebarItemIndex(item);
+                            setState(() => _index = idx);
+                          },
+                          pendingAttendanceCount: pendingAttendance,
+                          overdueRemindersCount: overdueReminders,
                         ),
-                        const SizedBox(width: 10),
+
+                        // Main Content (Top Bar + Active View)
                         Expanded(
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Text(
-                                auth.name,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.bold,
+                              TekTopBar(
+                                unreadNotificationsCount: unreadNotifs,
+                                userName: auth.name.isNotEmpty ? auth.name : 'Tekfix',
+                                shopName: Db.setting('shop_name', 'TEKFIX DIGITAL'),
+                                onSearchTap: () => TekGlobalSearchDialog.show(
+                                  context,
+                                  onNavigate: (idx) => setState(() => _index = idx),
                                 ),
+                                onNotificationsTap: () => TekNotificationPanel.show(
+                                  context,
+                                  shopId: auth.shopId,
+                                  staffId: auth.uid,
+                                  onNavigateModule: (idx) => setState(() => _index = idx),
+                                ),
+                                onProfileTap: () => setState(() => _index = 21),
+                                onSignOut: () => auth.signOut(),
                               ),
-                              const Text(
-                                'OWNER • Irumbuzhi',
-                                style: TextStyle(
-                                  color: TekColors.electricCyan,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
+
+                              Expanded(
+                                child: ClipRect(
+                                  child: KeyedSubtree(
+                                    key: ValueKey('page_${mods[safeIndex].label}'),
+                                    child: mods[safeIndex].view,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                        IconButton(
-                          tooltip: 'Sign out',
-                          icon: const Icon(Icons.logout_rounded, color: TekColors.error, size: 18),
-                          onPressed: () => auth.signOut(),
                         ),
                       ],
                     ),
                   ),
-              ],
-            ),
-          ),
-
-          // Main Column with Top Navigation + Active View
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Enterprise Top Navigation Bar
-                TekTopNavBar(
-                  isSidebarCollapsed: _sidebarCollapsed,
-                  onToggleSidebar: _toggleSidebar,
-                  onNavigateModule: (idx) => setState(() => _index = idx),
-                ),
-
-                // Active View Content
-                Expanded(
-                  child: ClipRect(
-                    child: KeyedSubtree(
-                      key: ValueKey('page_${mods[safeIndex].label}'),
-                      child: mods[safeIndex].view,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -1734,922 +1452,17 @@ class MoreView extends StatelessWidget {
 // -----------------------------------------------------------------------------
 
 /// Navigation helper. GoRouter-ലേക്ക് മാറിയാൽ ഇവിടെ മാത്രം മാറ്റിയാൽ മതി.
+// ignore: unused_element
 void _open(BuildContext context, Widget page) {
   Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
-}
-
-Widget _buildUrgentBanner({
-  required BuildContext context,
-  required IconData icon,
-  required int badgeCount,
-  required Color badgeColor,
-  required String title,
-  required String subtitle,
-  required String actionLabel,
-  required VoidCallback onTap,
-}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: TekColors.elevatedSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: badgeColor.withValues(alpha: 0.4), width: 1.4),
-        boxShadow: [
-          BoxShadow(
-            color: badgeColor.withValues(alpha: 0.12),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                TekRedSignalBadge(
-                  count: badgeCount,
-                  showPulse: true,
-                  badgeColor: badgeColor,
-                  child: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: badgeColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(icon, color: badgeColor, size: 22),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          color: TekColors.textPrimary,
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: const TextStyle(
-                          color: TekColors.textSecondary,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: badgeColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: badgeColor.withValues(alpha: 0.3)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        actionLabel,
-                        style: TextStyle(
-                          color: badgeColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Icon(Icons.arrow_forward_rounded, color: badgeColor, size: 14),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-class _HomePendingApprovalsBanner extends StatefulWidget {
-  final String shopId;
-  const _HomePendingApprovalsBanner({required this.shopId});
-
-  @override
-  State<_HomePendingApprovalsBanner> createState() => _HomePendingApprovalsBannerState();
-}
-
-class _HomePendingApprovalsBannerState extends State<_HomePendingApprovalsBanner> {
-  late Stream<List<AttendanceRecord>> _stream;
-
-  @override
-  void initState() {
-    super.initState();
-    _stream = AttendanceService.instance.streamPendingApprovals(widget.shopId);
-  }
-
-  @override
-  void didUpdateWidget(covariant _HomePendingApprovalsBanner oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.shopId != widget.shopId) {
-      _stream = AttendanceService.instance.streamPendingApprovals(widget.shopId);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<List<AttendanceRecord>>(
-      stream: _stream,
-      builder: (context, snap) {
-        final pendingCount = snap.data?.length ?? 0;
-        if (pendingCount == 0) return const SizedBox.shrink();
-        return _buildUrgentBanner(
-          context: context,
-          icon: Icons.fact_check_rounded,
-          badgeCount: pendingCount,
-          badgeColor: TekColors.error,
-          title: 'അറ്റൻഡൻസ് അംഗീകാരം ($pendingCount പെൻഡിംഗ്)',
-          subtitle: 'Staff attendance clock-in requests awaiting verification',
-          actionLabel: 'Review Approvals',
-          onTap: () => _open(
-            context,
-            OwnerAttendanceApprovalsView(shopId: widget.shopId),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _HomeOrdersBanner extends StatefulWidget {
-  final String shopId;
-  const _HomeOrdersBanner({required this.shopId});
-
-  @override
-  State<_HomeOrdersBanner> createState() => _HomeOrdersBannerState();
-}
-
-class _HomeOrdersBannerState extends State<_HomeOrdersBanner> {
-  late Stream<List<StaffOrder>> _stream;
-
-  @override
-  void initState() {
-    super.initState();
-    _stream = OrderService.instance.streamAllOrders(widget.shopId);
-  }
-
-  @override
-  void didUpdateWidget(covariant _HomeOrdersBanner oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.shopId != widget.shopId) {
-      _stream = OrderService.instance.streamAllOrders(widget.shopId);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<List<StaffOrder>>(
-      stream: _stream,
-      builder: (context, snap) {
-        final pendingOrders = (snap.data ?? [])
-            .where((o) =>
-                o.status == StaffOrderStatus.pending ||
-                o.status == StaffOrderStatus.submitted)
-            .length;
-        if (pendingOrders == 0) return const SizedBox.shrink();
-        return _buildUrgentBanner(
-          context: context,
-          icon: Icons.shopping_bag_rounded,
-          badgeCount: pendingOrders,
-          badgeColor: TekColors.warning,
-          title: 'സ്റ്റാഫ് ഓർഡറുകൾ ($pendingOrders പുതിയത്)',
-          subtitle: 'Staff supply & customer item orders awaiting review',
-          actionLabel: 'Review Orders',
-          onTap: () => _open(
-            context,
-            OwnerOrdersView(shopId: widget.shopId),
-          ),
-        );
-      },
-    );
-  }
 }
 
 class HomeView extends StatelessWidget {
   const HomeView({super.key});
 
-  Widget _buildHeroSection({
-    required BuildContext context,
-    required String shopName,
-    required String userName,
-    required double todaySales,
-    required double todayProfit,
-    required int todayBills,
-    required bool isOwner,
-  }) {
-    final hour = DateTime.now().hour;
-    final greeting = hour < 12
-        ? 'Good morning'
-        : (hour < 17 ? 'Good afternoon' : 'Good evening');
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: TekColors.heroGradient,
-        border: Border.all(
-          color: TekColors.electricCyan.withValues(alpha: 0.25),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: TekColors.primaryBlue.withValues(alpha: 0.2),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Brand & Location Header Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 8,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: TekColors.electricCyan.withValues(alpha: 0.4),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 7,
-                          height: 7,
-                          decoration: const BoxDecoration(
-                            color: TekColors.electricCyan,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Text(
-                          'TEKFIX ERP • Irumbuzhi, Kerala',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.15),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.calendar_today_rounded,
-                        size: 13, color: TekColors.electricCyan),
-                    const SizedBox(width: 8),
-                    Text(
-                      DateFormat('EEEE, dd MMM yyyy').format(DateTime.now()),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 16),
-
-          // Shop Name & Greeting
-          Text(
-            shopName,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 26,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.5,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            'Smarter Business. Greater Growth. • $greeting, $userName',
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 13.5,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          // Metrics Row inside Hero Banner
-          Wrap(
-            spacing: 24,
-            runSpacing: 14,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "ഇന്നത്തെ വിൽപന (Today's Sales)",
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    rs(todaySales),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 32,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.receipt_long_rounded,
-                        color: TekColors.electricCyan, size: 20),
-                    const SizedBox(width: 8),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "ഇന്നത്തെ ബില്ലുകൾ",
-                          style: TextStyle(color: Colors.white70, fontSize: 10.5),
-                        ),
-                        Text(
-                          '$todayBills Bills',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              if (isOwner)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: TekColors.success.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: TekColors.success.withValues(alpha: 0.35),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.trending_up_rounded,
-                          color: TekColors.success, size: 20),
-                      const SizedBox(width: 8),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            "ഇന്നത്തെ ലാഭം (Today's Profit)",
-                            style: TextStyle(color: Colors.white70, fontSize: 10.5),
-                          ),
-                          Text(
-                            rs(todayProfit),
-                            style: const TextStyle(
-                              color: TekColors.success,
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: TekColors.mainBg,
-      body: ListenableBuilder(
-        listenable: Listenable.merge(<Listenable>[
-          Db.sales.listenable(),
-          Db.items.listenable(),
-          Db.parties.listenable(),
-          Db.bank.listenable(),
-        ]),
-        builder: (context, _) {
-          double todaySales = 0,
-              todayProfit = 0,
-              recv = 0,
-              pay = 0,
-              stockVal = 0;
-          int todayBills = 0;
-          for (final v in Db.sales.values) {
-            final s = _m(v);
-            if (_isReturned(s)) continue;
-            if (_isToday(_dt(s['createdAt']))) {
-              todaySales += _d(s['total']);
-              todayProfit += _d(s['profit']);
-              todayBills++;
-            }
-          }
-          for (final v in Db.parties.values) {
-            final b = _d(_m(v)['balance']);
-            if (b > 0) {
-              recv += b;
-            } else {
-              pay += -b;
-            }
-          }
-          int overduePartiesCount = 0;
-          for (final v in Db.parties.values) {
-            final p = _m(v);
-            if (_d(p['balance']) > 0) {
-              final eval =
-                  ReminderService.instance.evaluateCustomerReminder(p);
-              if (eval['isDue'] == true) overduePartiesCount++;
-            }
-          }
-          final lowItems = <Map<String, dynamic>>[];
-          for (final v in Db.items.values) {
-            final it = _m(v);
-            final st = _i(it['stock']);
-            stockVal += _d(it['costPrice']) * st;
-            if (st <= _i(it['minStock'] ?? 3)) lowItems.add(it);
-          }
-
-          final auth = context.watch<AuthController>();
-          final isOwner = auth.isOwner;
-
-          // Financial KPI Cards (Section 7)
-          final kpiCards = <Widget>[
-            TekKpiCard(
-              title: 'Cash In Hand',
-              subtitle: 'കയ്യിലുള്ള പണം',
-              value: rs(Db.cash),
-              icon: Icons.payments_rounded,
-              accentColor: TekColors.warning,
-              onTap: () => _open(context, const CashBankView()),
-            ),
-            TekKpiCard(
-              title: 'Bank Balance',
-              subtitle: 'ബാങ്ക് അക്കൗണ്ട്',
-              value: rs(Db.bankBalance),
-              icon: Icons.account_balance_rounded,
-              accentColor: TekColors.primaryBlue,
-              onTap: () => _open(context, const CashBankView()),
-            ),
-            TekKpiCard(
-              title: 'Total Receivables',
-              subtitle: 'കിട്ടാനുള്ള തുക (Receivable)',
-              value: rs(recv),
-              icon: Icons.south_west_rounded,
-              accentColor: TekColors.success,
-              onTap: () => _open(context, const PartiesView()),
-            ),
-            TekKpiCard(
-              title: 'Payment Reminders',
-              subtitle: overduePartiesCount > 0
-                  ? '$overduePartiesCount Customers Due'
-                  : 'എല്ലാം കൃത്യം (Up to date)',
-              value: overduePartiesCount > 0 ? '$overduePartiesCount Due' : 'All Clear',
-              icon: Icons.notification_important_rounded,
-              accentColor: overduePartiesCount > 0 ? TekColors.error : TekColors.warning,
-              onTap: () => _open(context, const RemindersScreen()),
-            ),
-            TekKpiCard(
-              title: 'Total Payables',
-              subtitle: 'കൊടുക്കാനുള്ള തുക (Payable)',
-              value: rs(pay),
-              icon: Icons.north_east_rounded,
-              accentColor: TekColors.error,
-              onTap: () => _open(context, const PartiesView()),
-            ),
-            TekKpiCard(
-              title: 'Stock Value',
-              subtitle: 'ഇൻവെന്ററി മൂല്യം',
-              value: rs(stockVal),
-              icon: Icons.inventory_2_rounded,
-              accentColor: TekColors.premiumPurple,
-              onTap: () => _open(context, const ItemsView()),
-            ),
-            TekKpiCard(
-              title: 'Low Stock Items',
-              subtitle: lowItems.isNotEmpty
-                  ? '${lowItems.length} സാധനങ്ങൾ കുറവ്'
-                  : 'സ്റ്റോക്ക് സുരക്ഷിതം',
-              value: '${lowItems.length} Items',
-              icon: Icons.warning_amber_rounded,
-              accentColor: lowItems.isNotEmpty ? TekColors.error : TekColors.success,
-              onTap: () => _open(context, const ItemsView(initialLowOnly: true)),
-            ),
-            TekKpiCard(
-              title: "Today's Profit",
-              subtitle: 'ഇന്നത്തെ അറ്റാദായം',
-              value: rs(todayProfit),
-              icon: Icons.trending_up_rounded,
-              accentColor: TekColors.electricCyan,
-              onTap: isOwner
-                  ? () => _open(context, const ReportsView(initialPreset: 'Today'))
-                  : null,
-            ),
-          ];
-
-          if (!isOwner) {
-            kpiCards.removeWhere((w) =>
-                w is TekKpiCard &&
-                const [
-                  'Cash In Hand',
-                  'Bank Balance',
-                  "Today's Profit",
-                  'Stock Value',
-                  'Total Receivables',
-                  'Total Payables',
-                ].contains(w.title));
-          }
-
-          final recent = <Map<String, dynamic>>[];
-          for (var i = Db.sales.length - 1;
-              i >= 0 && recent.length < 5;
-              i--) {
-            recent.add(_m(Db.sales.getAt(i)));
-          }
-
-          return ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              // Premium Hero Header Section
-              _buildHeroSection(
-                context: context,
-                shopName: Db.setting('shop_name', 'TEKFIX DIGITAL'),
-                userName: auth.name.isNotEmpty ? auth.name : 'Tekfix Owner',
-                todaySales: todaySales,
-                todayProfit: todayProfit,
-                todayBills: todayBills,
-                isOwner: isOwner,
-              ),
-
-              // Smart Red Signal Urgent Alert 1: Attendance Approvals
-              if (isOwner)
-                _HomePendingApprovalsBanner(shopId: auth.shopId),
-
-              // Smart Red Signal Urgent Alert 2: Staff Orders
-              if (isOwner)
-                _HomeOrdersBanner(shopId: auth.shopId),
-
-              // Quick Actions Bar (Section 9)
-              TekQuickActions(
-                onNewSale: () => _open(context, const SaleView()),
-                onAddItem: () => showItemForm(context),
-                onServiceRequest: () => showServiceJobForm(context),
-                onAddCustomer: () => showPartyForm(context),
-                onViewReports: () => _open(context, const ReportsView()),
-                onOpenSettings: () => _open(context, const SettingsView()),
-              ),
-
-              const SizedBox(height: 10),
-
-              // Financial KPI Cards (Section 7)
-              const SectionTitle('സാമ്പത്തിക സംഗ്രഹം (Financial KPIs)'),
-              statGrid(kpiCards),
-
-              const SizedBox(height: 10),
-
-              // Sales Analytics Overview (Section 8)
-              const SectionTitle('വിൽപന അനലിറ്റിക്സ് (Sales Analytics Overview)'),
-              const TekSalesChart(),
-
-              const SizedBox(height: 10),
-
-              // Service & Repair Summary (Section 11)
-              const SectionTitle('സർവീസ് സംഗ്രഹം (Service & Repair Center)'),
-              ListenableBuilder(
-                listenable: Db.services.listenable(),
-                builder: (context, _) {
-                  final jobs =
-                      entriesOf(Db.services).map((e) => e.value).toList();
-                  int count(String status) =>
-                      jobs.where((j) => '${j['status']}' == status).length;
-                  final pendingPay = jobs
-                      .where((j) =>
-                          j['billCreated'] != true &&
-                          '${j['status']}' != 'Cancelled')
-                      .fold<double>(
-                          0,
-                          (acc, j) =>
-                              acc +
-                              (_d(j['finalAmount']) - _d(j['advance']))
-                                  .clamp(0, double.infinity)
-                                  .toDouble());
-                  final serviceCards = <Widget>[
-                    TekKpiCard(
-                      title: 'New Today',
-                      subtitle: 'ഇന്ന് ലഭിച്ച റിപ്പയർ',
-                      value: '${jobs.where((j) => _isToday(_dt(j['createdAt']))).length}',
-                      icon: Icons.build_rounded,
-                      accentColor: TekColors.primaryBlue,
-                      onTap: () => _open(context,
-                          const ServicesView(initialFilter: 'Today')),
-                    ),
-                    TekKpiCard(
-                      title: 'In Progress',
-                      subtitle: 'വർക്ക് നടക്കുന്നു',
-                      value: '${count('In Progress') + count('Diagnosing') + count('Received')}',
-                      icon: Icons.handyman_rounded,
-                      accentColor: TekColors.warning,
-                      onTap: () => _open(context,
-                          const ServicesView(initialFilter: 'Active')),
-                    ),
-                    TekKpiCard(
-                      title: 'Ready for Delivery',
-                      subtitle: 'ഡെലിവറിക്ക് തയ്യാർ',
-                      value: '${count('Ready')}',
-                      icon: Icons.check_circle_rounded,
-                      accentColor: TekColors.success,
-                      onTap: () => _open(context,
-                          const ServicesView(initialFilter: 'Ready')),
-                    ),
-                    TekKpiCard(
-                      title: 'Pending Payments',
-                      subtitle: 'പിരിഞ്ഞു കിട്ടാനുള്ളത്',
-                      value: rs(pendingPay),
-                      icon: Icons.payments_rounded,
-                      accentColor: TekColors.error,
-                      onTap: () => _open(context,
-                          const ServicesView(initialFilter: 'Unpaid')),
-                    ),
-                  ];
-                  return statGrid(serviceCards);
-                },
-              ),
-
-              const SizedBox(height: 10),
-
-              // Recent Invoices (Section 10)
-              const SectionTitle('സമീപകാല വിൽപനകൾ (Recent Invoices)'),
-              if (recent.isEmpty)
-                Container(
-                  padding: const EdgeInsets.all(28),
-                  decoration: BoxDecoration(
-                    color: TekColors.cardBg,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: TekColors.border),
-                  ),
-                  child: const EmptyState(
-                      Icons.receipt_long_outlined, 'ബില്ലുകൾ ലഭ്യമല്ല.'),
-                )
-              else
-                Container(
-                  decoration: BoxDecoration(
-                    color: TekColors.cardBg,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: TekColors.border),
-                    boxShadow: TekColors.cardShadow,
-                  ),
-                  child: Column(
-                    children: [
-                      for (var i = 0; i < recent.length; i++) ...[
-                        if (i > 0) const Divider(height: 1, color: TekColors.border),
-                        ListTile(
-                          leading: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: _isReturned(recent[i])
-                                  ? TekColors.error.withValues(alpha: 0.15)
-                                  : TekColors.success.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(
-                              Icons.receipt_rounded,
-                              color: _isReturned(recent[i])
-                                  ? TekColors.error
-                                  : TekColors.success,
-                              size: 20,
-                            ),
-                          ),
-                          title: Text(
-                            '${recent[i]['invoice']} • ${recent[i]['customerName'] ?? 'Walk-in Customer'}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: TekColors.textPrimary,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13.5,
-                            ),
-                          ),
-                          subtitle: Text(
-                            dtFormat.format(_dt(recent[i]['createdAt'])),
-                            style: const TextStyle(
-                              color: TekColors.textSecondary,
-                              fontSize: 11.5,
-                            ),
-                          ),
-                          trailing: _isReturned(recent[i])
-                              ? const Pill('Returned', TekColors.error)
-                              : Text(
-                                  rs(_d(recent[i]['total'])),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 14.5,
-                                    color: TekColors.success,
-                                  ),
-                                ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
-              const SizedBox(height: 10),
-
-              // Recent Activity (Section 10)
-              const SectionTitle('സമീപകാല പ്രവർത്തനങ്ങൾ (Recent System Activity)'),
-              ListenableBuilder(
-                listenable: Db.audit.listenable(),
-                builder: (context, _) {
-                  final rows = entriesOf(Db.audit).reversed.take(5).toList();
-                  if (rows.isEmpty) {
-                    return Container(
-                      padding: const EdgeInsets.all(28),
-                      decoration: BoxDecoration(
-                        color: TekColors.cardBg,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: TekColors.border),
-                      ),
-                      child: const Center(
-                        child: Text(
-                          'ഇതുവരെ പ്രവർത്തന രേഖകളില്ല.',
-                          style: TextStyle(color: TekColors.textSecondary),
-                        ),
-                      ),
-                    );
-                  }
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: TekColors.cardBg,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: TekColors.border),
-                      boxShadow: TekColors.cardShadow,
-                    ),
-                    child: Column(
-                      children: [
-                        for (var i = 0; i < rows.length; i++) ...[
-                          if (i > 0) const Divider(height: 1, color: TekColors.border),
-                          ListTile(
-                            dense: true,
-                            leading: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: TekColors.primaryBlue.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(Icons.history_rounded,
-                                  color: TekColors.electricCyan, size: 18),
-                            ),
-                            title: Text(
-                              '${rows[i].value['action']} • ${rows[i].value['entity']}',
-                              style: const TextStyle(
-                                color: TekColors.textPrimary,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                            subtitle: Text(
-                              '${rows[i].value['user']} • ${dtFormat.format(_dt(rows[i].value['date']))}',
-                              style: const TextStyle(
-                                color: TekColors.textSecondary,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  );
-                },
-              ),
-
-              // Low Stock Alert (Section 16)
-              if (lowItems.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                SectionTitle(
-                  'സ്റ്റോക്ക് മുന്നറിയിപ്പ് (Critical Low Stock Alerts)',
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: TekColors.error.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: TekColors.error.withValues(alpha: 0.3)),
-                    ),
-                    child: Text(
-                      '${lowItems.length} Items Low',
-                      style: const TextStyle(
-                        color: TekColors.error,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                    color: TekColors.cardBg,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: TekColors.border),
-                    boxShadow: TekColors.cardShadow,
-                  ),
-                  child: Column(
-                    children: [
-                      for (var i = 0; i < lowItems.length && i < 6; i++) ...[
-                        if (i > 0) const Divider(height: 1, color: TekColors.border),
-                        ListTile(
-                          dense: true,
-                          leading: const Icon(Icons.warning_amber_rounded,
-                              color: TekColors.error, size: 20),
-                          title: Text(
-                            '${lowItems[i]['name']}',
-                            style: const TextStyle(
-                              color: TekColors.textPrimary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          trailing: Pill(
-                            '${_i(lowItems[i]['stock'])} left',
-                            TekColors.error,
-                          ),
-                          onTap: () => _open(
-                            context,
-                            const ItemsView(initialLowOnly: true),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          );
-        },
-      ),
-    );
+    return const TekDashboardContent();
   }
 }
 

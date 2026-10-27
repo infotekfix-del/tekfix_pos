@@ -8,6 +8,7 @@ import '../shared/tek_pos_strings.dart';
 import '../theme/tek_tokens.dart';
 import 'pos_models.dart';
 import 'pos_service.dart';
+import '../returns/returns_dashboard_view.dart';
 
 class StaffPosScreen extends StatefulWidget {
   final String shopId;
@@ -952,6 +953,17 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'Customer Returns & Warranty',
+            icon: const Icon(Icons.assignment_return_rounded, color: TekColors.secondary, size: 24),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ReturnsDashboardView()),
+              );
+            },
+          ),
+          const SizedBox(width: 4),
           Stack(
             children: [
               IconButton(

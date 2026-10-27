@@ -6,6 +6,21 @@ import '../theme/tek_tokens.dart';
 class TekFeedback {
   TekFeedback._();
 
+  /// Quick toast fallback when context is not immediately available
+  static void toast(String message) {
+    debugPrint('[TekFeedback TOAST] $message');
+  }
+
+  /// Quick error fallback
+  static void error(String message) {
+    debugPrint('[TekFeedback ERROR] $message');
+  }
+
+  /// Quick success fallback
+  static void success(String message) {
+    debugPrint('[TekFeedback SUCCESS] $message');
+  }
+
   /// Displays a smooth floating success toast with a green checkmark
   static void showSuccess(
     BuildContext context,

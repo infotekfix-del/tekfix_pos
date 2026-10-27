@@ -18,7 +18,10 @@ import '../main.dart'
         boxServices,
         boxStockMoves,
         boxAudit,
-        boxBank;
+        boxBank,
+        boxReturns,
+        boxPurchaseBills,
+        boxVendorPayments;
 
 enum SyncState { synced, syncing, offline, error }
 
@@ -46,6 +49,9 @@ const _cols = <_Col>[
   _Col(boxServices, 'services'),
   _Col(boxStockMoves, 'stock_moves', ownerOnlyRead: true, windowDays: 30),
   _Col(boxAudit, 'activity_logs', ownerOnlyRead: true, windowDays: 30),
+  _Col(boxReturns, 'returns'),
+  _Col(boxPurchaseBills, 'purchase_bills', ownerOnlyRead: true),
+  _Col(boxVendorPayments, 'vendor_payments', ownerOnlyRead: true),
 ];
 
 const _uuid = Uuid();
