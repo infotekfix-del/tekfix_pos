@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -27,7 +29,11 @@ class _AuthGateState extends State<AuthGate> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      AppUpdateService.instance.checkForUpdate(context, autoShowDialog: true);
+      // Auto-check for updates only on Android mobile devices (Staff App).
+      // On Windows Desktop ERP, cashier/owner workflow is never interrupted at login.
+      if (!kIsWeb && Platform.isAndroid) {
+        AppUpdateService.instance.checkForUpdate(context, autoShowDialog: true);
+      }
     });
   }
 

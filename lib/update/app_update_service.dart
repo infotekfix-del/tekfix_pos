@@ -13,6 +13,7 @@ class AppUpdateInfo {
   final String latestVersion;
   final int latestBuildNumber;
   final String apkUrl;
+  final String windowsUrl;
   final String releaseNotes;
   final bool isMandatory;
   final String? minSupportedVersion;
@@ -21,25 +22,32 @@ class AppUpdateInfo {
     required this.latestVersion,
     required this.latestBuildNumber,
     required this.apkUrl,
+    String? windowsUrl,
     required this.releaseNotes,
-    this.isMandatory = true,
+    this.isMandatory = false,
     this.minSupportedVersion,
-  });
+  }) : windowsUrl = windowsUrl ??
+            'https://github.com/infotekfix-del/tekfix_pos/releases/tag/v$latestVersion';
 
   factory AppUpdateInfo.fromFirestore(Map<String, dynamic> data) {
     final rawBuild = data['latest_build_number'];
     final buildNum = rawBuild is int
         ? rawBuild
         : int.tryParse(rawBuild?.toString() ?? '') ?? 0;
+    final ver = (data['latest_version'] ?? '1.0.0').toString().trim();
 
     return AppUpdateInfo(
-      latestVersion: (data['latest_version'] ?? '1.0.0').toString().trim(),
+      latestVersion: ver,
       latestBuildNumber: buildNum,
       apkUrl: (data['apk_url'] ?? '').toString().trim(),
+      windowsUrl: (data['windows_url'] ??
+              'https://github.com/infotekfix-del/tekfix_pos/releases/tag/v$ver')
+          .toString()
+          .trim(),
       releaseNotes: (data['release_notes'] ??
               'പുതിയ ഫീച്ചറുകളും പരിഹാരങ്ങളും ഉൾപ്പെടുത്തിയിട്ടുണ്ട്.\n(New features and performance improvements included.)')
           .toString(),
-      isMandatory: data['is_mandatory'] ?? true,
+      isMandatory: data['is_mandatory'] ?? false,
       minSupportedVersion: data['min_supported_version']?.toString(),
     );
   }
@@ -161,6 +169,14 @@ class AppUpdateService {
 
       if (info != null) {
         if (autoShowDialog) {
+          // Do not automatically pop up update modal on Desktop (Windows/macOS/Linux) or Web on login/launch.
+          // Desktop users can check for updates manually in Settings > App Updates & Releases.
+          final isDesktop = !kIsWeb && !Platform.isAndroid;
+          if (isDesktop) {
+            debugPrint('AppUpdateService: Desktop platform detected. Skipping auto-popup.');
+            return;
+          }
+
           _dialogShowing = true;
           try {
             final packageInfo = await PackageInfo.fromPlatform();
@@ -168,7 +184,7 @@ class AppUpdateService {
 
             await showDialog(
               context: context,
-              barrierDismissible: !info.isMandatory,
+              barrierDismissible: isDesktop || !info.isMandatory,
               builder: (ctx) => AppUpdateDialog(
                 updateInfo: info,
                 currentVersion: '${packageInfo.version}+${packageInfo.buildNumber}',
@@ -358,12 +374,16 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
   }
 
   Future<void> _downloadViaBrowser() async {
-    final rawUrl = widget.updateInfo.apkUrl.trim();
+    final isDesktop = !kIsWeb && !Platform.isAndroid;
+    final rawUrl = (isDesktop && widget.updateInfo.windowsUrl.isNotEmpty
+            ? widget.updateInfo.windowsUrl
+            : widget.updateInfo.apkUrl)
+        .trim();
     if (rawUrl.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('APK URL ലഭ്യമല്ല (APK URL is missing)'),
+            content: Text('ഡൗൺലോഡ് ലിങ്ക് ലഭ്യമല്ല (Download URL is missing)'),
             backgroundColor: Colors.red,
           ),
         );
@@ -373,7 +393,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
 
     final uri = Uri.parse(rawUrl);
     debugPrint(
-        'AppUpdateService: Opening external browser for APK download: $rawUrl');
+        'AppUpdateService: Opening browser for download: $rawUrl');
 
     try {
       final launched = await launchUrl(
@@ -413,10 +433,11 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isMandatory = widget.updateInfo.isMandatory;
+    final isDesktop = !kIsWeb && !Platform.isAndroid;
+    final isMandatory = !isDesktop && widget.updateInfo.isMandatory;
 
     return PopScope(
-      canPop: !isMandatory && !_isDownloading,
+      canPop: (isDesktop || !isMandatory) && !_isDownloading,
       child: Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         elevation: 12,
@@ -496,9 +517,14 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
                       ],
                     ),
                   ),
+                  if ((isDesktop || !isMandatory) && !_isDownloading)
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.pop(context),
+                    ),
                 ],
               ),
-
               const SizedBox(height: 18),
 
               // Status / Instruction Text
@@ -607,7 +633,9 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
                     OutlinedButton.icon(
                       onPressed: _downloadViaBrowser,
                       icon: const Icon(Icons.open_in_browser_rounded, size: 16),
-                      label: const Text('ബ്രൗസർ വഴി (Browser)'),
+                      label: Text(isDesktop
+                          ? 'ഡൗൺലോഡ് (Download Windows ZIP)'
+                          : 'ബ്രൗസർ വഴി (Browser)'),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 14, vertical: 11),
@@ -615,8 +643,8 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
                     ),
                   ],
 
-                  // Dismiss button if not mandatory and not currently downloading
-                  if (!isMandatory && !_isDownloading) ...[
+                  // Dismiss button if not mandatory or on desktop and not currently downloading
+                  if ((isDesktop || !isMandatory) && !_isDownloading) ...[
                     TextButton(
                       onPressed: () => Navigator.pop(context),
                       child: const Text('പിന്നീട് (Later)'),
