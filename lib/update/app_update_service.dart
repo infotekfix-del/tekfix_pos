@@ -214,37 +214,52 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
   }
 
   Future<void> _startUpdate() async {
-    final apkUrl = widget.updateInfo.apkUrl;
-    if (apkUrl.isEmpty) return;
+    final apkUrl = widget.updateInfo.apkUrl.trim();
+    if (apkUrl.isEmpty) {
+      setState(() => _errorMessage =
+          'APK URL ലഭ്യമല്ല (APK URL is missing in update config).');
+      return;
+    }
 
     // Check platform
     if (!kIsWeb && !Platform.isAndroid) {
       // For Windows or desktop, launch browser directly to download
-      final uri = Uri.parse(apkUrl);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        setState(() => _errorMessage = 'Could not open URL: $apkUrl');
-      }
+      await _downloadViaBrowser();
       return;
     }
+
+    // Clean up any stale subscription or previous running download
+    try {
+      await _otaSubscription?.cancel();
+      _otaSubscription = null;
+      await OtaUpdate().cancel().catchError((_) {});
+    } catch (_) {}
 
     setState(() {
       _isDownloading = true;
       _errorMessage = null;
       _progress = 0;
-      _statusText = 'ഡൗൺലോഡ് ആരംഭിക്കുന്നു (Starting download)...';
+      _statusText = 'ഡൗൺലോഡ് ആരംഭിക്കുന്നു (Connecting to server)...';
     });
 
     try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      final authority = '${packageInfo.packageName}.ota_update_provider';
+
+      debugPrint('AppUpdateService: Starting OTA update download from: $apkUrl');
+      debugPrint('AppUpdateService: Provider authority: $authority');
+
       _otaSubscription = OtaUpdate()
           .execute(
         apkUrl,
         destinationFilename: 'tekfix_update.apk',
+        androidProviderAuthority: authority,
       )
           .listen(
         (OtaEvent event) {
           if (!mounted) return;
+          debugPrint(
+              'AppUpdateService: OTA event received -> status=${event.status}, value=${event.value}');
           switch (event.status) {
             case OtaStatus.DOWNLOADING:
               final p = int.tryParse(event.value ?? '0') ?? 0;
@@ -255,6 +270,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
               break;
             case OtaStatus.INSTALLING:
               setState(() {
+                _isDownloading = false;
                 _progress = 100;
                 _statusText =
                     'ഇൻസ്റ്റാളർ തുറക്കുന്നു... ഫോണിൽ "Install" ടാപ്പ് ചെയ്യുക.\n(Launching installer... Tap "Install" on prompt)';
@@ -262,6 +278,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
               break;
             case OtaStatus.INSTALLATION_DONE:
               setState(() {
+                _isDownloading = false;
                 _progress = 100;
                 _statusText =
                     'ഇൻസ്റ്റാളേഷൻ പൂർത്തിയായി (Installation completed).';
@@ -269,14 +286,15 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
               break;
             case OtaStatus.ALREADY_RUNNING_ERROR:
               setState(() {
-                _statusText = 'ഡൗൺലോഡ് ഇതിനകം നടക്കുന്നുണ്ട് (Download already running)';
+                _statusText =
+                    'ഡൗൺലോഡ് ഇതിനകം നടക്കുന്നുണ്ട് (Download already running)...';
               });
               break;
             case OtaStatus.PERMISSION_NOT_GRANTED_ERROR:
               setState(() {
                 _isDownloading = false;
                 _errorMessage =
-                    'ഇൻസ്റ്റാളേഷൻ അനുമതിയില്ല. Android Settings-ൽ "Install unknown apps" അനുമതി നൽകുക.\n(Permission denied. Enable "Install unknown apps" for TekFix in Settings).';
+                    'ഇൻസ്റ്റാളേഷൻ അനുമതിയില്ല. Android Settings-ൽ "Install unknown apps" അനുമതി നൽകുക.\n(Permission denied. Enable "Install unknown apps" for TekFix in Settings).\nവിശദാംശം: ${event.value ?? "Permission required"}';
               });
               break;
             case OtaStatus.CANCELED:
@@ -290,40 +308,90 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
             case OtaStatus.DOWNLOAD_ERROR:
             case OtaStatus.CHECKSUM_ERROR:
             case OtaStatus.INSTALLATION_ERROR:
+              final detail =
+                  (event.value != null && event.value!.trim().isNotEmpty)
+                      ? ' (${event.value})'
+                      : '';
               setState(() {
                 _isDownloading = false;
                 _errorMessage =
-                    'ഡൗൺലോഡ് / ഇൻസ്റ്റാളേഷൻ പരാജയപ്പെട്ടു (${event.status.name}).\n(Download or installation failed. Check your connection or download via browser).';
+                    'ഡൗൺലോഡ് / ഇൻസ്റ്റാളേഷൻ പരാജയപ്പെട്ടു: ${event.status.name}$detail.\nഇൻറർനെറ്റ് കണക്ഷൻ പരിശോധിക്കുക അല്ലെങ്കിൽ താഴെ "ബ്രൗസർ വഴി" ടാപ്പ് ചെയ്ത് നേരിട്ട് ഇൻസ്റ്റാൾ ചെയ്യുക.\n(Download failed. Check your connection or tap "Browser" below to download directly).';
               });
               break;
           }
         },
         onError: (e) {
           if (!mounted) return;
+          debugPrint('AppUpdateService: Stream onError: $e');
           setState(() {
             _isDownloading = false;
-            _errorMessage = 'അപ്ഡേറ്റ് പിശക്: $e';
+            _errorMessage =
+                'അപ്ഡേറ്റ് പിശക് (Stream error): $e\nതാഴെ "ബ്രൗസർ വഴി" ടാപ്പ് ചെയ്ത് നേരിട്ട് ഡൗൺലോഡ് ചെയ്യുക.';
           });
         },
         cancelOnError: true,
       );
     } catch (e) {
       if (!mounted) return;
+      debugPrint('AppUpdateService: execute catch error: $e');
       setState(() {
         _isDownloading = false;
-        _errorMessage = 'അപ്ഡേറ്റ് തുടങ്ങാൻ സാധിച്ചില്ല: $e';
+        _errorMessage =
+            'അപ്ഡേറ്റ് തുടങ്ങാൻ സാധിച്ചില്ല: $e\nതാഴെ "ബ്രൗസർ വഴി" ടാപ്പ് ചെയ്ത് നേരിട്ട് ഡൗൺലോഡ് ചെയ്യുക.';
       });
     }
   }
 
   Future<void> _downloadViaBrowser() async {
-    final uri = Uri.parse(widget.updateInfo.apkUrl);
+    final rawUrl = widget.updateInfo.apkUrl.trim();
+    if (rawUrl.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('APK URL ലഭ്യമല്ല (APK URL is missing)'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    final uri = Uri.parse(rawUrl);
+    debugPrint(
+        'AppUpdateService: Opening external browser for APK download: $rawUrl');
+
     try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (!launched) {
+        final fallback = await launchUrl(
+          uri,
+          mode: LaunchMode.platformDefault,
+        );
+        if (!fallback && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('ബ്രൗസർ തുറക്കാൻ സാധിച്ചില്ല. URL:\n$rawUrl'),
+              backgroundColor: Colors.red.shade700,
+              duration: const Duration(seconds: 8),
+            ),
+          );
+        }
       }
     } catch (e) {
-      debugPrint('Could not launch browser url: $e');
+      debugPrint('AppUpdateService: Could not launch browser URL: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('ബ്രൗസർ തുറക്കാൻ സാധിച്ചില്ല: $e\nURL: $rawUrl'),
+            backgroundColor: Colors.red.shade700,
+            duration: const Duration(seconds: 8),
+          ),
+        );
+      }
     }
   }
 
@@ -513,21 +581,23 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
               const SizedBox(height: 22),
 
               // Action Buttons
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+              Wrap(
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  // Fallback browser download if error happens
-                  if (_errorMessage != null) ...[
+                  // Fallback browser download if error happens OR available as alternative
+                  if (_errorMessage != null || !_isDownloading) ...[
                     OutlinedButton.icon(
                       onPressed: _downloadViaBrowser,
                       icon: const Icon(Icons.open_in_browser_rounded, size: 16),
                       label: const Text('ബ്രൗസർ വഴി (Browser)'),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
+                            horizontal: 14, vertical: 11),
                       ),
                     ),
-                    const SizedBox(width: 8),
                   ],
 
                   // Dismiss button if not mandatory and not currently downloading
@@ -536,10 +606,9 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
                       onPressed: () => Navigator.pop(context),
                       child: const Text('പിന്നീട് (Later)'),
                     ),
-                    const SizedBox(width: 8),
                   ],
 
-                  // Primary Update Button
+                  // Primary Update / Retry Button
                   FilledButton.icon(
                     onPressed: _isDownloading ? null : _startUpdate,
                     style: FilledButton.styleFrom(
@@ -559,7 +628,12 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
                               color: Colors.white,
                             ),
                           )
-                        : const Icon(Icons.download_rounded, size: 18),
+                        : Icon(
+                            _errorMessage != null
+                                ? Icons.refresh_rounded
+                                : Icons.download_rounded,
+                            size: 18,
+                          ),
                     label: Text(
                       _errorMessage != null
                           ? 'വീണ്ടും ശ്രമിക്കുക (Retry)'
