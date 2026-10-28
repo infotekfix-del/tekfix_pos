@@ -471,6 +471,7 @@ class AttendanceService {
         .doc(shopId)
         .collection('attendance')
         .where('staffId', isEqualTo: effectiveStaffId)
+        .limit(limit * 2)
         .snapshots()
         .map((snap) {
       final list = snap.docs

@@ -51,6 +51,7 @@ class NotificationService {
         .collection('shops')
         .doc(shopId)
         .collection('notifications')
+        .limit(30)
         .snapshots()
         .map((snapshot) {
       final readIds = _getReadIds(staffId);

@@ -94,6 +94,18 @@ String _hash(Map<String, dynamic> rec) {
       b.toRadixString(16).padLeft(8, '0');
 }
 
+/// Batch hash calculation that runs in Flutter worker Isolate (compute) to prevent main-thread lag.
+Map<String, String> _computeHashBatch(List<Map<String, dynamic>> records) {
+  final out = <String, String>{};
+  for (final rec in records) {
+    final uid = rec['_id'] as String?;
+    if (uid != null) {
+      out[uid] = _hash(rec);
+    }
+  }
+  return out;
+}
+
 /// Offline-first sync:  Hive (source of truth on device)  <->  Firestore.
 ///
 ///  * every local write is detected through Box.watch(), stamped with a uuid
@@ -125,6 +137,7 @@ class SyncEngine extends ChangeNotifier {
   final _uidToKey = <String, dynamic>{}; // 'box|uid' -> key
   final _hashes = <String, String>{}; // 'box|uid' -> content hash
   final _remoteDel = <String>{};
+  final _remoteApplying = <String>{}; // 'box|uid' -> actively being applied from remote
 
   SyncState get state => _state;
   int get pending => _boxesOpen ? _outbox.length : 0;
@@ -198,6 +211,7 @@ class SyncEngine extends ChangeNotifier {
     _keyToUid.clear();
     _uidToKey.clear();
     _hashes.clear();
+    _remoteApplying.clear();
     _listening = false;
     _state = SyncState.offline;
     notifyListeners();
@@ -286,6 +300,8 @@ class SyncEngine extends ChangeNotifier {
     for (final c in _cols) {
       if (!Hive.isBoxOpen(c.box)) continue;
       final box = Hive.box(c.box);
+      final recordsToHash = <Map<String, dynamic>>[];
+
       for (final k in box.keys) {
         final rec = _asMap(box.get(k));
         final uid = rec['_id'] as String?;
@@ -295,14 +311,44 @@ class SyncEngine extends ChangeNotifier {
         final kk = '${c.box}|$uid';
         _keyToUid['${c.box}|$k'] = uid;
         _uidToKey[kk] = k;
-        final h = _hash(rec);
+        recordsToHash.add(rec);
+      }
+
+      if (recordsToHash.isEmpty) {
+        await Future.delayed(const Duration(milliseconds: 2));
+        continue;
+      }
+
+      // If more than 50 records in this collection, offload hash calculations to worker Isolate!
+      Map<String, String> hashedBatch;
+      if (recordsToHash.length >= 50) {
+        try {
+          hashedBatch = await compute(_computeHashBatch, recordsToHash);
+        } catch (_) {
+          hashedBatch = _computeHashBatch(recordsToHash);
+        }
+      } else {
+        hashedBatch = _computeHashBatch(recordsToHash);
+      }
+
+      int procCount = 0;
+      for (final entry in hashedBatch.entries) {
+        final uid = entry.key;
+        final h = entry.value;
+        final kk = '${c.box}|$uid';
         _hashes[kk] = h;
         if (_meta.get('ph:$kk') != h) {
           _enqueueRaw(c.box, uid, 'upsert'); // edited while engine was off
         }
+        procCount++;
+        if (procCount % 35 == 0) {
+          // Yield to Flutter event loop so frame rendering and touch events are processed!
+          await Future.delayed(const Duration(milliseconds: 6));
+        }
       }
-      // Yield to Flutter event loop so frame rendering and touch events are processed!
-      await Future.delayed(Duration.zero);
+
+      // Yield after each box
+      await Future.delayed(const Duration(milliseconds: 10));
     }
     // bank counters + txn log
     if (Hive.isBoxOpen(boxBank)) {
@@ -364,6 +410,9 @@ class SyncEngine extends ChangeNotifier {
     }
     final rec = _asMap(e.value);
     var uid = (rec['_id'] ?? _keyToUid[ck]) as String?;
+    if (uid != null && _remoteApplying.contains('${c.box}|$uid')) {
+      return; // Remote write actively in progress, bypass duplicate hashing and enqueue
+    }
     uid ??= _uuid.v4();
     final kk = '${c.box}|$uid';
     final h = _hash(rec);
@@ -573,6 +622,7 @@ class SyncEngine extends ChangeNotifier {
           .orderBy('_st');
       _subs.add(q.snapshots().listen((snap) async {
         var maxMs = cursor;
+        var changeCount = 0;
         for (final ch in snap.docChanges) {
           final d = ch.doc;
           if (d.metadata.hasPendingWrites) continue; // our own unsent write
@@ -582,6 +632,11 @@ class SyncEngine extends ChangeNotifier {
           final st = data['_st'];
           if (st is Timestamp && st.millisecondsSinceEpoch > maxMs) {
             maxMs = st.millisecondsSinceEpoch;
+          }
+          changeCount++;
+          if (changeCount % 15 == 0) {
+            // Yield to main UI thread to process events and render smoothly
+            await Future.delayed(const Duration(milliseconds: 10));
           }
         }
         if (maxMs > cursor) {
@@ -681,13 +736,20 @@ class SyncEngine extends ChangeNotifier {
       return; // idempotent re-delivery
     }
     _hashes[kk] = h; // set BEFORE write so the watcher treats it as remote
+    _remoteApplying.add(kk);
     await _meta.put('ph:$kk', h);
-    if (key != null) {
-      await box.put(key, rec);
-    } else {
-      final nk = await box.add(rec);
-      _uidToKey[kk] = nk;
-      _keyToUid['${c.box}|$nk'] = uid;
+    try {
+      if (key != null) {
+        await box.put(key, rec);
+      } else {
+        final nk = await box.add(rec);
+        _uidToKey[kk] = nk;
+        _keyToUid['${c.box}|$nk'] = uid;
+      }
+    } finally {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        _remoteApplying.remove(kk);
+      });
     }
   }
 

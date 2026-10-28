@@ -138,9 +138,6 @@ class PosService {
         list.add(item);
       }
 
-      // Single-pass background update to local Hive cache in O(N)
-      _cacheAllLocalItems(list);
-
       return list;
     }).handleError((e) {
       debugPrint('Error streaming catalog items: $e. Falling back to local cache.');
