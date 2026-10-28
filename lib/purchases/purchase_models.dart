@@ -87,9 +87,25 @@ class PurchaseBillItem {
   final int? customWarrantyDays;
   final DateTime? warrantyExpiryDate;
 
+  // Multi-unit purchase fields
+  final bool isMultiUnit;
+  final String purchaseUnit; // e.g. 'Bundle'
+  final String baseUnit; // e.g. 'Sheet'
+  final int conversionFactor; // e.g. 500
+
   String get itemName => name;
   String get productCode => sku;
   bool get hasWarranty => warrantyAvailable;
+
+  /// Quantity in base consumption units (e.g. 3 Bundles * 500 = 1500 Sheets)
+  int get baseQuantity =>
+      isMultiUnit && conversionFactor > 0 ? quantity * conversionFactor : quantity;
+
+  /// Effective cost per base consumption unit (e.g. ₹207 / 500 = ₹0.414 per Sheet)
+  double get effectiveUnitCost =>
+      isMultiUnit && conversionFactor > 0
+          ? double.parse((purchaseRate / conversionFactor).toStringAsFixed(4))
+          : purchaseRate;
 
   PurchaseBillItem({
     String? id,
@@ -115,7 +131,12 @@ class PurchaseBillItem {
     this.warrantyDuration = ItemWarrantyDuration.noWarranty,
     this.customWarrantyDays,
     this.warrantyExpiryDate,
-  })  : id = id ?? 'ITEM_${DateTime.now().microsecondsSinceEpoch}',
+    this.isMultiUnit = false,
+    this.purchaseUnit = 'Bundle',
+    this.baseUnit = 'Sheet',
+    int? conversionFactor,
+  })  : conversionFactor = conversionFactor ?? (isMultiUnit ? 500 : 1),
+        id = id ?? 'ITEM_${DateTime.now().microsecondsSinceEpoch}',
         itemId = itemId ?? (itemKey != null ? '$itemKey' : 'ITEM_${DateTime.now().microsecondsSinceEpoch}'),
         name = name ?? itemName ?? 'Unknown Item',
         sku = sku ?? productCode ?? '',
@@ -152,9 +173,16 @@ class PurchaseBillItem {
         'warrantyAvailable': warrantyAvailable,
         'warrantyDuration': warrantyDuration,
         'warrantyExpiryDate': warrantyExpiryDate?.toIso8601String(),
+        'isMultiUnit': isMultiUnit,
+        'purchaseUnit': purchaseUnit,
+        'baseUnit': baseUnit,
+        'conversionFactor': conversionFactor,
+        'baseQuantity': baseQuantity,
+        'effectiveUnitCost': effectiveUnitCost,
       };
 
   factory PurchaseBillItem.fromMap(Map<dynamic, dynamic> m) {
+    final isMulti = m['isMultiUnit'] == true;
     return PurchaseBillItem(
       id: m['id']?.toString() ?? '',
       itemKey: m['itemKey'],
@@ -179,6 +207,10 @@ class PurchaseBillItem {
       warrantyExpiryDate: m['warrantyExpiryDate'] != null
           ? DateTime.tryParse(m['warrantyExpiryDate'].toString())
           : null,
+      isMultiUnit: isMulti,
+      purchaseUnit: m['purchaseUnit']?.toString() ?? 'Bundle',
+      baseUnit: m['baseUnit']?.toString() ?? 'Sheet',
+      conversionFactor: (m['conversionFactor'] as num?)?.toInt() ?? (isMulti ? 500 : 1),
     );
   }
 
@@ -194,6 +226,10 @@ class PurchaseBillItem {
     DateTime? warrantyExpiryDate,
     String? imeiOrSerial,
     List<String>? serialNumbers,
+    bool? isMultiUnit,
+    String? purchaseUnit,
+    String? baseUnit,
+    int? conversionFactor,
   }) {
     return PurchaseBillItem(
       id: id,
@@ -215,6 +251,10 @@ class PurchaseBillItem {
       warrantyAvailable: warrantyAvailable ?? this.warrantyAvailable,
       warrantyDuration: warrantyDuration ?? this.warrantyDuration,
       warrantyExpiryDate: warrantyExpiryDate ?? this.warrantyExpiryDate,
+      isMultiUnit: isMultiUnit ?? this.isMultiUnit,
+      purchaseUnit: purchaseUnit ?? this.purchaseUnit,
+      baseUnit: baseUnit ?? this.baseUnit,
+      conversionFactor: conversionFactor ?? this.conversionFactor,
     );
   }
 }

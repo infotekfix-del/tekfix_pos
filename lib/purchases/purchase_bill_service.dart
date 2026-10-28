@@ -9,6 +9,7 @@ import '../main.dart'
         boxItems,
         boxSettings,
         boxAudit;
+import '../inventory/consumables_service.dart';
 import 'purchase_models.dart';
 
 class PurchaseBillService {
@@ -331,18 +332,116 @@ class PurchaseBillService {
     if (!isDraft) {
       // 2a. Update Inventory in Db.items & log stock movement
       for (final line in items) {
-        if (line.itemKey != null && Db.items.containsKey(line.itemKey)) {
-          final cur = Db.items.get(line.itemKey);
+        dynamic targetKey = line.itemKey;
+        if (targetKey == null) {
+          // Attempt match by item name
+          for (final k in Db.items.keys) {
+            final existing = Db.items.get(k);
+            if (existing is Map &&
+                (existing['name']?.toString().toLowerCase() == line.name.toLowerCase())) {
+              targetKey = k;
+              break;
+            }
+          }
+        }
+
+        if (targetKey != null && Db.items.containsKey(targetKey)) {
+          final cur = Db.items.get(targetKey);
           if (cur is Map) {
             final curMap = Map<String, dynamic>.from(cur);
             final oldStock = (curMap['stock'] as num?)?.toInt() ?? 0;
-            curMap['stock'] = oldStock + line.quantity;
-            curMap['costPrice'] = line.purchaseRate;
-            curMap['warranty'] = line.warrantyDuration;
-            if (line.brand.isNotEmpty) curMap['brand'] = line.brand;
-            if (line.model.isNotEmpty) curMap['model'] = line.model;
-            await Db.items.put(line.itemKey, curMap);
-            await Db.stockMove(line.itemKey, line.name, line.quantity, 'Purchase Bill $finalBillNum');
+            final isMultiUnit = line.isMultiUnit || (curMap['isMultiUnit'] == true);
+            if (isMultiUnit) {
+              final factor = line.conversionFactor > 0
+                  ? line.conversionFactor
+                  : ((curMap['conversionFactor'] as num?)?.toInt() ?? 500);
+              final addBaseQty = line.quantity * factor;
+              final oldCost = (curMap['costPrice'] as num?)?.toDouble() ?? 0.0;
+
+              // Dynamic Weighted Average Cost (WAC) per base unit for multi-unit consumables
+              final newWacCost = ConsumablesService.calculateWAC(
+                oldStockBase: oldStock,
+                oldUnitCostBase: oldCost,
+                newQuantityPurchase: line.quantity,
+                newRatePurchase: line.purchaseRate,
+                conversionFactor: factor,
+              );
+
+              curMap['stock'] = oldStock + addBaseQty;
+              curMap['costPrice'] = newWacCost;
+              curMap['isMultiUnit'] = true;
+              curMap['itemType'] = 'Consumable / Raw Material';
+              curMap['purchaseUnit'] = line.purchaseUnit;
+              curMap['baseUnit'] = line.baseUnit;
+              curMap['conversionFactor'] = factor;
+              curMap['purchaseRate'] = line.purchaseRate;
+              curMap['warranty'] = line.warrantyDuration;
+              if (line.brand.isNotEmpty) curMap['brand'] = line.brand;
+              if (line.model.isNotEmpty) curMap['model'] = line.model;
+              await Db.items.put(targetKey, curMap);
+
+              final moveDesc =
+                  'Purchase Bill $finalBillNum (+${line.quantity} ${line.purchaseUnit} = +$addBaseQty ${line.baseUnit} @ ₹$newWacCost/${line.baseUnit})';
+              await Db.stockMove(targetKey, line.name, addBaseQty, moveDesc);
+            } else {
+              // Standard retail product: update stock and latest purchase rate
+              curMap['stock'] = oldStock + line.quantity;
+              curMap['costPrice'] = line.purchaseRate;
+              curMap['warranty'] = line.warrantyDuration;
+              if (line.brand.isNotEmpty) curMap['brand'] = line.brand;
+              if (line.model.isNotEmpty) curMap['model'] = line.model;
+              await Db.items.put(targetKey, curMap);
+              await Db.stockMove(targetKey, line.name, line.quantity, 'Purchase Bill $finalBillNum');
+            }
+          }
+        } else {
+          // Create new item in Db.items if not present
+          final isMulti = line.isMultiUnit;
+          if (isMulti) {
+            final factor = line.conversionFactor > 0 ? line.conversionFactor : 500;
+            final baseQty = line.quantity * factor;
+            final effCost = line.purchaseRate / factor;
+
+            final newItem = <String, dynamic>{
+              'name': line.name,
+              'category': line.category.isNotEmpty
+                  ? line.category
+                  : 'Consumable / Raw Material',
+              'brand': line.brand,
+              'model': line.model,
+              'sku': line.sku,
+              'stock': baseQty,
+              'costPrice': double.parse(effCost.toStringAsFixed(4)),
+              'sellingPrice': 0.0,
+              'minStock': 200,
+              'warranty': line.warrantyDuration,
+              'isMultiUnit': true,
+              'itemType': 'Consumable / Raw Material',
+              'purchaseUnit': line.purchaseUnit,
+              'baseUnit': line.baseUnit,
+              'conversionFactor': factor,
+              'purchaseRate': line.purchaseRate,
+            };
+            final newKey = await Db.items.add(newItem);
+            final moveDesc =
+                'Purchase Bill $finalBillNum (+${line.quantity} ${line.purchaseUnit} = +$baseQty ${line.baseUnit})';
+            await Db.stockMove(newKey, line.name, baseQty, moveDesc);
+          } else {
+            final newItem = <String, dynamic>{
+              'name': line.name,
+              'category': line.category.isNotEmpty ? line.category : 'General',
+              'brand': line.brand,
+              'model': line.model,
+              'sku': line.sku,
+              'stock': line.quantity,
+              'costPrice': line.purchaseRate,
+              'sellingPrice': 0.0,
+              'minStock': 3,
+              'warranty': line.warrantyDuration,
+              'isMultiUnit': false,
+            };
+            final newKey = await Db.items.add(newItem);
+            await Db.stockMove(newKey, line.name, line.quantity, 'Purchase Bill $finalBillNum');
           }
         }
       }

@@ -48,6 +48,7 @@ import 'ui/tek_global_search_dialog.dart';
 import 'ui/dashboard/dashboard_tokens.dart';
 import 'ui/dashboard/dashboard_screen.dart';
 import 'ui/dashboard/sidebar.dart';
+import 'inventory/consumables_service.dart';
 import 'ui/dashboard/top_bar.dart';
 import 'notifications/notification_service.dart';
 import 'notifications/tek_notification_panel.dart';
@@ -1650,6 +1651,12 @@ class _SaleViewState extends State<SaleView> {
         await Db.stockMove(
             line['key'], '${it['name']}', -_i(line['qty']), 'Sale $invoice');
       }
+
+      // Auto-deduct paper sheets if Photostat / Printing services are in cart
+      final sheetsToDeduct = ConsumablesService.calculateTotalSheetsForCart(_cart);
+      if (sheetsToDeduct > 0) {
+        await ConsumablesService.deductPaperSheets(sheetsToDeduct, reason: 'Sale $invoice');
+      }
       final bill = <String, dynamic>{
         'invoice': invoice,
         'createdAt': DateTime.now().toIso8601String(),
@@ -2127,6 +2134,16 @@ void showItemForm(BuildContext context,
           category.text.toLowerCase().contains('phone') ||
           category.text.toLowerCase().contains('mobile'));
 
+  bool isMultiUnit = item?['isMultiUnit'] == true ||
+      name.text.toLowerCase().contains('paper') ||
+      name.text.toLowerCase().contains('a4');
+  final purchaseUnit =
+      TextEditingController(text: '${item?['purchaseUnit'] ?? 'Bundle'}');
+  final baseUnit =
+      TextEditingController(text: '${item?['baseUnit'] ?? 'Sheet'}');
+  final convFactor =
+      TextEditingController(text: '${item?['conversionFactor'] ?? 500}');
+
   formDialog(
     context,
     title: item == null ? 'പുതിയ സാധനം ചേർക്കുക' : 'ഇനം മാറ്റുക',
@@ -2154,6 +2171,28 @@ void showItemForm(BuildContext context,
         const SizedBox(height: 6),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
+          title: const Text('Multi-Unit Consumable (ബണ്ടിൾ / ഷീറ്റ്)'),
+          subtitle: const Text('ഉദാ: 1 ബണ്ടിൾ = 500 ഷീറ്റുകൾ (A4 Paper / Raw Material)'),
+          value: isMultiUnit,
+          onChanged: (v) => set(() {
+            isMultiUnit = v;
+            if (isMultiUnit && category.text.isEmpty) {
+              category.text = 'Consumable / Raw Material';
+            }
+          }),
+        ),
+        if (isMultiUnit) ...[
+          Row(children: [
+            Expanded(child: tf(purchaseUnit, 'Purchase Unit (Bundle)')),
+            const SizedBox(width: 8),
+            Expanded(child: tf(baseUnit, 'Base Unit (Sheet)')),
+            const SizedBox(width: 8),
+            Expanded(child: tf(convFactor, 'Ratio (Sheets/Bundle)', number: true)),
+          ]),
+          const SizedBox(height: 6),
+        ],
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
           title: const Text('Follow-up enabled (ക്ഷേമാന്വേഷണ SMS)'),
           subtitle: const Text('വാങ്ങി ദിവസങ്ങൾക്കകം കംപ്ലയിന്റ് അന്വേഷണം'),
           value: followUpEnabled,
@@ -2161,14 +2200,14 @@ void showItemForm(BuildContext context,
         ),
         const SizedBox(height: 6),
         Row(children: [
-          Expanded(child: tf(cost, 'വാങ്ങിയ വില', number: true)),
+          Expanded(child: tf(cost, isMultiUnit ? 'യൂണിറ്റ് കോസ്റ്റ് (₹/Sheet)' : 'വാങ്ങിയ വില', number: true)),
           const SizedBox(width: 10),
           Expanded(child: tf(sell, 'വിൽക്കുന്ന വില', number: true)),
         ]),
         Row(children: [
-          Expanded(child: tf(stock, 'എണ്ണം (Stock)', number: true)),
+          Expanded(child: tf(stock, isMultiUnit ? 'എണ്ണം (Base Sheets)' : 'എണ്ണം (Stock)', number: true)),
           const SizedBox(width: 10),
-          Expanded(child: tf(minStock, 'Low-stock alert', number: true)),
+          Expanded(child: tf(minStock, isMultiUnit ? 'Low-stock alert (Sheets)' : 'Low-stock alert', number: true)),
         ]),
       ],
     ),
@@ -2184,6 +2223,7 @@ void showItemForm(BuildContext context,
             .any((e) => e.key != key && '${e.value['imei'] ?? ''}' == im);
         if (dup) return 'ഈ IMEI മുമ്പേ ചേർത്തിട്ടുണ്ട്';
       }
+      final factor = int.tryParse(convFactor.text.trim()) ?? 500;
       final payload = {
         'name': name.text.trim(),
         'category': category.text.trim(),
@@ -2193,7 +2233,17 @@ void showItemForm(BuildContext context,
         'warranty': warranty,
         'followUpEnabled': followUpEnabled,
         'stock': st,
-        'minStock': int.tryParse(minStock.text.trim()) ?? 3,
+        'minStock': int.tryParse(minStock.text.trim()) ?? (isMultiUnit ? 200 : 3),
+        'isMultiUnit': isMultiUnit,
+        'itemType': isMultiUnit ? 'Consumable / Raw Material' : (item?['itemType'] ?? 'Standard'),
+        if (isMultiUnit)
+          'purchaseUnit': purchaseUnit.text.trim().isNotEmpty ? purchaseUnit.text.trim() : 'Bundle',
+        if (isMultiUnit)
+          'baseUnit': baseUnit.text.trim().isNotEmpty ? baseUnit.text.trim() : 'Sheet',
+        if (isMultiUnit)
+          'conversionFactor': factor > 0 ? factor : 500,
+        if (isMultiUnit)
+          'purchaseRate': (factor > 0 ? factor : 500) * c,
       };
       if (item == null) {
         final newKey = await Db.items.add(payload);
@@ -2363,18 +2413,35 @@ class _ItemsViewState extends State<ItemsView> {
                                               fontSize: 12,
                                               color: _muted(context)),
                                         ),
-                                      Text(
-                                        'വാങ്ങിയ ${rs(_d(it['costPrice']))} → വിൽപന ${rs(_d(it['sellingPrice']))}  (ലാഭം ${rs(margin)})',
-                                        style: const TextStyle(fontSize: 12),
-                                      ),
+                                      if (it['isMultiUnit'] == true) ...[
+                                        Text(
+                                          'യൂണിറ്റ് കോസ്റ്റ്: ${rs(_d(it['costPrice']))}/${it['baseUnit'] ?? "Sheet"} (${rs(_d(it['purchaseRate'] ?? (_d(it['costPrice']) * (it['conversionFactor'] ?? 500))))}/${it['purchaseUnit'] ?? "Bundle"})',
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                      ] else ...[
+                                        Text(
+                                          'വാങ്ങിയ ${rs(_d(it['costPrice']))} → വിൽപന ${rs(_d(it['sellingPrice']))}  (ലാഭം ${rs(margin)})',
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 ),
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
-                                    Pill('Stock $stock',
-                                        low ? Colors.red : Colors.green),
+                                    Pill(
+                                      it['isMultiUnit'] == true
+                                          ? ConsumablesService.formatStockDisplay(
+                                              baseStock: stock,
+                                              conversionFactor:
+                                                  (it['conversionFactor'] as num?)?.toInt() ?? 500,
+                                              baseUnit: '${it['baseUnit'] ?? "Sheet"}',
+                                              purchaseUnit: '${it['purchaseUnit'] ?? "Bundle"}',
+                                            )
+                                          : 'Stock $stock',
+                                      low ? Colors.red : Colors.green,
+                                    ),
                                     InkWell(
                                       onTap: () async {
                                         if (await guardedDelete(context,

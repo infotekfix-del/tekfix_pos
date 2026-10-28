@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../attendance/attendance_models.dart';
 import '../attendance/attendance_service.dart';
 import '../main.dart' show Db, toast;
 import '../shared/tek_pos_strings.dart';
 import '../theme/tek_tokens.dart';
+import '../inventory/consumables_service.dart';
 import 'pos_models.dart';
 import 'pos_service.dart';
 import '../returns/returns_dashboard_view.dart';
@@ -43,6 +45,7 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
 
   final List<String> _categories = [
     'All',
+    'Photostat / Printing',
     'Tempered Glass',
     'Cases & Covers',
     'Chargers',
@@ -995,8 +998,35 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
         stream: _catalogStream,
         builder: (context, snapshot) {
           final catalog = snapshot.data ?? PosService.instance.getCatalogItems();
-          final filtered = catalog.where((it) {
-            final matchesCat = _selectedCategory == 'All' || it.category == _selectedCategory;
+          final itemsList = List<PosItem>.from(catalog);
+
+          // Ensure quick Photostat services exist for one-click billing
+          if (!itemsList.any((i) => i.name.toLowerCase().contains('single side'))) {
+            itemsList.add(const PosItem(
+              id: 'SERVICE_PHOTOSTAT_SINGLE',
+              name: 'Photostat - Single Side (₹5)',
+              category: 'Photostat / Printing',
+              sellingPrice: 5.0,
+              minPrice: 5.0,
+              stock: 9999,
+            ));
+          }
+          if (!itemsList.any((i) => i.name.toLowerCase().contains('double side'))) {
+            itemsList.add(const PosItem(
+              id: 'SERVICE_PHOTOSTAT_DOUBLE',
+              name: 'Photostat - Double Side (₹7)',
+              category: 'Photostat / Printing',
+              sellingPrice: 7.0,
+              minPrice: 7.0,
+              stock: 9999,
+            ));
+          }
+
+          final filtered = itemsList.where((it) {
+            final matchesCat = _selectedCategory == 'All' ||
+                it.category == _selectedCategory ||
+                (_selectedCategory == 'Photostat / Printing' &&
+                    ConsumablesService.isPhotostatItem(it.name, it.category));
             final q = _searchQuery.toLowerCase();
             final matchesSearch = q.isEmpty ||
                 it.name.toLowerCase().contains(q) ||
@@ -1009,7 +1039,7 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
             children: [
               // Search Bar
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                 child: TextField(
                   controller: _searchCtrl,
                   style: const TextStyle(color: TekColors.textPrimary, fontSize: 14),
@@ -1036,6 +1066,9 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                   ),
                 ),
               ),
+
+              // Real-Time Paper Stock Indicator & Threshold Alert
+              _buildPaperStockIndicator(),
 
               // Category Filter Chips
               SizedBox(
@@ -1111,6 +1144,117 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
     );
   }
 
+  Widget _buildPaperStockIndicator() {
+    return ValueListenableBuilder(
+      valueListenable: Db.items.listenable(),
+      builder: (ctx, box, _) {
+        final paper = ConsumablesService.getA4PaperItem();
+        final stock = (paper?['stock'] as num?)?.toInt() ?? 1500;
+        final factor = (paper?['conversionFactor'] as num?)?.toInt() ?? 500;
+        final minStock = (paper?['minStock'] as num?)?.toInt() ?? 200;
+        final paperCost = (paper?['costPrice'] as num?)?.toDouble() ?? 0.414;
+
+        final isLow = stock > 0 && stock <= minStock;
+        final isOut = stock <= 0;
+
+        final stockStr = ConsumablesService.formatStockDisplay(
+          baseStock: stock,
+          conversionFactor: factor,
+          baseUnit: 'Sheet',
+          purchaseUnit: 'Bundle',
+        );
+
+        Color cardBg = TekColors.bgSecondary;
+        Color borderColor = TekColors.border;
+        Color iconColor = TekColors.secondary;
+        Color textColor = TekColors.textPrimary;
+
+        if (isOut) {
+          cardBg = TekColors.error.withValues(alpha: 0.15);
+          borderColor = TekColors.error;
+          iconColor = TekColors.error;
+          textColor = TekColors.error;
+        } else if (isLow) {
+          cardBg = TekColors.warning.withValues(alpha: 0.15);
+          borderColor = TekColors.warning;
+          iconColor = TekColors.warning;
+          textColor = TekColors.warning;
+        }
+
+        return Container(
+          margin: const EdgeInsets.fromLTRB(16, 2, 16, 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor, width: (isLow || isOut) ? 1.5 : 1),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                isOut
+                    ? Icons.error_outline_rounded
+                    : (isLow ? Icons.warning_amber_rounded : Icons.description_rounded),
+                size: 20,
+                color: iconColor,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isOut
+                          ? '🚨 Out of Paper (0 Sheets remaining)'
+                          : (isLow
+                              ? '⚠️ Low Paper Alert: Only $stock Sheets remaining (~${(stock / factor).toStringAsFixed(1)} Bundle)!'
+                              : '📄 A4 Paper: $stockStr remaining'),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isOut
+                          ? 'Please purchase / refill A4 paper bundles before billing printing.'
+                          : (isLow
+                              ? 'Paper stock fell below threshold (< $minStock sheets / ~0.4 bundle). Refill soon.'
+                              : 'Dynamic Unit Cost: ₹${paperCost.toStringAsFixed(3)}/sheet • Auto-deducts on POS billing'),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: (isLow || isOut) ? textColor : TekColors.textMuted,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              if (!isOut && !isLow)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                  decoration: BoxDecoration(
+                    color: TekColors.success.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text(
+                    'Optimal',
+                    style: TextStyle(
+                      color: TekColors.success,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildApprovalBadge(AttendanceRecord r) {
     String text;
     Color color;
@@ -1135,14 +1279,17 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
     );
   }
 
-
   Widget _buildItemCard(PosItem it) {
+    final isPhotostat = ConsumablesService.isPhotostatItem(it.name, it.category);
+    final paperStock = ((ConsumablesService.getA4PaperItem()?['stock'] as num?)?.toInt() ?? 1500);
+    final isPaperOut = isPhotostat && paperStock <= 0;
+
     Color stockColor = TekColors.success;
-    String stockText = '${it.stock} In Stock';
-    if (it.isOutOfStock) {
+    String stockText = isPhotostat ? '1 Sheet/copy' : '${it.stock} In Stock';
+    if (isPaperOut || it.isOutOfStock) {
       stockColor = TekColors.error;
-      stockText = TekStrings.outOfStock;
-    } else if (it.isLowStock) {
+      stockText = isPaperOut ? 'No Paper!' : TekStrings.outOfStock;
+    } else if (it.isLowStock && !isPhotostat) {
       stockColor = TekColors.warning;
       stockText = 'Only ${it.stock} Left';
     }
@@ -1159,7 +1306,13 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: it.isOutOfStock ? null : () => _addToCart(it),
+        onTap: (it.isOutOfStock || isPaperOut)
+            ? () {
+                if (isPaperOut) {
+                  toast(context, 'A4 പേപ്പർ തീർന്നു (Out of paper). സ്റ്റോക്ക് റീഫിൽ ചെയ്യുക.', error: true);
+                }
+              }
+            : () => _addToCart(it),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -1195,6 +1348,20 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: TekColors.textPrimary),
               ),
+              if (isPhotostat) ...[
+                Builder(builder: (_) {
+                  final margin = ConsumablesService.calculatePhotostatMargin(sellingPrice: it.sellingPrice);
+                  final profit = (margin['profit'] as num?)?.toDouble() ?? 0.0;
+                  final pct = ((margin['marginPercent'] as num?)?.toDouble() ?? 0.0).toStringAsFixed(0);
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      'Margin: ₹${profit.toStringAsFixed(2)} ($pct%)',
+                      style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: TekColors.success),
+                    ),
+                  );
+                }),
+              ],
               const SizedBox(height: 6),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1223,13 +1390,15 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: it.isOutOfStock ? TekColors.bgSecondary : TekColors.primary.withValues(alpha: 0.15),
+                        color: (it.isOutOfStock || isPaperOut)
+                            ? TekColors.bgSecondary
+                            : TekColors.primary.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         Icons.add_shopping_cart_rounded,
                         size: 16,
-                        color: it.isOutOfStock ? TekColors.textMuted : TekColors.primary,
+                        color: (it.isOutOfStock || isPaperOut) ? TekColors.textMuted : TekColors.primary,
                       ),
                     ),
                 ],

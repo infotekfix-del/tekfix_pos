@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 import '../main.dart' show Db;
 import '../utils/tek_helpers.dart';
+import '../inventory/consumables_service.dart';
 import 'pos_models.dart';
 
 class PosService {
@@ -382,6 +383,16 @@ class PosService {
             break;
           }
         }
+      }
+
+      // 4b. Auto-deduct paper sheets if Photostat / Printing services were billed
+      final sheetsToDeduct = ConsumablesService.calculateTotalSheetsForCart(cartItems);
+      if (sheetsToDeduct > 0) {
+        await ConsumablesService.deductPaperSheets(
+          sheetsToDeduct,
+          reason: 'POS Sale $invoiceId',
+          shopId: shopId,
+        );
       }
 
       final billData = <String, dynamic>{

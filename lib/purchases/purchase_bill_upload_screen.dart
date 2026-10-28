@@ -13,6 +13,7 @@ import '../ui/tek_feedback.dart';
 import 'purchase_bill_details_screen.dart';
 import 'purchase_bill_service.dart';
 import 'purchase_models.dart';
+import '../inventory/consumables_service.dart';
 import '../barcode/barcode_label_service.dart';
 import '../barcode/barcode_print_dialog.dart';
 
@@ -724,6 +725,29 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
     PurchaseBillItem? existingItem,
     int? editIndex,
   }) {
+    final existingDbItem = (itemKey != null && Db.items.containsKey(itemKey))
+        ? Db.items.get(itemKey)
+        : null;
+    final isDbMultiUnit = (existingDbItem is Map && existingDbItem['isMultiUnit'] == true) ||
+        name.toLowerCase().contains('paper') ||
+        name.toLowerCase().contains('a4') ||
+        (category?.toLowerCase().contains('consumable') ?? false);
+
+    bool isMultiUnit = existingItem?.isMultiUnit ?? isDbMultiUnit;
+    final purchaseUnitCtrl = TextEditingController(
+        text: existingItem?.purchaseUnit ??
+            (existingDbItem is Map ? existingDbItem['purchaseUnit']?.toString() : null) ??
+            'Bundle');
+    final baseUnitCtrl = TextEditingController(
+        text: existingItem?.baseUnit ??
+            (existingDbItem is Map ? existingDbItem['baseUnit']?.toString() : null) ??
+            'Sheet');
+    final convFactorCtrl = TextEditingController(
+        text: (existingItem?.conversionFactor ??
+                (existingDbItem is Map ? existingDbItem['conversionFactor'] : null) ??
+                500)
+            .toString());
+
     final qtyCtrl = TextEditingController(
         text: (existingItem?.quantity ?? 1).toString());
     final rateCtrl = TextEditingController(
@@ -764,6 +788,12 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                 )
               : null;
 
+          final factor = int.tryParse(convFactorCtrl.text) ?? 500;
+          final totalBaseUnits = q * (factor > 0 ? factor : 1);
+          final effCostPerBase = factor > 0 ? (r / factor) : r;
+          final pUnit = purchaseUnitCtrl.text.trim().isEmpty ? 'Bundle' : purchaseUnitCtrl.text.trim();
+          final bUnit = baseUnitCtrl.text.trim().isEmpty ? 'Sheet' : baseUnitCtrl.text.trim();
+
           return AlertDialog(
             backgroundColor: const Color(0xFF101846),
             shape: RoundedRectangleBorder(
@@ -786,7 +816,7 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
               ],
             ),
             content: SizedBox(
-              width: 540,
+              width: 560,
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -814,7 +844,96 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
+
+                    // SECTION: MULTI-UNIT CONVERSION CONFIGURATION
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: isMultiUnit
+                            ? DashboardColors.neonBlue.withValues(alpha: 0.1)
+                            : Colors.white.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isMultiUnit
+                              ? DashboardColors.neonBlue.withValues(alpha: 0.35)
+                              : Colors.white.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                isMultiUnit
+                                    ? Icons.layers_rounded
+                                    : Icons.layers_outlined,
+                                size: 18,
+                                color: isMultiUnit
+                                    ? DashboardColors.neonBlue
+                                    : DashboardColors.textMuted,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Multi-Unit Consumable (e.g., Paper Bundles → Sheets)',
+                                  style: TextStyle(
+                                    color: isMultiUnit
+                                        ? Colors.white
+                                        : DashboardColors.textLight,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              Switch(
+                                value: isMultiUnit,
+                                activeColor: DashboardColors.neonBlue,
+                                onChanged: (val) {
+                                  setDialogState(() => isMultiUnit = val);
+                                },
+                              ),
+                            ],
+                          ),
+                          if (isMultiUnit) ...[
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildDialogTextField(
+                                    controller: purchaseUnitCtrl,
+                                    label: 'Purchase Unit (e.g. Bundle)',
+                                    icon: Icons.inventory_2_outlined,
+                                    onChanged: (_) => setDialogState(() {}),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _buildDialogTextField(
+                                    controller: baseUnitCtrl,
+                                    label: 'Base Unit (e.g. Sheet)',
+                                    icon: Icons.description_outlined,
+                                    onChanged: (_) => setDialogState(() {}),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _buildDialogTextField(
+                                    controller: convFactorCtrl,
+                                    label: 'Ratio (1 Bundle = X Sheets)',
+                                    icon: Icons.numbers_rounded,
+                                    keyboardType: TextInputType.number,
+                                    onChanged: (_) => setDialogState(() {}),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
 
                     // Qty & Rate
                     Row(
@@ -822,7 +941,7 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                         Expanded(
                           child: _buildDialogTextField(
                             controller: qtyCtrl,
-                            label: 'Quantity *',
+                            label: isMultiUnit ? 'Quantity ($pUnit) *' : 'Quantity *',
                             icon: Icons.numbers_rounded,
                             keyboardType: TextInputType.number,
                             onChanged: (_) => setDialogState(() {}),
@@ -832,7 +951,9 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                         Expanded(
                           child: _buildDialogTextField(
                             controller: rateCtrl,
-                            label: 'Purchase Rate (₹) *',
+                            label: isMultiUnit
+                                ? 'Purchase Rate (₹ per $pUnit) *'
+                                : 'Purchase Rate (₹) *',
                             icon: Icons.currency_rupee_rounded,
                             keyboardType: const TextInputType.numberWithOptions(
                                 decimal: true),
@@ -842,6 +963,54 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
+
+                    // REAL-TIME MULTI-UNIT CONVERSION PREVIEW CARD
+                    if (isMultiUnit) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: DashboardColors.neonBlue.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                              color: DashboardColors.neonBlue.withValues(alpha: 0.4)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.calculate_rounded,
+                                    size: 16, color: DashboardColors.neonBlue),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Conversion: 1 $pUnit = $factor ${bUnit}s',
+                                  style: const TextStyle(
+                                      color: DashboardColors.neonBlue,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Total ${bUnit}s: ${NumberFormat("#,##0").format(totalBaseUnits)} ${bUnit}s | Effective Cost per $bUnit: ₹${effCostPerBase.toStringAsFixed(3)}',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Line Total: $q × ₹${r.toStringAsFixed(2)} = ₹${(q * r).toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                  color: DashboardColors.textLight,
+                                  fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
 
                     // Discount & Tax %
                     Row(
@@ -1109,6 +1278,14 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                 selectedDuration,
                                 customDays: customD)
                         : null,
+                    isMultiUnit: isMultiUnit,
+                    purchaseUnit: purchaseUnitCtrl.text.trim().isNotEmpty
+                        ? purchaseUnitCtrl.text.trim()
+                        : 'Bundle',
+                    baseUnit: baseUnitCtrl.text.trim().isNotEmpty
+                        ? baseUnitCtrl.text.trim()
+                        : 'Sheet',
+                    conversionFactor: int.tryParse(convFactorCtrl.text.trim()) ?? 500,
                   );
 
                   setState(() {
@@ -2310,11 +2487,17 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                       DataCell(Text(it.imeiOrSerial ?? '-',
                           style: const TextStyle(
                               color: DashboardColors.textLight))),
-                      DataCell(Text('${it.quantity}',
+                      DataCell(Text(
+                          it.isMultiUnit
+                              ? '${it.quantity} ${it.purchaseUnit}s\n(${NumberFormat("#,##0").format(it.baseQuantity)} ${it.baseUnit}s)'
+                              : '${it.quantity}',
                           style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold))),
-                      DataCell(Text('₹${it.purchaseRate.toStringAsFixed(2)}',
+                      DataCell(Text(
+                          it.isMultiUnit
+                              ? '₹${it.purchaseRate.toStringAsFixed(2)}/${it.purchaseUnit}\n(₹${it.effectiveUnitCost.toStringAsFixed(3)}/${it.baseUnit})'
+                              : '₹${it.purchaseRate.toStringAsFixed(2)}',
                           style: const TextStyle(color: Colors.white))),
                       DataCell(Text('₹${it.discount.toStringAsFixed(2)}',
                           style: const TextStyle(
