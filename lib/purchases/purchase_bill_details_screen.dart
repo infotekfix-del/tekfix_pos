@@ -9,6 +9,7 @@ import '../ui/dashboard/dashboard_tokens.dart';
 import 'purchase_models.dart';
 import 'purchase_bill_service.dart';
 import 'vendor_ledger_screen.dart';
+import '../barcode/barcode_print_dialog.dart';
 
 /// Detailed view of a single Purchase Bill.
 /// Displays bill metadata, items table, warranty settings, payment status,
@@ -333,7 +334,24 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
               icon: const Icon(Icons.receipt_long_rounded, size: 16),
               label: Text('View Bill Attachment', style: DashboardTypography.inter(fontSize: 12, fontWeight: FontWeight.w600)),
             ),
+            const SizedBox(width: 10),
           ],
+
+          // 4. Print Barcode Labels (TVS LP 46 Lite - 38 x 25 mm)
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: DashboardColors.neonGreen,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            ),
+            onPressed: () => BarcodePrintDialog.showForPurchaseBill(context, bill),
+            icon: const Icon(Icons.qr_code_2_rounded, size: 16, color: Colors.black),
+            label: Text(
+              'Print Barcode Labels (38×25mm)',
+              style: DashboardTypography.poppins(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+            ),
+          ),
         ],
       ),
     );
@@ -382,6 +400,7 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                   DataColumn(label: Text('LINE TOTAL', style: _colHeaderStyle)),
                   DataColumn(label: Text('WARRANTY TERM', style: _colHeaderStyle)),
                   DataColumn(label: Text('WARRANTY EXPIRY', style: _colHeaderStyle)),
+                  DataColumn(label: Text('BARCODE', style: _colHeaderStyle)),
                 ],
                 rows: bill.items.map((it) {
                   return DataRow(
@@ -455,6 +474,25 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                         Text(
                           it.warrantyExpiryDate != null ? _shortDateFormat.format(it.warrantyExpiryDate!) : 'No Expiry',
                           style: DashboardTypography.inter(fontSize: 12, color: DashboardColors.textLight),
+                        ),
+                      ),
+
+                      // Barcode Sticker Action
+                      DataCell(
+                        IconButton(
+                          icon: const Icon(Icons.qr_code_2_rounded, color: DashboardColors.neonGreen, size: 20),
+                          tooltip: 'Print ${it.quantity} Barcode Stickers (38×25mm)',
+                          onPressed: () {
+                            BarcodePrintDialog.showForSingleProduct(
+                              context,
+                              itemKey: it.itemKey,
+                              name: it.name,
+                              model: it.model,
+                              brand: it.brand,
+                              existingBarcode: it.sku.isNotEmpty ? it.sku : null,
+                              initialQuantity: it.quantity,
+                            );
+                          },
                         ),
                       ),
                     ],

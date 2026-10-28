@@ -13,6 +13,8 @@ import '../ui/tek_feedback.dart';
 import 'purchase_bill_details_screen.dart';
 import 'purchase_bill_service.dart';
 import 'purchase_models.dart';
+import '../barcode/barcode_label_service.dart';
+import '../barcode/barcode_print_dialog.dart';
 
 class PurchaseBillUploadScreen extends StatefulWidget {
   final PurchaseBill? editBill;
@@ -661,15 +663,24 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
               final cost = double.tryParse(costCtrl.text) ?? 0.0;
               final price = double.tryParse(priceCtrl.text) ?? cost;
 
+              final rawCode = codeCtrl.text.trim();
+              final itemCode = rawCode.isNotEmpty
+                  ? rawCode
+                  : BarcodeLabelService.instance.generateUniqueBarcode();
+
               // Save to Db.items
               final newItem = {
                 'name': name,
                 'brand': brandCtrl.text.trim(),
                 'model': modelCtrl.text.trim(),
                 'category': categoryCtrl.text.trim(),
-                'code': codeCtrl.text.trim(),
+                'code': itemCode,
+                'barcode': itemCode,
+                'sku': itemCode,
                 'cost': cost,
+                'costPrice': cost,
                 'price': price,
+                'sellingPrice': price,
                 'stock': 0,
                 'createdAt': DateTime.now().toIso8601String(),
               };
@@ -1222,12 +1233,94 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
           : 'Purchase Bill saved & inventory updated (${saved.billNumber})');
 
       if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => PurchaseBillDetailsScreen(bill: saved),
+        // Post-save action dialog offering Print Barcode Labels button (Requirement 8)
+        final action = await showDialog<String>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF0C1236),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: const BorderSide(color: DashboardColors.glassBorderHover),
+            ),
+            title: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: DashboardColors.neonGreen, size: 28),
+                const SizedBox(width: 12),
+                Text(
+                  'Purchase Bill Saved!',
+                  style: DashboardTypography.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isDraft
+                      ? 'Purchase bill "${saved.billNumber}" has been saved as draft.'
+                      : 'Purchase bill "${saved.billNumber}" confirmed successfully.\nInventory stock updated for ${saved.items.length} items (${saved.totalQuantity} total qty).',
+                  style: const TextStyle(color: DashboardColors.textLight, fontSize: 13.5),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0x1AFFFFFF)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.print_rounded, color: DashboardColors.neonBlue, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'TVS LP 46 Lite Barcode Printer:\nPrint ${saved.totalQuantity} stickers (38 mm × 25 mm Code 128)',
+                          style: const TextStyle(color: DashboardColors.neonBlue, fontSize: 12.5, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, 'details'),
+                child: const Text('View Bill Details', style: TextStyle(color: DashboardColors.textMuted)),
+              ),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: DashboardColors.neonGreen,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.qr_code_2_rounded, size: 18, color: Colors.black),
+                label: const Text(
+                  'Print Barcode Labels',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black),
+                ),
+                onPressed: () => Navigator.pop(ctx, 'print'),
+              ),
+            ],
           ),
         );
+
+        if (action == 'print' && mounted) {
+          await BarcodePrintDialog.showForPurchaseBill(context, saved);
+        }
+
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PurchaseBillDetailsScreen(bill: saved),
+            ),
+          );
+        }
       }
     } catch (e) {
       TekFeedback.error('Failed to save purchase bill: $e');

@@ -34,8 +34,8 @@ class PosItem {
     return PosItem(
       id: id,
       name: '${m['name'] ?? 'Item'}',
-      sku: '${m['sku'] ?? ''}',
-      barcode: '${m['barcode'] ?? m['imei'] ?? ''}',
+      sku: '${m['sku'] ?? m['code'] ?? ''}',
+      barcode: '${m['barcode'] ?? m['code'] ?? m['sku'] ?? m['imei'] ?? ''}',
       category: '${m['category'] ?? 'Others'}',
       sellingPrice: mrp,
       minPrice: floor,
