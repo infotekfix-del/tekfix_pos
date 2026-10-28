@@ -113,30 +113,37 @@ class TekRecentActivity extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: DashboardColors.neonBlue.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
+                Expanded(
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: DashboardColors.neonBlue.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.access_time_filled_rounded,
+                          color: DashboardColors.neonBlue,
+                          size: 18,
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.access_time_filled_rounded,
-                        color: DashboardColors.neonBlue,
-                        size: 18,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Recent Activity',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: DashboardTypography.poppins(
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      'Recent Activity',
-                      style: DashboardTypography.poppins(
-                        fontSize: 15.5,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 8),
                 TextButton(
                   onPressed: onViewAll,
                   style: TextButton.styleFrom(

@@ -414,7 +414,12 @@ class TekDashboardContent extends StatelessWidget {
             final pendingCount = pendingAttendance ?? (snap.data?.length ?? 0);
 
             return ListView(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+              padding: EdgeInsets.fromLTRB(
+                isDesktopResolved ? 20.0 : 16.0,
+                isDesktopResolved ? 20.0 : 12.0,
+                isDesktopResolved ? 20.0 : 16.0,
+                isDesktopResolved ? 30.0 : (MediaQuery.of(context).padding.bottom + 85.0),
+              ),
               children: [
                 // 1. Hero Banner
                 const TekHeroBanner(
@@ -438,15 +443,20 @@ class TekDashboardContent extends StatelessWidget {
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final count = constraints.maxWidth >= 900 ? 4 : 2;
+                    final ratio = constraints.maxWidth >= 900
+                        ? 1.55
+                        : (constraints.maxWidth >= 600
+                            ? 1.35
+                            : (constraints.maxWidth <= 360 ? 0.84 : 0.88));
                     return GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: statCards.length,
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: count,
-                        crossAxisSpacing: 14,
-                        mainAxisSpacing: 14,
-                        childAspectRatio: constraints.maxWidth >= 900 ? 1.55 : 1.35,
+                        crossAxisSpacing: constraints.maxWidth < 380 ? 10 : 14,
+                        mainAxisSpacing: constraints.maxWidth < 380 ? 10 : 14,
+                        childAspectRatio: ratio,
                       ),
                       itemBuilder: (_, i) => statCards[i],
                     );

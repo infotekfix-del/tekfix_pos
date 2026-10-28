@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// ============================================================================
 /// TEKFIX DIGITAL - DESIGN SYSTEM TOKENS
@@ -162,6 +163,24 @@ class TekTypography {
         letterSpacing: 0.3,
         fontFamilyFallback: malayalamFallback,
       );
+
+  /// Dedicated high-legibility Malayalam font with explicit line-height (1.35-1.4)
+  /// preventing vowel sign and chandrakala clipping across mobile screens.
+  static TextStyle malayalam({
+    double fontSize = 12,
+    FontWeight fontWeight = FontWeight.normal,
+    Color color = TekColors.textSecondary,
+    double height = 1.35,
+    double? letterSpacing,
+  }) {
+    return GoogleFonts.notoSansMalayalam(
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      color: color,
+      height: height,
+      letterSpacing: letterSpacing,
+    );
+  }
 }
 
 /// Global Theme provider for TekFix Digital

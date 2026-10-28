@@ -79,27 +79,48 @@ class _TekSalesChartState extends State<TekSalesChart> {
         children: [
           // Header with Title & Period Selector
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.insights_rounded, color: TekColors.electricCyan, size: 18),
-                      SizedBox(width: 8),
-                      Text(
-                        'Sales Overview (വിൽപന അവലോകനം)',
-                        style: TextStyle(
-                          color: TekColors.textPrimary,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          fontFamilyFallback: TekTypography.malayalamFallback,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.insights_rounded, color: TekColors.electricCyan, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                'Sales Overview',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: TekColors.textPrimary,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                'വിൽപ്പന അവലോകനം',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TekTypography.malayalam(
+                                  fontSize: 11,
+                                  color: TekColors.textSecondary,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
                   Row(
                     children: [
                       Text(

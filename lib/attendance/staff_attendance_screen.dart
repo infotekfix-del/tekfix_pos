@@ -594,15 +594,14 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                             labelMl,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
+                            style: TekTypography.malayalam(
                               fontSize: 10,
                               fontWeight:
                                   isSelected ? FontWeight.bold : FontWeight.w600,
                               color: isSelected
                                   ? TekColors.textPrimary
                                   : TekColors.textSecondary,
-                              fontFamilyFallback:
-                                  TekTypography.malayalamFallback,
+                              height: 1.3,
                             ),
                           ),
                           Text(
@@ -648,7 +647,12 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
 
             return SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                12,
+                16,
+                MediaQuery.of(context).padding.bottom + 95,
+              ),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 480),
                 child: Column(
@@ -977,12 +981,29 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const Icon(Icons.dashboard_customize_rounded, size: 18, color: TekColors.secondary),
               const SizedBox(width: 8),
-              Text(
-                'Work & Shift Overview (ഡ്യൂട്ടി വിവരങ്ങൾ)',
-                style: TekTypography.titleMedium.copyWith(fontSize: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Work & Shift Overview',
+                      style: TekTypography.titleMedium.copyWith(fontSize: 14),
+                    ),
+                    Text(
+                      'ഡ്യൂട്ടി വിവരങ്ങൾ',
+                      style: TekTypography.malayalam(
+                        fontSize: 11,
+                        color: TekColors.textSecondary,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -1399,12 +1420,29 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             const Icon(Icons.bolt_rounded, size: 18, color: TekColors.warning),
             const SizedBox(width: 8),
-            Text(
-              'Quick Access & Actions (ദ്രുത സേവനങ്ങൾ)',
-              style: TekTypography.titleMedium.copyWith(fontSize: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Quick Access & Actions',
+                    style: TekTypography.titleMedium.copyWith(fontSize: 14),
+                  ),
+                  Text(
+                    'ദ്രുത സേവനങ്ങൾ',
+                    style: TekTypography.malayalam(
+                      fontSize: 11,
+                      color: TekColors.textSecondary,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -1564,7 +1602,11 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
               subtitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 10.5, color: TekColors.textSecondary),
+              style: TekTypography.malayalam(
+                fontSize: 10.5,
+                color: TekColors.textSecondary,
+                height: 1.3,
+              ),
             ),
           ],
         ),
@@ -1580,16 +1622,36 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              children: [
-                const Icon(Icons.history_rounded, size: 18, color: TekColors.secondary),
-                const SizedBox(width: 8),
-                Text(
-                  'ഹാജർ ചരിത്രം (Attendance History)',
-                  style: TekTypography.titleMedium.copyWith(fontSize: 14),
-                ),
-              ],
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const Icon(Icons.history_rounded, size: 18, color: TekColors.secondary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Attendance History',
+                          style: TekTypography.titleMedium.copyWith(fontSize: 14),
+                        ),
+                        Text(
+                          'ഹാജർ ചരിത്രം',
+                          style: TekTypography.malayalam(
+                            fontSize: 11,
+                            color: TekColors.textSecondary,
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
+            const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(

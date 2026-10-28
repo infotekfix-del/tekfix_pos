@@ -81,7 +81,7 @@ class _TekStatCardState extends State<TekStatCard> {
                   }
                 : null,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -93,11 +93,11 @@ class _TekStatCardState extends State<TekStatCard> {
                     children: [
                       // Accent squircle badge
                       Container(
-                        width: 42,
-                        height: 42,
+                        width: 34,
+                        height: 34,
                         decoration: BoxDecoration(
                           color: widget.accentColor.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                             color: widget.accentColor.withValues(alpha: 0.4),
                             width: 1,
@@ -105,7 +105,7 @@ class _TekStatCardState extends State<TekStatCard> {
                           boxShadow: [
                             BoxShadow(
                               color: widget.accentColor.withValues(alpha: 0.25),
-                              blurRadius: 10,
+                              blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
                           ],
@@ -113,57 +113,63 @@ class _TekStatCardState extends State<TekStatCard> {
                         child: Icon(
                           widget.icon,
                           color: widget.accentColor,
-                          size: 22,
+                          size: 18,
                         ),
                       ),
 
                       // % Change pill
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: (widget.isPositive
-                                  ? DashboardColors.neonGreen
-                                  : DashboardColors.neonPink)
-                              .withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                          decoration: BoxDecoration(
                             color: (widget.isPositive
                                     ? DashboardColors.neonGreen
                                     : DashboardColors.neonPink)
-                                .withValues(alpha: 0.35),
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              widget.isPositive
-                                  ? Icons.arrow_upward_rounded
-                                  : Icons.arrow_downward_rounded,
-                              size: 11,
-                              color: widget.isPositive
-                                  ? DashboardColors.neonGreen
-                                  : DashboardColors.neonPink,
+                                .withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: (widget.isPositive
+                                      ? DashboardColors.neonGreen
+                                      : DashboardColors.neonPink)
+                                  .withValues(alpha: 0.35),
+                              width: 1,
                             ),
-                            const SizedBox(width: 3),
-                            Text(
-                              widget.changeText,
-                              style: DashboardTypography.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                widget.isPositive
+                                    ? Icons.arrow_upward_rounded
+                                    : Icons.arrow_downward_rounded,
+                                size: 10,
                                 color: widget.isPositive
                                     ? DashboardColors.neonGreen
                                     : DashboardColors.neonPink,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 2),
+                              Flexible(
+                                child: Text(
+                                  widget.changeText,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: DashboardTypography.inter(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: widget.isPositive
+                                        ? DashboardColors.neonGreen
+                                        : DashboardColors.neonPink,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
                   ),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
 
                   // Amount
                   FittedBox(
@@ -172,7 +178,7 @@ class _TekStatCardState extends State<TekStatCard> {
                     child: Text(
                       widget.amount,
                       style: DashboardTypography.poppins(
-                        fontSize: 24,
+                        fontSize: 22,
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
                         letterSpacing: -0.5,
@@ -189,28 +195,33 @@ class _TekStatCardState extends State<TekStatCard> {
                     children: [
                       Text(
                         widget.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: DashboardTypography.inter(
-                          fontSize: 13,
+                          fontSize: 12.5,
                           fontWeight: FontWeight.w600,
                           color: const Color(0xFFE2E8F0),
                         ),
                       ),
                       Text(
                         widget.subtitle,
-                        style: DashboardTypography.inter(
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: DashboardTypography.malayalam(
                           fontSize: 11,
                           fontWeight: FontWeight.w400,
                           color: DashboardColors.textMuted,
+                          height: 1.35,
                         ),
                       ),
                     ],
                   ),
 
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 6),
 
                   // Mini Sparkline (Smooth Bezier Wave with vertical gradient fill)
                   SizedBox(
-                    height: 32,
+                    height: 26,
                     width: double.infinity,
                     child: CustomPaint(
                       painter: _MiniSparklinePainter(

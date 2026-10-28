@@ -109,30 +109,37 @@ class TekServiceSummary extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: DashboardColors.neonPurple.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: DashboardColors.neonPurple.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.build_circle_rounded,
+                            color: DashboardColors.neonPurple,
+                            size: 18,
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.build_circle_rounded,
-                          color: DashboardColors.neonPurple,
-                          size: 18,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Service & Repair Center',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: DashboardTypography.poppins(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Service & Repair Center',
-                        style: DashboardTypography.poppins(
-                          fontSize: 15.5,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   Text(
                     '${jobs.length} total jobs',
                     style: DashboardTypography.inter(
@@ -149,6 +156,9 @@ class TekServiceSummary extends StatelessWidget {
               LayoutBuilder(
                 builder: (context, constraints) {
                   final isWide = constraints.maxWidth >= 540;
+                  final ratio = isWide
+                      ? 1.6
+                      : (constraints.maxWidth <= 360 ? 1.25 : 1.35);
                   return GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -157,7 +167,7 @@ class TekServiceSummary extends StatelessWidget {
                       crossAxisCount: isWide ? 4 : 2,
                       crossAxisSpacing: 10,
                       mainAxisSpacing: 10,
-                      childAspectRatio: isWide ? 1.6 : 1.5,
+                      childAspectRatio: ratio,
                     ),
                     itemBuilder: (context, i) => _buildStatTile(cards[i]),
                   );
@@ -229,9 +239,10 @@ class TekServiceSummary extends StatelessWidget {
                 item.subtitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: DashboardTypography.inter(
+                style: DashboardTypography.malayalam(
                   fontSize: 10,
                   color: DashboardColors.textMuted,
+                  height: 1.3,
                 ),
               ),
             ],

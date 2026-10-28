@@ -166,23 +166,29 @@ class _TekWeatherCardState extends State<TekWeatherCard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  const Icon(
-                    Icons.location_on_rounded,
-                    size: 15,
-                    color: DashboardColors.neonPink,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    widget.locationName,
-                    style: DashboardTypography.inter(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
+              Expanded(
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.location_on_rounded,
+                      size: 15,
+                      color: DashboardColors.neonPink,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        widget.locationName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: DashboardTypography.inter(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               InkWell(
                 onTap: _fetchLiveWeather,

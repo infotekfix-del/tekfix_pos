@@ -100,59 +100,79 @@ class _TekSalesOverviewChartState extends State<TekSalesOverviewChart> {
         children: [
           // Header Row: Title, Period Total, and Dropdown
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: DashboardColors.neonBlue.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: DashboardColors.neonBlue.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.show_chart_rounded,
+                            color: DashboardColors.neonBlue,
+                            size: 18,
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.show_chart_rounded,
-                          color: DashboardColors.neonBlue,
-                          size: 18,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Sales Overview',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: DashboardTypography.poppins(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                'വിൽപ്പന അവലോകനം',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: DashboardTypography.malayalam(
+                                  fontSize: 11,
+                                  height: 1.3,
+                                  color: DashboardColors.textMuted,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Sales Overview',
-                        style: DashboardTypography.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'വിൽപന അവലോകനം',
-                        style: DashboardTypography.inter(
-                          fontSize: 11.5,
-                          color: DashboardColors.textMuted,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    rs(periodTotal),
-                    style: DashboardTypography.poppins(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: DashboardColors.neonBlue,
-                      letterSpacing: -0.5,
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 6),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        rs(periodTotal),
+                        style: DashboardTypography.poppins(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: DashboardColors.neonBlue,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
 
               // "This Month" / Period Selector Dropdown
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: const Color(0x261E293B),
                   borderRadius: BorderRadius.circular(12),
@@ -161,6 +181,7 @@ class _TekSalesOverviewChartState extends State<TekSalesOverviewChart> {
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: _selectedPeriod,
+                    isDense: true,
                     dropdownColor: const Color(0xFF131D45),
                     icon: const Icon(
                       Icons.keyboard_arrow_down_rounded,
@@ -168,14 +189,14 @@ class _TekSalesOverviewChartState extends State<TekSalesOverviewChart> {
                       size: 18,
                     ),
                     style: DashboardTypography.inter(
-                      fontSize: 12.5,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
                     ),
                     items: const [
                       DropdownMenuItem(
                         value: 'This Week',
-                        child: Text('This Week (തിങ്കൾ - ഞായർ)'),
+                        child: Text('This Week'),
                       ),
                       DropdownMenuItem(
                         value: 'Last 7 Days',

@@ -30,9 +30,13 @@ class TekTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth < 500;
+    final isUltraCompact = screenWidth < 400;
+
     return Container(
       height: 68,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: EdgeInsets.symmetric(horizontal: isCompact ? 12 : 20),
       decoration: const BoxDecoration(
         color: Color(0x990B1030),
         border: Border(
@@ -93,21 +97,22 @@ class TekTopBar extends StatelessWidget {
                               ),
                             ),
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: const Color(0x2EFFFFFF),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              'Ctrl + K',
-                              style: DashboardTypography.inter(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFFCBD5E1),
+                          if (!isCompact)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0x2EFFFFFF),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                'Ctrl + K',
+                                style: DashboardTypography.inter(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFFCBD5E1),
+                                ),
                               ),
                             ),
-                          ),
                         ],
                       ),
                     ),
@@ -269,21 +274,28 @@ class TekTopBar extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Text(
-                    userName,
-                    style: DashboardTypography.inter(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                  if (!isUltraCompact) ...[
+                    const SizedBox(width: 8),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 90),
+                      child: Text(
+                        userName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: DashboardTypography.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  const Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    color: Color(0xFF94A3B8),
-                    size: 18,
-                  ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: Color(0xFF94A3B8),
+                      size: 18,
+                    ),
+                  ],
                 ],
               ),
             ),

@@ -105,6 +105,7 @@ class TekQuickActionsGrid extends StatelessWidget {
       children: [
         // Section Title
         Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
               padding: const EdgeInsets.all(6),
@@ -119,19 +120,31 @@ class TekQuickActionsGrid extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            Text(
-              'Quick Actions',
-              style: DashboardTypography.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'ദ്രുത പ്രവർത്തനങ്ങൾ',
-              style: DashboardTypography.inter(
-                fontSize: 11.5,
-                color: DashboardColors.textMuted,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Quick Actions',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: DashboardTypography.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    'ദ്രുത പ്രവർത്തനങ്ങൾ',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: DashboardTypography.malayalam(
+                      fontSize: 11,
+                      color: DashboardColors.textMuted,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -143,15 +156,18 @@ class TekQuickActionsGrid extends StatelessWidget {
         LayoutBuilder(
           builder: (context, constraints) {
             final count = constraints.maxWidth >= 600 ? 3 : 2;
+            final ratio = constraints.maxWidth >= 600
+                ? 2.4
+                : (constraints.maxWidth <= 360 ? 1.95 : 2.1);
             return GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: actions.length,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: count,
-                crossAxisSpacing: 14,
-                mainAxisSpacing: 14,
-                childAspectRatio: constraints.maxWidth >= 600 ? 2.4 : 1.8,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: ratio,
               ),
               itemBuilder: (context, idx) {
                 return _QuickActionCard(data: actions[idx]);
@@ -279,10 +295,11 @@ class _QuickActionCardState extends State<_QuickActionCard> {
                           widget.data.subtitle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: DashboardTypography.inter(
+                          style: DashboardTypography.malayalam(
                             fontSize: 10.5,
                             fontWeight: FontWeight.w400,
                             color: DashboardColors.textMuted,
+                            height: 1.3,
                           ),
                         ),
                       ],

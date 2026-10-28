@@ -134,4 +134,22 @@ class DashboardTypography {
       height: height,
     ).copyWith(fontFamilyFallback: malayalamFallback);
   }
+
+  /// Dedicated high-legibility Malayalam font with explicit line-height
+  /// to eliminate character clipping (chandrakala, vowel signs) at all DPIs.
+  static TextStyle malayalam({
+    double fontSize = 12,
+    FontWeight fontWeight = FontWeight.normal,
+    Color color = DashboardColors.textMuted,
+    double height = 1.35,
+    double? letterSpacing,
+  }) {
+    return GoogleFonts.notoSansMalayalam(
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      color: color,
+      height: height,
+      letterSpacing: letterSpacing,
+    );
+  }
 }
