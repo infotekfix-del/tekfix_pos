@@ -238,11 +238,32 @@ service cloud.firestore {
         allow delete: if owner(shop);
       }
 
+      // ---- Automated Purchase Bills, Products, Serialized Stock & Ledgers
+      match /products/{id} { allow read, write: if member(shop); }
+      match /stock_units/{id} { allow read, write: if member(shop); }
+      match /purchase_bills/{id} {
+        allow read, write: if member(shop);
+        match /items/{itemId} { allow read, write: if member(shop); }
+      }
+      match /vendor_ledger/{id} { allow read, write: if member(shop); }
+      match /accounting_cash_bank/{id} { allow read, write: if member(shop); }
+
       // ---- sequential order counters
       match /counters/{id} {
         allow read, write: if signedIn() && (owner(shop) || member(shop));
       }
     }
+
+    // ---- Top-level Collections Support
+    match /products/{id} { allow read, write: if signedIn(); }
+    match /stock_units/{id} { allow read, write: if signedIn(); }
+    match /purchase_bills/{id} {
+      allow read, write: if signedIn();
+      match /items/{itemId} { allow read, write: if signedIn(); }
+    }
+    match /vendor_ledger/{id} { allow read, write: if signedIn(); }
+    match /accounting_cash_bank/{id} { allow read, write: if signedIn(); }
+    match /parties/{id} { allow read, write: if signedIn(); }
 
     // ---- Global In-App Auto-Update Configuration
     match /app_config/{doc} {

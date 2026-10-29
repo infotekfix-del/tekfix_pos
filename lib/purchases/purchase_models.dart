@@ -78,6 +78,7 @@ class PurchaseBillItem {
   final List<String> serialNumbers;
   final int quantity;
   final double purchaseRate;
+  final double sellingPrice;
   final double discount;
   final double taxPercent;
   final double taxAmount;
@@ -86,6 +87,13 @@ class PurchaseBillItem {
   final String warrantyDuration;
   final int? customWarrantyDays;
   final DateTime? warrantyExpiryDate;
+
+  // Smart Product Matching & Staging
+  final String? matchedProductId;
+  final String? matchedProductName;
+  final bool isNewProduct;
+  final bool isStagedReady;
+  final bool imeiRequired;
 
   // Multi-unit purchase fields
   final bool isMultiUnit;
@@ -96,6 +104,13 @@ class PurchaseBillItem {
   String get itemName => name;
   String get productCode => sku;
   bool get hasWarranty => warrantyAvailable;
+
+  // Integer Paise Calculations
+  int get purchaseRatePaise => (purchaseRate * 100).round();
+  int get sellingPricePaise => (sellingPrice * 100).round();
+  int get lineTotalPaise => (lineTotal * 100).round();
+  int get discountPaise => (discount * 100).round();
+  int get taxAmountPaise => (taxAmount * 100).round();
 
   /// Quantity in base consumption units (e.g. 3 Bundles * 500 = 1500 Sheets)
   int get baseQuantity =>
@@ -122,6 +137,7 @@ class PurchaseBillItem {
     this.serialNumbers = const [],
     required this.quantity,
     required this.purchaseRate,
+    this.sellingPrice = 0.0,
     this.discount = 0.0,
     this.taxPercent = 0.0,
     double? taxAmount,
@@ -131,6 +147,11 @@ class PurchaseBillItem {
     this.warrantyDuration = ItemWarrantyDuration.noWarranty,
     this.customWarrantyDays,
     this.warrantyExpiryDate,
+    this.matchedProductId,
+    this.matchedProductName,
+    this.isNewProduct = false,
+    this.isStagedReady = true,
+    this.imeiRequired = false,
     this.isMultiUnit = false,
     this.purchaseUnit = 'Bundle',
     this.baseUnit = 'Sheet',
@@ -166,13 +187,24 @@ class PurchaseBillItem {
         'serialNumbers': serialNumbers,
         'quantity': quantity,
         'purchaseRate': purchaseRate,
+        'purchaseRatePaise': purchaseRatePaise,
+        'sellingPrice': sellingPrice,
+        'sellingPricePaise': sellingPricePaise,
         'discount': discount,
+        'discountPaise': discountPaise,
         'taxPercent': taxPercent,
         'taxAmount': taxAmount,
+        'taxAmountPaise': taxAmountPaise,
         'lineTotal': lineTotal,
+        'lineTotalPaise': lineTotalPaise,
         'warrantyAvailable': warrantyAvailable,
         'warrantyDuration': warrantyDuration,
         'warrantyExpiryDate': warrantyExpiryDate?.toIso8601String(),
+        'matchedProductId': matchedProductId,
+        'matchedProductName': matchedProductName,
+        'isNewProduct': isNewProduct,
+        'isStagedReady': isStagedReady,
+        'imeiRequired': imeiRequired,
         'isMultiUnit': isMultiUnit,
         'purchaseUnit': purchaseUnit,
         'baseUnit': baseUnit,
@@ -183,6 +215,15 @@ class PurchaseBillItem {
 
   factory PurchaseBillItem.fromMap(Map<dynamic, dynamic> m) {
     final isMulti = m['isMultiUnit'] == true;
+    final rate = (m['purchaseRate'] as num?)?.toDouble() ??
+        ((m['purchaseRatePaise'] as num?) != null
+            ? (m['purchaseRatePaise'] as num).toDouble() / 100.0
+            : 0.0);
+    final sPrice = (m['sellingPrice'] as num?)?.toDouble() ??
+        ((m['sellingPricePaise'] as num?) != null
+            ? (m['sellingPricePaise'] as num).toDouble() / 100.0
+            : 0.0);
+
     return PurchaseBillItem(
       id: m['id']?.toString() ?? '',
       itemKey: m['itemKey'],
@@ -197,7 +238,8 @@ class PurchaseBillItem {
           ? (m['serialNumbers'] as List).map((e) => e.toString()).toList()
           : [],
       quantity: (m['quantity'] as num?)?.toInt() ?? 1,
-      purchaseRate: (m['purchaseRate'] as num?)?.toDouble() ?? 0.0,
+      purchaseRate: rate,
+      sellingPrice: sPrice,
       discount: (m['discount'] as num?)?.toDouble() ?? 0.0,
       taxPercent: (m['taxPercent'] as num?)?.toDouble() ?? 0.0,
       taxAmount: (m['taxAmount'] as num?)?.toDouble() ?? 0.0,
@@ -207,6 +249,11 @@ class PurchaseBillItem {
       warrantyExpiryDate: m['warrantyExpiryDate'] != null
           ? DateTime.tryParse(m['warrantyExpiryDate'].toString())
           : null,
+      matchedProductId: m['matchedProductId']?.toString(),
+      matchedProductName: m['matchedProductName']?.toString(),
+      isNewProduct: m['isNewProduct'] == true,
+      isStagedReady: m['isStagedReady'] != false,
+      imeiRequired: m['imeiRequired'] == true,
       isMultiUnit: isMulti,
       purchaseUnit: m['purchaseUnit']?.toString() ?? 'Bundle',
       baseUnit: m['baseUnit']?.toString() ?? 'Sheet',
@@ -215,8 +262,14 @@ class PurchaseBillItem {
   }
 
   PurchaseBillItem copyWith({
+    String? name,
+    String? category,
+    String? brand,
+    String? model,
+    String? sku,
     int? quantity,
     double? purchaseRate,
+    double? sellingPrice,
     double? discount,
     double? taxPercent,
     double? taxAmount,
@@ -226,6 +279,11 @@ class PurchaseBillItem {
     DateTime? warrantyExpiryDate,
     String? imeiOrSerial,
     List<String>? serialNumbers,
+    String? matchedProductId,
+    String? matchedProductName,
+    bool? isNewProduct,
+    bool? isStagedReady,
+    bool? imeiRequired,
     bool? isMultiUnit,
     String? purchaseUnit,
     String? baseUnit,
@@ -234,16 +292,17 @@ class PurchaseBillItem {
     return PurchaseBillItem(
       id: id,
       itemKey: itemKey,
-      itemId: itemId,
-      name: name,
-      category: category,
-      brand: brand,
-      model: model,
-      sku: sku,
+      itemId: matchedProductId ?? itemId,
+      name: name ?? this.name,
+      category: category ?? this.category,
+      brand: brand ?? this.brand,
+      model: model ?? this.model,
+      sku: sku ?? this.sku,
       imeiOrSerial: imeiOrSerial ?? this.imeiOrSerial,
       serialNumbers: serialNumbers ?? this.serialNumbers,
       quantity: quantity ?? this.quantity,
       purchaseRate: purchaseRate ?? this.purchaseRate,
+      sellingPrice: sellingPrice ?? this.sellingPrice,
       discount: discount ?? this.discount,
       taxPercent: taxPercent ?? this.taxPercent,
       taxAmount: taxAmount ?? this.taxAmount,
@@ -251,10 +310,84 @@ class PurchaseBillItem {
       warrantyAvailable: warrantyAvailable ?? this.warrantyAvailable,
       warrantyDuration: warrantyDuration ?? this.warrantyDuration,
       warrantyExpiryDate: warrantyExpiryDate ?? this.warrantyExpiryDate,
+      matchedProductId: matchedProductId ?? this.matchedProductId,
+      matchedProductName: matchedProductName ?? this.matchedProductName,
+      isNewProduct: isNewProduct ?? this.isNewProduct,
+      isStagedReady: isStagedReady ?? this.isStagedReady,
+      imeiRequired: imeiRequired ?? this.imeiRequired,
       isMultiUnit: isMultiUnit ?? this.isMultiUnit,
       purchaseUnit: purchaseUnit ?? this.purchaseUnit,
       baseUnit: baseUnit ?? this.baseUnit,
       conversionFactor: conversionFactor ?? this.conversionFactor,
+    );
+  }
+}
+
+/// Represents a serialized stock item with unique IMEI/Serial Number.
+class StockUnit {
+  final String imei;
+  final String productId;
+  final String productName;
+  final String billId;
+  final String billNumber;
+  final dynamic vendorId;
+  final String vendorName;
+  final int purchaseRatePaise;
+  final String status; // 'IN_STOCK', 'SOLD', 'DEFECTIVE'
+  final DateTime purchaseDate;
+  final String warrantyDuration;
+  final DateTime? warrantyExpiryDate;
+  final DateTime createdAt;
+
+  const StockUnit({
+    required this.imei,
+    required this.productId,
+    required this.productName,
+    required this.billId,
+    required this.billNumber,
+    this.vendorId,
+    required this.vendorName,
+    required this.purchaseRatePaise,
+    this.status = 'IN_STOCK',
+    required this.purchaseDate,
+    this.warrantyDuration = 'No Warranty',
+    this.warrantyExpiryDate,
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toMap() => {
+        'imei': imei,
+        'productId': productId,
+        'productName': productName,
+        'billId': billId,
+        'billNumber': billNumber,
+        'vendorId': vendorId,
+        'vendorName': vendorName,
+        'purchaseRatePaise': purchaseRatePaise,
+        'status': status,
+        'purchaseDate': purchaseDate.toIso8601String(),
+        'warrantyDuration': warrantyDuration,
+        'warrantyExpiryDate': warrantyExpiryDate?.toIso8601String(),
+        'createdAt': createdAt.toIso8601String(),
+      };
+
+  factory StockUnit.fromMap(Map<dynamic, dynamic> m) {
+    return StockUnit(
+      imei: m['imei']?.toString() ?? '',
+      productId: m['productId']?.toString() ?? '',
+      productName: m['productName']?.toString() ?? '',
+      billId: m['billId']?.toString() ?? '',
+      billNumber: m['billNumber']?.toString() ?? '',
+      vendorId: m['vendorId'],
+      vendorName: m['vendorName']?.toString() ?? '',
+      purchaseRatePaise: (m['purchaseRatePaise'] as num?)?.toInt() ?? 0,
+      status: m['status']?.toString() ?? 'IN_STOCK',
+      purchaseDate: DateTime.tryParse(m['purchaseDate']?.toString() ?? '') ?? DateTime.now(),
+      warrantyDuration: m['warrantyDuration']?.toString() ?? 'No Warranty',
+      warrantyExpiryDate: m['warrantyExpiryDate'] != null
+          ? DateTime.tryParse(m['warrantyExpiryDate'].toString())
+          : null,
+      createdAt: DateTime.tryParse(m['createdAt']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 }
@@ -423,6 +556,18 @@ class PurchaseBill {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  final String? storagePath;
+  final double? invoiceExtractedTotal;
+
+  // Integer Paise Calculations
+  int get subtotalPaise => (subtotal * 100).round();
+  int get totalDiscountPaise => (totalDiscount * 100).round();
+  int get totalTaxPaise => (totalTax * 100).round();
+  int get otherChargesPaise => (otherCharges * 100).round();
+  int get grandTotalPaise => (grandTotal * 100).round();
+  int get paidAmountPaise => (paidAmount * 100).round();
+  int get balanceDuePaise => (balanceDue * 100).round();
+
   const PurchaseBill({
     this.key,
     required this.billNumber,
@@ -446,6 +591,8 @@ class PurchaseBill {
     required this.paymentStatus,
     this.payments = const [],
     this.attachment,
+    this.storagePath,
+    this.invoiceExtractedTotal,
     required this.createdById,
     required this.createdByName,
     this.lastUpdatedById,
@@ -468,16 +615,25 @@ class PurchaseBill {
         'uploadTimestamp': uploadTimestamp.toIso8601String(),
         'items': items.map((e) => e.toMap()).toList(),
         'subtotal': subtotal,
+        'subtotalPaise': subtotalPaise,
         'totalQuantity': totalQuantity,
         'totalDiscount': totalDiscount,
+        'totalDiscountPaise': totalDiscountPaise,
         'totalTax': totalTax,
+        'totalTaxPaise': totalTaxPaise,
         'otherCharges': otherCharges,
+        'otherChargesPaise': otherChargesPaise,
         'grandTotal': grandTotal,
+        'grandTotalPaise': grandTotalPaise,
         'paidAmount': paidAmount,
+        'paidAmountPaise': paidAmountPaise,
         'balanceDue': balanceDue,
+        'balanceDuePaise': balanceDuePaise,
         'paymentStatus': paymentStatus,
         'payments': payments.map((e) => e.toMap()).toList(),
         'attachment': attachment?.toMap(),
+        'storagePath': storagePath,
+        'invoiceExtractedTotal': invoiceExtractedTotal,
         'createdById': createdById,
         'createdByName': createdByName,
         'lastUpdatedById': lastUpdatedById,
@@ -489,6 +645,21 @@ class PurchaseBill {
       };
 
   factory PurchaseBill.fromMap(Map<dynamic, dynamic> m, [dynamic key]) {
+    final sub = (m['subtotal'] as num?)?.toDouble() ??
+        ((m['subtotalPaise'] as num?) != null ? (m['subtotalPaise'] as num).toDouble() / 100.0 : 0.0);
+    final disc = (m['totalDiscount'] as num?)?.toDouble() ??
+        ((m['totalDiscountPaise'] as num?) != null ? (m['totalDiscountPaise'] as num).toDouble() / 100.0 : 0.0);
+    final tax = (m['totalTax'] as num?)?.toDouble() ??
+        ((m['totalTaxPaise'] as num?) != null ? (m['totalTaxPaise'] as num).toDouble() / 100.0 : 0.0);
+    final other = (m['otherCharges'] as num?)?.toDouble() ??
+        ((m['otherChargesPaise'] as num?) != null ? (m['otherChargesPaise'] as num).toDouble() / 100.0 : 0.0);
+    final grand = (m['grandTotal'] as num?)?.toDouble() ??
+        ((m['grandTotalPaise'] as num?) != null ? (m['grandTotalPaise'] as num).toDouble() / 100.0 : 0.0);
+    final paid = (m['paidAmount'] as num?)?.toDouble() ??
+        ((m['paidAmountPaise'] as num?) != null ? (m['paidAmountPaise'] as num).toDouble() / 100.0 : 0.0);
+    final bal = (m['balanceDue'] as num?)?.toDouble() ??
+        ((m['balanceDuePaise'] as num?) != null ? (m['balanceDuePaise'] as num).toDouble() / 100.0 : 0.0);
+
     return PurchaseBill(
       key: key ?? m['key'],
       billNumber: m['billNumber']?.toString() ?? '',
@@ -503,14 +674,14 @@ class PurchaseBill {
       items: (m['items'] is List)
           ? (m['items'] as List).map((e) => PurchaseBillItem.fromMap(e as Map)).toList()
           : [],
-      subtotal: (m['subtotal'] as num?)?.toDouble() ?? 0.0,
+      subtotal: sub,
       totalQuantity: (m['totalQuantity'] as num?)?.toInt() ?? 0,
-      totalDiscount: (m['totalDiscount'] as num?)?.toDouble() ?? 0.0,
-      totalTax: (m['totalTax'] as num?)?.toDouble() ?? 0.0,
-      otherCharges: (m['otherCharges'] as num?)?.toDouble() ?? 0.0,
-      grandTotal: (m['grandTotal'] as num?)?.toDouble() ?? 0.0,
-      paidAmount: (m['paidAmount'] as num?)?.toDouble() ?? 0.0,
-      balanceDue: (m['balanceDue'] as num?)?.toDouble() ?? 0.0,
+      totalDiscount: disc,
+      totalTax: tax,
+      otherCharges: other,
+      grandTotal: grand,
+      paidAmount: paid,
+      balanceDue: bal,
       paymentStatus: m['paymentStatus']?.toString() ?? BillPaymentStatus.unpaid,
       payments: (m['payments'] is List)
           ? (m['payments'] as List).map((e) => VendorPaymentRecord.fromMap(e as Map)).toList()
@@ -518,6 +689,8 @@ class PurchaseBill {
       attachment: (m['attachment'] is Map)
           ? BillAttachment.fromMap(m['attachment'])
           : null,
+      storagePath: m['storagePath']?.toString(),
+      invoiceExtractedTotal: (m['invoiceExtractedTotal'] as num?)?.toDouble(),
       createdById: m['createdById']?.toString() ?? '',
       createdByName: m['createdByName']?.toString() ?? 'Staff',
       lastUpdatedById: m['lastUpdatedById']?.toString(),
@@ -536,6 +709,8 @@ class PurchaseBill {
     String? paymentStatus,
     List<VendorPaymentRecord>? payments,
     BillAttachment? attachment,
+    String? storagePath,
+    double? invoiceExtractedTotal,
     String? lastUpdatedById,
     String? lastUpdatedByName,
     String? notes,
@@ -565,6 +740,8 @@ class PurchaseBill {
       paymentStatus: paymentStatus ?? this.paymentStatus,
       payments: payments ?? this.payments,
       attachment: attachment ?? this.attachment,
+      storagePath: storagePath ?? this.storagePath,
+      invoiceExtractedTotal: invoiceExtractedTotal ?? this.invoiceExtractedTotal,
       createdById: createdById,
       createdByName: createdByName,
       lastUpdatedById: lastUpdatedById ?? this.lastUpdatedById,

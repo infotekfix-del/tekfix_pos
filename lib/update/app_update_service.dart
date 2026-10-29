@@ -147,6 +147,29 @@ class AppUpdateService {
     }
   }
 
+  /// Publishes or updates the in-app release config in Cloud Firestore (`app_config/version`).
+  Future<void> publishUpdateConfig({
+    required String latestVersion,
+    required int latestBuildNumber,
+    required String apkUrl,
+    String? windowsUrl,
+    required String releaseNotes,
+    bool isMandatory = true,
+    String? minSupportedVersion,
+  }) async {
+    await FirebaseFirestore.instance.collection('app_config').doc('version').set({
+      'latest_version': latestVersion,
+      'latest_build_number': latestBuildNumber,
+      'apk_url': apkUrl,
+      'windows_url': windowsUrl ??
+          'https://github.com/infotekfix-del/tekfix_pos/releases/tag/v$latestVersion',
+      'release_notes': releaseNotes,
+      'is_mandatory': isMandatory,
+      'min_supported_version': minSupportedVersion ?? '1.0.0',
+      'updated_at': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   /// Convenience method to check and automatically display update dialog on app launch.
   Future<void> checkForUpdate(BuildContext context,
       {bool autoShowDialog = true, bool showToastIfLatest = false}) async {

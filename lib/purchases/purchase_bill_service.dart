@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import '../main.dart'
     show
@@ -79,6 +83,163 @@ class PurchaseBillService {
       return bal < 0 ? -bal : 0.0;
     }
     return 0.0;
+  }
+
+  /// Fetches real-time vendor outstanding balance in integer paise from Cloud Firestore (with local fallback).
+  Future<int> fetchVendorBalancePaise(dynamic vendorKey, {String? shopId}) async {
+    if (vendorKey == null) return 0;
+    final sId = (shopId != null && shopId.isNotEmpty) ? shopId : Db.setting('shop_id', 'tekfix');
+    try {
+      final docSnap = await FirebaseFirestore.instance
+          .collection('shops')
+          .doc(sId)
+          .collection('parties')
+          .doc('$vendorKey')
+          .get();
+
+      if (docSnap.exists) {
+        final d = docSnap.data();
+        if (d != null) {
+          final paise = (d['currentBalancePaise'] as num?)?.toInt();
+          if (paise != null) return paise;
+          final bal = (d['balance'] as num?)?.toDouble();
+          if (bal != null) return (bal < 0 ? -bal * 100 : bal * 100).round();
+        }
+      }
+    } catch (e) {
+      debugPrint('[PurchaseBillService] fetchVendorBalancePaise error: $e');
+    }
+    // Fallback to local parties
+    return (getVendorOutstandingBalance(vendorKey) * 100).round();
+  }
+
+  /// Normalizes product name for robust case-insensitive, symbol-agnostic matching.
+  static String normalizeProductName(String name) {
+    return name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '').trim();
+  }
+
+  /// Searches Cloud Firestore products collection by Barcode, SKU, or Normalized Name.
+  /// Falls back to local catalog for instant offline responsiveness.
+  Future<Map<String, dynamic>?> matchProductInFirestore({
+    String? barcode,
+    String? sku,
+    required String name,
+    String? shopId,
+  }) async {
+    final sId = (shopId != null && shopId.isNotEmpty) ? shopId : Db.setting('shop_id', 'tekfix');
+    final fs = FirebaseFirestore.instance;
+    final normName = normalizeProductName(name);
+
+    try {
+      // 1. Try Barcode match in products collection
+      if (barcode != null && barcode.trim().isNotEmpty) {
+        final bSnap = await fs
+            .collection('shops')
+            .doc(sId)
+            .collection('products')
+            .where('barcode', isEqualTo: barcode.trim())
+            .limit(1)
+            .get();
+        if (bSnap.docs.isNotEmpty) {
+          final d = bSnap.docs.first;
+          return {'id': d.id, 'name': d.data()['name'] ?? name, 'data': d.data()};
+        }
+      }
+
+      // 2. Try SKU match
+      if (sku != null && sku.trim().isNotEmpty) {
+        final sSnap = await fs
+            .collection('shops')
+            .doc(sId)
+            .collection('products')
+            .where('sku', isEqualTo: sku.trim())
+            .limit(1)
+            .get();
+        if (sSnap.docs.isNotEmpty) {
+          final d = sSnap.docs.first;
+          return {'id': d.id, 'name': d.data()['name'] ?? name, 'data': d.data()};
+        }
+      }
+
+      // 3. Try Normalized Name match
+      if (normName.isNotEmpty) {
+        final nSnap = await fs
+            .collection('shops')
+            .doc(sId)
+            .collection('products')
+            .where('normalizedName', isEqualTo: normName)
+            .limit(1)
+            .get();
+        if (nSnap.docs.isNotEmpty) {
+          final d = nSnap.docs.first;
+          return {'id': d.id, 'name': d.data()['name'] ?? name, 'data': d.data()};
+        }
+      }
+
+      // Also check root products collection
+      if (barcode != null && barcode.trim().isNotEmpty) {
+        final rootSnap = await fs
+            .collection('products')
+            .where('barcode', isEqualTo: barcode.trim())
+            .limit(1)
+            .get();
+        if (rootSnap.docs.isNotEmpty) {
+          final d = rootSnap.docs.first;
+          return {'id': d.id, 'name': d.data()['name'] ?? name, 'data': d.data()};
+        }
+      }
+    } catch (e) {
+      debugPrint('[PurchaseBillService] Firestore product search error: $e');
+    }
+
+    // 4. Local Catalog fallback: Search Db.items
+    for (final k in Db.items.keys) {
+      final raw = Db.items.get(k);
+      if (raw is! Map) continue;
+      final existingBarcode = raw['barcode']?.toString().trim();
+      final existingCode = raw['code']?.toString().trim();
+      final existingSku = raw['sku']?.toString().trim();
+      final existingName = raw['name']?.toString() ?? '';
+      final existingNorm = normalizeProductName(existingName);
+
+      if ((barcode != null && barcode.trim().isNotEmpty && (existingBarcode == barcode.trim() || existingCode == barcode.trim())) ||
+          (sku != null && sku.trim().isNotEmpty && existingSku == sku.trim()) ||
+          (normName.isNotEmpty && existingNorm == normName)) {
+        return {
+          'id': raw['_id']?.toString() ?? '$k',
+          'itemKey': k,
+          'name': existingName,
+          'data': raw,
+        };
+      }
+    }
+
+    return null;
+  }
+
+  /// Verifies whether any of the given IMEIs are already IN_STOCK in Cloud Firestore stock_units.
+  Future<List<String>> checkDuplicateImeisInStock(List<String> imeis, {String? shopId}) async {
+    final duplicates = <String>[];
+    if (imeis.isEmpty) return duplicates;
+    final sId = (shopId != null && shopId.isNotEmpty) ? shopId : Db.setting('shop_id', 'tekfix');
+    final fs = FirebaseFirestore.instance;
+
+    for (final imei in imeis) {
+      final cleanImei = imei.trim().toUpperCase();
+      if (cleanImei.isEmpty) continue;
+      try {
+        final snap = await fs
+            .collection('shops')
+            .doc(sId)
+            .collection('stock_units')
+            .doc(cleanImei)
+            .get();
+        if (snap.exists && snap.data()?['status'] == 'IN_STOCK') {
+          duplicates.add(cleanImei);
+        }
+      } catch (_) {}
+    }
+    return duplicates;
   }
 
   /// Adds a new vendor to Db.parties, preventing duplicate names or phones
@@ -200,7 +361,523 @@ class PurchaseBillService {
   }
 
   // ---------------------------------------------------------------------------
-  // 4. SAVE PURCHASE BILL (WITH INVENTORY & FINANCIAL INTEGRATION)
+  // 4. ATOMIC CONFIRMATION & STOCK SYNC (Strict Reads-Before-Writes on Firestore)
+  // ---------------------------------------------------------------------------
+
+  Future<PurchaseBill> confirmPurchaseBill({
+    required String billNumber,
+    required String vendorInvoiceNumber,
+    required dynamic vendorKey,
+    required String vendorName,
+    required String vendorPhone,
+    String? vendorGst,
+    String? vendorAddress,
+    required DateTime purchaseDate,
+    required List<PurchaseBillItem> items,
+    double otherCharges = 0.0,
+    double initialPaidAmount = 0.0,
+    String initialPaymentMethod = 'Cash',
+    String? initialPaymentReference,
+    BillAttachment? attachment,
+    Uint8List? attachmentBytes,
+    required String staffId,
+    required String staffName,
+    String? notes,
+    double? invoiceExtractedTotal,
+    String? shopId,
+  }) async {
+    // 1. Pre-validation checks
+    if (items.isEmpty) {
+      throw Exception('Purchase bill must have at least one item');
+    }
+
+    for (int i = 0; i < items.length; i++) {
+      final it = items[i];
+      if (it.isNewProduct && !it.isStagedReady) {
+        throw Exception('Item "${it.name}" (Row ${i + 1}) is marked as new and must be registered first.');
+      }
+      if (it.imeiRequired) {
+        if (it.serialNumbers.length != it.quantity) {
+          throw Exception(
+            'Item "${it.name}" requires exactly ${it.quantity} IMEIs, but ${it.serialNumbers.length} were entered.',
+          );
+        }
+        final uniqueCheck = it.serialNumbers.map((s) => s.trim().toUpperCase()).toSet();
+        if (uniqueCheck.length != it.serialNumbers.length) {
+          throw Exception('Item "${it.name}" contains duplicate IMEIs in the entered list.');
+        }
+      }
+    }
+
+    final sId = (shopId != null && shopId.isNotEmpty) ? shopId : Db.setting('shop_id', 'tekfix');
+    final now = DateTime.now();
+    final billId = billNumber.replaceAll('/', '_');
+
+    // 2. Heavy work OUTSIDE transaction: Upload bill document to Firebase Storage
+    String? storagePath;
+    String? downloadUrl;
+    if (attachment != null) {
+      storagePath = attachment.filePath;
+      if (attachmentBytes != null || (attachment.bytesBase64 != null && attachment.bytesBase64!.isNotEmpty)) {
+        try {
+          final bytes = attachmentBytes ?? base64Decode(attachment.bytesBase64!);
+          final storageRef = FirebaseStorage.instance
+              .ref()
+              .child('shops/$sId/purchase_invoices/${billId}_${attachment.fileName}');
+          final uploadTask = await storageRef.putData(
+            bytes,
+            SettableMetadata(contentType: attachment.fileType),
+          );
+          storagePath = uploadTask.ref.fullPath;
+          downloadUrl = await uploadTask.ref.getDownloadURL();
+        } catch (e) {
+          debugPrint('[PurchaseBillService] Firebase Storage upload notice: $e');
+        }
+      }
+    }
+
+    // Integer paise calculations
+    int subtotalPaise = 0;
+    int totalQty = 0;
+    int totalDiscountPaise = 0;
+    int totalTaxPaise = 0;
+    final int otherChargesPaise = (otherCharges * 100).round();
+
+    for (final it in items) {
+      subtotalPaise += (it.quantity * it.purchaseRatePaise);
+      totalQty += it.quantity;
+      totalDiscountPaise += it.discountPaise;
+      totalTaxPaise += it.taxAmountPaise;
+    }
+
+    final int grandTotalPaise =
+        (subtotalPaise - totalDiscountPaise + totalTaxPaise + otherChargesPaise).clamp(0, 1 << 62);
+    final int paidAmountPaise = (initialPaidAmount * 100).round().clamp(0, grandTotalPaise);
+    final int balanceDuePaise = (grandTotalPaise - paidAmountPaise).clamp(0, grandTotalPaise);
+
+    String paymentStatus;
+    if (balanceDuePaise == 0) {
+      paymentStatus = BillPaymentStatus.paid;
+    } else if (paidAmountPaise > 0) {
+      paymentStatus = BillPaymentStatus.partiallyPaid;
+    } else {
+      paymentStatus = BillPaymentStatus.unpaid;
+    }
+
+    // 3. Firestore Atomic Transaction (Strict Reads-Before-Writes)
+    final firestore = FirebaseFirestore.instance;
+
+    final billRef = firestore.collection('shops').doc(sId).collection('purchase_bills').doc(billId);
+    final rootBillRef = firestore.collection('purchase_bills').doc(billId);
+
+    final vDocId = vendorKey?.toString() ?? 'VENDOR_${now.millisecondsSinceEpoch}';
+    final vendorRef = firestore.collection('shops').doc(sId).collection('parties').doc(vDocId);
+
+    // Collect all unique IMEIs across items:
+    final allImeis = <String, PurchaseBillItem>{};
+    for (final it in items) {
+      for (final sn in it.serialNumbers) {
+        final cleanSn = sn.trim().toUpperCase();
+        if (cleanSn.isNotEmpty) {
+          allImeis[cleanSn] = it;
+        }
+      }
+    }
+
+    // Prepare product doc refs for reading
+    final existingProductRefs = <String, DocumentReference<Map<String, dynamic>>>{};
+    for (final it in items) {
+      if (!it.isNewProduct && it.matchedProductId != null && it.matchedProductId!.isNotEmpty) {
+        final pRef = firestore.collection('shops').doc(sId).collection('products').doc(it.matchedProductId);
+        existingProductRefs[it.matchedProductId!] = pRef;
+      }
+    }
+
+    // Prepare stock_units doc refs for all IMEIs
+    final stockUnitRefs = <String, DocumentReference<Map<String, dynamic>>>{};
+    for (final imei in allImeis.keys) {
+      stockUnitRefs[imei] = firestore.collection('shops').doc(sId).collection('stock_units').doc(imei);
+    }
+
+    await firestore.runTransaction((transaction) async {
+      // -----------------------------------------------------------------------
+      // READ PHASE (Strictly before any write calls)
+      // -----------------------------------------------------------------------
+
+      // 1. Read purchase_bills/{billId} to guarantee idempotency
+      final billSnap = await transaction.get(billRef);
+      if (billSnap.exists && billSnap.data()?['status'] == 'CONFIRMED') {
+        throw Exception('Purchase bill $billNumber has already been confirmed. Duplicate rejected.');
+      }
+
+      // 2. Read vendor document to get real-time currentBalancePaise
+      int vendorBalancePaise = 0;
+      final vendorSnap = await transaction.get(vendorRef);
+      if (vendorSnap.exists) {
+        final vData = vendorSnap.data()!;
+        vendorBalancePaise = (vData['currentBalancePaise'] as num?)?.toInt() ??
+            (((vData['balance'] as num?)?.toDouble() ?? 0.0) * 100).round();
+      } else {
+        vendorBalancePaise = (getVendorOutstandingBalance(vendorKey) * 100).round();
+      }
+
+      // 3. Read all referenced products/{productId} documents
+      final productSnapshots = <String, DocumentSnapshot<Map<String, dynamic>>>{};
+      for (final entry in existingProductRefs.entries) {
+        final snap = await transaction.get(entry.value);
+        productSnapshots[entry.key] = snap;
+      }
+
+      // 4. Check stock_units/{imei} to ensure no entered IMEI already exists in stock
+      for (final entry in stockUnitRefs.entries) {
+        final imeiSnap = await transaction.get(entry.value);
+        if (imeiSnap.exists) {
+          final data = imeiSnap.data();
+          if (data?['status'] == 'IN_STOCK') {
+            throw Exception('IMEI/Serial "${entry.key}" is already IN_STOCK in inventory!');
+          }
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // WRITE PHASE (All writes executed now)
+      // -----------------------------------------------------------------------
+
+      // A. Create or update products
+      final resolvedItemMap = <PurchaseBillItem, String>{};
+
+      for (final it in items) {
+        if (it.isNewProduct || it.matchedProductId == null || it.matchedProductId!.isEmpty) {
+          final newProdRef = firestore.collection('shops').doc(sId).collection('products').doc();
+          final newProdId = newProdRef.id;
+          resolvedItemMap[it] = newProdId;
+
+          final prodPayload = <String, dynamic>{
+            'id': newProdId,
+            'name': it.name,
+            'normalizedName': normalizeProductName(it.name),
+            'brand': it.brand,
+            'model': it.model,
+            'category': it.category.isNotEmpty ? it.category : 'General',
+            'sku': it.sku.isNotEmpty ? it.sku : newProdId,
+            'barcode': it.sku.isNotEmpty ? it.sku : newProdId,
+            'currentStock': it.quantity,
+            'lastPurchaseRatePaise': it.purchaseRatePaise,
+            'sellingPricePaise': it.sellingPricePaise,
+            'costPrice': it.purchaseRate,
+            'sellingPrice': it.sellingPrice,
+            'warrantyDuration': it.warrantyDuration,
+            'hasWarranty': it.hasWarranty,
+            'imeiRequired': it.imeiRequired,
+            'isMultiUnit': it.isMultiUnit,
+            'purchaseUnit': it.purchaseUnit,
+            'baseUnit': it.baseUnit,
+            'conversionFactor': it.conversionFactor,
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          };
+
+          transaction.set(newProdRef, prodPayload);
+          transaction.set(firestore.collection('products').doc(newProdId), prodPayload);
+        } else {
+          final pId = it.matchedProductId!;
+          resolvedItemMap[it] = pId;
+          final pRef = existingProductRefs[pId]!;
+          final snap = productSnapshots[pId];
+
+          final int oldStock = (snap?.data()?['currentStock'] as num?)?.toInt() ??
+              ((snap?.data()?['stock'] as num?)?.toInt() ?? 0);
+
+          transaction.update(pRef, {
+            'currentStock': oldStock + it.quantity,
+            'stock': oldStock + it.quantity,
+            'lastPurchaseRatePaise': it.purchaseRatePaise,
+            'costPrice': it.purchaseRate,
+            if (it.sellingPrice > 0) 'sellingPricePaise': it.sellingPricePaise,
+            if (it.sellingPrice > 0) 'sellingPrice': it.sellingPrice,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+
+          transaction.set(firestore.collection('products').doc(pId), {
+            'currentStock': oldStock + it.quantity,
+            'lastPurchaseRatePaise': it.purchaseRatePaise,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
+      }
+
+      // B. Insert stock_units documents for each serial/IMEI (status: IN_STOCK)
+      for (final entry in allImeis.entries) {
+        final imei = entry.key;
+        final it = entry.value;
+        final pId = resolvedItemMap[it] ?? it.matchedProductId ?? 'PROD';
+        final suRef = stockUnitRefs[imei]!;
+
+        final suData = <String, dynamic>{
+          'imei': imei,
+          'productId': pId,
+          'productName': it.name,
+          'billId': billId,
+          'billNumber': billNumber,
+          'vendorId': vDocId,
+          'vendorName': vendorName,
+          'purchaseRatePaise': it.purchaseRatePaise,
+          'status': 'IN_STOCK',
+          'purchaseDate': purchaseDate.toIso8601String(),
+          'warrantyDuration': it.warrantyDuration,
+          'warrantyExpiryDate': it.warrantyExpiryDate?.toIso8601String(),
+          'createdAt': FieldValue.serverTimestamp(),
+        };
+
+        transaction.set(suRef, suData);
+        transaction.set(firestore.collection('stock_units').doc(imei), suData);
+      }
+
+      // C. Save purchase_bills/{billId} with status CONFIRMED
+      final billPayload = <String, dynamic>{
+        'billId': billId,
+        'billNumber': billNumber,
+        'vendorInvoiceNumber': vendorInvoiceNumber.trim(),
+        'vendorKey': vDocId,
+        'vendorId': vDocId,
+        'vendorName': vendorName.trim(),
+        'vendorPhone': vendorPhone.trim(),
+        'vendorGst': vendorGst?.trim(),
+        'vendorAddress': vendorAddress?.trim(),
+        'purchaseDate': purchaseDate.toIso8601String(),
+        'uploadTimestamp': now.toIso8601String(),
+        'subtotalPaise': subtotalPaise,
+        'subtotal': subtotalPaise / 100.0,
+        'totalQuantity': totalQty,
+        'totalDiscountPaise': totalDiscountPaise,
+        'totalDiscount': totalDiscountPaise / 100.0,
+        'totalTaxPaise': totalTaxPaise,
+        'totalTax': totalTaxPaise / 100.0,
+        'otherChargesPaise': otherChargesPaise,
+        'otherCharges': otherChargesPaise / 100.0,
+        'grandTotalPaise': grandTotalPaise,
+        'grandTotal': grandTotalPaise / 100.0,
+        'paidAmountPaise': paidAmountPaise,
+        'paidAmount': paidAmountPaise / 100.0,
+        'balanceDuePaise': balanceDuePaise,
+        'balanceDue': balanceDuePaise / 100.0,
+        'paymentStatus': paymentStatus,
+        'paymentMethod': initialPaymentMethod,
+        'paymentRef': initialPaymentReference?.trim(),
+        'status': 'CONFIRMED',
+        'isDraft': false,
+        'storagePath': storagePath,
+        'downloadUrl': downloadUrl,
+        'invoiceExtractedTotal': invoiceExtractedTotal,
+        'createdById': staffId,
+        'createdByName': staffName,
+        'notes': notes?.trim(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'confirmedAt': FieldValue.serverTimestamp(),
+      };
+
+      transaction.set(billRef, billPayload);
+      transaction.set(rootBillRef, billPayload);
+
+      // Save items subcollection in purchase_bills/{billId}/items/{itemId}
+      for (final it in items) {
+        final pId = resolvedItemMap[it] ?? it.id;
+        final itemDocRef = billRef.collection('items').doc(pId);
+        final itemMap = it.toMap()
+          ..['productId'] = pId
+          ..['purchaseRatePaise'] = it.purchaseRatePaise
+          ..['lineTotalPaise'] = it.lineTotalPaise;
+        transaction.set(itemDocRef, itemMap);
+      }
+
+      // D. Update vendor balance & append entries to vendor_ledger
+      final int newVendorBalancePaise = vendorBalancePaise + balanceDuePaise;
+
+      transaction.set(vendorRef, {
+        'name': vendorName,
+        'phone': vendorPhone,
+        if (vendorGst != null && vendorGst.isNotEmpty) 'gst': vendorGst,
+        if (vendorAddress != null && vendorAddress.isNotEmpty) 'address': vendorAddress,
+        'type': 'Supplier',
+        'currentBalancePaise': newVendorBalancePaise,
+        'balance': newVendorBalancePaise / 100.0,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // Append bill debit entry to vendor_ledger
+      final ledgerBillRef = firestore.collection('shops').doc(sId).collection('vendor_ledger').doc('VL_${billId}_BILL');
+      final ledgerBillData = <String, dynamic>{
+        'id': 'VL_${billId}_BILL',
+        'vendorId': vDocId,
+        'vendorName': vendorName,
+        'date': purchaseDate.toIso8601String(),
+        'type': 'Purchase Bill',
+        'reference': billNumber,
+        'vendorInvoiceNumber': vendorInvoiceNumber,
+        'debitPaise': grandTotalPaise,
+        'debit': grandTotalPaise / 100.0,
+        'creditPaise': 0,
+        'credit': 0.0,
+        'runningBalancePaise': vendorBalancePaise + grandTotalPaise,
+        'runningBalance': (vendorBalancePaise + grandTotalPaise) / 100.0,
+        'notes': 'Purchase Bill ($totalQty items)',
+        'createdAt': FieldValue.serverTimestamp(),
+      };
+      transaction.set(ledgerBillRef, ledgerBillData);
+      transaction.set(firestore.collection('vendor_ledger').doc('VL_${billId}_BILL'), ledgerBillData);
+
+      // E. If payment was made, append payment credit entry to vendor_ledger and accounting_cash_bank
+      if (paidAmountPaise > 0) {
+        final ledgerPayRef = firestore.collection('shops').doc(sId).collection('vendor_ledger').doc('VL_${billId}_PAY');
+        final ledgerPayData = <String, dynamic>{
+          'id': 'VL_${billId}_PAY',
+          'vendorId': vDocId,
+          'vendorName': vendorName,
+          'date': purchaseDate.toIso8601String(),
+          'type': 'Bill Payment',
+          'reference': initialPaymentReference?.isNotEmpty == true ? initialPaymentReference : billNumber,
+          'vendorInvoiceNumber': vendorInvoiceNumber,
+          'debitPaise': 0,
+          'debit': 0.0,
+          'creditPaise': paidAmountPaise,
+          'credit': paidAmountPaise / 100.0,
+          'runningBalancePaise': newVendorBalancePaise,
+          'runningBalance': newVendorBalancePaise / 100.0,
+          'notes': 'Payment via $initialPaymentMethod ($billNumber)',
+          'createdAt': FieldValue.serverTimestamp(),
+        };
+        transaction.set(ledgerPayRef, ledgerPayData);
+        transaction.set(firestore.collection('vendor_ledger').doc('VL_${billId}_PAY'), ledgerPayData);
+
+        // Record accounting_cash_bank entry
+        final cashBankRef = firestore.collection('shops').doc(sId).collection('accounting_cash_bank').doc('CB_${billId}');
+        final cashBankData = <String, dynamic>{
+          'id': 'CB_${billId}',
+          'entryType': 'CREDIT', // Cash out / outflow
+          'mode': initialPaymentMethod,
+          'amountPaise': paidAmountPaise,
+          'amount': paidAmountPaise / 100.0,
+          'category': 'PURCHASE_BILL_PAYMENT',
+          'referenceId': billId,
+          'billNumber': billNumber,
+          'vendorId': vDocId,
+          'vendorName': vendorName,
+          'staffId': staffId,
+          'staffName': staffName,
+          'date': purchaseDate.toIso8601String(),
+          'createdAt': FieldValue.serverTimestamp(),
+        };
+        transaction.set(cashBankRef, cashBankData);
+        transaction.set(firestore.collection('accounting_cash_bank').doc('CB_${billId}'), cashBankData);
+      }
+    });
+
+    // Mirror to local Hive for smooth offline experience
+    try {
+      final paymentsList = <VendorPaymentRecord>[];
+      if (paidAmountPaise > 0) {
+        paymentsList.add(VendorPaymentRecord(
+          paymentId: 'PAY_${DateTime.now().millisecondsSinceEpoch}',
+          billNumber: billNumber,
+          vendorKey: vendorKey,
+          vendorName: vendorName,
+          amount: paidAmountPaise / 100.0,
+          paymentDate: purchaseDate,
+          paymentMethod: initialPaymentMethod,
+          transactionReference: initialPaymentReference ?? 'Payment for $billNumber',
+          notes: 'Payment recorded during purchase bill entry',
+          recordedById: staffId,
+          recordedByName: staffName,
+        ));
+      }
+
+      final confirmedBill = PurchaseBill(
+        key: billId,
+        billNumber: billNumber,
+        vendorInvoiceNumber: vendorInvoiceNumber.trim(),
+        vendorKey: vendorKey,
+        vendorName: vendorName,
+        vendorPhone: vendorPhone,
+        vendorGst: vendorGst,
+        vendorAddress: vendorAddress,
+        purchaseDate: purchaseDate,
+        uploadTimestamp: now,
+        items: items,
+        subtotal: subtotalPaise / 100.0,
+        totalQuantity: totalQty,
+        totalDiscount: totalDiscountPaise / 100.0,
+        totalTax: totalTaxPaise / 100.0,
+        otherCharges: otherChargesPaise / 100.0,
+        grandTotal: grandTotalPaise / 100.0,
+        paidAmount: paidAmountPaise / 100.0,
+        balanceDue: balanceDuePaise / 100.0,
+        paymentStatus: paymentStatus,
+        payments: paymentsList,
+        attachment: attachment,
+        storagePath: storagePath,
+        invoiceExtractedTotal: invoiceExtractedTotal,
+        createdById: staffId,
+        createdByName: staffName,
+        notes: notes,
+        isDraft: false,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      if (_billsBox.isOpen) {
+        await _billsBox.put(billId, confirmedBill.toMap());
+      }
+      for (final p in paymentsList) {
+        if (_paymentsBox.isOpen) {
+          await _paymentsBox.add(p.toMap()..['billKey'] = billId);
+        }
+      }
+      if (vendorKey != null && balanceDuePaise > 0) {
+        await Db.adjustParty(vendorKey, -(balanceDuePaise / 100.0));
+      }
+      if (paidAmountPaise > 0) {
+        await Db.moveMoney(initialPaymentMethod, -(paidAmountPaise / 100.0), 'Purchase Bill $billNumber payment');
+      }
+
+      return confirmedBill;
+    } catch (e) {
+      debugPrint('[PurchaseBillService] Local sync note: $e');
+    }
+
+    return PurchaseBill(
+      billNumber: billNumber,
+      vendorInvoiceNumber: vendorInvoiceNumber,
+      vendorKey: vendorKey,
+      vendorName: vendorName,
+      vendorPhone: vendorPhone,
+      vendorGst: vendorGst,
+      vendorAddress: vendorAddress,
+      purchaseDate: purchaseDate,
+      uploadTimestamp: now,
+      items: items,
+      subtotal: subtotalPaise / 100.0,
+      totalQuantity: totalQty,
+      totalDiscount: totalDiscountPaise / 100.0,
+      totalTax: totalTaxPaise / 100.0,
+      otherCharges: otherChargesPaise / 100.0,
+      grandTotal: grandTotalPaise / 100.0,
+      paidAmount: paidAmountPaise / 100.0,
+      balanceDue: balanceDuePaise / 100.0,
+      paymentStatus: paymentStatus,
+      attachment: attachment,
+      storagePath: storagePath,
+      invoiceExtractedTotal: invoiceExtractedTotal,
+      createdById: staffId,
+      createdByName: staffName,
+      notes: notes,
+      isDraft: false,
+      createdAt: now,
+      updatedAt: now,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 5. SAVE DRAFT PURCHASE BILL
   // ---------------------------------------------------------------------------
 
   Future<PurchaseBill> savePurchaseBill({

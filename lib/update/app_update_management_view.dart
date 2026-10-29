@@ -43,12 +43,12 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView> {
   }
 
   void _applyLocalDefaults() {
-    _versionController.text = '1.0.2';
-    _buildNumberController.text = '2';
+    _versionController.text = '1.0.6';
+    _buildNumberController.text = '6';
     _apkUrlController.text =
-        'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.2/app-release.apk';
+        'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.6/app-release.apk';
     _releaseNotesController.text =
-        '• Modern Staff Portal UI (Attendance, Home Dashboard, and Orders Catalog)\n• Real-Time Shift Overview & Live Working Timer\n• Quick Access 2x2 Action Grid & Floating Navigation\n• Dynamic Stock Health Badges & Incremental Cart Counter\n• Mobile Order Placement & Attendance Approval Permissions Fixed';
+        '• Purchase Bill Automation: Native PDF Stream extraction & OCR invoice parsing\n• Auto-Item Extraction and Smart Inventory Product Matching (Barcode/SKU/Name)\n• Inline Product Registration modal with TVS LP 46 Lite 38x25mm Label generation\n• Mandatory IMEI/Serial Tracking with Duplication Validation\n• Strict Atomic Cloud Firestore Stock Sync (Reads-Before-Writes)\n• Multi-Unit Conversion (Sheets/Bundles) and Live Vendor Ledger Balances';
     _isMandatory = true;
   }
 
@@ -149,17 +149,15 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView> {
 
     setState(() => _loading = true);
     try {
-      await FirebaseFirestore.instance
-          .collection('app_config')
-          .doc('version')
-          .set({
-        'latest_version': version,
-        'latest_build_number': buildNum,
-        'apk_url': apkUrl,
-        'release_notes': notes,
-        'is_mandatory': _isMandatory,
-        'updated_at': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      await AppUpdateService.instance.publishUpdateConfig(
+        latestVersion: version,
+        latestBuildNumber: buildNum,
+        apkUrl: apkUrl,
+        windowsUrl:
+            'https://github.com/infotekfix-del/tekfix_pos/releases/tag/v$version',
+        releaseNotes: notes,
+        isMandatory: _isMandatory,
+      );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
