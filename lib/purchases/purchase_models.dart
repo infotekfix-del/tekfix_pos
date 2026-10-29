@@ -64,6 +64,41 @@ class ItemWarrantyDuration {
   ];
 }
 
+/// Product Match Status for Review Table
+class ProductMatchStatus {
+  static const String matched = 'MATCHED'; // GREEN: Existing Product Matched
+  static const String quickRegister = 'NEW'; // AMBER: New Item: + Quick Register
+  static const String reviewRequired = 'REVIEW_REQUIRED'; // RED: Review Required / Possible Duplicate
+
+  static Color getColor(String status) {
+    switch (status) {
+      case matched:
+        return const Color(0xFF10B981); // Emerald Green
+      case quickRegister:
+        return const Color(0xFFF59E0B); // Amber
+      case reviewRequired:
+        return const Color(0xFFEF4444); // Red
+      default:
+        return const Color(0xFF94A3B8); // Slate
+    }
+  }
+
+  static String getLabel(String status, {String? matchedName, double? sellingPrice}) {
+    switch (status) {
+      case matched:
+        return matchedName != null && matchedName.isNotEmpty
+            ? 'Matched: $matchedName'
+            : 'Existing Product Matched';
+      case quickRegister:
+        return 'New Item: + Quick Register';
+      case reviewRequired:
+        return 'Review Required / Discrepancy';
+      default:
+        return 'Unknown Status';
+    }
+  }
+}
+
 /// Individual item line in a Purchase Bill
 class PurchaseBillItem {
   final String id;
@@ -74,11 +109,13 @@ class PurchaseBillItem {
   final String brand;
   final String model;
   final String sku;
+  final String hsnCode;
   final String imeiOrSerial;
   final List<String> serialNumbers;
   final int quantity;
   final double purchaseRate;
   final double sellingPrice;
+  final double mrp;
   final double discount;
   final double taxPercent;
   final double taxAmount;
@@ -94,6 +131,9 @@ class PurchaseBillItem {
   final bool isNewProduct;
   final bool isStagedReady;
   final bool imeiRequired;
+  final String? matchStatusOverride;
+  final String? matchNotes;
+  final double? extractionConfidence;
 
   // Multi-unit purchase fields
   final bool isMultiUnit;
@@ -103,11 +143,26 @@ class PurchaseBillItem {
 
   String get itemName => name;
   String get productCode => sku;
+  String get hsn => hsnCode;
   bool get hasWarranty => warrantyAvailable;
+
+  String get matchStatus {
+    if (matchStatusOverride != null && matchStatusOverride!.isNotEmpty) {
+      return matchStatusOverride!;
+    }
+    if (quantity <= 0 || purchaseRate <= 0 || (sellingPrice > 0 && purchaseRate > sellingPrice)) {
+      return ProductMatchStatus.reviewRequired;
+    }
+    if (isNewProduct && !isStagedReady) {
+      return ProductMatchStatus.quickRegister;
+    }
+    return ProductMatchStatus.matched;
+  }
 
   // Integer Paise Calculations
   int get purchaseRatePaise => (purchaseRate * 100).round();
   int get sellingPricePaise => (sellingPrice * 100).round();
+  int get mrpPaise => (mrp * 100).round();
   int get lineTotalPaise => (lineTotal * 100).round();
   int get discountPaise => (discount * 100).round();
   int get taxAmountPaise => (taxAmount * 100).round();
@@ -133,11 +188,13 @@ class PurchaseBillItem {
     this.model = '',
     String? sku,
     String? productCode,
+    this.hsnCode = '',
     String? imeiOrSerial,
     this.serialNumbers = const [],
     required this.quantity,
     required this.purchaseRate,
     this.sellingPrice = 0.0,
+    this.mrp = 0.0,
     this.discount = 0.0,
     this.taxPercent = 0.0,
     double? taxAmount,
@@ -152,6 +209,9 @@ class PurchaseBillItem {
     this.isNewProduct = false,
     this.isStagedReady = true,
     this.imeiRequired = false,
+    this.matchStatusOverride,
+    this.matchNotes,
+    this.extractionConfidence,
     this.isMultiUnit = false,
     this.purchaseUnit = 'Bundle',
     this.baseUnit = 'Sheet',
@@ -183,6 +243,7 @@ class PurchaseBillItem {
         'brand': brand,
         'model': model,
         'sku': sku,
+        'hsnCode': hsnCode,
         'imeiOrSerial': imeiOrSerial,
         'serialNumbers': serialNumbers,
         'quantity': quantity,
@@ -190,6 +251,8 @@ class PurchaseBillItem {
         'purchaseRatePaise': purchaseRatePaise,
         'sellingPrice': sellingPrice,
         'sellingPricePaise': sellingPricePaise,
+        'mrp': mrp,
+        'mrpPaise': mrpPaise,
         'discount': discount,
         'discountPaise': discountPaise,
         'taxPercent': taxPercent,
@@ -205,6 +268,9 @@ class PurchaseBillItem {
         'isNewProduct': isNewProduct,
         'isStagedReady': isStagedReady,
         'imeiRequired': imeiRequired,
+        'matchStatus': matchStatus,
+        'matchNotes': matchNotes,
+        'extractionConfidence': extractionConfidence,
         'isMultiUnit': isMultiUnit,
         'purchaseUnit': purchaseUnit,
         'baseUnit': baseUnit,
@@ -223,6 +289,10 @@ class PurchaseBillItem {
         ((m['sellingPricePaise'] as num?) != null
             ? (m['sellingPricePaise'] as num).toDouble() / 100.0
             : 0.0);
+    final mrpVal = (m['mrp'] as num?)?.toDouble() ??
+        ((m['mrpPaise'] as num?) != null
+            ? (m['mrpPaise'] as num).toDouble() / 100.0
+            : sPrice);
 
     return PurchaseBillItem(
       id: m['id']?.toString() ?? '',
@@ -233,6 +303,7 @@ class PurchaseBillItem {
       brand: m['brand']?.toString() ?? '',
       model: m['model']?.toString() ?? '',
       sku: m['sku']?.toString() ?? '',
+      hsnCode: m['hsnCode']?.toString() ?? m['hsn']?.toString() ?? '',
       imeiOrSerial: m['imeiOrSerial']?.toString() ?? '',
       serialNumbers: (m['serialNumbers'] is List)
           ? (m['serialNumbers'] as List).map((e) => e.toString()).toList()
@@ -240,6 +311,7 @@ class PurchaseBillItem {
       quantity: (m['quantity'] as num?)?.toInt() ?? 1,
       purchaseRate: rate,
       sellingPrice: sPrice,
+      mrp: mrpVal,
       discount: (m['discount'] as num?)?.toDouble() ?? 0.0,
       taxPercent: (m['taxPercent'] as num?)?.toDouble() ?? 0.0,
       taxAmount: (m['taxAmount'] as num?)?.toDouble() ?? 0.0,
@@ -254,6 +326,9 @@ class PurchaseBillItem {
       isNewProduct: m['isNewProduct'] == true,
       isStagedReady: m['isStagedReady'] != false,
       imeiRequired: m['imeiRequired'] == true,
+      matchStatusOverride: m['matchStatus']?.toString(),
+      matchNotes: m['matchNotes']?.toString(),
+      extractionConfidence: (m['extractionConfidence'] as num?)?.toDouble(),
       isMultiUnit: isMulti,
       purchaseUnit: m['purchaseUnit']?.toString() ?? 'Bundle',
       baseUnit: m['baseUnit']?.toString() ?? 'Sheet',
@@ -267,9 +342,11 @@ class PurchaseBillItem {
     String? brand,
     String? model,
     String? sku,
+    String? hsnCode,
     int? quantity,
     double? purchaseRate,
     double? sellingPrice,
+    double? mrp,
     double? discount,
     double? taxPercent,
     double? taxAmount,
@@ -284,6 +361,9 @@ class PurchaseBillItem {
     bool? isNewProduct,
     bool? isStagedReady,
     bool? imeiRequired,
+    String? matchStatusOverride,
+    String? matchNotes,
+    double? extractionConfidence,
     bool? isMultiUnit,
     String? purchaseUnit,
     String? baseUnit,
@@ -298,11 +378,13 @@ class PurchaseBillItem {
       brand: brand ?? this.brand,
       model: model ?? this.model,
       sku: sku ?? this.sku,
+      hsnCode: hsnCode ?? this.hsnCode,
       imeiOrSerial: imeiOrSerial ?? this.imeiOrSerial,
       serialNumbers: serialNumbers ?? this.serialNumbers,
       quantity: quantity ?? this.quantity,
       purchaseRate: purchaseRate ?? this.purchaseRate,
       sellingPrice: sellingPrice ?? this.sellingPrice,
+      mrp: mrp ?? this.mrp,
       discount: discount ?? this.discount,
       taxPercent: taxPercent ?? this.taxPercent,
       taxAmount: taxAmount ?? this.taxAmount,
@@ -315,6 +397,9 @@ class PurchaseBillItem {
       isNewProduct: isNewProduct ?? this.isNewProduct,
       isStagedReady: isStagedReady ?? this.isStagedReady,
       imeiRequired: imeiRequired ?? this.imeiRequired,
+      matchStatusOverride: matchStatusOverride ?? this.matchStatusOverride,
+      matchNotes: matchNotes ?? this.matchNotes,
+      extractionConfidence: extractionConfidence ?? this.extractionConfidence,
       isMultiUnit: isMultiUnit ?? this.isMultiUnit,
       purchaseUnit: purchaseUnit ?? this.purchaseUnit,
       baseUnit: baseUnit ?? this.baseUnit,

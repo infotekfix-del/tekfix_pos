@@ -25,6 +25,7 @@ class DashboardColors {
   static const Color neonGreen = Color(0xFF10B981);
   static const Color neonOrange = Color(0xFFF59E0B);
   static const Color alertOrange = Color(0xFFFF6B00);
+  static const Color alertRed = Color(0xFFFF1744);
 
   // Typography
   static const Color textWhite = Color(0xFFFFFFFF);

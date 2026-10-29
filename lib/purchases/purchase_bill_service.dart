@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
@@ -118,20 +119,28 @@ class PurchaseBillService {
     return name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '').trim();
   }
 
-  /// Searches Cloud Firestore products collection by Barcode, SKU, or Normalized Name.
+  /// Searches Cloud Firestore products collection by Barcode, SKU, Model, or Normalized Name.
+  /// Categorizes match into GREEN (Matched), AMBER (New), or RED (Review Required).
   /// Falls back to local catalog for instant offline responsiveness.
   Future<Map<String, dynamic>?> matchProductInFirestore({
     String? barcode,
     String? sku,
+    String? model,
+    String? brand,
+    double? purchaseRate,
+    int? quantity,
     required String name,
     String? shopId,
   }) async {
-    final sId = (shopId != null && shopId.isNotEmpty) ? shopId : Db.setting('shop_id', 'tekfix');
-    final fs = FirebaseFirestore.instance;
     final normName = normalizeProductName(name);
+    final trimmedModel = model?.trim();
 
     try {
-      // 1. Try Barcode match in products collection
+      if (Firebase.apps.isNotEmpty) {
+        final sId = (shopId != null && shopId.isNotEmpty) ? shopId : Db.setting('shop_id', 'tekfix');
+        final fs = FirebaseFirestore.instance;
+
+        // 1. Try Barcode match in products collection
       if (barcode != null && barcode.trim().isNotEmpty) {
         final bSnap = await fs
             .collection('shops')
@@ -142,7 +151,17 @@ class PurchaseBillService {
             .get();
         if (bSnap.docs.isNotEmpty) {
           final d = bSnap.docs.first;
-          return {'id': d.id, 'name': d.data()['name'] ?? name, 'data': d.data()};
+          final pData = d.data();
+          final sellingPrice = (pData['sellingPrice'] as num?)?.toDouble() ?? 0.0;
+          final isRateAnomaly = purchaseRate != null && purchaseRate > 0 && sellingPrice > 0 && purchaseRate > sellingPrice;
+          return {
+            'id': d.id,
+            'name': pData['name'] ?? name,
+            'data': pData,
+            'matchType': 'EXACT_BARCODE',
+            'status': isRateAnomaly ? ProductMatchStatus.reviewRequired : ProductMatchStatus.matched,
+            'notes': isRateAnomaly ? 'Purchase rate (₹$purchaseRate) exceeds current selling price (₹$sellingPrice)' : null,
+          };
         }
       }
 
@@ -157,22 +176,77 @@ class PurchaseBillService {
             .get();
         if (sSnap.docs.isNotEmpty) {
           final d = sSnap.docs.first;
-          return {'id': d.id, 'name': d.data()['name'] ?? name, 'data': d.data()};
+          final pData = d.data();
+          final sellingPrice = (pData['sellingPrice'] as num?)?.toDouble() ?? 0.0;
+          final isRateAnomaly = purchaseRate != null && purchaseRate > 0 && sellingPrice > 0 && purchaseRate > sellingPrice;
+          return {
+            'id': d.id,
+            'name': pData['name'] ?? name,
+            'data': pData,
+            'matchType': 'EXACT_SKU',
+            'status': isRateAnomaly ? ProductMatchStatus.reviewRequired : ProductMatchStatus.matched,
+            'notes': isRateAnomaly ? 'Purchase rate (₹$purchaseRate) exceeds current selling price (₹$sellingPrice)' : null,
+          };
         }
       }
 
-      // 3. Try Normalized Name match
+      // 3. Try Exact Model / Part Number match
+      if (trimmedModel != null && trimmedModel.isNotEmpty) {
+        final mSnap = await fs
+            .collection('shops')
+            .doc(sId)
+            .collection('products')
+            .where('model', isEqualTo: trimmedModel)
+            .limit(2)
+            .get();
+        if (mSnap.docs.isNotEmpty) {
+          if (mSnap.docs.length > 1) {
+            final d = mSnap.docs.first;
+            return {
+              'id': d.id,
+              'name': d.data()['name'] ?? name,
+              'data': d.data(),
+              'matchType': 'MODEL_COLLISION',
+              'status': ProductMatchStatus.reviewRequired,
+              'notes': 'Multiple products share model "$trimmedModel". Please verify variant.',
+            };
+          }
+          final d = mSnap.docs.first;
+          return {
+            'id': d.id,
+            'name': d.data()['name'] ?? name,
+            'data': d.data(),
+            'matchType': 'EXACT_MODEL',
+            'status': ProductMatchStatus.matched,
+          };
+        }
+      }
+
+      // 4. Try Normalized Name match
       if (normName.isNotEmpty) {
         final nSnap = await fs
             .collection('shops')
             .doc(sId)
             .collection('products')
             .where('normalizedName', isEqualTo: normName)
-            .limit(1)
+            .limit(2)
             .get();
         if (nSnap.docs.isNotEmpty) {
           final d = nSnap.docs.first;
-          return {'id': d.id, 'name': d.data()['name'] ?? name, 'data': d.data()};
+          final pData = d.data();
+          final existingModel = pData['model']?.toString().trim();
+          final isModelMismatch = trimmedModel != null && trimmedModel.isNotEmpty &&
+              existingModel != null && existingModel.isNotEmpty &&
+              trimmedModel.toLowerCase() != existingModel.toLowerCase();
+
+          return {
+            'id': d.id,
+            'name': pData['name'] ?? name,
+            'data': pData,
+            'matchType': 'NORMALIZED_NAME',
+            'status': isModelMismatch ? ProductMatchStatus.reviewRequired : ProductMatchStatus.matched,
+            'notes': isModelMismatch ? 'Name matched but invoice model "$trimmedModel" differs from catalog model "$existingModel"' : null,
+          };
         }
       }
 
@@ -185,31 +259,44 @@ class PurchaseBillService {
             .get();
         if (rootSnap.docs.isNotEmpty) {
           final d = rootSnap.docs.first;
-          return {'id': d.id, 'name': d.data()['name'] ?? name, 'data': d.data()};
+          return {
+            'id': d.id,
+            'name': d.data()['name'] ?? name,
+            'data': d.data(),
+            'matchType': 'EXACT_BARCODE',
+            'status': ProductMatchStatus.matched,
+          };
         }
       }
-    } catch (e) {
-      debugPrint('[PurchaseBillService] Firestore product search error: $e');
     }
+  } catch (e) {
+    debugPrint('[PurchaseBillService] Firestore product search error: $e');
+  }
 
-    // 4. Local Catalog fallback: Search Db.items
+    // 5. Local Catalog fallback: Search Db.items
     for (final k in Db.items.keys) {
       final raw = Db.items.get(k);
       if (raw is! Map) continue;
       final existingBarcode = raw['barcode']?.toString().trim();
       final existingCode = raw['code']?.toString().trim();
       final existingSku = raw['sku']?.toString().trim();
+      final existingModel = raw['model']?.toString().trim();
       final existingName = raw['name']?.toString() ?? '';
       final existingNorm = normalizeProductName(existingName);
 
-      if ((barcode != null && barcode.trim().isNotEmpty && (existingBarcode == barcode.trim() || existingCode == barcode.trim())) ||
-          (sku != null && sku.trim().isNotEmpty && existingSku == sku.trim()) ||
-          (normName.isNotEmpty && existingNorm == normName)) {
+      final isBarcodeMatch = barcode != null && barcode.trim().isNotEmpty && (existingBarcode == barcode.trim() || existingCode == barcode.trim());
+      final isSkuMatch = sku != null && sku.trim().isNotEmpty && existingSku == sku.trim();
+      final isModelMatch = trimmedModel != null && trimmedModel.isNotEmpty && existingModel == trimmedModel;
+      final isNameMatch = normName.isNotEmpty && existingNorm == normName;
+
+      if (isBarcodeMatch || isSkuMatch || isModelMatch || isNameMatch) {
         return {
           'id': raw['_id']?.toString() ?? '$k',
           'itemKey': k,
           'name': existingName,
           'data': raw,
+          'matchType': isBarcodeMatch ? 'EXACT_BARCODE' : (isSkuMatch ? 'EXACT_SKU' : (isModelMatch ? 'EXACT_MODEL' : 'NORMALIZED_NAME')),
+          'status': ProductMatchStatus.matched,
         };
       }
     }

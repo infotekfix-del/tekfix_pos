@@ -134,8 +134,22 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // Calculations
+  // Calculations & GST Validation (Intra-State CGST/SGST vs Inter-State IGST)
   // ---------------------------------------------------------------------------
+
+  bool _isInterStateGst = false;
+  bool _applyRoundOff = true;
+
+  void _detectGstType() {
+    final clean = _selectedVendorGst.trim().toUpperCase();
+    if (clean.length >= 2) {
+      final stateCode = clean.substring(0, 2);
+      // '32' is Kerala State Code (Default store state)
+      _isInterStateGst = stateCode != '32';
+    } else {
+      _isInterStateGst = false;
+    }
+  }
 
   double get _subtotal => _items.fold(
       0.0, (sum, it) => sum + (it.quantity * it.purchaseRate));
@@ -147,11 +161,23 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
 
   double get _totalTax => _items.fold(0.0, (sum, it) => sum + it.taxAmount);
 
+  double get _cgst => _isInterStateGst ? 0.0 : _totalTax / 2.0;
+
+  double get _sgst => _isInterStateGst ? 0.0 : _totalTax / 2.0;
+
+  double get _igst => _isInterStateGst ? _totalTax : 0.0;
+
   double get _otherCharges => double.tryParse(_otherChargesCtrl.text) ?? 0.0;
 
-  double get _grandTotal =>
+  double get _rawGrandTotal =>
       (_subtotal - _totalDiscount + _totalTax + _otherCharges)
           .clamp(0.0, double.infinity);
+
+  double get _roundOff =>
+      _applyRoundOff ? (_rawGrandTotal.roundToDouble() - _rawGrandTotal) : 0.0;
+
+  double get _grandTotal =>
+      (_rawGrandTotal + _roundOff).clamp(0.0, double.infinity);
 
   double get _enteredPaidAmount =>
       double.tryParse(_paidAmountCtrl.text) ?? 0.0;
@@ -264,17 +290,21 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                   _selectedVendorAddress = matchedVendor['address'] ?? '';
                   _selectedVendorGst = matchedVendor['gst'] ?? '';
                   _vendorPrevBalance = balPaise / 100.0;
+                  _detectGstType();
                 });
               }
             }
 
-            // Auto-populate Section 4 items with Smart Product Matching
+            // Auto-populate Section 4 items with Smart Product Matching (3-State Engine: Green/Amber/Red)
             if (parsed.hasItems) {
               final newItems = <PurchaseBillItem>[];
               for (final pItem in parsed.items) {
                 final match = await PurchaseBillService.instance.matchProductInFirestore(
+                  barcode: pItem.skuOrHsn,
                   sku: pItem.skuOrHsn,
                   name: pItem.description,
+                  purchaseRate: pItem.unitPrice,
+                  quantity: pItem.quantity,
                 );
 
                 final descLower = pItem.description.toLowerCase();
@@ -297,6 +327,9 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                           ? (data?['sellingPricePaise'] as num).toDouble() / 100.0
                           : 0.0);
                   final requiresImei = data?['imeiRequired'] == true || isPhone;
+                  final status = match['status']?.toString() ?? ProductMatchStatus.matched;
+                  final notes = match['notes']?.toString();
+                  final isAnomaly = status == ProductMatchStatus.reviewRequired;
 
                   newItems.add(pItem.toPurchaseBillItem(
                     matchedProductId: match['id']?.toString(),
@@ -308,15 +341,24 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                     model: model,
                     sku: sku,
                     sellingPrice: sellingPrice,
+                    mrp: (data?['mrp'] as num?)?.toDouble() ?? (sellingPrice > 0 ? sellingPrice : pItem.unitPrice * 1.25),
+                    hsnCode: pItem.skuOrHsn,
                     imeiRequired: requiresImei,
-                    isStagedReady: true,
+                    isStagedReady: !isAnomaly,
+                    matchStatusOverride: status,
+                    matchNotes: notes ?? (isAnomaly ? 'Rate or model anomaly detected' : 'Matched to $matchedName'),
+                    extractionConfidence: 0.95,
                   ));
                 } else {
                   newItems.add(pItem.toPurchaseBillItem(
                     isNew: true,
                   ).copyWith(
+                    hsnCode: pItem.skuOrHsn,
                     imeiRequired: isPhone,
                     isStagedReady: false,
+                    matchStatusOverride: ProductMatchStatus.quickRegister,
+                    matchNotes: 'New Item: Not found in inventory (+ Quick Register)',
+                    extractionConfidence: 0.85,
                   ));
                 }
               }
@@ -375,6 +417,7 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
   // ---------------------------------------------------------------------------
 
   void _onInvoiceOrVendorChanged() {
+    _detectGstType();
     final inv = _vendorInvoiceCtrl.text.trim();
     if (inv.isNotEmpty && _selectedVendorKey != null) {
       final dup = PurchaseBillService.instance
@@ -878,7 +921,7 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // SMART PRODUCT MATCHING & INLINE PRODUCT CREATION (Section 4 Inline Modal)
+  // SMART PRODUCT MATCHING & INLINE QUICK REGISTER DRAWER (Section 4)
   // ---------------------------------------------------------------------------
 
   void _showInlineProductRegistrationDialog(int itemIndex) {
@@ -891,6 +934,7 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
     final categoryCtrl = TextEditingController(
       text: item.category.isNotEmpty ? item.category : 'Mobile / Accessories',
     );
+    final hsnCtrl = TextEditingController(text: item.hsnCode ?? '');
     final barcodeCtrl = TextEditingController(
       text: item.sku.isNotEmpty ? item.sku : BarcodeLabelService.instance.generateUniqueBarcode(),
     );
@@ -900,8 +944,17 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
           ? item.sellingPrice.toStringAsFixed(2)
           : (item.purchaseRate * 1.25).toStringAsFixed(2),
     );
+    final mrpCtrl = TextEditingController(
+      text: item.mrp > 0
+          ? item.mrp.toStringAsFixed(2)
+          : (item.sellingPrice > 0
+              ? (item.sellingPrice * 1.1).toStringAsFixed(2)
+              : (item.purchaseRate * 1.35).toStringAsFixed(2)),
+    );
     final customDaysCtrl = TextEditingController(text: (item.customWarrantyDays ?? '').toString());
     final imeiInputCtrl = TextEditingController();
+
+    double selectedGstRate = item.taxPercent > 0 ? item.taxPercent : 18.0;
 
     bool imeiRequired = item.imeiRequired ||
         item.category.toLowerCase().contains('mobile') ||
@@ -916,13 +969,25 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
     bool hasWarranty = item.hasWarranty || selectedWarranty != ItemWarrantyDuration.noWarranty;
     int qty = item.quantity > 0 ? item.quantity : 1;
 
-    final dialogFormKey = GlobalKey<FormState>();
+    final drawerFormKey = GlobalKey<FormState>();
 
-    showDialog(
+    showGeneralDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setModalState) {
+      barrierLabel: 'Quick Register Product',
+      barrierColor: Colors.black.withValues(alpha: 0.65),
+      transitionDuration: const Duration(milliseconds: 260),
+      transitionBuilder: (ctx, anim1, anim2, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1.0, 0.0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: anim1, curve: Curves.easeOutCubic)),
+          child: child,
+        );
+      },
+      pageBuilder: (ctx, anim1, anim2) => StatefulBuilder(
+        builder: (context, setDrawerState) {
           final customD = int.tryParse(customDaysCtrl.text);
           final expiry = hasWarranty
               ? PurchaseBillService.instance.calculateItemWarrantyExpiry(
@@ -932,496 +997,823 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                 )
               : null;
 
-          return AlertDialog(
-            backgroundColor: const Color(0xFF101846),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
-              side: const BorderSide(color: DashboardColors.glassBorderHover),
-            ),
-            title: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: DashboardColors.neonGreen.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.app_registration_rounded, color: DashboardColors.neonGreen, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
+          final curPurchaseRate = double.tryParse(purchaseRateCtrl.text) ?? item.purchaseRate;
+          final curSellingPrice = double.tryParse(sellingPriceCtrl.text) ?? 0.0;
+          final curMargin = curSellingPrice - curPurchaseRate;
+          final curMarginPercent = curSellingPrice > 0 ? ((curMargin / curSellingPrice) * 100) : 0.0;
+
+          final screenWidth = MediaQuery.of(context).size.width;
+          final drawerWidth = screenWidth > 680 ? 620.0 : screenWidth;
+
+          return Align(
+            alignment: Alignment.centerRight,
+            child: Material(
+              color: const Color(0xFF101846),
+              elevation: 24,
+              borderRadius: BorderRadius.horizontal(
+                left: Radius.circular(screenWidth > 680 ? 20 : 0),
+              ),
+              child: SizedBox(
+                width: drawerWidth,
+                height: MediaQuery.of(context).size.height,
+                child: SafeArea(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Register Product to Inventory',
-                        style: DashboardTypography.poppins(fontSize: 17, fontWeight: FontWeight.w700),
-                      ),
-                      Text(
-                        'Inline configuration for Row ${itemIndex + 1} (${item.name})',
-                        style: const TextStyle(fontSize: 12, color: DashboardColors.textMuted),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            content: SizedBox(
-              width: 580,
-              child: Form(
-                key: dialogFormKey,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Product Name (pre-filled from invoice)
-                      _buildDialogTextField(
-                        controller: nameCtrl,
-                        label: 'Product Name *',
-                        icon: Icons.shopping_bag_rounded,
-                        validator: (v) => v == null || v.trim().isEmpty ? 'Enter product name' : null,
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Category & Brand
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildDialogTextField(
-                              controller: categoryCtrl,
-                              label: 'Category',
-                              icon: Icons.category_rounded,
-                              onChanged: (cat) {
-                                final isMob = cat.toLowerCase().contains('mobile') ||
-                                    cat.toLowerCase().contains('phone') ||
-                                    cat.toLowerCase().contains('serial');
-                                if (isMob && !imeiRequired) {
-                                  setModalState(() => imeiRequired = true);
-                                }
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildDialogTextField(
-                              controller: brandCtrl,
-                              label: 'Brand',
-                              icon: Icons.branding_watermark_rounded,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildDialogTextField(
-                              controller: modelCtrl,
-                              label: 'Model',
-                              icon: Icons.devices_other_rounded,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Purchase Rate & Selling Price / MRP
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildDialogTextField(
-                              controller: purchaseRateCtrl,
-                              label: 'Purchase Rate (₹) *',
-                              icon: Icons.currency_rupee_rounded,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              validator: (v) => double.tryParse(v ?? '') == null ? 'Enter valid rate' : null,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildDialogTextField(
-                              controller: sellingPriceCtrl,
-                              label: 'Selling Price / MRP (₹) *',
-                              icon: Icons.sell_rounded,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              validator: (v) {
-                                final p = double.tryParse(v ?? '');
-                                if (p == null || p <= 0) return 'Enter selling price / MRP';
-                                return null;
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Barcode / SKU + Generate Store Barcode (38x25mm Label Compatible)
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: _buildDialogTextField(
-                              controller: barcodeCtrl,
-                              label: 'Barcode / SKU * (38x25mm Label Compatible)',
-                              icon: Icons.qr_code_rounded,
-                              validator: (v) => v == null || v.trim().isEmpty ? 'Enter or generate barcode' : null,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: DashboardColors.neonBlue,
-                                foregroundColor: Colors.black,
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              ),
-                              icon: const Icon(Icons.auto_fix_high_rounded, size: 16),
-                              label: const Text('Generate', style: TextStyle(fontWeight: FontWeight.bold)),
-                              onPressed: () {
-                                final gen = BarcodeLabelService.instance.generateUniqueBarcode();
-                                barcodeCtrl.text = gen;
-                                setModalState(() {});
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // IMEI / Serial Tracking Container
+                      // Drawer Header
                       Container(
-                        padding: const EdgeInsets.all(14),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                         decoration: BoxDecoration(
-                          color: imeiRequired
-                              ? DashboardColors.neonBlue.withValues(alpha: 0.08)
-                              : Colors.white.withValues(alpha: 0.03),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: imeiRequired
-                                ? DashboardColors.neonBlue.withValues(alpha: 0.4)
-                                : const Color(0x1AFFFFFF),
+                          color: Colors.white.withValues(alpha: 0.03),
+                          border: const Border(
+                            bottom: BorderSide(color: DashboardColors.glassBorder),
                           ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Row(
                           children: [
-                            Row(
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: DashboardColors.neonGreen.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(Icons.app_registration_rounded, color: DashboardColors.neonGreen, size: 22),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        'Quick Register Product',
+                                        style: DashboardTypography.poppins(fontSize: 17, fontWeight: FontWeight.w700),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: DashboardColors.alertOrange.withValues(alpha: 0.2),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          'Row ${itemIndex + 1}',
+                                          style: const TextStyle(color: DashboardColors.alertOrange, fontSize: 11, fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Text(
+                                    item.name,
+                                    style: const TextStyle(fontSize: 12, color: DashboardColors.textMuted),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close_rounded, color: DashboardColors.textLight),
+                              onPressed: () => Navigator.pop(ctx),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Drawer Form Body
+                      Expanded(
+                        child: Form(
+                          key: drawerFormKey,
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Icon(
-                                  Icons.qr_code_scanner_rounded,
-                                  color: imeiRequired ? DashboardColors.neonBlue : DashboardColors.textMuted,
-                                  size: 20,
+                                // Product Name
+                                _buildDialogTextField(
+                                  controller: nameCtrl,
+                                  label: 'Product Name *',
+                                  icon: Icons.shopping_bag_rounded,
+                                  validator: (v) => v == null || v.trim().isEmpty ? 'Enter product name' : null,
                                 ),
-                                const SizedBox(width: 10),
-                                Expanded(
+                                const SizedBox(height: 14),
+
+                                // Category, Brand & Model
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildDialogTextField(
+                                        controller: categoryCtrl,
+                                        label: 'Category',
+                                        icon: Icons.category_rounded,
+                                        onChanged: (cat) {
+                                          final isMob = cat.toLowerCase().contains('mobile') ||
+                                              cat.toLowerCase().contains('phone') ||
+                                              cat.toLowerCase().contains('serial');
+                                          if (isMob && !imeiRequired) {
+                                            setDrawerState(() => imeiRequired = true);
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: _buildDialogTextField(
+                                        controller: brandCtrl,
+                                        label: 'Brand',
+                                        icon: Icons.branding_watermark_rounded,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: _buildDialogTextField(
+                                        controller: modelCtrl,
+                                        label: 'Model',
+                                        icon: Icons.devices_other_rounded,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 14),
+
+                                // Pricing & MRP with Live Margin Calculator
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.04),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: DashboardColors.glassBorder),
+                                  ),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      const Text(
-                                        'IMEI / Serial Number Tracking',
-                                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: _buildDialogTextField(
+                                              controller: purchaseRateCtrl,
+                                              label: 'Purchase Rate (₹) *',
+                                              icon: Icons.currency_rupee_rounded,
+                                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                              validator: (v) {
+                                                final val = double.tryParse(v ?? '');
+                                                if (val == null || val <= 0) return 'Enter rate > 0';
+                                                return null;
+                                              },
+                                              onChanged: (_) => setDrawerState(() {}),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: _buildDialogTextField(
+                                              controller: sellingPriceCtrl,
+                                              label: 'Selling Price (₹) *',
+                                              icon: Icons.sell_rounded,
+                                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                              validator: (v) {
+                                                final p = double.tryParse(v ?? '');
+                                                if (p == null || p <= 0) return 'Enter price > 0';
+                                                return null;
+                                              },
+                                              onChanged: (_) => setDrawerState(() {}),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: _buildDialogTextField(
+                                              controller: mrpCtrl,
+                                              label: 'MRP (₹) *',
+                                              icon: Icons.price_check_rounded,
+                                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                              validator: (v) {
+                                                final m = double.tryParse(v ?? '');
+                                                if (m == null || m <= 0) return 'Enter MRP';
+                                                final s = double.tryParse(sellingPriceCtrl.text) ?? 0.0;
+                                                if (m < s) return 'MRP >= Selling';
+                                                return null;
+                                              },
+                                              onChanged: (_) => setDrawerState(() {}),
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                      Text(
-                                        'Requires exactly $qty unique IMEIs for $qty purchased units',
-                                        style: const TextStyle(color: DashboardColors.textMuted, fontSize: 11),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(
+                                            'Gross Margin: ₹${curMargin.toStringAsFixed(2)} (${curMarginPercent.toStringAsFixed(1)}%)',
+                                            style: TextStyle(
+                                              color: curMargin >= 0 ? DashboardColors.neonGreen : DashboardColors.alertOrange,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Selling Price must be <= MRP',
+                                            style: TextStyle(
+                                              color: curSellingPrice <= (double.tryParse(mrpCtrl.text) ?? curSellingPrice)
+                                                  ? DashboardColors.textMuted
+                                                  : DashboardColors.alertOrange,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
                                 ),
-                                Switch(
-                                  value: imeiRequired,
-                                  activeColor: DashboardColors.neonBlue,
-                                  onChanged: (val) {
-                                    setModalState(() => imeiRequired = val);
-                                  },
-                                ),
-                              ],
-                            ),
-                            if (imeiRequired) ...[
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: imeiInputCtrl,
-                                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                                      decoration: InputDecoration(
-                                        hintText: 'Enter IMEI / Serial (e.g. 864501047123456)',
-                                        hintStyle: const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
-                                        filled: true,
-                                        fillColor: Colors.white.withValues(alpha: 0.05),
-                                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                          borderSide: const BorderSide(color: DashboardColors.glassBorder),
-                                        ),
+                                const SizedBox(height: 14),
+
+                                // GST Tax Presets & HSN Code
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      flex: 3,
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'GST Rate Presets (%)',
+                                            style: TextStyle(color: DashboardColors.textLight, fontSize: 12, fontWeight: FontWeight.w600),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Wrap(
+                                            spacing: 6,
+                                            children: [0.0, 5.0, 12.0, 18.0, 28.0].map((rate) {
+                                              final isSel = selectedGstRate == rate;
+                                              return ChoiceChip(
+                                                label: Text('${rate.toInt()}%'),
+                                                selected: isSel,
+                                                selectedColor: DashboardColors.neonPurple,
+                                                backgroundColor: Colors.white.withValues(alpha: 0.05),
+                                                labelStyle: TextStyle(
+                                                  color: isSel ? Colors.white : Colors.white70,
+                                                  fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                                                  fontSize: 12,
+                                                ),
+                                                onSelected: (val) {
+                                                  if (val) setDrawerState(() => selectedGstRate = rate);
+                                                },
+                                              );
+                                            }).toList(),
+                                          ),
+                                        ],
                                       ),
-                                      onFieldSubmitted: (val) {
-                                        final trimmed = val.trim().toUpperCase();
-                                        if (trimmed.isNotEmpty && !enteredImeis.contains(trimmed)) {
-                                          if (enteredImeis.length < qty) {
-                                            setModalState(() {
-                                              enteredImeis.add(trimmed);
-                                              imeiInputCtrl.clear();
-                                            });
-                                          } else {
-                                            TekFeedback.error('Already entered $qty IMEIs for $qty items');
-                                          }
-                                        }
-                                      },
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      flex: 2,
+                                      child: _buildDialogTextField(
+                                        controller: hsnCtrl,
+                                        label: 'HSN Code',
+                                        icon: Icons.tag_rounded,
+                                        hintText: 'e.g. 8517',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 14),
+
+                                // Barcode / SKU with TVS LP46 Generator
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: _buildDialogTextField(
+                                        controller: barcodeCtrl,
+                                        label: 'Barcode / SKU * (TVS LP46 38x25mm Label Ready)',
+                                        icon: Icons.qr_code_rounded,
+                                        validator: (v) => v == null || v.trim().isEmpty ? 'Enter or generate barcode' : null,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: ElevatedButton.icon(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: DashboardColors.neonBlue,
+                                          foregroundColor: Colors.black,
+                                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        ),
+                                        icon: const Icon(Icons.auto_fix_high_rounded, size: 16),
+                                        label: const Text('Generate', style: TextStyle(fontWeight: FontWeight.bold)),
+                                        onPressed: () {
+                                          final gen = BarcodeLabelService.instance.generateUniqueBarcode();
+                                          barcodeCtrl.text = gen;
+                                          setDrawerState(() {});
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+
+                                // IMEI / Serial Tracking Container
+                                Container(
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: imeiRequired
+                                        ? DashboardColors.neonBlue.withValues(alpha: 0.08)
+                                        : Colors.white.withValues(alpha: 0.03),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: imeiRequired
+                                          ? DashboardColors.neonBlue.withValues(alpha: 0.4)
+                                          : const Color(0x1AFFFFFF),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  ElevatedButton.icon(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: DashboardColors.neonGreen,
-                                      foregroundColor: Colors.black,
-                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                    ),
-                                    icon: const Icon(Icons.add_rounded, size: 16),
-                                    label: const Text('Add', style: TextStyle(fontWeight: FontWeight.bold)),
-                                    onPressed: () {
-                                      final trimmed = imeiInputCtrl.text.trim().toUpperCase();
-                                      if (trimmed.isEmpty) return;
-                                      if (enteredImeis.contains(trimmed)) {
-                                        TekFeedback.error('IMEI "$trimmed" is already in the list');
-                                        return;
-                                      }
-                                      if (enteredImeis.length >= qty) {
-                                        TekFeedback.error('Cannot add more than $qty IMEIs');
-                                        return;
-                                      }
-                                      setModalState(() {
-                                        enteredImeis.add(trimmed);
-                                        imeiInputCtrl.clear();
-                                      });
-                                    },
-                                  ),
-                                  const SizedBox(width: 8),
-                                  OutlinedButton.icon(
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: DashboardColors.neonBlue,
-                                      side: const BorderSide(color: DashboardColors.neonBlue),
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                    ),
-                                    icon: const Icon(Icons.paste_rounded, size: 16),
-                                    label: const Text('Paste List'),
-                                    onPressed: () async {
-                                      final bulkCtrl = TextEditingController();
-                                      final res = await showDialog<String>(
-                                        context: context,
-                                        builder: (bCtx) => AlertDialog(
-                                          backgroundColor: const Color(0xFF101846),
-                                          title: const Text('Paste Multiple IMEIs', style: TextStyle(color: Colors.white)),
-                                          content: TextField(
-                                            controller: bulkCtrl,
-                                            maxLines: 6,
-                                            style: const TextStyle(color: Colors.white),
-                                            decoration: const InputDecoration(
-                                              hintText: 'Paste IMEIs separated by commas, spaces, or newlines...',
-                                              hintStyle: TextStyle(color: DashboardColors.textMuted),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.qr_code_scanner_rounded,
+                                            color: imeiRequired ? DashboardColors.neonBlue : DashboardColors.textMuted,
+                                            size: 20,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                const Text(
+                                                  'IMEI / Serial Number Tracking',
+                                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                                ),
+                                                Text(
+                                                  'Requires exactly $qty unique IMEIs for $qty purchased units',
+                                                  style: const TextStyle(color: DashboardColors.textMuted, fontSize: 11),
+                                                ),
+                                              ],
                                             ),
                                           ),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () => Navigator.pop(bCtx),
-                                              child: const Text('Cancel'),
+                                          Switch(
+                                            value: imeiRequired,
+                                            activeColor: DashboardColors.neonBlue,
+                                            onChanged: (val) {
+                                              setDrawerState(() => imeiRequired = val);
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                      if (imeiRequired) ...[
+                                        const SizedBox(height: 12),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: TextFormField(
+                                                controller: imeiInputCtrl,
+                                                style: const TextStyle(color: Colors.white, fontSize: 13),
+                                                decoration: InputDecoration(
+                                                  hintText: 'Enter IMEI / Serial (e.g. 864501047123456)',
+                                                  hintStyle: const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
+                                                  filled: true,
+                                                  fillColor: Colors.white.withValues(alpha: 0.05),
+                                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                                  border: OutlineInputBorder(
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    borderSide: const BorderSide(color: DashboardColors.glassBorder),
+                                                  ),
+                                                ),
+                                                onFieldSubmitted: (val) {
+                                                  final trimmed = val.trim().toUpperCase();
+                                                  if (trimmed.isNotEmpty && !enteredImeis.contains(trimmed)) {
+                                                    if (enteredImeis.length < qty) {
+                                                      setDrawerState(() {
+                                                        enteredImeis.add(trimmed);
+                                                        imeiInputCtrl.clear();
+                                                      });
+                                                    } else {
+                                                      TekFeedback.error('Already entered $qty IMEIs for $qty items');
+                                                    }
+                                                  }
+                                                },
+                                              ),
                                             ),
-                                            ElevatedButton(
-                                              onPressed: () => Navigator.pop(bCtx, bulkCtrl.text),
-                                              child: const Text('Add All'),
+                                            const SizedBox(width: 8),
+                                            ElevatedButton.icon(
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: DashboardColors.neonGreen,
+                                                foregroundColor: Colors.black,
+                                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                              ),
+                                              icon: const Icon(Icons.add_rounded, size: 16),
+                                              label: const Text('Add', style: TextStyle(fontWeight: FontWeight.bold)),
+                                              onPressed: () {
+                                                final trimmed = imeiInputCtrl.text.trim().toUpperCase();
+                                                if (trimmed.isEmpty) return;
+                                                if (enteredImeis.contains(trimmed)) {
+                                                  TekFeedback.error('IMEI "$trimmed" is already in the list');
+                                                  return;
+                                                }
+                                                if (enteredImeis.length >= qty) {
+                                                  TekFeedback.error('Cannot add more than $qty IMEIs');
+                                                  return;
+                                                }
+                                                setDrawerState(() {
+                                                  enteredImeis.add(trimmed);
+                                                  imeiInputCtrl.clear();
+                                                });
+                                              },
+                                            ),
+                                            const SizedBox(width: 8),
+                                            OutlinedButton.icon(
+                                              style: OutlinedButton.styleFrom(
+                                                foregroundColor: DashboardColors.neonBlue,
+                                                side: const BorderSide(color: DashboardColors.neonBlue),
+                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                              ),
+                                              icon: const Icon(Icons.paste_rounded, size: 16),
+                                              label: const Text('Paste List'),
+                                              onPressed: () async {
+                                                final bulkCtrl = TextEditingController();
+                                                final res = await showDialog<String>(
+                                                  context: context,
+                                                  builder: (bCtx) => AlertDialog(
+                                                    backgroundColor: const Color(0xFF101846),
+                                                    title: const Text('Paste Multiple IMEIs', style: TextStyle(color: Colors.white)),
+                                                    content: TextField(
+                                                      controller: bulkCtrl,
+                                                      maxLines: 6,
+                                                      style: const TextStyle(color: Colors.white),
+                                                      decoration: const InputDecoration(
+                                                        hintText: 'Paste IMEIs separated by commas, spaces, or newlines...',
+                                                        hintStyle: TextStyle(color: DashboardColors.textMuted),
+                                                      ),
+                                                    ),
+                                                    actions: [
+                                                      TextButton(
+                                                        onPressed: () => Navigator.pop(bCtx),
+                                                        child: const Text('Cancel'),
+                                                      ),
+                                                      ElevatedButton(
+                                                        onPressed: () => Navigator.pop(bCtx, bulkCtrl.text),
+                                                        child: const Text('Add All'),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                );
+
+                                                if (res != null && res.trim().isNotEmpty) {
+                                                  final tokens = res
+                                                      .split(RegExp(r'[\r\n,\s]+'))
+                                                      .map((e) => e.trim().toUpperCase())
+                                                      .where((e) => e.isNotEmpty);
+                                                  setDrawerState(() {
+                                                    for (final t in tokens) {
+                                                      if (!enteredImeis.contains(t) && enteredImeis.length < qty) {
+                                                        enteredImeis.add(t);
+                                                      }
+                                                    }
+                                                  });
+                                                }
+                                              },
                                             ),
                                           ],
                                         ),
-                                      );
+                                        const SizedBox(height: 10),
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              'Entered IMEIs (${enteredImeis.length} of $qty required):',
+                                              style: TextStyle(
+                                                color: enteredImeis.length == qty
+                                                    ? DashboardColors.neonGreen
+                                                    : DashboardColors.alertOrange,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            if (enteredImeis.isNotEmpty)
+                                              TextButton(
+                                                onPressed: () => setDrawerState(() => enteredImeis.clear()),
+                                                child: const Text('Clear All', style: TextStyle(color: DashboardColors.alertOrange, fontSize: 11)),
+                                              ),
+                                          ],
+                                        ),
+                                        if (enteredImeis.isNotEmpty) ...[
+                                          const SizedBox(height: 6),
+                                          Wrap(
+                                            spacing: 6,
+                                            runSpacing: 6,
+                                            children: enteredImeis.map((imei) {
+                                              return Chip(
+                                                label: Text(imei, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                                                backgroundColor: DashboardColors.neonBlue.withValues(alpha: 0.15),
+                                                deleteIcon: const Icon(Icons.close, size: 14, color: Colors.white70),
+                                                onDeleted: () => setDrawerState(() => enteredImeis.remove(imei)),
+                                              );
+                                            }).toList(),
+                                          ),
+                                        ],
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
 
-                                      if (res != null && res.trim().isNotEmpty) {
-                                        final tokens = res
-                                            .split(RegExp(r'[\r\n,\s]+'))
-                                            .map((e) => e.trim().toUpperCase())
-                                            .where((e) => e.isNotEmpty);
-                                        setModalState(() {
-                                          for (final t in tokens) {
-                                            if (!enteredImeis.contains(t) && enteredImeis.length < qty) {
-                                              enteredImeis.add(t);
-                                            }
-                                          }
-                                        });
-                                      }
-                                    },
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'Entered IMEIs (${enteredImeis.length} of $qty required):',
-                                    style: TextStyle(
-                                      color: enteredImeis.length == qty
-                                          ? DashboardColors.neonGreen
-                                          : DashboardColors.alertOrange,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  if (enteredImeis.isNotEmpty)
-                                    TextButton(
-                                      onPressed: () => setModalState(() => enteredImeis.clear()),
-                                      child: const Text('Clear All', style: TextStyle(color: DashboardColors.alertOrange, fontSize: 11)),
-                                    ),
-                                ],
-                              ),
-                              if (enteredImeis.isNotEmpty) ...[
-                                const SizedBox(height: 6),
+                                // Supplier Warranty Duration Selection
+                                Text('Supplier Warranty Duration', style: DashboardTypography.poppins(fontSize: 14, fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 8),
                                 Wrap(
-                                  spacing: 6,
-                                  runSpacing: 6,
-                                  children: enteredImeis.map((imei) {
-                                    return Chip(
-                                      label: Text(imei, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
-                                      backgroundColor: DashboardColors.neonBlue.withValues(alpha: 0.15),
-                                      deleteIcon: const Icon(Icons.close, size: 14, color: Colors.white70),
-                                      onDeleted: () => setModalState(() => enteredImeis.remove(imei)),
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    ItemWarrantyDuration.noWarranty,
+                                    ItemWarrantyDuration.months3,
+                                    ItemWarrantyDuration.months6,
+                                    ItemWarrantyDuration.months12,
+                                    ItemWarrantyDuration.months24,
+                                    ItemWarrantyDuration.custom,
+                                  ].map((dur) {
+                                    final isSel = selectedWarranty == dur;
+                                    return ChoiceChip(
+                                      label: Text(dur == ItemWarrantyDuration.noWarranty ? '0 Months (No Warranty)' : dur),
+                                      selected: isSel,
+                                      selectedColor: DashboardColors.neonBlue,
+                                      backgroundColor: Colors.white.withValues(alpha: 0.05),
+                                      labelStyle: TextStyle(
+                                        color: isSel ? Colors.black : Colors.white,
+                                        fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                                        fontSize: 12,
+                                      ),
+                                      onSelected: (sel) {
+                                        if (sel) {
+                                          setDrawerState(() {
+                                            selectedWarranty = dur;
+                                            hasWarranty = dur != ItemWarrantyDuration.noWarranty;
+                                          });
+                                        }
+                                      },
                                     );
                                   }).toList(),
                                 ),
+                                if (selectedWarranty == ItemWarrantyDuration.custom) ...[
+                                  const SizedBox(height: 10),
+                                  _buildDialogTextField(
+                                    controller: customDaysCtrl,
+                                    label: 'Custom Duration (Days)',
+                                    icon: Icons.calendar_today_rounded,
+                                    keyboardType: TextInputType.number,
+                                    onChanged: (_) => setDrawerState(() {}),
+                                  ),
+                                ],
+                                if (hasWarranty && expiry != null) ...[
+                                  const SizedBox(height: 10),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: DashboardColors.neonGreen.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: DashboardColors.neonGreen.withValues(alpha: 0.3)),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.verified_rounded, size: 16, color: DashboardColors.neonGreen),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Auto Expiry: ${DateFormat("dd MMM yyyy").format(expiry)} (from ${DateFormat("dd-MM-yyyy").format(_purchaseDate)})',
+                                          style: const TextStyle(color: DashboardColors.neonGreen, fontSize: 12, fontWeight: FontWeight.w600),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ],
-                            ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // Drawer Footer Actions
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.03),
+                          border: const Border(
+                            top: BorderSide(color: DashboardColors.glassBorder),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('Cancel', style: TextStyle(color: DashboardColors.textMuted)),
+                            ),
+                            const SizedBox(width: 12),
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: DashboardColors.neonGreen,
+                                foregroundColor: Colors.black,
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              icon: const Icon(Icons.check_circle_rounded, size: 18),
+                              label: const Text('Save & Mark Matched', style: TextStyle(fontWeight: FontWeight.bold)),
+                              onPressed: () {
+                                if (drawerFormKey.currentState?.validate() != true) return;
+
+                                if (imeiRequired && enteredImeis.length != qty) {
+                                  TekFeedback.error('Please enter exactly $qty IMEIs (currently entered ${enteredImeis.length})');
+                                  return;
+                                }
+
+                                final enteredBarcode = barcodeCtrl.text.trim();
+                                if (enteredBarcode.isNotEmpty) {
+                                  for (final k in Db.items.keys) {
+                                    final raw = Db.items.get(k);
+                                    if (raw is Map) {
+                                      final b = raw['barcode']?.toString().trim();
+                                      final s = raw['sku']?.toString().trim();
+                                      final c = raw['code']?.toString().trim();
+                                      if ((b == enteredBarcode || s == enteredBarcode || c == enteredBarcode) &&
+                                          raw['_id'] != item.matchedProductId) {
+                                        TekFeedback.error('Barcode/SKU "$enteredBarcode" already belongs to "${raw['name']}". Please generate or use a unique barcode.');
+                                        return;
+                                      }
+                                    }
+                                  }
+                                }
+
+                                final rate = double.tryParse(purchaseRateCtrl.text) ?? item.purchaseRate;
+                                final sPrice = double.tryParse(sellingPriceCtrl.text) ?? 0.0;
+                                final mrpVal = double.tryParse(mrpCtrl.text) ?? (sPrice > 0 ? sPrice : rate);
+
+                                final updated = item.copyWith(
+                                  name: nameCtrl.text.trim(),
+                                  brand: brandCtrl.text.trim(),
+                                  model: modelCtrl.text.trim(),
+                                  category: categoryCtrl.text.trim(),
+                                  sku: enteredBarcode,
+                                  hsnCode: hsnCtrl.text.trim(),
+                                  purchaseRate: rate,
+                                  sellingPrice: sPrice,
+                                  mrp: mrpVal,
+                                  taxPercent: selectedGstRate,
+                                  imeiRequired: imeiRequired,
+                                  serialNumbers: enteredImeis,
+                                  imeiOrSerial: enteredImeis.isNotEmpty ? enteredImeis.first : null,
+                                  warrantyAvailable: hasWarranty,
+                                  warrantyDuration: selectedWarranty,
+                                  warrantyExpiryDate: expiry,
+                                  isNewProduct: true,
+                                  isStagedReady: true,
+                                  matchStatusOverride: ProductMatchStatus.matched,
+                                  matchNotes: 'Registered via Quick Register',
+                                  matchedProductName: nameCtrl.text.trim(),
+                                );
+
+                                setState(() {
+                                  _items[itemIndex] = updated;
+                                });
+
+                                Navigator.pop(ctx);
+                                TekFeedback.success('Product "${nameCtrl.text}" saved and marked ready!');
+                              },
+                            ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 16),
-
-                      // Warranty Duration Selection
-                      Text('Warranty Duration', style: DashboardTypography.poppins(fontSize: 14, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          ItemWarrantyDuration.noWarranty,
-                          ItemWarrantyDuration.months3,
-                          ItemWarrantyDuration.months6,
-                          ItemWarrantyDuration.months12,
-                          ItemWarrantyDuration.months24,
-                          ItemWarrantyDuration.custom,
-                        ].map((dur) {
-                          final isSel = selectedWarranty == dur;
-                          return ChoiceChip(
-                            label: Text(dur == ItemWarrantyDuration.noWarranty ? '0 Months (No Warranty)' : dur),
-                            selected: isSel,
-                            selectedColor: DashboardColors.neonBlue,
-                            backgroundColor: Colors.white.withValues(alpha: 0.05),
-                            labelStyle: TextStyle(
-                              color: isSel ? Colors.black : Colors.white,
-                              fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                              fontSize: 12,
-                            ),
-                            onSelected: (sel) {
-                              if (sel) {
-                                setModalState(() {
-                                  selectedWarranty = dur;
-                                  hasWarranty = dur != ItemWarrantyDuration.noWarranty;
-                                });
-                              }
-                            },
-                          );
-                        }).toList(),
-                      ),
-                      if (selectedWarranty == ItemWarrantyDuration.custom) ...[
-                        const SizedBox(height: 10),
-                        _buildDialogTextField(
-                          controller: customDaysCtrl,
-                          label: 'Custom Duration (Days)',
-                          icon: Icons.calendar_today_rounded,
-                          keyboardType: TextInputType.number,
-                          onChanged: (_) => setModalState(() {}),
-                        ),
-                      ],
-                      if (hasWarranty && expiry != null) ...[
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: DashboardColors.neonGreen.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: DashboardColors.neonGreen.withValues(alpha: 0.3)),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.verified_rounded, size: 16, color: DashboardColors.neonGreen),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Auto Expiry: ${DateFormat("dd MMM yyyy").format(expiry)} (from ${DateFormat("dd-MM-yyyy").format(_purchaseDate)})',
-                                style: const TextStyle(color: DashboardColors.neonGreen, fontSize: 12, fontWeight: FontWeight.w600),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ),
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel', style: TextStyle(color: DashboardColors.textMuted)),
+          );
+        },
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Product Match Anomaly Resolution Modal (RED STATE)
+  // ---------------------------------------------------------------------------
+
+  void _showMatchAnomalyDialog(int itemIndex) {
+    if (itemIndex < 0 || itemIndex >= _items.length) return;
+    final item = _items[itemIndex];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF101846),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: DashboardColors.alertOrange),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: DashboardColors.alertOrange.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
               ),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: DashboardColors.neonGreen,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              child: const Icon(Icons.warning_amber_rounded, color: DashboardColors.alertOrange, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Review Required: Product Anomaly',
+                    style: DashboardTypography.poppins(fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
+                  Text(
+                    'Row #${itemIndex + 1}: ${item.itemName}',
+                    style: const TextStyle(fontSize: 12, color: DashboardColors.textMuted),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 520,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: DashboardColors.alertOrange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: DashboardColors.alertOrange.withValues(alpha: 0.4)),
                 ),
-                icon: const Icon(Icons.check_circle_rounded, size: 18),
-                label: const Text('Save & Mark Ready', style: TextStyle(fontWeight: FontWeight.bold)),
-                onPressed: () {
-                  if (dialogFormKey.currentState?.validate() != true) return;
-
-                  if (imeiRequired && enteredImeis.length != qty) {
-                    TekFeedback.error('Please enter exactly $qty IMEIs (currently entered ${enteredImeis.length})');
-                    return;
-                  }
-
-                  final rate = double.tryParse(purchaseRateCtrl.text) ?? item.purchaseRate;
-                  final sPrice = double.tryParse(sellingPriceCtrl.text) ?? 0.0;
-
-                  final updated = item.copyWith(
-                    name: nameCtrl.text.trim(),
-                    brand: brandCtrl.text.trim(),
-                    model: modelCtrl.text.trim(),
-                    category: categoryCtrl.text.trim(),
-                    sku: barcodeCtrl.text.trim(),
-                    purchaseRate: rate,
-                    sellingPrice: sPrice,
-                    imeiRequired: imeiRequired,
-                    serialNumbers: enteredImeis,
-                    imeiOrSerial: enteredImeis.isNotEmpty ? enteredImeis.first : null,
-                    warrantyAvailable: hasWarranty,
-                    warrantyDuration: selectedWarranty,
-                    warrantyExpiryDate: expiry,
-                    isNewProduct: true,
-                    isStagedReady: true,
-                    matchedProductName: nameCtrl.text.trim(),
-                  );
-
+                child: Text(
+                  item.matchNotes ?? 'Rate or catalog anomaly detected. Please verify before continuing.',
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'How would you like to resolve this?',
+                style: TextStyle(color: DashboardColors.textLight, fontWeight: FontWeight.w600, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.check_circle_outline_rounded, color: DashboardColors.neonGreen),
+                title: const Text('Accept & Override Anomaly', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                subtitle: Text(
+                  item.matchedProductName != null
+                      ? 'Keep matched to "${item.matchedProductName}" and proceed with invoice rate (₹${item.purchaseRate.toStringAsFixed(2)})'
+                      : 'Proceed with current item details',
+                  style: const TextStyle(color: DashboardColors.textMuted, fontSize: 11),
+                ),
+                onTap: () {
                   setState(() {
-                    _items[itemIndex] = updated;
+                    _items[itemIndex] = item.copyWith(
+                      matchStatusOverride: ProductMatchStatus.matched,
+                      isStagedReady: true,
+                    );
                   });
-
                   Navigator.pop(ctx);
-                  TekFeedback.success('Product "${nameCtrl.text}" saved and marked ready!');
+                  TekFeedback.success('Anomaly overridden. Item marked ready.');
+                },
+              ),
+              const Divider(color: Color(0x22FFFFFF)),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.app_registration_rounded, color: DashboardColors.neonBlue),
+                title: const Text('Register as Separate / New Product', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                subtitle: const Text('Open Quick Register drawer to stage this as a distinct inventory SKU', style: TextStyle(color: DashboardColors.textMuted, fontSize: 11)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showInlineProductRegistrationDialog(itemIndex);
+                },
+              ),
+              const Divider(color: Color(0x22FFFFFF)),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.link_rounded, color: DashboardColors.neonOrange),
+                title: const Text('Link to a Different Existing Product', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                subtitle: const Text('Search inventory to link this row with another item', style: TextStyle(color: DashboardColors.textMuted, fontSize: 11)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showAddExistingItemDialog();
                 },
               ),
             ],
-          );
-        },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close', style: TextStyle(color: DashboardColors.textMuted)),
+          ),
+        ],
       ),
     );
   }
@@ -2048,6 +2440,16 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
     }
 
     if (!isDraft) {
+      // Validate that all review required anomalies are resolved
+      final reviewAnomaly = _items.indexWhere(
+          (it) => it.matchStatus == ProductMatchStatus.reviewRequired);
+      if (reviewAnomaly != -1) {
+        TekFeedback.error(
+            'Item "${_items[reviewAnomaly].itemName}" has a review-required anomaly. Please resolve before confirming');
+        _showMatchAnomalyDialog(reviewAnomaly);
+        return;
+      }
+
       // Validate that all new items are registered
       final unconfigured =
           _items.indexWhere((it) => it.isNewProduct && !it.isStagedReady);
@@ -3291,7 +3693,7 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                 headingRowColor: WidgetStateProperty.all(
                     Colors.white.withValues(alpha: 0.06)),
                 dataRowColor: WidgetStateProperty.all(Colors.transparent),
-                columnSpacing: 20,
+                columnSpacing: 18,
                 columns: const [
                   DataColumn(
                       label: Text('#',
@@ -3299,17 +3701,17 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                               color: DashboardColors.textMuted,
                               fontWeight: FontWeight.bold))),
                   DataColumn(
-                      label: Text('Item Name',
+                      label: Text('Item Description',
                           style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold))),
                   DataColumn(
-                      label: Text('SKU / Code',
+                      label: Text('Model / HSN',
                           style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold))),
                   DataColumn(
-                      label: Text('IMEI / Serial',
+                      label: Text('Product Match Status',
                           style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold))),
@@ -3329,7 +3731,7 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                               color: Colors.white,
                               fontWeight: FontWeight.bold))),
                   DataColumn(
-                      label: Text('Tax %',
+                      label: Text('GST % / Tax',
                           style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold))),
@@ -3337,6 +3739,11 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                       label: Text('Line Total',
                           style: TextStyle(
                               color: DashboardColors.neonGreen,
+                              fontWeight: FontWeight.bold))),
+                  DataColumn(
+                      label: Text('IMEI / Serial',
+                          style: TextStyle(
+                              color: Colors.white,
                               fontWeight: FontWeight.bold))),
                   DataColumn(
                       label: Text('Warranty',
@@ -3374,102 +3781,122 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                   style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w600)),
-                              if (it.brand.isNotEmpty ||
-                                  it.model.isNotEmpty)
+                              if (it.brand.isNotEmpty || it.category.isNotEmpty)
                                 Text(
-                                    '${it.brand} ${it.model}'
-                                        .trim(),
-                                    style: const TextStyle(
-                                        color: DashboardColors.textMuted,
-                                        fontSize: 11)),
-                              const SizedBox(height: 4),
-                              if (!it.isNewProduct &&
-                                  it.matchedProductId != null)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: DashboardColors.neonGreen
-                                        .withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(
-                                        color: DashboardColors.neonGreen
-                                            .withValues(alpha: 0.4)),
-                                  ),
-                                  child: Text(
-                                    'Matched to ${it.matchedProductName ?? it.itemName}',
-                                    style: const TextStyle(
-                                        color: DashboardColors.neonGreen,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                )
-                              else if (it.isNewProduct && !it.isStagedReady)
-                                InkWell(
-                                  onTap: () =>
-                                      _showInlineProductRegistrationDialog(idx),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: DashboardColors.alertOrange
-                                          .withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(
-                                          color: DashboardColors.alertOrange),
-                                    ),
-                                    child: const Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(Icons.add_circle_outline_rounded,
-                                            size: 11,
-                                            color:
-                                                DashboardColors.alertOrange),
-                                        SizedBox(width: 4),
-                                        Text(
-                                          'New Item Detected: + Register to Inventory',
-                                          style: TextStyle(
-                                              color:
-                                                  DashboardColors.alertOrange,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                )
-                              else if (it.isNewProduct && it.isStagedReady)
-                                InkWell(
-                                  onTap: () =>
-                                      _showInlineProductRegistrationDialog(idx),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: DashboardColors.neonBlue
-                                          .withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(
-                                          color: DashboardColors.neonBlue
-                                              .withValues(alpha: 0.4)),
-                                    ),
-                                    child: Text(
-                                      'Ready to Register (MRP ₹${it.sellingPrice.toStringAsFixed(0)})',
-                                      style: const TextStyle(
-                                          color: DashboardColors.neonBlue,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
+                                  '${it.brand.isNotEmpty ? it.brand : ''} ${it.category.isNotEmpty ? '• ${it.category}' : ''}'
+                                      .trim(),
+                                  style: const TextStyle(
+                                      color: DashboardColors.textMuted,
+                                      fontSize: 11),
                                 ),
                             ],
                           ),
                         ),
                       ),
-                      DataCell(Text(
-                          it.productCode.isNotEmpty ? it.productCode : '-',
-                          style: const TextStyle(
-                              color: DashboardColors.textLight))),
+                      DataCell(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              it.model.isNotEmpty ? it.model : (it.productCode.isNotEmpty ? it.productCode : '-'),
+                              style: const TextStyle(color: Colors.white, fontSize: 12),
+                            ),
+                            if (it.hsnCode.isNotEmpty)
+                              Text('HSN: ${it.hsnCode}',
+                                  style: const TextStyle(
+                                      color: DashboardColors.textMuted, fontSize: 10)),
+                          ],
+                        ),
+                      ),
+                      DataCell(
+                        () {
+                          final status = it.matchStatus;
+                          if (status == ProductMatchStatus.matched) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: DashboardColors.neonGreen.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                    color: DashboardColors.neonGreen.withValues(alpha: 0.4)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.check_circle_rounded,
+                                      size: 12, color: DashboardColors.neonGreen),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    it.isNewProduct
+                                        ? 'Ready to Register (MRP ₹${it.sellingPrice.toStringAsFixed(0)})'
+                                        : 'Matched to ${it.matchedProductName ?? it.itemName}',
+                                    style: const TextStyle(
+                                        color: DashboardColors.neonGreen,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            );
+                          } else if (status == ProductMatchStatus.quickRegister) {
+                            return InkWell(
+                              onTap: () => _showInlineProductRegistrationDialog(idx),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: DashboardColors.alertOrange.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: DashboardColors.alertOrange),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.add_circle_outline_rounded,
+                                        size: 12, color: DashboardColors.alertOrange),
+                                    SizedBox(width: 5),
+                                    Text(
+                                      'New Item: + Quick Register',
+                                      style: TextStyle(
+                                          color: DashboardColors.alertOrange,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          } else {
+                            // ProductMatchStatus.reviewRequired
+                            return InkWell(
+                              onTap: () => _showMatchAnomalyDialog(idx),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: DashboardColors.alertRed.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: DashboardColors.alertRed),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.warning_amber_rounded,
+                                        size: 12, color: DashboardColors.alertRed),
+                                    SizedBox(width: 5),
+                                    Text(
+                                      'Review Required: Anomaly',
+                                      style: TextStyle(
+                                          color: DashboardColors.alertRed,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
+                        }(),
+                      ),
                       DataCell(
                         it.imeiRequired
                             ? InkWell(
@@ -3594,19 +4021,27 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                           children: [
                             IconButton(
                               icon: Icon(
-                                it.isNewProduct && !it.isStagedReady
-                                    ? Icons.app_registration_rounded
-                                    : Icons.edit_rounded,
-                                color: it.isNewProduct && !it.isStagedReady
-                                    ? DashboardColors.alertOrange
-                                    : DashboardColors.neonBlue,
+                                it.matchStatus == ProductMatchStatus.reviewRequired
+                                    ? Icons.warning_amber_rounded
+                                    : (it.isNewProduct && !it.isStagedReady
+                                        ? Icons.app_registration_rounded
+                                        : Icons.edit_rounded),
+                                color: it.matchStatus == ProductMatchStatus.reviewRequired
+                                    ? DashboardColors.alertRed
+                                    : (it.isNewProduct && !it.isStagedReady
+                                        ? DashboardColors.alertOrange
+                                        : DashboardColors.neonBlue),
                                 size: 18,
                               ),
-                              tooltip: it.isNewProduct
-                                  ? 'Register / Edit Product'
-                                  : 'Edit Item',
+                              tooltip: it.matchStatus == ProductMatchStatus.reviewRequired
+                                  ? 'Review Anomaly'
+                                  : (it.isNewProduct
+                                      ? 'Register / Edit Product'
+                                      : 'Edit Item'),
                               onPressed: () {
-                                if (it.isNewProduct) {
+                                if (it.matchStatus == ProductMatchStatus.reviewRequired) {
+                                  _showMatchAnomalyDialog(idx);
+                                } else if (it.isNewProduct) {
                                   _showInlineProductRegistrationDialog(idx);
                                 } else {
                                   _openConfigureItemDialog(
@@ -3659,27 +4094,94 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: DashboardColors.neonOrange.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.calculate_rounded,
-                    color: DashboardColors.neonOrange, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Row(
                 children: [
-                  Text('5. Purchase Bill Total Calculation',
-                      style: DashboardTypography.poppins(
-                          fontSize: 16, fontWeight: FontWeight.w700)),
-                  Text(
-                    'Accurate decimal calculations in Indian Rupees (₹)',
-                    style: DashboardTypography.inter(
-                        fontSize: 12, color: DashboardColors.textMuted),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: DashboardColors.neonOrange.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.calculate_rounded,
+                        color: DashboardColors.neonOrange, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('5. Purchase Bill Total Calculation',
+                          style: DashboardTypography.poppins(
+                              fontSize: 16, fontWeight: FontWeight.w700)),
+                      Text(
+                        'Accurate decimal calculations in Indian Rupees (₹)',
+                        style: DashboardTypography.inter(
+                            fontSize: 12, color: DashboardColors.textMuted),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              // GST Mode & Round Off Controls
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: DashboardColors.glassBorder),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _isInterStateGst ? 'Inter-State (IGST)' : 'Intra-State (CGST+SGST)',
+                          style: TextStyle(
+                            color: _isInterStateGst ? DashboardColors.neonPurple : DashboardColors.neonBlue,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Switch(
+                          value: _isInterStateGst,
+                          activeColor: DashboardColors.neonPurple,
+                          inactiveThumbColor: DashboardColors.neonBlue,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          onChanged: (val) => setState(() => _isInterStateGst = val),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: DashboardColors.glassBorder),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Round Off',
+                          style: TextStyle(color: DashboardColors.textLight, fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(width: 4),
+                        Checkbox(
+                          value: _applyRoundOff,
+                          activeColor: DashboardColors.neonGreen,
+                          checkColor: Colors.black,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          onChanged: (val) => setState(() => _applyRoundOff = val ?? true),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -3702,8 +4204,22 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                         Icons.format_list_numbered_rounded, DashboardColors.neonBlue),
                     _buildCalcCard('Total Discount', '- ₹${_totalDiscount.toStringAsFixed(2)}',
                         Icons.discount_rounded, DashboardColors.alertOrange),
-                    _buildCalcCard('Total Tax / GST', '+ ₹${_totalTax.toStringAsFixed(2)}',
-                        Icons.receipt_rounded, DashboardColors.neonPurple),
+                    if (!_isInterStateGst) ...[
+                      _buildCalcCard('CGST (50%)', '+ ₹${_cgst.toStringAsFixed(2)}',
+                          Icons.receipt_rounded, DashboardColors.neonBlue),
+                      _buildCalcCard('SGST (50%)', '+ ₹${_sgst.toStringAsFixed(2)}',
+                          Icons.receipt_long_rounded, DashboardColors.neonBlue),
+                    ] else ...[
+                      _buildCalcCard('IGST (100%)', '+ ₹${_igst.toStringAsFixed(2)}',
+                          Icons.receipt_rounded, DashboardColors.neonPurple),
+                    ],
+                    if (_applyRoundOff && _roundOff.abs() > 0.001)
+                      _buildCalcCard(
+                        'Round Off',
+                        '${_roundOff >= 0 ? '+' : '-'} ₹${_roundOff.abs().toStringAsFixed(2)}',
+                        Icons.exposure_rounded,
+                        DashboardColors.neonGreen,
+                      ),
                   ],
                 ),
               ),
@@ -3743,6 +4259,25 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                         ),
                         onChanged: (_) => setState(() {}),
                       ),
+                      if (_applyRoundOff && _roundOff.abs() > 0.001) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Round Off Amount:',
+                                style: TextStyle(
+                                    color: DashboardColors.textMuted,
+                                    fontSize: 12)),
+                            Text(
+                              '${_roundOff >= 0 ? '+' : '-'} ₹${_roundOff.abs().toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                  color: DashboardColors.neonGreen,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ],
                       const SizedBox(height: 14),
                       const Divider(color: Color(0x22FFFFFF)),
                       const SizedBox(height: 8),
