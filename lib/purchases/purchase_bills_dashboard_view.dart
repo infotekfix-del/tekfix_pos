@@ -4,9 +4,11 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../auth/auth_controller.dart';
-import '../main.dart' show Db, boxPurchaseBills, boxParties;
+import '../main.dart' show boxPurchaseBills;
 import '../ui/dashboard/dashboard_tokens.dart';
 import '../ui/tek_feedback.dart';
+import 'manual_purchase_draft_service.dart';
+import 'manual_purchase_entry_screen.dart';
 import 'purchase_bill_details_screen.dart';
 import 'purchase_bill_service.dart';
 import 'purchase_bill_upload_screen.dart';
@@ -377,50 +379,49 @@ class _PurchaseBillsDashboardViewState
   // ---------------------------------------------------------------------------
 
   Widget _buildHeader(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final titleWidget = Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    gradient: DashboardColors.activePillGradient,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.receipt_long_rounded,
-                      color: Colors.white, size: 24),
-                ),
-                const SizedBox(width: 14),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Purchase Bills & Vendor Payments',
-                      style: DashboardTypography.poppins(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    Text(
-                      'Manage supplier invoices, document uploads, inventory updates & vendor ledgers',
-                      style: DashboardTypography.inter(
-                        fontSize: 12.5,
-                        color: DashboardColors.textMuted,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            gradient: DashboardColors.activePillGradient,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(Icons.receipt_long_rounded,
+              color: Colors.white, size: 24),
         ),
-        Row(
-          children: [
+        const SizedBox(width: 14),
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Purchase Bills & Vendor Payments',
+                style: DashboardTypography.poppins(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              Text(
+                'Manage supplier invoices, document uploads, inventory updates & vendor ledgers',
+                style: DashboardTypography.inter(
+                  fontSize: 12.5,
+                  color: DashboardColors.textMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    final buttonsWidget = Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
             // Advance Payment Button
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
@@ -458,28 +459,50 @@ class _PurchaseBillsDashboardViewState
                 );
               },
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 12),
 
-            // Prominent "+ Upload Purchase Bill" Button
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: DashboardColors.neonBlue,
-                foregroundColor: Colors.black,
+            // Resume Draft Button (if draft exists)
+            if (ManualPurchaseDraftService.instance.hasDraft()) ...[
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: DashboardColors.neonOrange,
+                  side: const BorderSide(color: DashboardColors.neonOrange),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.restore_rounded, size: 18),
+                label: const Text('Resume Draft',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const ManualPurchaseEntryScreen()),
+                  );
+                },
+              ),
+              const SizedBox(width: 12),
+            ],
+
+            // Choice A: [ Upload / Capture Bill ]
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: DashboardColors.neonBlue,
+                side: const BorderSide(color: DashboardColors.neonBlue, width: 1.5),
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
-                elevation: 4,
-                shadowColor: DashboardColors.neonBlue.withValues(alpha: 0.4),
               ),
-              icon: const Icon(Icons.add_circle_rounded,
-                  color: Colors.black, size: 20),
+              icon: const Icon(Icons.document_scanner_rounded, size: 18),
               label: Text(
-                '+ Upload Purchase Bill',
+                'Upload / Capture Bill',
                 style: DashboardTypography.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.black,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: DashboardColors.neonBlue,
                 ),
               ),
               onPressed: () {
@@ -491,9 +514,70 @@ class _PurchaseBillsDashboardViewState
                 );
               },
             ),
-          ],
-        ),
+            const SizedBox(width: 12),
+
+            // Choice B: [ Manual Purchase Entry ]
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: DashboardColors.neonGreen,
+                foregroundColor: Colors.black,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                elevation: 4,
+                shadowColor: DashboardColors.neonGreen.withValues(alpha: 0.4),
+              ),
+              icon: const Icon(Icons.edit_note_rounded,
+                  color: Colors.black, size: 20),
+              label: Text(
+                'Manual Purchase Entry',
+                style: DashboardTypography.poppins(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black,
+                ),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ManualPurchaseEntryScreen(),
+                  ),
+                );
+              },
+            ),
       ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 1350) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              titleWidget,
+              const SizedBox(height: 14),
+              buttonsWidget,
+            ],
+          );
+        }
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(child: titleWidget),
+            const SizedBox(width: 16),
+            Expanded(
+              flex: 2,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: buttonsWidget,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -620,11 +704,16 @@ class _PurchaseBillsDashboardViewState
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(title,
-                  style: const TextStyle(
-                      color: DashboardColors.textMuted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600)),
+              Expanded(
+                child: Text(title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: DashboardColors.textMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600)),
+              ),
+              const SizedBox(width: 4),
               Icon(icon, color: color, size: 16),
             ],
           ),
@@ -704,6 +793,7 @@ class _PurchaseBillsDashboardViewState
           Expanded(
             flex: 2,
             child: DropdownButtonFormField<dynamic>(
+              isExpanded: true,
               value: _selectedVendorKey,
               dropdownColor: const Color(0xFF101846),
               style: const TextStyle(color: Colors.white, fontSize: 13),
@@ -839,24 +929,53 @@ class _PurchaseBillsDashboardViewState
                   style:
                       TextStyle(color: DashboardColors.textMuted, fontSize: 13)),
               const SizedBox(height: 18),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: DashboardColors.neonBlue,
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                ),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('+ Upload Purchase Bill',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const PurchaseBillUploadScreen(),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: DashboardColors.neonBlue,
+                      side: const BorderSide(color: DashboardColors.neonBlue),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
                     ),
-                  );
-                },
+                    icon: const Icon(Icons.document_scanner_rounded, size: 18),
+                    label: const Text('Upload / Capture Bill',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const PurchaseBillUploadScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 14),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: DashboardColors.neonGreen,
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 18, vertical: 12),
+                    ),
+                    icon: const Icon(Icons.edit_note_rounded, size: 18),
+                    label: const Text('Manual Purchase Entry',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ManualPurchaseEntryScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
             ],
           ),
@@ -940,12 +1059,20 @@ class _PurchaseBillsDashboardViewState
                           ),
                         );
                       },
-                      child: Text(
-                        b.billNumber,
-                        style: const TextStyle(
-                          color: DashboardColors.neonBlue,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            b.billNumber,
+                            style: const TextStyle(
+                              color: DashboardColors.neonBlue,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          _buildSourceChip(b.entrySource),
+                        ],
                       ),
                     ),
                   ),
@@ -1134,6 +1261,36 @@ class _PurchaseBillsDashboardViewState
       child: Text(
         status.toUpperCase(),
         style: TextStyle(color: text, fontWeight: FontWeight.bold, fontSize: 11),
+      ),
+    );
+  }
+
+  Widget _buildSourceChip(String source) {
+    final isManual = source == EntrySource.manual;
+    final color = isManual ? DashboardColors.neonGreen : DashboardColors.neonPurple;
+    final label = isManual ? 'Manual' : 'Auto';
+    final icon = isManual ? Icons.edit_note_rounded : Icons.document_scanner_rounded;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: color),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }

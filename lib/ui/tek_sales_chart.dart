@@ -166,6 +166,7 @@ class _TekSalesChartState extends State<TekSalesChart> {
                   ),
                 ],
               ),
+              ),
 
               // Period Selector Tabs
               Container(

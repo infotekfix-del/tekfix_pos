@@ -153,6 +153,48 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
         ],
       ),
       actions: [
+        Container(
+          margin: const EdgeInsets.only(right: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: bill.entrySource == EntrySource.manual
+                ? DashboardColors.neonGreen.withValues(alpha: 0.15)
+                : DashboardColors.neonPurple.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: bill.entrySource == EntrySource.manual
+                  ? DashboardColors.neonGreen.withValues(alpha: 0.4)
+                  : DashboardColors.neonPurple.withValues(alpha: 0.4),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                bill.entrySource == EntrySource.manual
+                    ? Icons.edit_note_rounded
+                    : Icons.document_scanner_rounded,
+                size: 13,
+                color: bill.entrySource == EntrySource.manual
+                    ? DashboardColors.neonGreen
+                    : DashboardColors.neonPurple,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                bill.entrySource == EntrySource.manual
+                    ? 'Manual Entry'
+                    : 'Auto / Bill Upload',
+                style: DashboardTypography.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: bill.entrySource == EntrySource.manual
+                      ? DashboardColors.neonGreen
+                      : DashboardColors.neonPurple,
+                ),
+              ),
+            ],
+          ),
+        ),
         if (bill.isDraft)
           Container(
             margin: const EdgeInsets.only(right: 16),

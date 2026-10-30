@@ -43,12 +43,12 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView> {
   }
 
   void _applyLocalDefaults() {
-    _versionController.text = '1.0.7';
-    _buildNumberController.text = '7';
+    _versionController.text = '1.0.8';
+    _buildNumberController.text = '8';
     _apkUrlController.text =
-        'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.7/app-release.apk';
+        'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.8/app-release.apk';
     _releaseNotesController.text =
-        '• Advanced Purchase Bill Automation (Phases 1–6 Complete)\n• Native PDF text extraction & OCR invoice parser (Stage A/B/C)\n• 3-State Smart Product Matching (Green: Matched, Amber: Quick Register, Red: Review Required)\n• Serialized IMEI tracking with 3GPP Mod-10 Luhn checksum and Dual-IMEI support\n• TVS LP 46 Lite direct barcode label printing (38 mm x 25 mm Code 128) with test prints & reprints\n• Vendor ledger running balance & atomic Cloud Firestore stock sync';
+        '• Manual Purchase Entry core feature in Purchase Module (Phase 2)\n• Two clear choices: Upload / Capture Bill or Manual Purchase Entry\n• Integer paise GST calculation engine (Intra-state CGST+SGST, Inter-state IGST, Round-Off)\n• Draft auto-save and restore capability\n• Inline Quick Register drawer and Quick Add Supplier sheet\n• Unified atomic stock, ledger & accounting entry pipeline with entrySource tagging';
     _isMandatory = true;
   }
 

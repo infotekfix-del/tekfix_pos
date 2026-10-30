@@ -17,7 +17,6 @@ import 'package:tekfix_erp_pos/main.dart'
         boxVendorPayments;
 import 'package:tekfix_erp_pos/purchases/purchase_bill_service.dart';
 import 'package:tekfix_erp_pos/purchases/purchase_models.dart';
-import 'package:tekfix_erp_pos/ui/dashboard/dashboard_tokens.dart';
 
 void main() {
   late Directory tempDir;
@@ -232,7 +231,7 @@ void main() {
       const double otherCharges = 25.0;
 
       final double rawGrandTotal = subtotal - totalDiscount + totalTax + otherCharges;
-      const bool applyRoundOff = true;
+      final bool applyRoundOff = !subtotal.isNaN;
       final double grandTotal = applyRoundOff ? rawGrandTotal.roundToDouble() : rawGrandTotal;
       final double roundOff = grandTotal - rawGrandTotal;
 

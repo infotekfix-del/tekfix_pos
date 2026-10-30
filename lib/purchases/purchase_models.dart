@@ -611,6 +611,12 @@ class VendorPaymentRecord {
   }
 }
 
+/// Entry source constants for PurchaseBill.entrySource
+class EntrySource {
+  static const String billUpload = 'bill_upload';
+  static const String manual = 'manual';
+}
+
 /// Complete Purchase Bill Record
 class PurchaseBill {
   final dynamic key;
@@ -646,6 +652,9 @@ class PurchaseBill {
 
   final String? storagePath;
   final double? invoiceExtractedTotal;
+
+  /// 'bill_upload' (default, including legacy records) or 'manual'.
+  final String entrySource;
 
   // Integer Paise Calculations
   int get subtotalPaise => (subtotal * 100).round();
@@ -689,6 +698,7 @@ class PurchaseBill {
     this.isDraft = false,
     required this.createdAt,
     required this.updatedAt,
+    this.entrySource = EntrySource.billUpload,
   });
 
   Map<String, dynamic> toMap() => {
@@ -730,6 +740,7 @@ class PurchaseBill {
         'isDraft': isDraft,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
+        'entrySource': entrySource,
       };
 
   factory PurchaseBill.fromMap(Map<dynamic, dynamic> m, [dynamic key]) {
@@ -787,6 +798,7 @@ class PurchaseBill {
       isDraft: m['isDraft'] == true,
       createdAt: DateTime.tryParse(m['createdAt']?.toString() ?? '') ?? DateTime.now(),
       updatedAt: DateTime.tryParse(m['updatedAt']?.toString() ?? '') ?? DateTime.now(),
+      entrySource: m['entrySource']?.toString() ?? EntrySource.billUpload,
     );
   }
 
@@ -804,6 +816,7 @@ class PurchaseBill {
     String? notes,
     bool? isDraft,
     DateTime? updatedAt,
+    String? entrySource,
   }) {
     return PurchaseBill(
       key: key ?? this.key,
@@ -838,6 +851,7 @@ class PurchaseBill {
       isDraft: isDraft ?? this.isDraft,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
+      entrySource: entrySource ?? this.entrySource,
     );
   }
 }

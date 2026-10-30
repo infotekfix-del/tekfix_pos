@@ -477,6 +477,7 @@ class PurchaseBillService {
     String? notes,
     double? invoiceExtractedTotal,
     String? shopId,
+    String entrySource = 'bill_upload',
   }) async {
     // 1. Pre-validation checks
     if (items.isEmpty) {
@@ -767,6 +768,7 @@ class PurchaseBillService {
           'createdById': staffId,
           'createdByName': staffName,
           'notes': notes?.trim(),
+          'entrySource': entrySource,
           'createdAt': FieldValue.serverTimestamp(),
           'confirmedAt': FieldValue.serverTimestamp(),
         };
@@ -947,6 +949,7 @@ class PurchaseBillService {
         isDraft: false,
         createdAt: now,
         updatedAt: now,
+        entrySource: entrySource,
       );
 
       if (_billsBox.isOpen) {
