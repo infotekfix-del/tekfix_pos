@@ -3253,33 +3253,6 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
           invoiceExtractedTotal: _invoiceExtractedTotal,
         );
 
-        // Also sync to local Hive for offline/fast list loading
-        try {
-          await PurchaseBillService.instance.savePurchaseBill(
-            key: widget.editBill?.key,
-            billNumber: _billNumberCtrl.text.trim(),
-            vendorInvoiceNumber: _vendorInvoiceCtrl.text.trim(),
-            vendorKey: _selectedVendorKey,
-            vendorName: _selectedVendorName,
-            vendorPhone: _selectedVendorPhone,
-            vendorGst: _selectedVendorGst,
-            vendorAddress: _selectedVendorAddress,
-            purchaseDate: combinedPurchaseDate,
-            items: _items,
-            otherCharges: _otherCharges,
-            initialPaidAmount: _safePaidAmount,
-            initialPaymentMethod: _paymentMethod,
-            initialPaymentReference: _paymentRefCtrl.text.trim(),
-            attachment: _attachment,
-            staffId: auth.uid,
-            staffName: auth.name.isNotEmpty ? auth.name : 'Owner',
-            notes: _notesCtrl.text.trim(),
-            isDraft: false,
-          );
-        } catch (hiveErr) {
-          debugPrint('[PurchaseBillUpload] Hive local sync notice: $hiveErr');
-        }
-
         _flowState = PurchaseBillFlowState.confirmed;
         TekFeedback.success(
             'Purchase Bill confirmed & Firestore stock synced (${saved.billNumber})');
