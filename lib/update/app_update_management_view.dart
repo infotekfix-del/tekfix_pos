@@ -43,12 +43,12 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView> {
   }
 
   void _applyLocalDefaults() {
-    _versionController.text = '1.0.6';
-    _buildNumberController.text = '6';
+    _versionController.text = '1.0.7';
+    _buildNumberController.text = '7';
     _apkUrlController.text =
-        'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.6/app-release.apk';
+        'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.7/app-release.apk';
     _releaseNotesController.text =
-        '• Purchase Bill Automation: Native PDF Stream extraction & OCR invoice parsing\n• Auto-Item Extraction and Smart Inventory Product Matching (Barcode/SKU/Name)\n• Inline Product Registration modal with TVS LP 46 Lite 38x25mm Label generation\n• Mandatory IMEI/Serial Tracking with Duplication Validation\n• Strict Atomic Cloud Firestore Stock Sync (Reads-Before-Writes)\n• Multi-Unit Conversion (Sheets/Bundles) and Live Vendor Ledger Balances';
+        '• Advanced Purchase Bill Automation (Phases 1–6 Complete)\n• Native PDF text extraction & OCR invoice parser (Stage A/B/C)\n• 3-State Smart Product Matching (Green: Matched, Amber: Quick Register, Red: Review Required)\n• Serialized IMEI tracking with 3GPP Mod-10 Luhn checksum and Dual-IMEI support\n• TVS LP 46 Lite direct barcode label printing (38 mm x 25 mm Code 128) with test prints & reprints\n• Vendor ledger running balance & atomic Cloud Firestore stock sync';
     _isMandatory = true;
   }
 
