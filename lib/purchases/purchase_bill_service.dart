@@ -309,23 +309,31 @@ class PurchaseBillService {
     final duplicates = <String>[];
     if (imeis.isEmpty) return duplicates;
     final sId = (shopId != null && shopId.isNotEmpty) ? shopId : Db.setting('shop_id', 'tekfix');
-    final fs = FirebaseFirestore.instance;
 
+    // Extract both primary and secondary IMEIs if dual-IMEI pairs exist
+    final individualImeis = <String>{};
     for (final imei in imeis) {
-      final cleanImei = imei.trim().toUpperCase();
-      if (cleanImei.isEmpty) continue;
-      try {
-        final snap = await fs
-            .collection('shops')
-            .doc(sId)
-            .collection('stock_units')
-            .doc(cleanImei)
-            .get();
-        if (snap.exists && snap.data()?['status'] == 'IN_STOCK') {
-          duplicates.add(cleanImei);
-        }
-      } catch (_) {}
+      individualImeis.addAll(ImeiValidator.extractImeisFromUnit(imei));
     }
+
+    if (Firebase.apps.isNotEmpty) {
+      final fs = FirebaseFirestore.instance;
+      for (final cleanImei in individualImeis) {
+        if (cleanImei.isEmpty) continue;
+        try {
+          final snap = await fs
+              .collection('shops')
+              .doc(sId)
+              .collection('stock_units')
+              .doc(cleanImei)
+              .get();
+          if (snap.exists && snap.data()?['status'] == 'IN_STOCK') {
+            duplicates.add(cleanImei);
+          }
+        } catch (_) {}
+      }
+    }
+
     return duplicates;
   }
 
@@ -560,13 +568,15 @@ class PurchaseBillService {
     final vDocId = vendorKey?.toString() ?? 'VENDOR_${now.millisecondsSinceEpoch}';
     final vendorRef = firestore.collection('shops').doc(sId).collection('parties').doc(vDocId);
 
-    // Collect all unique IMEIs across items:
+    // Collect all unique IMEIs across items (including Dual-IMEI pairs):
     final allImeis = <String, PurchaseBillItem>{};
     for (final it in items) {
       for (final sn in it.serialNumbers) {
-        final cleanSn = sn.trim().toUpperCase();
-        if (cleanSn.isNotEmpty) {
-          allImeis[cleanSn] = it;
+        final individualImeis = ImeiValidator.extractImeisFromUnit(sn);
+        for (final imei in individualImeis) {
+          if (imei.isNotEmpty) {
+            allImeis[imei] = it;
+          }
         }
       }
     }

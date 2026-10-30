@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+export 'imei_validator.dart';
 
 /// Payment Status for a Purchase Bill.
 class BillPaymentStatus {
@@ -353,6 +354,7 @@ class PurchaseBillItem {
     double? lineTotal,
     bool? warrantyAvailable,
     String? warrantyDuration,
+    int? customWarrantyDays,
     DateTime? warrantyExpiryDate,
     String? imeiOrSerial,
     List<String>? serialNumbers,
@@ -391,6 +393,7 @@ class PurchaseBillItem {
       lineTotal: lineTotal ?? this.lineTotal,
       warrantyAvailable: warrantyAvailable ?? this.warrantyAvailable,
       warrantyDuration: warrantyDuration ?? this.warrantyDuration,
+      customWarrantyDays: customWarrantyDays ?? this.customWarrantyDays,
       warrantyExpiryDate: warrantyExpiryDate ?? this.warrantyExpiryDate,
       matchedProductId: matchedProductId ?? this.matchedProductId,
       matchedProductName: matchedProductName ?? this.matchedProductName,

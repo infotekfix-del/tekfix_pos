@@ -1819,6 +1819,702 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
   }
 
   // ---------------------------------------------------------------------------
+  // Serialized Stock, Dual-IMEI & Supplier Warranty Dialog (PHASE 3)
+  // ---------------------------------------------------------------------------
+
+  Widget _buildLuhnBadge(String status, {String labelPrefix = '', bool compact = false}) {
+    Color bg;
+    Color border;
+    Color fg;
+    String text;
+    IconData icon;
+
+    switch (status) {
+      case 'VALID_IMEI':
+        bg = DashboardColors.neonGreen.withValues(alpha: 0.15);
+        border = DashboardColors.neonGreen.withValues(alpha: 0.4);
+        fg = DashboardColors.neonGreen;
+        text = 'Luhn OK';
+        icon = Icons.verified_rounded;
+        break;
+      case 'INVALID_LUHN_IMEI':
+        bg = DashboardColors.alertOrange.withValues(alpha: 0.2);
+        border = DashboardColors.alertOrange.withValues(alpha: 0.5);
+        fg = DashboardColors.alertOrange;
+        text = 'Invalid Luhn';
+        icon = Icons.warning_amber_rounded;
+        break;
+      case 'DEVICE_SERIAL':
+        bg = DashboardColors.neonBlue.withValues(alpha: 0.15);
+        border = DashboardColors.neonBlue.withValues(alpha: 0.4);
+        fg = DashboardColors.neonBlue;
+        text = 'Device Serial';
+        icon = Icons.tag_rounded;
+        break;
+      default:
+        return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 8, vertical: compact ? 2 : 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: compact ? 10 : 12, color: fg),
+          const SizedBox(width: 4),
+          Text('$labelPrefix$text', style: TextStyle(color: fg, fontSize: compact ? 10 : 11, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _addSerializedUnit(
+    void Function(void Function()) setDialogState,
+    List<String> enteredUnits,
+    TextEditingController imei1Ctrl,
+    TextEditingController imei2Ctrl,
+    bool isDualImei,
+    int qty,
+    int itemIndex,
+  ) async {
+    final im1 = imei1Ctrl.text.trim().toUpperCase();
+    final im2 = imei2Ctrl.text.trim().toUpperCase();
+
+    if (im1.isEmpty) {
+      TekFeedback.error('Please enter IMEI 1 / Serial Number');
+      return;
+    }
+
+    if (enteredUnits.length >= qty) {
+      TekFeedback.error('Already entered required $qty units for this row');
+      return;
+    }
+
+    final newImeis = isDualImei ? [im1, if (im2.isNotEmpty) im2] : [im1];
+
+    // Check duplicate within currently entered units
+    for (final u in enteredUnits) {
+      final existing = ImeiValidator.extractImeisFromUnit(u);
+      for (final n in newImeis) {
+        if (existing.contains(n)) {
+          TekFeedback.error('IMEI "$n" is already in this list');
+          return;
+        }
+      }
+    }
+
+    // Check duplicate across all other items in current bill
+    for (int i = 0; i < _items.length; i++) {
+      if (i != itemIndex) {
+        for (final u in _items[i].serialNumbers) {
+          final existing = ImeiValidator.extractImeisFromUnit(u);
+          for (final n in newImeis) {
+            if (existing.contains(n)) {
+              TekFeedback.error('IMEI "$n" is already entered in Row #${i + 1} (${_items[i].itemName})');
+              return;
+            }
+          }
+        }
+      }
+    }
+
+    // Check against Firestore stock_units in stock
+    try {
+      final inStockDup = await PurchaseBillService.instance.checkDuplicateImeisInStock(newImeis);
+      if (inStockDup.isNotEmpty) {
+        TekFeedback.error('Warning: IMEI "${inStockDup.first}" is already IN_STOCK in inventory!');
+        return;
+      }
+    } catch (_) {}
+
+    final formatted = isDualImei ? ImeiValidator.formatDualImei(im1, im2.isNotEmpty ? im2 : null) : im1;
+
+    setDialogState(() {
+      enteredUnits.add(formatted);
+      imei1Ctrl.clear();
+      imei2Ctrl.clear();
+    });
+  }
+
+  Future<void> _handleBulkImeiPaste(
+    void Function(void Function()) setDialogState,
+    List<String> enteredUnits,
+    int qty,
+    bool isDualImei,
+    int itemIndex,
+  ) async {
+    final bulkCtrl = TextEditingController();
+    final res = await showDialog<String>(
+      context: context,
+      builder: (bCtx) => AlertDialog(
+        backgroundColor: const Color(0xFF101846),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: DashboardColors.glassBorderHover),
+        ),
+        title: const Text('Bulk Paste IMEIs / Serials', style: TextStyle(color: Colors.white)),
+        content: SizedBox(
+          width: 480,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                isDualImei
+                    ? 'Paste one unit per line. For Dual-SIM, separate IMEI 1 and IMEI 2 with a comma, slash, or tab.'
+                    : 'Paste IMEIs separated by newlines, commas, or spaces.',
+                style: const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: bulkCtrl,
+                maxLines: 8,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                decoration: const InputDecoration(
+                  hintText: '864501047123456\n864501047123458, 864501047123459\n...',
+                  hintStyle: TextStyle(color: DashboardColors.textMuted),
+                  filled: true,
+                  fillColor: Color(0x1AFFFFFF),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(bCtx),
+            child: const Text('Cancel', style: TextStyle(color: DashboardColors.textMuted)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: DashboardColors.neonGreen,
+              foregroundColor: Colors.black,
+            ),
+            onPressed: () => Navigator.pop(bCtx, bulkCtrl.text),
+            child: const Text('Add All Units', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (res != null && res.trim().isNotEmpty) {
+      final lines = res.split(RegExp(r'[\r\n]+')).map((e) => e.trim()).where((e) => e.isNotEmpty);
+      setDialogState(() {
+        for (final line in lines) {
+          if (enteredUnits.length >= qty) break;
+          final imeis = ImeiValidator.extractImeisFromUnit(line);
+          if (imeis.isEmpty) continue;
+          final formatted = isDualImei && imeis.length >= 2
+              ? ImeiValidator.formatDualImei(imeis[0], imeis[1])
+              : imeis.first;
+          if (!enteredUnits.contains(formatted)) {
+            enteredUnits.add(formatted);
+          }
+        }
+      });
+    }
+  }
+
+  void _showImeiSerialEntryDialog(int itemIndex) {
+    if (itemIndex < 0 || itemIndex >= _items.length) return;
+    final item = _items[itemIndex];
+
+    bool imeiRequired = item.imeiRequired;
+    bool isDualImei = false;
+
+    final imei1Ctrl = TextEditingController();
+    final imei2Ctrl = TextEditingController();
+    final customDaysCtrl = TextEditingController(text: (item.customWarrantyDays ?? '').toString());
+
+    final enteredUnits = List<String>.from(item.serialNumbers);
+
+    if (enteredUnits.any((u) => u.contains('/'))) {
+      isDualImei = true;
+    }
+
+    String selectedWarranty = item.warrantyDuration.isNotEmpty && item.warrantyDuration != ItemWarrantyDuration.noWarranty
+        ? item.warrantyDuration
+        : ItemWarrantyDuration.months12;
+    bool hasWarranty = item.hasWarranty || selectedWarranty != ItemWarrantyDuration.noWarranty;
+    int qty = item.quantity > 0 ? item.quantity : 1;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final customD = int.tryParse(customDaysCtrl.text);
+          final expiry = hasWarranty
+              ? PurchaseBillService.instance.calculateItemWarrantyExpiry(
+                  _purchaseDate,
+                  selectedWarranty,
+                  customDays: customD,
+                )
+              : null;
+
+          final imei1Text = imei1Ctrl.text.trim();
+          final imei2Text = imei2Ctrl.text.trim();
+          final imei1Status = ImeiValidator.categorizeIdentifier(imei1Text);
+          final imei2Status = ImeiValidator.categorizeIdentifier(imei2Text);
+
+          return AlertDialog(
+            backgroundColor: const Color(0xFF101846),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: const BorderSide(color: DashboardColors.glassBorderHover),
+            ),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: DashboardColors.neonBlue.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.qr_code_scanner_rounded, color: DashboardColors.neonBlue, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Serialized Stock & Supplier Warranty',
+                        style: DashboardTypography.poppins(fontSize: 16, fontWeight: FontWeight.w700),
+                      ),
+                      Text(
+                        'Row #${itemIndex + 1}: ${item.itemName} (Requires $qty unique units)',
+                        style: const TextStyle(fontSize: 12, color: DashboardColors.textMuted),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 580,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Tracking Mode & Dual-SIM Toggles
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: DashboardColors.glassBorder),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Row(
+                                children: [
+                                  Icon(Icons.inventory_2_rounded, size: 18, color: DashboardColors.neonBlue),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Enable Serial / IMEI Tracking',
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                              Switch(
+                                value: imeiRequired,
+                                activeColor: DashboardColors.neonBlue,
+                                onChanged: (val) {
+                                  setDialogState(() => imeiRequired = val);
+                                },
+                              ),
+                            ],
+                          ),
+                          if (imeiRequired) ...[
+                            const Divider(color: Color(0x1AFFFFFF)),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Row(
+                                  children: [
+                                    Icon(Icons.sim_card_rounded, size: 18, color: DashboardColors.neonPurple),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Dual-SIM Device (IMEI 1 & IMEI 2)',
+                                      style: TextStyle(color: Colors.white70, fontSize: 12.5),
+                                    ),
+                                  ],
+                                ),
+                                Switch(
+                                  value: isDualImei,
+                                  activeColor: DashboardColors.neonPurple,
+                                  onChanged: (val) {
+                                    setDialogState(() => isDualImei = val);
+                                  },
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    if (imeiRequired) ...[
+                      // Input Form for Unit
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: DashboardColors.neonBlue.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.3)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: imei1Ctrl,
+                                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                                    decoration: InputDecoration(
+                                      labelText: isDualImei ? 'Primary IMEI (IMEI 1) *' : 'IMEI / Serial Number *',
+                                      labelStyle: const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
+                                      hintText: 'e.g. 864501047123456',
+                                      hintStyle: const TextStyle(color: DashboardColors.textMuted, fontSize: 11),
+                                      filled: true,
+                                      fillColor: Colors.white.withValues(alpha: 0.05),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: const BorderSide(color: DashboardColors.glassBorder),
+                                      ),
+                                    ),
+                                    onChanged: (_) => setDialogState(() {}),
+                                    onFieldSubmitted: (_) async {
+                                      await _addSerializedUnit(
+                                        setDialogState,
+                                        enteredUnits,
+                                        imei1Ctrl,
+                                        imei2Ctrl,
+                                        isDualImei,
+                                        qty,
+                                        itemIndex,
+                                      );
+                                    },
+                                  ),
+                                ),
+                                if (isDualImei) ...[
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: imei2Ctrl,
+                                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                                      decoration: InputDecoration(
+                                        labelText: 'Secondary IMEI (IMEI 2) [Optional]',
+                                        labelStyle: const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
+                                        hintText: 'e.g. 864501047123457',
+                                        hintStyle: const TextStyle(color: DashboardColors.textMuted, fontSize: 11),
+                                        filled: true,
+                                        fillColor: Colors.white.withValues(alpha: 0.05),
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                          borderSide: const BorderSide(color: DashboardColors.glassBorder),
+                                        ),
+                                      ),
+                                      onChanged: (_) => setDialogState(() {}),
+                                      onFieldSubmitted: (_) async {
+                                        await _addSerializedUnit(
+                                          setDialogState,
+                                          enteredUnits,
+                                          imei1Ctrl,
+                                          imei2Ctrl,
+                                          isDualImei,
+                                          qty,
+                                          itemIndex,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+
+                            // Real-time Luhn Checksum Badges
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    if (imei1Text.isNotEmpty) _buildLuhnBadge(imei1Status, labelPrefix: isDualImei ? 'IMEI 1: ' : ''),
+                                    if (isDualImei && imei2Text.isNotEmpty) ...[
+                                      const SizedBox(width: 8),
+                                      _buildLuhnBadge(imei2Status, labelPrefix: 'IMEI 2: '),
+                                    ],
+                                  ],
+                                ),
+                                Row(
+                                  children: [
+                                    OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: DashboardColors.neonBlue,
+                                        side: const BorderSide(color: DashboardColors.neonBlue),
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                      icon: const Icon(Icons.paste_rounded, size: 14),
+                                      label: const Text('Bulk Paste', style: TextStyle(fontSize: 12)),
+                                      onPressed: () async {
+                                        await _handleBulkImeiPaste(setDialogState, enteredUnits, qty, isDualImei, itemIndex);
+                                      },
+                                    ),
+                                    const SizedBox(width: 8),
+                                    ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: DashboardColors.neonGreen,
+                                        foregroundColor: Colors.black,
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                      icon: const Icon(Icons.add_rounded, size: 16),
+                                      label: const Text('Add Unit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                      onPressed: () async {
+                                        await _addSerializedUnit(
+                                          setDialogState,
+                                          enteredUnits,
+                                          imei1Ctrl,
+                                          imei2Ctrl,
+                                          isDualImei,
+                                          qty,
+                                          itemIndex,
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Entered Units List
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Entered Units: ${enteredUnits.length} of $qty required',
+                            style: TextStyle(
+                              color: enteredUnits.length == qty ? DashboardColors.neonGreen : DashboardColors.alertOrange,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          if (enteredUnits.isNotEmpty)
+                            TextButton(
+                              onPressed: () => setDialogState(() => enteredUnits.clear()),
+                              child: const Text('Clear All', style: TextStyle(color: DashboardColors.alertOrange, fontSize: 11)),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      if (enteredUnits.isEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.02),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0x1AFFFFFF)),
+                          ),
+                          child: const Center(
+                            child: Text('No IMEIs entered yet. Enter above or use Bulk Paste.',
+                                style: TextStyle(color: DashboardColors.textMuted, fontSize: 12)),
+                          ),
+                        )
+                      else
+                        Container(
+                          constraints: const BoxConstraints(maxHeight: 180),
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.03),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: DashboardColors.glassBorder),
+                          ),
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: enteredUnits.length,
+                            separatorBuilder: (_, __) => const Divider(color: Color(0x1AFFFFFF), height: 8),
+                            itemBuilder: (context, uIdx) {
+                              final u = enteredUnits[uIdx];
+                              final imeis = ImeiValidator.extractImeisFromUnit(u);
+                              return Row(
+                                children: [
+                                  Container(
+                                    width: 24,
+                                    height: 24,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: DashboardColors.neonBlue.withValues(alpha: 0.15),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Text('${uIdx + 1}',
+                                        style: const TextStyle(color: DashboardColors.neonBlue, fontSize: 11, fontWeight: FontWeight.bold)),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Wrap(
+                                      spacing: 8,
+                                      runSpacing: 4,
+                                      crossAxisAlignment: WrapCrossAlignment.center,
+                                      children: [
+                                        Text(u, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                                        ...imeis.map((im) {
+                                          final cat = ImeiValidator.categorizeIdentifier(im);
+                                          return _buildLuhnBadge(cat, compact: true);
+                                        }),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.close_rounded, size: 16, color: DashboardColors.alertOrange),
+                                    onPressed: () => setDialogState(() => enteredUnits.removeAt(uIdx)),
+                                    tooltip: 'Remove',
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Supplier Warranty Duration
+                    Text('Supplier Warranty Duration', style: DashboardTypography.poppins(fontSize: 14, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ItemWarrantyDuration.noWarranty,
+                        ItemWarrantyDuration.months3,
+                        ItemWarrantyDuration.months6,
+                        ItemWarrantyDuration.months12,
+                        ItemWarrantyDuration.months24,
+                        ItemWarrantyDuration.custom,
+                      ].map((dur) {
+                        final isSel = selectedWarranty == dur;
+                        return ChoiceChip(
+                          label: Text(dur == ItemWarrantyDuration.noWarranty ? '0 Months (No Warranty)' : dur),
+                          selected: isSel,
+                          selectedColor: DashboardColors.neonBlue,
+                          backgroundColor: Colors.white.withValues(alpha: 0.05),
+                          labelStyle: TextStyle(
+                            color: isSel ? Colors.black : Colors.white,
+                            fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                            fontSize: 12,
+                          ),
+                          onSelected: (sel) {
+                            if (sel) {
+                              setDialogState(() {
+                                selectedWarranty = dur;
+                                hasWarranty = dur != ItemWarrantyDuration.noWarranty;
+                              });
+                            }
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    if (selectedWarranty == ItemWarrantyDuration.custom) ...[
+                      const SizedBox(height: 10),
+                      _buildDialogTextField(
+                        controller: customDaysCtrl,
+                        label: 'Custom Duration (Days)',
+                        icon: Icons.calendar_today_rounded,
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                    ],
+                    if (hasWarranty && expiry != null) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: DashboardColors.neonGreen.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: DashboardColors.neonGreen.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.verified_rounded, size: 16, color: DashboardColors.neonGreen),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Auto Expiry: ${DateFormat("dd MMM yyyy").format(expiry)} (from ${DateFormat("dd-MM-yyyy").format(_purchaseDate)})',
+                              style: const TextStyle(color: DashboardColors.neonGreen, fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel', style: TextStyle(color: DashboardColors.textMuted)),
+              ),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: DashboardColors.neonGreen,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.check_circle_rounded, size: 18),
+                label: const Text('Save & Apply', style: TextStyle(fontWeight: FontWeight.bold)),
+                onPressed: () {
+                  if (imeiRequired && enteredUnits.length != qty) {
+                    TekFeedback.error('Please enter exactly $qty unique IMEIs for $qty units (currently entered ${enteredUnits.length})');
+                    return;
+                  }
+
+                  final updated = item.copyWith(
+                    imeiRequired: imeiRequired,
+                    serialNumbers: enteredUnits,
+                    imeiOrSerial: enteredUnits.isNotEmpty ? enteredUnits.first : null,
+                    warrantyAvailable: hasWarranty,
+                    warrantyDuration: selectedWarranty,
+                    customWarrantyDays: customD,
+                    warrantyExpiryDate: expiry,
+                  );
+
+                  setState(() {
+                    _items[itemIndex] = updated;
+                  });
+
+                  Navigator.pop(ctx);
+                  TekFeedback.success('Serial/IMEI settings updated for "${item.itemName}"!');
+                },
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // Configure Item Quantity, Rate, Warranty, Serial Dialog
   // ---------------------------------------------------------------------------
 
@@ -3898,62 +4594,64 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                         }(),
                       ),
                       DataCell(
-                        it.imeiRequired
-                            ? InkWell(
-                                onTap: () =>
-                                    _showInlineProductRegistrationDialog(idx),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: it.serialNumbers.length ==
-                                            it.quantity
-                                        ? DashboardColors.neonGreen
-                                            .withValues(alpha: 0.15)
-                                        : DashboardColors.alertOrange
-                                            .withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(5),
-                                    border: Border.all(
-                                        color: it.serialNumbers.length ==
-                                                it.quantity
+                        InkWell(
+                          onTap: () => _showImeiSerialEntryDialog(idx),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: it.imeiRequired
+                                  ? (it.serialNumbers.length == it.quantity
+                                      ? DashboardColors.neonGreen
+                                          .withValues(alpha: 0.15)
+                                      : DashboardColors.alertOrange
+                                          .withValues(alpha: 0.2))
+                                  : Colors.white.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                  color: it.imeiRequired
+                                      ? (it.serialNumbers.length == it.quantity
+                                          ? DashboardColors.neonGreen
+                                          : DashboardColors.alertOrange)
+                                      : const Color(0x22FFFFFF)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  it.imeiRequired
+                                      ? (it.serialNumbers.length == it.quantity
+                                          ? Icons.check_circle_rounded
+                                          : Icons.qr_code_scanner_rounded)
+                                      : Icons.tag_rounded,
+                                  size: 13,
+                                  color: it.imeiRequired
+                                      ? (it.serialNumbers.length == it.quantity
+                                          ? DashboardColors.neonGreen
+                                          : DashboardColors.alertOrange)
+                                      : DashboardColors.textMuted,
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  it.imeiRequired
+                                      ? 'IMEIs: ${it.serialNumbers.length}/${it.quantity}'
+                                      : (it.imeiOrSerial.isNotEmpty
+                                          ? it.imeiOrSerial
+                                          : '+ Track IMEI'),
+                                  style: TextStyle(
+                                    color: it.imeiRequired
+                                        ? (it.serialNumbers.length == it.quantity
                                             ? DashboardColors.neonGreen
-                                            : DashboardColors.alertOrange),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        it.serialNumbers.length == it.quantity
-                                            ? Icons.check_circle_rounded
-                                            : Icons.error_outline_rounded,
-                                        size: 12,
-                                        color: it.serialNumbers.length ==
-                                                it.quantity
-                                            ? DashboardColors.neonGreen
-                                            : DashboardColors.alertOrange,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'IMEIs: ${it.serialNumbers.length}/${it.quantity}',
-                                        style: TextStyle(
-                                          color: it.serialNumbers.length ==
-                                                  it.quantity
-                                              ? DashboardColors.neonGreen
-                                              : DashboardColors.alertOrange,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
+                                            : DashboardColors.alertOrange)
+                                        : DashboardColors.textLight,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                              )
-                            : Text(
-                                it.imeiOrSerial.isNotEmpty
-                                    ? it.imeiOrSerial
-                                    : '-',
-                                style: const TextStyle(
-                                    color: DashboardColors.textLight)),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                       DataCell(Text(
                           it.isMultiUnit
@@ -3978,30 +4676,33 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                               color: DashboardColors.neonGreen,
                               fontWeight: FontWeight.bold))),
                       DataCell(
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: it.hasWarranty
-                                ? DashboardColors.neonBlue
-                                    .withValues(alpha: 0.15)
-                                : Colors.white.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                                color: it.hasWarranty
-                                    ? DashboardColors.neonBlue
-                                    : const Color(0x22FFFFFF)),
-                          ),
-                          child: Text(
-                            it.hasWarranty
-                                ? it.warrantyDuration
-                                : 'No Warranty',
-                            style: TextStyle(
+                        InkWell(
+                          onTap: () => _showImeiSerialEntryDialog(idx),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
                               color: it.hasWarranty
                                   ? DashboardColors.neonBlue
-                                  : DashboardColors.textMuted,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
+                                      .withValues(alpha: 0.15)
+                                  : Colors.white.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                  color: it.hasWarranty
+                                      ? DashboardColors.neonBlue
+                                      : const Color(0x22FFFFFF)),
+                            ),
+                            child: Text(
+                              it.hasWarranty
+                                  ? it.warrantyDuration
+                                  : 'No Warranty',
+                              style: TextStyle(
+                                color: it.hasWarranty
+                                    ? DashboardColors.neonBlue
+                                    : DashboardColors.textMuted,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ),
