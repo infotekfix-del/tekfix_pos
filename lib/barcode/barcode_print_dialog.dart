@@ -728,10 +728,42 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                   children: [
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
+                        foregroundColor: DashboardColors.neonOrange,
+                        side: const BorderSide(color: DashboardColors.neonOrange),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(Icons.print_outlined, size: 16),
+                      label: const Text('Test Print (1 Label)'),
+                      onPressed: _isPrinting
+                          ? null
+                          : () async {
+                              final preview = previewItem ??
+                                  (_items.isNotEmpty ? _items.first : null);
+                              if (preview == null) return;
+                              final testItem = preview.copyWith(quantity: 1);
+                              setState(() => _isPrinting = true);
+                              try {
+                                await BarcodeLabelService.instance.printLabels(
+                                  context,
+                                  items: [testItem],
+                                  showPrice: _showPrice,
+                                  jobName: 'TVS_LP46_Test_Label',
+                                );
+                              } finally {
+                                if (mounted) setState(() => _isPrinting = false);
+                              }
+                            },
+                    ),
+                    const SizedBox(width: 10),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
                         foregroundColor: DashboardColors.neonBlue,
                         side: const BorderSide(color: DashboardColors.neonBlue),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
+                            horizontal: 14, vertical: 12),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10)),
                       ),
