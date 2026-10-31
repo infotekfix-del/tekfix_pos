@@ -43,12 +43,12 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView> {
   }
 
   void _applyLocalDefaults() {
-    _versionController.text = '1.0.12';
-    _buildNumberController.text = '12';
+    _versionController.text = '1.0.13';
+    _buildNumberController.text = '13';
     _apkUrlController.text =
-        'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.12/app-release.apk';
+        'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.13/app-release.apk';
     _releaseNotesController.text =
-        '• Streamlined Item Addition: Direct + Add Item dialog and fluid search entry without redundant Quick Register popups\n• Direct Item Editing: Update Qty, Purchase Rate, Discount, GST %, MRP, and Warranty directly inline\n• Auto Barcode Generation: Unique TKF barcode auto-generated for new items if blank\n• Global GST Toggle: 1-click toggle to enable or disable GST calculations across all items\n• Enhanced Windows Packaging: Complete standalone zip bundle with all companion DLLs included';
+        '• Vyapar-like Single-Step Item Addition: Unified fast dialog for all fields without secondary Quick Register popups\n• Automated Defaults: 0% GST default, "No Warranty" default, auto-generated unique TKF barcodes\n• Global GST Toggle: 1-click toggle to enable/disable GST calculations across all items\n• Frictionless Saving & Reset: Fixed draft loop, instantaneous stock updates and dashboard widget sync\n• Edit Bill Support: Full edit option from list & details views';
     _isMandatory = true;
   }
 

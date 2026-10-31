@@ -25,7 +25,6 @@ import 'manual_purchase_draft_service.dart';
 import 'purchase_bill_service.dart';
 import 'purchase_calculation_engine.dart';
 import 'purchase_models.dart';
-import 'quick_register_drawer.dart';
 import 'supplier_search_sheet.dart';
 import 'purchase_bill_details_screen.dart';
 
@@ -69,7 +68,7 @@ class _EditableItem {
     this.mrp = 0.0,
     this.sellingPrice = 0.0,
     this.discount = 0.0,
-    this.taxPercent = 18.0,
+    this.taxPercent = 0.0,
     this.isNewProduct = false,
     this.isStagedReady = true,
     this.matchedProductId,
@@ -170,7 +169,7 @@ class _ManualPurchaseEntryScreenState
   final _productSearchFocus = FocusNode();
   bool _isSearchingProduct = false;
   Timer? _matchDebounce;
-  bool _isGstEnabled = true;
+  bool _isGstEnabled = false;
 
   // ---- Charges & round-off ----
   final _chargesCtrl = TextEditingController(text: '0');
@@ -289,6 +288,8 @@ class _ManualPurchaseEntryScreenState
           await ManualPurchaseDraftService.instance.delete();
         }
       });
+    } else if (draft != null && !draft.hasData) {
+      await ManualPurchaseDraftService.instance.delete();
     }
   }
 
@@ -427,6 +428,11 @@ class _ManualPurchaseEntryScreenState
   }
 
   void _saveDraft() {
+    if (_isSaving || !mounted || _isEditing) return;
+    if (_items.isEmpty && _vendorName.isEmpty && _invoiceNumCtrl.text.isEmpty) {
+      ManualPurchaseDraftService.instance.delete();
+      return;
+    }
     final draft = ManualPurchaseDraft(
       vendorKey: _vendorKey,
       vendorName: _vendorName,
@@ -665,38 +671,10 @@ class _ManualPurchaseEntryScreenState
   // ADD ITEM
   // -------------------------------------------------------------------------
   Future<void> _addItemBySearch(String query) async {
-    if (query.trim().isEmpty) return;
-
-    final generatedBarcode = 'TKF${DateTime.now().millisecondsSinceEpoch}';
-    final newRow = _EditableItem(
-      name: query.trim(),
-      sku: generatedBarcode,
-      isMatchLoading: true,
-      matchStatus: null,
-      taxPercent: _isGstEnabled ? 18.0 : 0.0,
-      warrantyDuration: 'No Warranty',
-      isNewProduct: false,
-      isStagedReady: true,
-    );
-
-    setState(() {
-      _items.add(newRow);
-      _productSearchCtrl.clear();
-      _isSearchingProduct = true;
-    });
-
-    _recalcState();
-    _scheduleDraftSave();
-
-    // Ensure focus moves forward naturally for continuous item additions
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _productSearchFocus.canRequestFocus) {
-        _productSearchFocus.requestFocus();
-      }
-    });
-
-    // Trigger async product match
-    _triggerProductMatch(newRow);
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return;
+    _productSearchCtrl.clear();
+    await _showSingleStepItemDialog(prefillName: trimmed);
   }
 
   void _triggerProductMatch(_EditableItem row) async {
@@ -767,18 +745,88 @@ class _ManualPurchaseEntryScreenState
     }
   }
 
-  /// Direct item addition dialog - adds item directly to purchase list without Quick Register popups
-  Future<void> _showDirectAddItemDialog() async {
-    final nameCtrl = TextEditingController();
-    final barcodeCtrl = TextEditingController();
-    final qtyCtrl = TextEditingController(text: '1');
-    final rateCtrl = TextEditingController(text: '0.00');
-    final discCtrl = TextEditingController(text: '0.00');
-    final mrpCtrl = TextEditingController(text: '0.00');
-    final spCtrl = TextEditingController(text: '0.00');
-    final hsnCtrl = TextEditingController();
-    double taxPct = _isGstEnabled ? 18.0 : 0.0;
-    String selectedWarranty = ItemWarrantyDuration.noWarranty;
+  /// Single-Step Item Addition & Edit Dialog (Vyapar-like fast flow)
+  /// Configures all item fields (Name, Barcode/SKU, Qty, Rate, GST %, Selling Price, MRP, Warranty)
+  /// in one single dialog and links immediately to the bill.
+  Future<void> _showSingleStepItemDialog({
+    int? editIndex,
+    String? prefillName,
+    String? prefillBarcode,
+  }) async {
+    final isEditing = editIndex != null;
+    final row = isEditing ? _items[editIndex] : null;
+
+    final nameCtrl = TextEditingController(text: row != null ? row.name : (prefillName ?? ''));
+    final barcodeCtrl = TextEditingController(
+      text: row != null
+          ? row.sku
+          : (prefillBarcode?.isNotEmpty == true
+              ? prefillBarcode
+              : 'TKF${DateTime.now().millisecondsSinceEpoch}'),
+    );
+    final qtyCtrl = TextEditingController(
+      text: row != null ? row.quantity.toString() : '1',
+    );
+    final rateCtrl = TextEditingController(
+      text: row != null ? row.purchaseRate.toStringAsFixed(2) : '0.00',
+    );
+    final discCtrl = TextEditingController(
+      text: row != null ? row.discount.toStringAsFixed(2) : '0.00',
+    );
+    final mrpCtrl = TextEditingController(
+      text: row != null ? row.mrp.toStringAsFixed(0) : '0.00',
+    );
+    final spCtrl = TextEditingController(
+      text: row != null ? row.sellingPrice.toStringAsFixed(0) : '0.00',
+    );
+    final hsnCtrl = TextEditingController(
+      text: row != null ? row.hsnCode : '',
+    );
+    double taxPct = row != null ? row.taxPercent : (_isGstEnabled ? 18.0 : 0.0);
+    String selectedWarranty = row != null && row.warrantyDuration.isNotEmpty
+        ? row.warrantyDuration
+        : ItemWarrantyDuration.noWarranty;
+    if (!ItemWarrantyDuration.options.contains(selectedWarranty)) {
+      selectedWarranty = ItemWarrantyDuration.noWarranty;
+    }
+
+    // Auto-fill from catalog if matching existing product
+    if (!isEditing && Db.items.isOpen) {
+      final searchKey = (prefillName ?? '').trim().toLowerCase();
+      final barcodeKey = (prefillBarcode ?? '').trim();
+      for (final k in Db.items.keys) {
+        final p = Db.items.get(k);
+        if (p is Map) {
+          final pName = (p['name'] ?? '').toString().trim().toLowerCase();
+          final pBarcode = (p['barcode'] ?? p['sku'] ?? p['code'] ?? '').toString().trim();
+          if ((barcodeKey.isNotEmpty && pBarcode == barcodeKey) ||
+              (searchKey.isNotEmpty && pName == searchKey)) {
+            if (pBarcode.isNotEmpty) {
+              barcodeCtrl.text = pBarcode;
+            }
+            if (p['cost'] != null || p['purchaseRate'] != null) {
+              rateCtrl.text = ((p['cost'] ?? p['purchaseRate']) as num).toDouble().toStringAsFixed(2);
+            }
+            if (p['price'] != null || p['sellingPrice'] != null) {
+              spCtrl.text = ((p['price'] ?? p['sellingPrice']) as num).toDouble().toStringAsFixed(0);
+            }
+            if (p['mrp'] != null) {
+              mrpCtrl.text = (p['mrp'] as num).toDouble().toStringAsFixed(0);
+            }
+            if (p['hsn'] != null) {
+              hsnCtrl.text = p['hsn'].toString();
+            }
+            if (_isGstEnabled && p['gstRate'] != null) {
+              taxPct = (p['gstRate'] as num).toDouble();
+            }
+            if (p['warranty'] != null && ItemWarrantyDuration.options.contains(p['warranty'].toString())) {
+              selectedWarranty = p['warranty'].toString();
+            }
+            break;
+          }
+        }
+      }
+    }
 
     await showDialog(
       context: context,
@@ -788,113 +836,140 @@ class _ManualPurchaseEntryScreenState
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           title: Row(
             children: [
-              const Icon(Icons.add_shopping_cart_rounded, color: DashboardColors.neonGreen, size: 22),
+              Icon(
+                isEditing ? Icons.edit_note_rounded : Icons.add_shopping_cart_rounded,
+                color: isEditing ? DashboardColors.neonOrange : DashboardColors.neonGreen,
+                size: 22,
+              ),
               const SizedBox(width: 10),
-              Text('Add Item to Purchase Bill',
+              Expanded(
+                child: Text(
+                  isEditing ? 'Edit Item: ${row?.name}' : 'Add Item to Purchase Bill',
                   style: DashboardTypography.poppins(
-                      fontSize: 16, fontWeight: FontWeight.w700)),
+                      fontSize: 16, fontWeight: FontWeight.w700),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
           content: SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              _dialogField(nameCtrl, 'Product Name *', TextInputType.text),
-              const SizedBox(height: 10),
-              _dialogField(barcodeCtrl, 'Barcode / SKU (auto-generated if blank)', TextInputType.text),
-              const SizedBox(height: 10),
-              Row(children: [
-                Expanded(
-                    child: _dialogField(
-                        qtyCtrl, 'Qty *', TextInputType.number)),
-                const SizedBox(width: 10),
-                Expanded(
-                    child: _dialogField(
-                        rateCtrl, 'Purchase Rate (₹) *',
-                        const TextInputType.numberWithOptions(decimal: true))),
-              ]),
-              const SizedBox(height: 10),
-              Row(children: [
-                Expanded(
-                    child: _dialogField(
-                        discCtrl, 'Discount (₹)',
-                        const TextInputType.numberWithOptions(decimal: true))),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: DropdownButtonFormField<double>(
-                    value: taxPct,
-                    dropdownColor: const Color(0xFF0B1030),
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                    decoration: InputDecoration(
-                      labelText: 'GST %',
-                      labelStyle: const TextStyle(
-                          color: DashboardColors.textMuted, fontSize: 12),
-                      filled: true,
-                      fillColor: Colors.white.withValues(alpha: 0.04),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(
-                              color: DashboardColors.glassBorder)),
-                      isDense: true,
-                    ),
-                    items: [0.0, 3.0, 5.0, 12.0, 18.0, 28.0]
-                        .map((r) => DropdownMenuItem(
-                            value: r, child: Text('${r.toStringAsFixed(0)}%')))
-                        .toList(),
-                    onChanged: (v) {
-                      if (v != null) setLocal(() => taxPct = v);
-                    },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _dialogField(nameCtrl, 'Product Name *', TextInputType.text),
+                const SizedBox(height: 10),
+                _dialogField(
+                    barcodeCtrl, 'Barcode / SKU (auto-generated if blank)', TextInputType.text),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(
+                    child: _dialogField(qtyCtrl, 'Qty *', TextInputType.number),
                   ),
-                ),
-              ]),
-              const SizedBox(height: 10),
-              Row(children: [
-                Expanded(
+                  const SizedBox(width: 10),
+                  Expanded(
                     child: _dialogField(
-                        mrpCtrl, 'MRP (₹)',
-                        const TextInputType.numberWithOptions(decimal: true))),
-                const SizedBox(width: 10),
-                Expanded(
+                      rateCtrl,
+                      'Purchase Rate (₹) *',
+                      const TextInputType.numberWithOptions(decimal: true),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(
                     child: _dialogField(
-                        spCtrl, 'Selling Price (₹)',
-                        const TextInputType.numberWithOptions(decimal: true))),
-              ]),
-              const SizedBox(height: 10),
-              _dialogField(hsnCtrl, 'HSN Code', TextInputType.number),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                value: selectedWarranty,
-                dropdownColor: const Color(0xFF0B1030),
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-                decoration: InputDecoration(
-                  labelText: 'Warranty Term',
-                  labelStyle: const TextStyle(
-                      color: DashboardColors.textMuted, fontSize: 12),
-                  filled: true,
-                  fillColor: Colors.white.withValues(alpha: 0.04),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(
-                          color: DashboardColors.glassBorder)),
-                  isDense: true,
+                      discCtrl,
+                      'Discount (₹)',
+                      const TextInputType.numberWithOptions(decimal: true),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: DropdownButtonFormField<double>(
+                      value: taxPct,
+                      dropdownColor: const Color(0xFF0B1030),
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      decoration: InputDecoration(
+                        labelText: 'GST %',
+                        labelStyle: const TextStyle(
+                            color: DashboardColors.textMuted, fontSize: 12),
+                        filled: true,
+                        fillColor: Colors.white.withValues(alpha: 0.04),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(
+                                color: DashboardColors.glassBorder)),
+                        isDense: true,
+                      ),
+                      items: [0.0, 3.0, 5.0, 12.0, 18.0, 28.0]
+                          .map((r) => DropdownMenuItem(
+                              value: r, child: Text('${r.toStringAsFixed(0)}%')))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) setLocal(() => taxPct = v);
+                      },
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(
+                    child: _dialogField(
+                      mrpCtrl,
+                      'MRP (₹)',
+                      const TextInputType.numberWithOptions(decimal: true),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _dialogField(
+                      spCtrl,
+                      'Selling Price (₹)',
+                      const TextInputType.numberWithOptions(decimal: true),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 10),
+                _dialogField(hsnCtrl, 'HSN Code', TextInputType.number),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  value: selectedWarranty,
+                  dropdownColor: const Color(0xFF0B1030),
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: InputDecoration(
+                    labelText: 'Warranty Term',
+                    labelStyle: const TextStyle(
+                        color: DashboardColors.textMuted, fontSize: 12),
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.04),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(
+                            color: DashboardColors.glassBorder)),
+                    isDense: true,
+                  ),
+                  items: ItemWarrantyDuration.options
+                      .map((w) => DropdownMenuItem(value: w, child: Text(w)))
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) setLocal(() => selectedWarranty = v);
+                  },
                 ),
-                items: ItemWarrantyDuration.options
-                    .map((w) => DropdownMenuItem(value: w, child: Text(w)))
-                    .toList(),
-                onChanged: (v) {
-                  if (v != null) setLocal(() => selectedWarranty = v);
-                },
-              ),
-            ]),
+              ],
+            ),
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel',
-                    style: TextStyle(color: DashboardColors.textMuted))),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel',
+                  style: TextStyle(color: DashboardColors.textMuted)),
+            ),
             ElevatedButton.icon(
-              icon: const Icon(Icons.add_shopping_cart_rounded, size: 16),
+              icon: Icon(isEditing ? Icons.check_rounded : Icons.add_shopping_cart_rounded, size: 16),
               style: ElevatedButton.styleFrom(
-                  backgroundColor: DashboardColors.neonGreen,
-                  foregroundColor: Colors.black),
+                backgroundColor: isEditing ? DashboardColors.neonOrange : DashboardColors.neonGreen,
+                foregroundColor: Colors.black,
+              ),
               onPressed: () {
                 final name = nameCtrl.text.trim();
                 if (name.isEmpty) {
@@ -911,40 +986,65 @@ class _ManualPurchaseEntryScreenState
                 final hsn = hsnCtrl.text.trim();
                 final barcode = barcodeCtrl.text.trim().isNotEmpty
                     ? barcodeCtrl.text.trim()
-                    : 'TKF${DateTime.now().millisecondsSinceEpoch}';
+                    : (isEditing && row!.sku.isNotEmpty
+                        ? row.sku
+                        : 'TKF${DateTime.now().millisecondsSinceEpoch}');
 
-                final newRow = _EditableItem(
-                  name: name,
-                  sku: barcode,
-                  quantity: qty > 0 ? qty : 1,
-                  purchaseRate: rate >= 0 ? rate : 0.0,
-                  discount: disc,
-                  taxPercent: taxPct,
-                  mrp: mrp,
-                  sellingPrice: sp,
-                  hsnCode: hsn,
-                  warrantyDuration: selectedWarranty,
-                  isNewProduct: true,
-                  isStagedReady: true,
-                  matchStatus: ProductMatchStatus.matched,
-                );
+                if (isEditing) {
+                  setState(() {
+                    row!.name = name;
+                    row.quantity = qty > 0 ? qty : 1;
+                    row.purchaseRate = rate >= 0 ? rate : 0.0;
+                    row.discount = disc;
+                    row.taxPercent = taxPct;
+                    row.mrp = mrp;
+                    row.sellingPrice = sp;
+                    row.hsnCode = hsn;
+                    row.sku = barcode;
+                    row.warrantyDuration = selectedWarranty;
+                    row.isStagedReady = true;
+                  });
+                  TekFeedback.success('Updated "${row!.name}"');
+                } else {
+                  final newRow = _EditableItem(
+                    name: name,
+                    sku: barcode,
+                    quantity: qty > 0 ? qty : 1,
+                    purchaseRate: rate >= 0 ? rate : 0.0,
+                    discount: disc,
+                    taxPercent: taxPct,
+                    mrp: mrp,
+                    sellingPrice: sp,
+                    hsnCode: hsn,
+                    warrantyDuration: selectedWarranty,
+                    isNewProduct: true,
+                    isStagedReady: true,
+                    matchStatus: ProductMatchStatus.matched,
+                  );
 
-                setState(() {
-                  _items.add(newRow);
-                  _isSearchingProduct = true;
-                });
+                  setState(() {
+                    _items.add(newRow);
+                    _productSearchCtrl.clear();
+                    _isSearchingProduct = true;
+                  });
+                  TekFeedback.success('Added "${newRow.name}" to bill');
+                }
 
                 _recalcState();
                 _scheduleDraftSave();
                 Navigator.pop(ctx);
 
-                // Check background match to pre-fill catalog references if matched
-                _triggerProductMatch(newRow);
-
-                TekFeedback.success('Added "${newRow.name}" to bill');
+                // Re-focus product search for fast continuous entry
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && _productSearchFocus.canRequestFocus) {
+                    _productSearchFocus.requestFocus();
+                  }
+                });
               },
-              label: const Text('Add to Bill',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+              label: Text(
+                isEditing ? 'Update' : 'Add to Bill',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         ),
@@ -959,99 +1059,6 @@ class _ManualPurchaseEntryScreenState
     mrpCtrl.dispose();
     spCtrl.dispose();
     hsnCtrl.dispose();
-  }
-
-  Future<void> _openQuickRegister(_EditableItem row) async {
-    final result = await QuickRegisterDrawer.show(
-      context,
-      prefillName: row.name,
-      prefillBrand: row.brand,
-      prefillModel: row.model,
-      prefillSku: row.sku,
-      prefillGstRate: _isGstEnabled ? row.taxPercent : 0.0,
-      prefillHsn: row.hsnCode,
-      prefillMrp: row.mrp,
-      prefillSellingPrice: row.sellingPrice,
-    );
-
-    if (result == null || !mounted) return;
-
-    setState(() {
-      row.name = result['name']?.toString() ?? row.name;
-      row.sku = result['sku']?.toString() ?? row.sku;
-      row.brand = result['brand']?.toString() ?? row.brand;
-      row.model = result['model']?.toString() ?? row.model;
-      row.hsnCode = result['hsn']?.toString() ?? row.hsnCode;
-      row.matchedProductId = result['id']?.toString() ?? result['matchedProductId']?.toString();
-      row.itemKey = result['key'] ?? result['itemKey'] ?? result['id'];
-      row.matchedProductName = result['name']?.toString() ?? row.name;
-      row.isNewProduct = false;
-      row.isStagedReady = true;
-      row.matchStatus = ProductMatchStatus.matched;
-      row.matchNotes = null;
-      // Update fields from registered product
-      if (_isGstEnabled && (result['gstRate'] as num?) != null) {
-        row.taxPercent = (result['gstRate'] as num).toDouble();
-      } else if (!_isGstEnabled) {
-        row.taxPercent = 0.0;
-      }
-      if ((result['sellingPrice'] as num?) != null && row.sellingPrice == 0.0) {
-        row.sellingPrice = (result['sellingPrice'] as num).toDouble();
-      }
-      if ((result['mrp'] as num?) != null && row.mrp == 0.0) {
-        row.mrp = (result['mrp'] as num).toDouble();
-      }
-      row.imeiRequired = result['imeiRequired'] == true;
-      row.warrantyDuration = result['warranty']?.toString() ?? 'No Warranty';
-    });
-    _recalcState();
-    _scheduleDraftSave();
-  }
-
-  Future<void> _quickRegisterNewItem() async {
-    final result = await QuickRegisterDrawer.show(
-      context,
-      prefillGstRate: _isGstEnabled ? 18.0 : 0.0,
-    );
-
-    if (result == null || !mounted) return;
-
-    final newRow = _EditableItem(
-      itemKey: result['key'] ?? result['itemKey'] ?? result['id'],
-      matchedProductId: result['id']?.toString() ?? result['matchedProductId']?.toString(),
-      matchedProductName: result['name']?.toString() ?? '',
-      name: result['name']?.toString() ?? 'Unnamed Item',
-      brand: result['brand']?.toString() ?? '',
-      model: result['model']?.toString() ?? '',
-      sku: result['sku']?.toString() ?? '',
-      hsnCode: result['hsn']?.toString() ?? '',
-      quantity: 1,
-      purchaseRate: (result['costPrice'] as num?)?.toDouble() ?? 0.0,
-      mrp: (result['mrp'] as num?)?.toDouble() ?? 0.0,
-      sellingPrice: (result['sellingPrice'] as num?)?.toDouble() ?? 0.0,
-      taxPercent: _isGstEnabled ? ((result['gstRate'] as num?)?.toDouble() ?? 0.0) : 0.0,
-      isNewProduct: false,
-      isStagedReady: true,
-      matchStatus: ProductMatchStatus.matched,
-      imeiRequired: result['imeiRequired'] == true,
-      warrantyDuration: result['warranty']?.toString() ?? 'No Warranty',
-    );
-
-    setState(() {
-      _items.add(newRow);
-      _isSearchingProduct = true;
-    });
-
-    _recalcState();
-    _scheduleDraftSave();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _productSearchFocus.canRequestFocus) {
-        _productSearchFocus.requestFocus();
-      }
-    });
-
-    TekFeedback.success('Registered & added "${newRow.name}" to bill');
   }
 
   void _toggleGst(bool enable) {
@@ -1145,6 +1152,9 @@ class _ManualPurchaseEntryScreenState
 
     setState(() => _isSaving = true);
     _draftTimer?.cancel();
+    _draftTimer = null;
+    await ManualPurchaseDraftService.instance.delete();
+    if (!mounted) return;
 
     try {
       final auth = Provider.of<AuthController>(context, listen: false);
@@ -2085,16 +2095,13 @@ class _ManualPurchaseEntryScreenState
             ),
             icon: const Icon(Icons.add_rounded, size: 16),
             label: const Text('+ Add Item', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-            onPressed: _showDirectAddItemDialog,
+            onPressed: () => _showSingleStepItemDialog(),
           ),
           IconButton(
             icon: const Icon(Icons.add_circle_rounded,
                 color: DashboardColors.neonGreen, size: 22),
             tooltip: 'Add item',
-            onPressed: () {
-              setState(() => _isSearchingProduct = true);
-              _productSearchFocus.requestFocus();
-            },
+            onPressed: () => _showSingleStepItemDialog(),
           ),
         ],
       ),
@@ -2206,7 +2213,7 @@ class _ManualPurchaseEntryScreenState
       ),
       onDismissed: (_) => _removeItem(i),
       child: GestureDetector(
-        onTap: () => _editItemDialog(i),
+        onTap: () => _showSingleStepItemDialog(editIndex: i),
         child: Container(
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(12),
@@ -2262,7 +2269,7 @@ class _ManualPurchaseEntryScreenState
                   IconButton(
                     icon: const Icon(Icons.edit_rounded,
                         color: DashboardColors.textMuted, size: 16),
-                    onPressed: () => _editItemDialog(i),
+                    onPressed: () => _showSingleStepItemDialog(editIndex: i),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
@@ -2354,175 +2361,7 @@ class _ManualPurchaseEntryScreenState
     );
   }
 
-  // ---- Item edit dialog ----
-  Future<void> _editItemDialog(int index) async {
-    final row = _items[index];
 
-    final nameCtrl = TextEditingController(text: row.name);
-    final barcodeCtrl = TextEditingController(text: row.sku);
-    final qtyCtrl = TextEditingController(text: row.quantity.toString());
-    final rateCtrl = TextEditingController(text: row.purchaseRate.toStringAsFixed(2));
-    final discCtrl = TextEditingController(text: row.discount.toStringAsFixed(2));
-    final mrpCtrl = TextEditingController(text: row.mrp.toStringAsFixed(0));
-    final spCtrl = TextEditingController(text: row.sellingPrice.toStringAsFixed(0));
-    final hsnCtrl = TextEditingController(text: row.hsnCode);
-    double taxPct = row.taxPercent;
-    String selectedWarranty = row.warrantyDuration.isNotEmpty
-        ? row.warrantyDuration
-        : ItemWarrantyDuration.noWarranty;
-    if (!ItemWarrantyDuration.options.contains(selectedWarranty)) {
-      selectedWarranty = ItemWarrantyDuration.noWarranty;
-    }
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx2, setLocal) => AlertDialog(
-          backgroundColor: const Color(0xFF0B1030),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: Text('Edit Item: ${row.name}',
-              style: DashboardTypography.poppins(
-                  fontSize: 16, fontWeight: FontWeight.w700)),
-          content: SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              _dialogField(nameCtrl, 'Product Name', TextInputType.text),
-              const SizedBox(height: 10),
-              _dialogField(barcodeCtrl, 'Barcode / SKU (auto-generated if blank)', TextInputType.text),
-              const SizedBox(height: 10),
-              Row(children: [
-                Expanded(
-                    child: _dialogField(
-                        qtyCtrl, 'Qty', TextInputType.number)),
-                const SizedBox(width: 10),
-                Expanded(
-                    child: _dialogField(
-                        rateCtrl, 'Purchase Rate (₹)',
-                        const TextInputType.numberWithOptions(decimal: true))),
-              ]),
-              const SizedBox(height: 10),
-              Row(children: [
-                Expanded(
-                    child: _dialogField(
-                        discCtrl, 'Discount (₹)',
-                        const TextInputType.numberWithOptions(decimal: true))),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: DropdownButtonFormField<double>(
-                    value: taxPct,
-                    dropdownColor: const Color(0xFF0B1030),
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                    decoration: InputDecoration(
-                      labelText: 'GST %',
-                      labelStyle: const TextStyle(
-                          color: DashboardColors.textMuted, fontSize: 12),
-                      filled: true,
-                      fillColor: Colors.white.withValues(alpha: 0.04),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(
-                              color: DashboardColors.glassBorder)),
-                      isDense: true,
-                    ),
-                    items: [0.0, 3.0, 5.0, 12.0, 18.0, 28.0]
-                        .map((r) => DropdownMenuItem(
-                            value: r, child: Text('${r.toStringAsFixed(0)}%')))
-                        .toList(),
-                    onChanged: (v) {
-                      if (v != null) setLocal(() => taxPct = v);
-                    },
-                  ),
-                ),
-              ]),
-              const SizedBox(height: 10),
-              Row(children: [
-                Expanded(
-                    child: _dialogField(
-                        mrpCtrl, 'MRP (₹)',
-                        const TextInputType.numberWithOptions(decimal: true))),
-                const SizedBox(width: 10),
-                Expanded(
-                    child: _dialogField(
-                        spCtrl, 'Selling Price (₹)',
-                        const TextInputType.numberWithOptions(decimal: true))),
-              ]),
-              const SizedBox(height: 10),
-              _dialogField(hsnCtrl, 'HSN Code', TextInputType.number),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                value: selectedWarranty,
-                dropdownColor: const Color(0xFF0B1030),
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-                decoration: InputDecoration(
-                  labelText: 'Warranty Term',
-                  labelStyle: const TextStyle(
-                      color: DashboardColors.textMuted, fontSize: 12),
-                  filled: true,
-                  fillColor: Colors.white.withValues(alpha: 0.04),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(
-                          color: DashboardColors.glassBorder)),
-                  isDense: true,
-                ),
-                items: ItemWarrantyDuration.options
-                    .map((w) => DropdownMenuItem(value: w, child: Text(w)))
-                    .toList(),
-                onChanged: (v) {
-                  if (v != null) setLocal(() => selectedWarranty = v);
-                },
-              ),
-            ]),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel',
-                    style: TextStyle(color: DashboardColors.textMuted))),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: DashboardColors.neonBlue,
-                  foregroundColor: Colors.black),
-              onPressed: () {
-                setState(() {
-                  row.name = nameCtrl.text.trim().isNotEmpty ? nameCtrl.text.trim() : row.name;
-                  row.quantity = int.tryParse(qtyCtrl.text) ?? row.quantity;
-                  row.purchaseRate =
-                      double.tryParse(rateCtrl.text) ?? row.purchaseRate;
-                  row.discount =
-                      double.tryParse(discCtrl.text) ?? row.discount;
-                  row.taxPercent = taxPct;
-                  row.mrp = double.tryParse(mrpCtrl.text) ?? row.mrp;
-                  row.sellingPrice =
-                      double.tryParse(spCtrl.text) ?? row.sellingPrice;
-                  row.hsnCode = hsnCtrl.text.trim();
-                  final customBarcode = barcodeCtrl.text.trim();
-                  row.sku = customBarcode.isNotEmpty
-                      ? customBarcode
-                      : (row.sku.isNotEmpty ? row.sku : 'TKF${DateTime.now().millisecondsSinceEpoch}');
-                  row.warrantyDuration = selectedWarranty;
-                  row.isStagedReady = true;
-                });
-                _recalcState();
-                _scheduleDraftSave();
-                Navigator.pop(ctx);
-              },
-              child: const Text('Update',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    nameCtrl.dispose();
-    barcodeCtrl.dispose();
-    qtyCtrl.dispose();
-    rateCtrl.dispose();
-    discCtrl.dispose();
-    mrpCtrl.dispose();
-    spCtrl.dispose();
-    hsnCtrl.dispose();
-  }
 
   Widget _dialogField(TextEditingController ctrl, String label,
       TextInputType keyboardType) {

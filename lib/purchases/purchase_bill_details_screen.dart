@@ -32,14 +32,26 @@ class PurchaseBillDetailsScreen extends StatefulWidget {
 class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
   final _dateFormat = DateFormat('dd MMM yyyy, hh:mm a');
   final _shortDateFormat = DateFormat('dd MMM yyyy');
+  PurchaseBill? _currentBill;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentBill = widget.bill;
+  }
 
   Future<void> _editBill(PurchaseBill bill) async {
-    await Navigator.push(
+    final updated = await Navigator.push<PurchaseBill>(
       context,
       MaterialPageRoute(
         builder: (_) => ManualPurchaseEntryScreen(editBill: bill),
       ),
     );
+    if (updated != null && mounted) {
+      setState(() {
+        _currentBill = updated;
+      });
+    }
   }
 
   @override
@@ -49,9 +61,9 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
           ? Hive.box(boxPurchaseBills).listenable(keys: [widget.billKey])
           : Hive.box(boxPurchaseBills).listenable(),
       builder: (context, Box box, _) {
-        final bill = widget.billKey != null
+        final bill = (widget.billKey != null
             ? PurchaseBillService.instance.getPurchaseBill(widget.billKey)
-            : widget.bill;
+            : null) ?? _currentBill ?? widget.bill;
         if (bill == null) {
           return Scaffold(
             backgroundColor: DashboardColors.bgDarkNavyStart,
