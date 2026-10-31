@@ -227,6 +227,9 @@ class _ManualPurchaseEntryScreenState
         final resume = await _showResumeDraftDialog(draft);
         if (resume == true && mounted) {
           _restoreDraft(draft);
+        } else {
+          // If dismissed, cancelled, or discarded, delete the draft so we don't prompt in a loop!
+          await ManualPurchaseDraftService.instance.delete();
         }
       });
     }
@@ -796,6 +799,7 @@ class _ManualPurchaseEntryScreenState
     if (confirmed != true || !mounted) return;
 
     setState(() => _isSaving = true);
+    _draftTimer?.cancel();
 
     try {
       final auth = Provider.of<AuthController>(context, listen: false);
@@ -839,6 +843,54 @@ class _ManualPurchaseEntryScreenState
         TekFeedback.error('Save failed: ${e.toString().replaceFirst('Exception: ', '')}');
       }
     }
+  }
+
+  Future<void> _discardDraftAndReset() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0B1030),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Reset Form?', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: const Text(
+          'This will discard all entered items and clear the active draft state.',
+          style: TextStyle(color: DashboardColors.textMuted),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: DashboardColors.alertRed),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reset All', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    _draftTimer?.cancel();
+    await ManualPurchaseDraftService.instance.delete();
+
+    setState(() {
+      _vendorKey = null;
+      _vendorName = '';
+      _vendorPhone = '';
+      _vendorGst = '';
+      _vendorAddress = '';
+      _invoiceNumCtrl.clear();
+      _notesCtrl.clear();
+      _items.clear();
+      _chargesCtrl.clear();
+      _paidCtrl.clear();
+      _paymentRefCtrl.clear();
+      _attachment = null;
+      _attachmentBytes = null;
+      _parsedBillBanner = null;
+      _validationErrors.clear();
+      _saveAttempted = false;
+    });
+    _recalcState();
+    TekFeedback.toast('Draft cleared and form reset');
   }
 
   Future<bool?> _showMismatchDialog() {
@@ -1103,6 +1155,13 @@ class _ManualPurchaseEntryScreenState
                     onPressed: _pickAndAutoParseBill,
                   ),
                 ),
+
+              // Reset / Discard form button
+              IconButton(
+                icon: const Icon(Icons.restart_alt_rounded, size: 20, color: DashboardColors.textMuted),
+                tooltip: 'Reset / Clear Form',
+                onPressed: _discardDraftAndReset,
+              ),
 
               // Source chip (shown on screens >= 500)
               if (!isVeryNarrow)

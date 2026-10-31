@@ -622,6 +622,11 @@ class _PurchaseBillsDashboardViewState
                 icon: Icons.receipt_rounded,
                 color: DashboardColors.neonBlue,
                 width: safeWidth,
+                isSelected: _statusFilter == 'All',
+                onTap: () => setState(() {
+                  _statusFilter = 'All';
+                  _currentPage = 0;
+                }),
               ),
               const SizedBox(width: 12),
               _buildMetricCard(
@@ -654,28 +659,43 @@ class _PurchaseBillsDashboardViewState
               _buildMetricCard(
                 title: 'Fully Paid',
                 value: '${m['fullyPaidBills'] ?? 0}',
-                subtitle: 'Cleared invoices',
+                subtitle: 'Tap to filter',
                 icon: Icons.check_circle_rounded,
                 color: DashboardColors.neonGreen,
                 width: safeWidth,
+                isSelected: _statusFilter == BillPaymentStatus.paid,
+                onTap: () => setState(() {
+                  _statusFilter = _statusFilter == BillPaymentStatus.paid ? 'All' : BillPaymentStatus.paid;
+                  _currentPage = 0;
+                }),
               ),
               const SizedBox(width: 12),
               _buildMetricCard(
                 title: 'Partially Paid',
                 value: '${m['partiallyPaidBills'] ?? 0}',
-                subtitle: 'Part payment done',
+                subtitle: 'Tap to filter',
                 icon: Icons.timelapse_rounded,
                 color: DashboardColors.neonBlue,
                 width: safeWidth,
+                isSelected: _statusFilter == BillPaymentStatus.partiallyPaid,
+                onTap: () => setState(() {
+                  _statusFilter = _statusFilter == BillPaymentStatus.partiallyPaid ? 'All' : BillPaymentStatus.partiallyPaid;
+                  _currentPage = 0;
+                }),
               ),
               const SizedBox(width: 12),
               _buildMetricCard(
                 title: 'Unpaid Bills',
                 value: '${m['unpaidBills'] ?? 0}',
-                subtitle: 'No payment made',
+                subtitle: 'Tap to filter unpaid',
                 icon: Icons.hourglass_top_rounded,
                 color: DashboardColors.alertOrange,
                 width: safeWidth,
+                isSelected: _statusFilter == BillPaymentStatus.unpaid,
+                onTap: () => setState(() {
+                  _statusFilter = _statusFilter == BillPaymentStatus.unpaid ? 'All' : BillPaymentStatus.unpaid;
+                  _currentPage = 0;
+                }),
               ),
               const SizedBox(width: 12),
               _buildMetricCard(
@@ -685,6 +705,12 @@ class _PurchaseBillsDashboardViewState
                 icon: Icons.today_rounded,
                 color: DashboardColors.neonPurple,
                 width: safeWidth,
+                isSelected: _dateRangePreset == 'Today',
+                onTap: () => setState(() {
+                  _dateRangePreset = _dateRangePreset == 'Today' ? 'All Time' : 'Today';
+                  _applyDatePreset(_dateRangePreset);
+                  _currentPage = 0;
+                }),
               ),
               const SizedBox(width: 12),
               _buildMetricCard(
@@ -694,6 +720,12 @@ class _PurchaseBillsDashboardViewState
                 icon: Icons.calendar_month_rounded,
                 color: DashboardColors.neonPink,
                 width: safeWidth,
+                isSelected: _dateRangePreset == 'This Month',
+                onTap: () => setState(() {
+                  _dateRangePreset = _dateRangePreset == 'This Month' ? 'All Time' : 'This Month';
+                  _applyDatePreset(_dateRangePreset);
+                  _currentPage = 0;
+                }),
               ),
             ],
           ),
@@ -709,15 +741,25 @@ class _PurchaseBillsDashboardViewState
     required IconData icon,
     required Color color,
     required double width,
+    VoidCallback? onTap,
+    bool isSelected = false,
   }) {
-    return Container(
-      width: width,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
-      ),
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Container(
+        width: width,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? color.withValues(alpha: 0.16)
+              : Colors.white.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? color : color.withValues(alpha: 0.25),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -756,8 +798,9 @@ class _PurchaseBillsDashboardViewState
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   // ---------------------------------------------------------------------------
   // 3. Filter Bar
@@ -1576,6 +1619,11 @@ class _PurchaseBillsDashboardViewState
       );
     }
 
+    final isNarrow = MediaQuery.of(context).size.width < 768;
+    if (isNarrow) {
+      return _buildBillsCardList(bills);
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.02),
@@ -1641,6 +1689,14 @@ class _PurchaseBillsDashboardViewState
             ],
             rows: bills.map((b) {
               return DataRow(
+                onSelectChanged: (_) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PurchaseBillDetailsScreen(bill: b),
+                    ),
+                  );
+                },
                 cells: [
                   DataCell(
                     InkWell(
@@ -1780,6 +1836,129 @@ class _PurchaseBillsDashboardViewState
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildBillsCardList(List<PurchaseBill> bills) {
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: bills.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final b = bills[index];
+        return InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PurchaseBillDetailsScreen(bill: b),
+              ),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.03),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0x1AFFFFFF)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          b.billNumber,
+                          style: const TextStyle(
+                            color: DashboardColors.neonBlue,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _buildSourceChip(b.entrySource),
+                      ],
+                    ),
+                    _buildStatusBadge(b.paymentStatus),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            b.vendorName,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                          if (b.vendorInvoiceNumber.isNotEmpty)
+                            Text(
+                              'Inv: ${b.vendorInvoiceNumber}',
+                              style: const TextStyle(
+                                color: DashboardColors.textMuted,
+                                fontSize: 12,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      DateFormat('dd MMM yyyy').format(b.purchaseDate),
+                      style: const TextStyle(color: DashboardColors.textLight, fontSize: 12),
+                    ),
+                  ],
+                ),
+                const Divider(color: Color(0x1AFFFFFF), height: 18),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Grand Total', style: TextStyle(color: DashboardColors.textMuted, fontSize: 11)),
+                        Text('₹${b.grandTotal.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const Text('Paid', style: TextStyle(color: DashboardColors.textMuted, fontSize: 11)),
+                        Text('₹${b.paidAmount.toStringAsFixed(2)}', style: const TextStyle(color: DashboardColors.neonGreen, fontWeight: FontWeight.bold, fontSize: 14)),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        const Text('Balance Due', style: TextStyle(color: DashboardColors.textMuted, fontSize: 11)),
+                        Text(
+                          '₹${b.balanceDue.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            color: b.balanceDue > 0 ? DashboardColors.alertOrange : DashboardColors.neonGreen,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
