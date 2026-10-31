@@ -10,7 +10,7 @@ This repository powers both the **Windows Desktop Owner Panel** and the **Mobile
 
 | Application | Target Platform | Target Role | Download Link / Release Asset |
 | :--- | :--- | :--- | :--- |
-| **🖥️ TekFix Owner Panel** | Windows 10 / 11 (x64) | Shop Owner / Admins | [Download Windows Release (`tekfix_pos.exe`)](https://github.com/infotekfix-del/tekfix_pos/releases/latest) |
+| **🖥️ TekFix Owner Panel** | Windows 10 / 11 (x64) | Shop Owner / Admins | [Download Windows Package (`tekfix_pos-windows-x64.zip`)](https://github.com/infotekfix-del/tekfix_pos/releases/latest/download/tekfix_pos-windows-x64.zip)<br>*(Extract the ZIP and run `tekfix_pos.exe`)* |
 | **📱 TekFix Staff POS & Orders** | Android 8.0+ (ARM64 / ARMv7) | Staff / Technicians | [Download Android APK (`app-release.apk`)](https://github.com/infotekfix-del/tekfix_pos/releases/latest/download/app-release.apk) |
 
 ---
