@@ -8,7 +8,9 @@ class ParsedInvoiceData {
   final String? invoiceNumber;
   final DateTime? invoiceDate;
   final String? vendorName;
+  final String? vendorPhone;
   final String? vendorGst;
+  final String? vendorAddress;
   final double? invoiceTotal;
   final List<ParsedInvoiceItem> items;
   final String rawExtractedText;
@@ -18,7 +20,9 @@ class ParsedInvoiceData {
     this.invoiceNumber,
     this.invoiceDate,
     this.vendorName,
+    this.vendorPhone,
     this.vendorGst,
+    this.vendorAddress,
     this.invoiceTotal,
     this.items = const [],
     this.rawExtractedText = '',
@@ -35,6 +39,7 @@ class ParsedInvoiceItem {
   final String? skuOrHsn;
   final int quantity;
   final double unitPrice;
+  final double mrp;
   final double discount;
   final double taxPercent;
   final double lineTotal;
@@ -44,6 +49,7 @@ class ParsedInvoiceItem {
     this.skuOrHsn,
     required this.quantity,
     required this.unitPrice,
+    this.mrp = 0.0,
     this.discount = 0.0,
     this.taxPercent = 0.0,
     required this.lineTotal,
@@ -51,18 +57,28 @@ class ParsedInvoiceItem {
 
   PurchaseBillItem toPurchaseBillItem({
     String? matchedProductId,
+    dynamic itemKey,
     String? matchedProductName,
     bool isNew = true,
   }) {
+    final effectiveMrp = mrp > 0
+        ? mrp
+        : (unitPrice > 0 ? (unitPrice * 1.25).roundToDouble() : 0.0);
     return PurchaseBillItem(
       itemId: matchedProductId,
+      itemKey: itemKey,
       name: matchedProductName ?? description,
       sku: skuOrHsn ?? '',
+      hsnCode: skuOrHsn ?? '',
       quantity: quantity > 0 ? quantity : 1,
       purchaseRate: unitPrice > 0 ? unitPrice : (lineTotal > 0 ? lineTotal : 0.0),
+      mrp: effectiveMrp,
+      sellingPrice: effectiveMrp > 0
+          ? effectiveMrp
+          : (unitPrice > 0 ? (unitPrice * 1.20).roundToDouble() : 0.0),
       discount: discount,
       taxPercent: taxPercent,
-      lineTotal: lineTotal,
+      lineTotal: lineTotal > 0 ? lineTotal : (quantity * unitPrice),
       matchedProductId: matchedProductId,
       matchedProductName: matchedProductName,
       isNewProduct: isNew,
@@ -337,9 +353,43 @@ class InvoiceParserService {
       vGst = gstMatch.group(1);
     }
 
+    // 3b. EXTRACT VENDOR PHONE
+    String? vPhone;
+    final phonePatterns = [
+      RegExp(r'(?:Phone|Mob(?:ile)?|Ph|Tel|Contact)[:\s#]*([+]?[0-9\s\-]{10,15})', caseSensitive: false),
+      RegExp(r'\b([6-9]\d{9})\b'),
+    ];
+    for (final pat in phonePatterns) {
+      final m = pat.firstMatch(text);
+      if (m != null && m.group(1) != null) {
+        final clean = m.group(1)!.replaceAll(RegExp(r'[\s\-]'), '');
+        if (clean.length >= 10 && clean.length <= 13) {
+          vPhone = clean;
+          break;
+        }
+      }
+    }
+
+    // 3c. EXTRACT VENDOR ADDRESS
+    String? vAddr;
+    final addrPatterns = [
+      RegExp(r'(?:Address|Addr|Location|Billed\s*From)[:\s]+([^\n\r]+)', caseSensitive: false),
+      RegExp(r'(?:Place\s*of\s*Supply)[:\s]+([^\n\r]+)', caseSensitive: false),
+    ];
+    for (final pat in addrPatterns) {
+      final m = pat.firstMatch(text);
+      if (m != null && m.group(1) != null) {
+        final cand = m.group(1)!.trim();
+        if (cand.length > 3) {
+          vAddr = cand;
+          break;
+        }
+      }
+    }
+
     // 4. EXTRACT VENDOR NAME
     final vendorPatterns = [
-      RegExp(r'(?:Vendor|Supplier|Seller|M/s\.?|Sold\s*By|From)[:\s]+([^\n\r,]+)', caseSensitive: false),
+      RegExp(r'(?:Vendor|Supplier|Seller|M/s\.?|Sold\s*By|From|Party)[:\s]+([^\n\r,]+)', caseSensitive: false),
     ];
     for (final pat in vendorPatterns) {
       final m = pat.firstMatch(text);
@@ -349,6 +399,20 @@ class InvoiceParserService {
           vName = cand;
           break;
         }
+      }
+    }
+    // Fallback: check first 5 lines for vendor header
+    if (vName == null) {
+      for (int i = 0; i < lines.length.clamp(0, 5); i++) {
+        final l = lines[i];
+        final lLower = l.toLowerCase();
+        if (lLower.contains('invoice') || lLower.contains('cash memo') || lLower.contains('original') ||
+            lLower.contains('gst') || lLower.contains('date') || lLower.contains('bill to') ||
+            l.length < 3 || RegExp(r'^\d+$').hasMatch(l)) {
+          continue;
+        }
+        vName = l;
+        break;
       }
     }
 
@@ -372,11 +436,16 @@ class InvoiceParserService {
     }
 
     // 6. EXTRACT LINE ITEMS
-    // Typical line: Description Qty Rate [Tax%] Total
-    // Examples:
-    // "1. iPhone 13 128GB Midnight 2 48500 18% 114460"
-    // "Samsung Galaxy A54 5G 3 24999.00 74997.00"
-    // "Tempered Glass 9H 50 45.00 2250.00"
+    // Check various common invoice tabular formats:
+    // Pattern A: Includes MRP
+    // Item Description [HSN] Qty Rate MRP [Tax%] Total
+    final lineItemWithMrpRegex = RegExp(
+      r'^(?:(?:\d{1,3}[.)\s]+))?([A-Za-z0-9][A-Za-z0-9\s\-_/()+&]{2,45}?)\s+(?:(?:HSN|SKU)?\s*[:\s]*([0-9]{4,8})\s+)?(\d{1,4})\s+(?:(?:Pcs|Units?|Nos?|Box|Bundles?)\s+)?(?:₹|Rs\.?)?\s*([\d,]+(?:\.\d{1,2})?)\s+(?:(?:₹|Rs\.?)?\s*([\d,]+(?:\.\d{1,2})?)\s+)(?:(?:(\d{1,2}(?:\.\d{1,2})?)\s*%\s*)?)?(?:₹|Rs\.?)?\s*([\d,]+(?:\.\d{1,2})?)$',
+      multiLine: false,
+    );
+
+    // Pattern B: Standard without explicit MRP column
+    // Item Description [HSN] Qty Rate [Discount] [Tax%] Total
     final lineItemRegex = RegExp(
       r'^(?:(?:\d{1,3}[.)\s]+))?([A-Za-z0-9][A-Za-z0-9\s\-_/()+&]{3,45}?)\s+(?:(?:HSN|SKU)?\s*[:\s]*([0-9]{4,8})\s+)?(\d{1,4})\s+(?:(?:Pcs|Units?|Nos?|Box|Bundles?)\s+)?(?:₹|Rs\.?)?\s*([\d,]+(?:\.\d{1,2})?)\s+(?:(?:(?:₹|Rs\.?)?\s*([\d,]+(?:\.\d{1,2})?)\s+)?(?:(\d{1,2}(?:\.\d{1,2})?)\s*%\s*)?)?(?:₹|Rs\.?)?\s*([\d,]+(?:\.\d{1,2})?)$',
       multiLine: false,
@@ -389,6 +458,32 @@ class InvoiceParserService {
       if (lLower.contains('subtotal') || lLower.contains('grand total') || lLower.contains('authorized signatory')) continue;
       if (lLower.contains('terms and conditions') || lLower.contains('thank you')) continue;
 
+      // Try Pattern A first (has MRP)
+      final mA = lineItemWithMrpRegex.firstMatch(line);
+      if (mA != null) {
+        final desc = mA.group(1)?.trim() ?? '';
+        final hsn = mA.group(2)?.trim();
+        final qty = int.tryParse(mA.group(3) ?? '') ?? 1;
+        final rate = double.tryParse(mA.group(4)?.replaceAll(',', '') ?? '') ?? 0.0;
+        final mrpVal = double.tryParse(mA.group(5)?.replaceAll(',', '') ?? '') ?? 0.0;
+        final taxP = double.tryParse(mA.group(6) ?? '') ?? 0.0;
+        final total = double.tryParse(mA.group(7)?.replaceAll(',', '') ?? '') ?? (qty * rate);
+
+        if (desc.isNotEmpty && rate > 0 && desc.length > 2) {
+          items.add(ParsedInvoiceItem(
+            description: desc,
+            skuOrHsn: hsn,
+            quantity: qty,
+            unitPrice: rate,
+            mrp: mrpVal > 0 ? mrpVal : (rate * 1.25).roundToDouble(),
+            taxPercent: taxP,
+            lineTotal: total,
+          ));
+          continue;
+        }
+      }
+
+      // Try Pattern B (standard)
       final m = lineItemRegex.firstMatch(line);
       if (m != null) {
         final desc = m.group(1)?.trim() ?? '';
@@ -404,9 +499,11 @@ class InvoiceParserService {
             skuOrHsn: hsn,
             quantity: qty,
             unitPrice: rate,
+            mrp: (rate * 1.25).roundToDouble(),
             taxPercent: taxP,
             lineTotal: total,
           ));
+          continue;
         }
       }
     }
@@ -429,6 +526,7 @@ class InvoiceParserService {
               description: desc,
               quantity: qty,
               unitPrice: rate,
+              mrp: (rate * 1.25).roundToDouble(),
               lineTotal: total,
             ));
           }
@@ -451,6 +549,7 @@ class InvoiceParserService {
               description: desc,
               quantity: qty,
               unitPrice: rate,
+              mrp: (rate * 1.25).roundToDouble(),
               lineTotal: total,
             ));
           }
@@ -462,7 +561,9 @@ class InvoiceParserService {
       invoiceNumber: invNum,
       invoiceDate: invDate,
       vendorName: vName,
+      vendorPhone: vPhone,
       vendorGst: vGst,
+      vendorAddress: vAddr,
       invoiceTotal: gTotal,
       items: items,
       rawExtractedText: text,
@@ -499,7 +600,26 @@ class InvoiceParserService {
   }
 
   static String _attemptImageHeuristicText(Uint8List bytes, String fileName) {
-    // If the image contains text in EXIF or if it's an uploaded test file with name clues:
+    final sb = StringBuffer();
+    // Scan for printable ASCII text sequences (e.g. metadata, embedded receipt text)
+    final tempChars = <int>[];
+    for (int i = 0; i < bytes.length; i++) {
+      final b = bytes[i];
+      if ((b >= 32 && b <= 126) || b == 10 || b == 13) {
+        tempChars.add(b);
+      } else {
+        if (tempChars.length >= 4) {
+          final s = String.fromCharCodes(tempChars).trim();
+          if (s.contains(RegExp(r'(?:Invoice|Date|Total|Rs|GST|Qty|Rate|Item|MRP|Tax)', caseSensitive: false))) {
+            sb.writeln(s);
+          }
+        }
+        tempChars.clear();
+      }
+    }
+    if (sb.length > 20) {
+      return sb.toString();
+    }
     final cleanName = fileName.replaceAll(RegExp(r'\.[^.]+$'), '');
     return 'Invoice No: INV-$cleanName\nDate: ${DateTime.now().day}-${DateTime.now().month}-${DateTime.now().year}\n';
   }

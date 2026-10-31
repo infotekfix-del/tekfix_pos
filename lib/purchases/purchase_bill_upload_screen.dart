@@ -292,6 +292,14 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                   _vendorPrevBalance = balPaise / 100.0;
                   _detectGstType();
                 });
+              } else if (parsed.vendorName != null && parsed.vendorName!.isNotEmpty) {
+                setState(() {
+                  _selectedVendorName = parsed.vendorName!;
+                  if (parsed.vendorPhone != null) _selectedVendorPhone = parsed.vendorPhone!;
+                  if (parsed.vendorGst != null) _selectedVendorGst = parsed.vendorGst!;
+                  if (parsed.vendorAddress != null) _selectedVendorAddress = parsed.vendorAddress!;
+                  _detectGstType();
+                });
               }
             }
 
@@ -333,6 +341,7 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
 
                   newItems.add(pItem.toPurchaseBillItem(
                     matchedProductId: match['id']?.toString(),
+                    itemKey: match['itemKey'] ?? match['id'],
                     matchedProductName: matchedName,
                     isNew: false,
                   ).copyWith(

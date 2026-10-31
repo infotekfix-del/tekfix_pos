@@ -7,6 +7,10 @@
 // =============================================================================
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -16,6 +20,7 @@ import '../auth/auth_controller.dart';
 import '../main.dart' show Db;
 import '../ui/dashboard/dashboard_tokens.dart';
 import '../ui/tek_feedback.dart';
+import 'invoice_parser_service.dart';
 import 'manual_purchase_draft_service.dart';
 import 'purchase_bill_service.dart';
 import 'purchase_calculation_engine.dart';
@@ -29,6 +34,7 @@ import 'purchase_bill_details_screen.dart';
 // ---------------------------------------------------------------------------
 class _EditableItem {
   final String rowId;
+  dynamic itemKey;
   String name;
   String brand;
   String model;
@@ -52,6 +58,7 @@ class _EditableItem {
 
   _EditableItem({
     String? rowId,
+    this.itemKey,
     this.name = '',
     this.brand = '',
     this.model = '',
@@ -81,6 +88,8 @@ class _EditableItem {
     final tax = taxable * taxPercent / 100;
     return PurchaseBillItem(
       id: rowId,
+      itemKey: itemKey,
+      itemId: matchedProductId,
       name: name,
       brand: brand,
       model: model,
@@ -112,7 +121,14 @@ class _EditableItem {
 // ManualPurchaseEntryScreen
 // ---------------------------------------------------------------------------
 class ManualPurchaseEntryScreen extends StatefulWidget {
-  const ManualPurchaseEntryScreen({super.key});
+  final dynamic initialVendorKey;
+  final String? initialVendorName;
+
+  const ManualPurchaseEntryScreen({
+    super.key,
+    this.initialVendorKey,
+    this.initialVendorName,
+  });
 
   @override
   State<ManualPurchaseEntryScreen> createState() =>
@@ -161,6 +177,12 @@ class _ManualPurchaseEntryScreenState
   bool _saveAttempted = false;
   final List<String> _validationErrors = [];
 
+  // ---- Document Attachment & OCR State ----
+  BillAttachment? _attachment;
+  Uint8List? _attachmentBytes;
+  bool _isParsingBill = false;
+  String? _parsedBillBanner;
+
   // ---- Calculation engine ----
   PurchaseCalculationEngine _engine = const PurchaseCalculationEngine(isInterState: false);
   late BillCalcResult _calc;
@@ -183,9 +205,23 @@ class _ManualPurchaseEntryScreenState
     _billNumber = await PurchaseBillService.instance.generateBillNumber();
     if (mounted) setState(() {});
 
-    // Check for existing draft
+    // Check for initial vendor from caller
+    if (widget.initialVendorKey != null) {
+      final vendors = PurchaseBillService.instance.getVendors();
+      final v = vendors.cast<Map<String, dynamic>?>().firstWhere(
+        (e) => e?['key'] == widget.initialVendorKey || '${e?['key']}' == '${widget.initialVendorKey}',
+        orElse: () => null,
+      );
+      if (v != null) {
+        await _applyVendorMap(v);
+      } else if (widget.initialVendorName != null && mounted) {
+        setState(() => _vendorName = widget.initialVendorName!);
+      }
+    }
+
+    // Check for existing draft if no initial vendor
     final draft = ManualPurchaseDraftService.instance.load();
-    if (draft != null && draft.hasData && mounted) {
+    if (draft != null && draft.hasData && mounted && widget.initialVendorKey == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
         final resume = await _showResumeDraftDialog(draft);
@@ -369,10 +405,7 @@ class _ManualPurchaseEntryScreenState
   // -------------------------------------------------------------------------
   // VENDOR SELECTION
   // -------------------------------------------------------------------------
-  Future<void> _selectVendor() async {
-    final result = await SupplierSearchSheet.show(context);
-    if (result == null || !mounted) return;
-
+  Future<void> _applyVendorMap(Map<String, dynamic> result) async {
     setState(() {
       _vendorKey = result['key'];
       _vendorName = result['name']?.toString() ?? '';
@@ -401,6 +434,149 @@ class _ManualPurchaseEntryScreenState
         _vendorPrevBalance = balPaise / 100.0;
         _loadingBalance = false;
       });
+    }
+  }
+
+  Future<void> _selectVendor() async {
+    final result = await SupplierSearchSheet.show(context);
+    if (result == null || !mounted) return;
+    await _applyVendorMap(result);
+  }
+
+  // -------------------------------------------------------------------------
+  // AUTOMATED BILL EXTRACTION (OCR / PDF / IMAGE PARSER)
+  // -------------------------------------------------------------------------
+  Future<void> _pickAndAutoParseBill() async {
+    try {
+      setState(() => _isParsingBill = true);
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
+        withData: true,
+      );
+
+      if (result == null || result.files.isEmpty) return;
+      final file = result.files.first;
+      final ext = (file.extension ?? '').toLowerCase();
+      final mime = ext == 'pdf' ? 'application/pdf' : 'image/$ext';
+
+      Uint8List? fileBytes = file.bytes;
+      if (fileBytes == null && file.path != null && File(file.path!).existsSync()) {
+        fileBytes = await File(file.path!).readAsBytes();
+      }
+
+      if (fileBytes == null) {
+        TekFeedback.error('Unable to read selected bill file.');
+        return;
+      }
+
+      _attachmentBytes = fileBytes;
+      _attachment = BillAttachment(
+        fileName: file.name,
+        fileType: mime,
+        fileSizeBytes: fileBytes.length,
+        bytesBase64: base64Encode(fileBytes),
+        filePath: file.path,
+        uploadedAt: DateTime.now(),
+      );
+
+      TekFeedback.toast('Extracting bill data with OCR parser...');
+
+      final parsed = await InvoiceParserService.instance.parseInvoiceFile(
+        fileBytes: fileBytes,
+        fileName: file.name,
+        filePath: file.path,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        if (parsed.invoiceNumber != null && parsed.invoiceNumber!.isNotEmpty) {
+          _invoiceNumCtrl.text = parsed.invoiceNumber!;
+        }
+        if (parsed.invoiceDate != null) {
+          _invoiceDate = parsed.invoiceDate!;
+        }
+        if (parsed.invoiceTotal != null && parsed.invoiceTotal! > 0) {
+          _printedTotalCtrl.text = parsed.invoiceTotal!.toStringAsFixed(2);
+        }
+      });
+
+      // Match or populate vendor
+      final vendors = PurchaseBillService.instance.getVendors();
+      Map<String, dynamic>? matchedVendor;
+      if (parsed.vendorGst != null && parsed.vendorGst!.isNotEmpty) {
+        matchedVendor = vendors.cast<Map<String, dynamic>?>().firstWhere(
+          (v) => v?['gst']?.toString().toUpperCase() == parsed.vendorGst!.toUpperCase(),
+          orElse: () => null,
+        );
+      }
+      if (matchedVendor == null && parsed.vendorName != null && parsed.vendorName!.isNotEmpty) {
+        final target = parsed.vendorName!.toLowerCase();
+        matchedVendor = vendors.cast<Map<String, dynamic>?>().firstWhere(
+          (v) => (v?['name']?.toString().toLowerCase().contains(target) ?? false) ||
+                 target.contains(v?['name']?.toString().toLowerCase() ?? '---'),
+          orElse: () => null,
+        );
+      }
+
+      if (matchedVendor != null) {
+        await _applyVendorMap(matchedVendor);
+      } else if (parsed.vendorName != null && parsed.vendorName!.isNotEmpty) {
+        setState(() {
+          _vendorName = parsed.vendorName!;
+          if (parsed.vendorPhone != null) _vendorPhone = parsed.vendorPhone!;
+          if (parsed.vendorGst != null) _vendorGst = parsed.vendorGst!;
+          if (parsed.vendorAddress != null) _vendorAddress = parsed.vendorAddress!;
+        });
+      }
+
+      // Auto-populate line items if extracted
+      if (parsed.hasItems) {
+        final newRows = <_EditableItem>[];
+        for (final pItem in parsed.items) {
+          final row = _EditableItem(
+            name: pItem.description,
+            sku: pItem.skuOrHsn ?? '',
+            hsnCode: pItem.skuOrHsn ?? '',
+            quantity: pItem.quantity,
+            purchaseRate: pItem.unitPrice,
+            mrp: pItem.mrp,
+            sellingPrice: pItem.mrp > 0 ? pItem.mrp : (pItem.unitPrice * 1.20).roundToDouble(),
+            discount: pItem.discount,
+            taxPercent: pItem.taxPercent > 0 ? pItem.taxPercent : 18.0,
+            isMatchLoading: true,
+          );
+          newRows.add(row);
+        }
+
+        setState(() {
+          _items.clear();
+          _items.addAll(newRows);
+          _parsedBillBanner =
+              'Auto-extracted ${parsed.itemCount} items from ${file.name} (${parsed.parsingMethod}). Review & confirm.';
+        });
+
+        // Smart product matching against inventory
+        for (final row in newRows) {
+          _triggerProductMatch(row);
+        }
+
+        TekFeedback.success('Extracted ${parsed.itemCount} items from bill!');
+      } else {
+        setState(() {
+          _parsedBillBanner = 'Bill attached (${file.name}). Enter items below.';
+        });
+        TekFeedback.toast('Bill attached: ${file.name}');
+      }
+
+      _checkDuplicateInvoice();
+      _recalcState();
+      _scheduleDraftSave();
+    } catch (e) {
+      TekFeedback.error('Failed to parse bill: $e');
+    } finally {
+      if (mounted) setState(() => _isParsingBill = false);
     }
   }
 
@@ -463,6 +639,7 @@ class _ManualPurchaseEntryScreenState
         if (match != null) {
           row.matchStatus = match['status'] as String? ?? ProductMatchStatus.matched;
           row.matchedProductId = match['id']?.toString();
+          row.itemKey = match['itemKey'] ?? match['id'];
           row.matchedProductName = match['name']?.toString() ?? row.name;
           row.matchNotes = match['notes']?.toString();
           row.isNewProduct = match['status'] == ProductMatchStatus.quickRegister;
@@ -521,6 +698,7 @@ class _ManualPurchaseEntryScreenState
 
     setState(() {
       row.matchedProductId = result['id']?.toString() ?? result['matchedProductId']?.toString();
+      row.itemKey = result['key'] ?? result['itemKey'] ?? result['id'];
       row.matchedProductName = result['name']?.toString() ?? row.name;
       row.isNewProduct = false;
       row.isStagedReady = true;
@@ -636,6 +814,8 @@ class _ManualPurchaseEntryScreenState
         initialPaidAmount: double.tryParse(_paidCtrl.text) ?? 0.0,
         initialPaymentMethod: _paymentMethod,
         initialPaymentReference: _paymentRefCtrl.text.trim(),
+        attachment: _attachment,
+        attachmentBytes: _attachmentBytes,
         staffId: auth.uid,
         staffName: auth.name.isNotEmpty ? auth.name : 'Owner',
         notes: _notesCtrl.text.trim(),
@@ -808,6 +988,100 @@ class _ManualPurchaseEntryScreenState
           ],
         ),
         actions: [
+          // Auto-Extract from Bill (OCR) button
+          if (_isParsingBill)
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: DashboardColors.neonGreen.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: DashboardColors.neonGreen),
+              ),
+              child: const Row(
+                children: [
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: DashboardColors.neonGreen,
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  Text('Parsing OCR...',
+                      style: TextStyle(
+                          color: DashboardColors.neonGreen,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700)),
+                ],
+              ),
+            )
+          else if (_attachment != null)
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: DashboardColors.neonBlue.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.attach_file_rounded,
+                      color: DashboardColors.neonBlue, size: 14),
+                  const SizedBox(width: 4),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 120),
+                    child: Text(
+                      _attachment!.fileName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  InkWell(
+                    onTap: () {
+                      setState(() {
+                        _attachment = null;
+                        _attachmentBytes = null;
+                        _parsedBillBanner = null;
+                      });
+                      TekFeedback.toast('Bill detached');
+                    },
+                    child: const Icon(Icons.close_rounded,
+                        color: DashboardColors.textMuted, size: 14),
+                  ),
+                ],
+              ),
+            )
+          else
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: DashboardColors.neonGreen,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  elevation: 2,
+                ),
+                icon: const Icon(Icons.document_scanner_rounded,
+                    size: 16, color: Colors.black),
+                label: const Text('Auto-Extract Bill (OCR)',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.black)),
+                onPressed: _pickAndAutoParseBill,
+              ),
+            ),
+
           // Source chip
           Container(
             margin: const EdgeInsets.only(right: 12),
@@ -850,6 +1124,7 @@ class _ManualPurchaseEntryScreenState
             padding: const EdgeInsets.all(22),
             child: Column(
               children: [
+                _buildExtractionBanner(),
                 _buildValidationErrors(),
                 _buildSupplierSection(),
                 const SizedBox(height: 16),
@@ -891,6 +1166,7 @@ class _ManualPurchaseEntryScreenState
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
       child: Column(
         children: [
+          _buildExtractionBanner(),
           _buildValidationErrors(),
           _buildSupplierSection(),
           const SizedBox(height: 14),
@@ -903,6 +1179,43 @@ class _ManualPurchaseEntryScreenState
           _buildTaxSummaryCard(),
           const SizedBox(height: 14),
           _buildPaymentSection(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExtractionBanner() {
+    if (_parsedBillBanner == null) return const SizedBox();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: DashboardColors.neonGreen.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: DashboardColors.neonGreen.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle_outline_rounded,
+              color: DashboardColors.neonGreen, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _parsedBillBanner!,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded,
+                color: DashboardColors.textMuted, size: 16),
+            onPressed: () => setState(() => _parsedBillBanner = null),
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+          ),
         ],
       ),
     );

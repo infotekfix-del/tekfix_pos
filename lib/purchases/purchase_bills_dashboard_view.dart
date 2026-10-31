@@ -31,6 +31,7 @@ class _PurchaseBillsDashboardViewState
   dynamic _selectedVendorKey;
   DateTimeRange? _selectedDateRange;
   String _dateRangePreset = 'All Time';
+  int _vendorSubTab = 0; // 0 = Bills, 1 = Payment History
 
   int _currentPage = 0;
   static const int _pageSize = 15;
@@ -48,6 +49,7 @@ class _PurchaseBillsDashboardViewState
       _selectedVendorKey = null;
       _selectedDateRange = null;
       _dateRangePreset = 'All Time';
+      _vendorSubTab = 0;
       _currentPage = 0;
     });
   }
@@ -83,10 +85,19 @@ class _PurchaseBillsDashboardViewState
   // Advance Payment Modal
   // ---------------------------------------------------------------------------
 
-  void _showRecordAdvancePaymentDialog() {
+  void _showRecordAdvancePaymentDialog({dynamic preselectedVendorKey}) {
     final vendors = PurchaseBillService.instance.getVendors();
-    dynamic selVendorKey;
+    dynamic selVendorKey = preselectedVendorKey;
     String selVendorName = '';
+    if (preselectedVendorKey != null) {
+      final found = vendors.cast<Map<String, dynamic>?>().firstWhere(
+            (v) => v?['key'] == preselectedVendorKey,
+            orElse: () => null,
+          );
+      if (found != null) {
+        selVendorName = found['name']?.toString() ?? '';
+      }
+    }
     final amountCtrl = TextEditingController();
     final refCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
@@ -359,12 +370,21 @@ class _PurchaseBillsDashboardViewState
                 _buildFilterBar(vendors),
                 const SizedBox(height: 16),
 
-                // 4. BILLS TABLE
-                _buildBillsTable(pageBills, filteredBills.length),
+                // 3B. VENDOR SUMMARY & PROFILE CARD (When a vendor is selected)
+                if (_selectedVendorKey != null) ...[
+                  _buildVendorProfileCard(vendors, filteredBills),
+                  const SizedBox(height: 16),
+                ],
+
+                // 4. BILLS TABLE OR PAYMENTS TABLE (Vendor sub-tab)
+                if (_selectedVendorKey != null && _vendorSubTab == 1)
+                  _buildVendorPaymentsTable()
+                else
+                  _buildBillsTable(pageBills, filteredBills.length),
                 const SizedBox(height: 16),
 
-                // 5. PAGINATION
-                if (totalPages > 1) _buildPagination(totalPages),
+                // 5. PAGINATION (for bills)
+                if (_vendorSubTab == 0 && totalPages > 1) _buildPagination(totalPages),
                 const SizedBox(height: 40),
               ],
             ),
@@ -894,6 +914,579 @@ class _PurchaseBillsDashboardViewState
             tooltip: 'Reset Filters',
             onPressed: _clearFilters,
           ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 3B. Vendor Profile & Drill-down Card (Vyapar-like tracking)
+  // ---------------------------------------------------------------------------
+
+  Widget _buildVendorProfileCard(
+      List<Map<String, dynamic>> vendors, List<PurchaseBill> filteredBills) {
+    final vendor = vendors.cast<Map<String, dynamic>?>().firstWhere(
+          (v) => v?['key'] == _selectedVendorKey,
+          orElse: () => null,
+        );
+
+    final vendorName = vendor?['name']?.toString() ?? 'Selected Vendor';
+    final vendorPhone = vendor?['phone']?.toString() ?? '';
+    final vendorGst = vendor?['gst']?.toString() ?? '';
+    final vendorAddress = vendor?['address']?.toString() ?? '';
+
+    final summary =
+        PurchaseBillService.instance.getVendorSummary(_selectedVendorKey);
+    final vendorPayments =
+        PurchaseBillService.instance.getPaymentsForVendor(_selectedVendorKey);
+
+    final billsCount = summary['billsCount'] as int? ?? filteredBills.length;
+    final totalPurchases = summary['totalPurchases'] as double? ?? 0.0;
+    final totalPaid = summary['totalPaid'] as double? ?? 0.0;
+    final totalOutstanding = summary['totalOutstanding'] as double? ?? 0.0;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF101846),
+        borderRadius: BorderRadius.circular(16),
+        border:
+            Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.35)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Row 1: Vendor Header info & action buttons
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: DashboardColors.activePillGradient,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: Text(
+                    vendorName.isNotEmpty ? vendorName[0].toUpperCase() : 'V',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            vendorName,
+                            style: DashboardTypography.poppins(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: DashboardColors.neonBlue
+                                .withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                                color: DashboardColors.neonBlue
+                                    .withValues(alpha: 0.3)),
+                          ),
+                          child: const Text(
+                            'SUPPLIER',
+                            style: TextStyle(
+                              color: DashboardColors.neonBlue,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 4,
+                      children: [
+                        if (vendorPhone.isNotEmpty)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.phone_rounded,
+                                  size: 13, color: DashboardColors.textMuted),
+                              const SizedBox(width: 4),
+                              Text(vendorPhone,
+                                  style: const TextStyle(
+                                      color: DashboardColors.textMuted,
+                                      fontSize: 12)),
+                            ],
+                          ),
+                        if (vendorGst.isNotEmpty)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.badge_rounded,
+                                  size: 13, color: DashboardColors.neonBlue),
+                              const SizedBox(width: 4),
+                              Text('GSTIN: $vendorGst',
+                                  style: const TextStyle(
+                                      color: DashboardColors.neonBlue,
+                                      fontSize: 12)),
+                            ],
+                          ),
+                        if (vendorAddress.isNotEmpty)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.location_on_rounded,
+                                  size: 13, color: DashboardColors.textMuted),
+                              const SizedBox(width: 4),
+                              Text(vendorAddress,
+                                  style: const TextStyle(
+                                      color: DashboardColors.textMuted,
+                                      fontSize: 12)),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Action buttons for vendor
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.end,
+                children: [
+                  // Full Ledger button
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: DashboardColors.neonPurple
+                          .withValues(alpha: 0.15),
+                      foregroundColor: DashboardColors.neonPurple,
+                      side: const BorderSide(color: DashboardColors.neonPurple),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    icon: const Icon(Icons.menu_book_rounded, size: 16),
+                    label: const Text('View Full Ledger',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 12)),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => VendorLedgerScreen(
+                            vendorKey: _selectedVendorKey,
+                            vendorName: vendorName,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  // Record payment button
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          DashboardColors.neonGreen.withValues(alpha: 0.15),
+                      foregroundColor: DashboardColors.neonGreen,
+                      side: const BorderSide(color: DashboardColors.neonGreen),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    icon: const Icon(Icons.payment_rounded, size: 16),
+                    label: const Text('Record Payment',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 12)),
+                    onPressed: () => _showRecordAdvancePaymentDialog(
+                        preselectedVendorKey: _selectedVendorKey),
+                  ),
+                  // New Bill for Vendor button
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          DashboardColors.neonBlue.withValues(alpha: 0.15),
+                      foregroundColor: DashboardColors.neonBlue,
+                      side: const BorderSide(color: DashboardColors.neonBlue),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    icon:
+                        const Icon(Icons.add_circle_outline_rounded, size: 16),
+                    label: const Text('+ New Bill',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 12)),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ManualPurchaseEntryScreen(
+                            initialVendorKey: _selectedVendorKey,
+                            initialVendorName: vendorName,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  // Close filter
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded,
+                        color: DashboardColors.textMuted, size: 18),
+                    tooltip: 'Clear vendor filter',
+                    onPressed: () {
+                      setState(() {
+                        _selectedVendorKey = null;
+                        _vendorSubTab = 0;
+                        _currentPage = 0;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Divider(color: DashboardColors.glassBorderHover, height: 1),
+          const SizedBox(height: 14),
+
+          // Row 2: Vendor KPI chips
+          Wrap(
+            spacing: 12,
+            runSpacing: 10,
+            children: [
+              _buildVendorKpiPill(
+                  'Total Bills',
+                  '$billsCount',
+                  Icons.receipt_rounded,
+                  DashboardColors.neonBlue),
+              _buildVendorKpiPill(
+                  'Purchases',
+                  '₹${NumberFormat('#,##0.00').format(totalPurchases)}',
+                  Icons.shopping_bag_rounded,
+                  DashboardColors.neonGreen),
+              _buildVendorKpiPill(
+                  'Total Paid',
+                  '₹${NumberFormat('#,##0.00').format(totalPaid)}',
+                  Icons.check_circle_outline_rounded,
+                  DashboardColors.neonGreen),
+              _buildVendorKpiPill(
+                'Balance Due',
+                '₹${NumberFormat('#,##0.00').format(totalOutstanding)}',
+                Icons.pending_actions_rounded,
+                totalOutstanding > 0
+                    ? DashboardColors.alertOrange
+                    : DashboardColors.neonGreen,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Row 3: Sub-tab toggle (Bills vs Payment History)
+          Row(
+            children: [
+              _buildVendorSubTabButton(
+                index: 0,
+                title: 'Purchase Bills ($billsCount)',
+                icon: Icons.receipt_long_rounded,
+              ),
+              const SizedBox(width: 8),
+              _buildVendorSubTabButton(
+                index: 1,
+                title: 'Payment History (${vendorPayments.length})',
+                icon: Icons.history_rounded,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVendorKpiPill(
+      String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(title,
+                  style: const TextStyle(
+                      color: DashboardColors.textMuted, fontSize: 10)),
+              Text(value,
+                  style: DashboardTypography.poppins(
+                      fontSize: 14, fontWeight: FontWeight.w700, color: color)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVendorSubTabButton({
+    required int index,
+    required String title,
+    required IconData icon,
+  }) {
+    final isSel = _vendorSubTab == index;
+    return InkWell(
+      onTap: () => setState(() => _vendorSubTab = index),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSel
+              ? DashboardColors.neonBlue.withValues(alpha: 0.2)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSel
+                ? DashboardColors.neonBlue
+                : Colors.white.withValues(alpha: 0.1),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon,
+                size: 15,
+                color: isSel
+                    ? DashboardColors.neonBlue
+                    : DashboardColors.textMuted),
+            const SizedBox(width: 6),
+            Text(
+              title,
+              style: TextStyle(
+                color: isSel ? Colors.white : DashboardColors.textMuted,
+                fontSize: 12,
+                fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVendorPaymentsTable() {
+    final payments =
+        PurchaseBillService.instance.getPaymentsForVendor(_selectedVendorKey);
+    if (payments.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.02),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0x1AFFFFFF)),
+        ),
+        child: Center(
+          child: Column(
+            children: [
+              const Icon(Icons.payment_rounded,
+                  size: 48, color: DashboardColors.textMuted),
+              const SizedBox(height: 12),
+              const Text('No payment vouchers recorded for this vendor yet.',
+                  style: TextStyle(
+                      color: DashboardColors.textMuted, fontSize: 14)),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: DashboardColors.neonGreen,
+                  side: const BorderSide(color: DashboardColors.neonGreen),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: const Text('Record Payment Now'),
+                onPressed: () => _showRecordAdvancePaymentDialog(
+                    preselectedVendorKey: _selectedVendorKey),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.02),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0x1AFFFFFF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Payment Vouchers (${payments.length})',
+                  style: DashboardTypography.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: DashboardColors.neonGreen,
+                    foregroundColor: Colors.black,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                  icon: const Icon(Icons.add_rounded,
+                      size: 16, color: Colors.black),
+                  label: const Text('Record Payment',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 12)),
+                  onPressed: () => _showRecordAdvancePaymentDialog(
+                      preselectedVendorKey: _selectedVendorKey),
+                ),
+              ],
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              headingRowColor:
+                  WidgetStateProperty.all(Colors.white.withValues(alpha: 0.04)),
+              columns: const [
+                DataColumn(
+                    label: Text('DATE',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: DashboardColors.textMuted))),
+                DataColumn(
+                    label: Text('PAYMENT REF',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: DashboardColors.textMuted))),
+                DataColumn(
+                    label: Text('BILL #',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: DashboardColors.textMuted))),
+                DataColumn(
+                    label: Text('METHOD',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: DashboardColors.textMuted))),
+                DataColumn(
+                    label: Text('AMOUNT (₹)',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: DashboardColors.textMuted))),
+                DataColumn(
+                    label: Text('NOTES',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: DashboardColors.textMuted))),
+                DataColumn(
+                    label: Text('RECORDED BY',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: DashboardColors.textMuted))),
+              ],
+              rows: payments.map((p) {
+                return DataRow(
+                  cells: [
+                    DataCell(Text(
+                        DateFormat('dd MMM yyyy').format(p.paymentDate),
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 12.5))),
+                    DataCell(Text(
+                        p.transactionReference.isNotEmpty
+                            ? p.transactionReference
+                            : p.paymentId,
+                        style: const TextStyle(
+                            color: DashboardColors.neonBlue,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600))),
+                    DataCell(Text(
+                        p.billNumber.isNotEmpty ? p.billNumber : '—',
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 12))),
+                    DataCell(Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(p.paymentMethod,
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 11.5)),
+                    )),
+                    DataCell(Text(
+                        '₹${NumberFormat('#,##0.00').format(p.amount)}',
+                        style: const TextStyle(
+                            color: DashboardColors.neonGreen,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700))),
+                    DataCell(Text(p.notes ?? '—',
+                        style: const TextStyle(
+                            color: DashboardColors.textMuted, fontSize: 12))),
+                    DataCell(Text(p.recordedByName,
+                        style: const TextStyle(
+                            color: DashboardColors.textDarkMuted,
+                            fontSize: 11.5))),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 12),
         ],
       ),
     );

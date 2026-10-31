@@ -961,11 +961,34 @@ class PurchaseBillService {
         }
       }
 
-      // Update local stock in Db.items & record Db.stockMove
+      // Update local stock in Db.items & record Db.stockMove (Single-Step Inventory Update)
       if (Db.items.isOpen) {
         for (final line in items) {
-          if (line.itemKey != null && Db.items.containsKey(line.itemKey)) {
-            final existing = Db.items.get(line.itemKey);
+          dynamic matchedKey = line.itemKey;
+          if (matchedKey == null || !Db.items.containsKey(matchedKey)) {
+            if (line.matchedProductId != null && Db.items.containsKey(line.matchedProductId)) {
+              matchedKey = line.matchedProductId;
+            } else {
+              final lineNorm = normalizeProductName(line.name);
+              for (final k in Db.items.keys) {
+                final raw = Db.items.get(k);
+                if (raw is! Map) continue;
+                final b = raw['barcode']?.toString().trim();
+                final c = raw['code']?.toString().trim();
+                final s = raw['sku']?.toString().trim();
+                final n = normalizeProductName(raw['name']?.toString() ?? '');
+                final isSkuMatch = line.sku.isNotEmpty && (line.sku == b || line.sku == c || line.sku == s);
+                final isNameMatch = lineNorm.isNotEmpty && lineNorm == n;
+                if (isSkuMatch || isNameMatch) {
+                  matchedKey = k;
+                  break;
+                }
+              }
+            }
+          }
+
+          if (matchedKey != null && Db.items.containsKey(matchedKey)) {
+            final existing = Db.items.get(matchedKey);
             if (existing is Map) {
               final m = Map<String, dynamic>.from(existing);
               final oldStock = (m['stock'] as num?)?.toInt() ?? 0;
@@ -973,10 +996,11 @@ class PurchaseBillService {
               m['stock'] = oldStock + baseQty;
               m['costPrice'] = line.purchaseRate;
               if (line.sellingPrice > 0) m['sellingPrice'] = line.sellingPrice;
-              await Db.items.put(line.itemKey, m);
+              if (line.mrp > 0) m['mrp'] = line.mrp;
+              await Db.items.put(matchedKey, m);
 
               final moveDesc = 'Purchase Bill $billNumber (+${line.quantity} ${line.purchaseUnit})';
-              await Db.stockMove(line.itemKey, line.name, baseQty, moveDesc);
+              await Db.stockMove(matchedKey, line.name, baseQty, moveDesc);
             }
           } else {
             final newItem = <String, dynamic>{
@@ -984,10 +1008,12 @@ class PurchaseBillService {
               'category': line.category.isNotEmpty ? line.category : 'General',
               'brand': line.brand,
               'model': line.model,
-              'sku': line.sku,
+              'sku': line.sku.isNotEmpty ? line.sku : 'SKU_${DateTime.now().millisecondsSinceEpoch}',
+              'barcode': line.sku.isNotEmpty ? line.sku : '',
               'stock': line.quantity,
               'costPrice': line.purchaseRate,
-              'sellingPrice': line.sellingPrice,
+              'sellingPrice': line.sellingPrice > 0 ? line.sellingPrice : (line.mrp > 0 ? line.mrp : line.purchaseRate * 1.2),
+              'mrp': line.mrp > 0 ? line.mrp : line.purchaseRate * 1.25,
               'minStock': 3,
               'warranty': line.warrantyDuration,
               'isMultiUnit': line.isMultiUnit,
@@ -1620,6 +1646,56 @@ class PurchaseBillService {
     return calculated.reversed.toList(); // Most recent first for display
   }
 
+  /// Retrieves all recorded payments for a specific vendor
+  List<VendorPaymentRecord> getPaymentsForVendor(dynamic vendorKey) {
+    final list = <VendorPaymentRecord>[];
+    if (!_paymentsBox.isOpen) return list;
+    for (final pk in _paymentsBox.keys) {
+      final raw = _paymentsBox.get(pk);
+      if (raw is Map) {
+        final pVendor = raw['vendorKey'];
+        if (pVendor == vendorKey || '$pVendor' == '$vendorKey') {
+          list.add(VendorPaymentRecord.fromMap(raw));
+        }
+      }
+    }
+    list.sort((a, b) => b.paymentDate.compareTo(a.paymentDate));
+    return list;
+  }
+
+  /// Computes summary metrics for a specific vendor: total bills, total purchases, total paid, and balance due
+  Map<String, dynamic> getVendorSummary(dynamic vendorKey) {
+    int billsCount = 0;
+    double totalPurchases = 0.0;
+    double totalPaid = 0.0;
+    double totalOutstanding = 0.0;
+
+    if (_billsBox.isOpen) {
+      for (final bk in _billsBox.keys) {
+        final raw = _billsBox.get(bk);
+        if (raw is Map) {
+          final bVendor = raw['vendorKey'];
+          if (bVendor == vendorKey || '$bVendor' == '$vendorKey') {
+            billsCount++;
+            totalPurchases += (raw['grandTotal'] as num?)?.toDouble() ??
+                (((raw['grandTotalPaise'] as num?)?.toInt() ?? 0) / 100.0);
+            totalPaid += (raw['paidAmount'] as num?)?.toDouble() ??
+                (((raw['paidAmountPaise'] as num?)?.toInt() ?? 0) / 100.0);
+            totalOutstanding += (raw['balanceDue'] as num?)?.toDouble() ??
+                (((raw['balanceDuePaise'] as num?)?.toInt() ?? 0) / 100.0);
+          }
+        }
+      }
+    }
+
+    return {
+      'billsCount': billsCount,
+      'totalPurchases': totalPurchases,
+      'totalPaid': totalPaid,
+      'totalOutstanding': totalOutstanding,
+    };
+  }
+
   // ---------------------------------------------------------------------------
   // 8. DASHBOARD METRICS & FILTERING
   // ---------------------------------------------------------------------------
@@ -1708,12 +1784,13 @@ class PurchaseBillService {
     DateTime? endDate,
   }) {
     String? vendorName;
-    if (vendorKey != null) {
+    if (vendorKey != null && Db.parties.isOpen) {
       final v = Db.parties.get(vendorKey);
       if (v is Map) vendorName = v['name']?.toString();
     }
     return searchAndFilter(
       query: query,
+      vendorKey: vendorKey,
       vendorFilter: vendorName,
       paymentStatusFilter: (status == null || status == 'All') ? null : status,
       startDate: startDate,
@@ -1723,6 +1800,7 @@ class PurchaseBillService {
 
   List<PurchaseBill> searchAndFilter({
     String query = '',
+    dynamic vendorKey,
     String? vendorFilter,
     String? paymentStatusFilter,
     String? staffFilter,
@@ -1738,16 +1816,24 @@ class PurchaseBillService {
             b.vendorInvoiceNumber.toLowerCase().contains(q) ||
             b.vendorName.toLowerCase().contains(q) ||
             b.vendorPhone.contains(q) ||
+            (b.vendorGst != null && b.vendorGst!.toLowerCase().contains(q)) ||
             b.createdByName.toLowerCase().contains(q) ||
             b.items.any((it) =>
                 it.name.toLowerCase().contains(q) ||
                 it.brand.toLowerCase().contains(q) ||
+                it.sku.toLowerCase().contains(q) ||
                 it.imeiOrSerial.toLowerCase().contains(q));
         if (!matches) return false;
       }
 
+      if (vendorKey != null) {
+        if (b.vendorKey != vendorKey && '${b.vendorKey}' != '$vendorKey') {
+          return false;
+        }
+      }
+
       if (vendorFilter != null && vendorFilter != 'All Vendors' && vendorFilter.isNotEmpty) {
-        if (b.vendorName != vendorFilter) return false;
+        if (b.vendorName.toLowerCase() != vendorFilter.toLowerCase()) return false;
       }
 
       if (paymentStatusFilter != null && paymentStatusFilter != 'All Statuses' && paymentStatusFilter.isNotEmpty) {
