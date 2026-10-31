@@ -967,148 +967,173 @@ class _ManualPurchaseEntryScreenState
   // =========================================================================
   @override
   Widget build(BuildContext context) {
-    final isWide = MediaQuery.of(context).size.width >= 900;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screenWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.of(context).size.width;
+        final isWide = screenWidth >= 900;
+        final isCompact = screenWidth < 600;
+        final isVeryNarrow = screenWidth < 500;
 
-    return Scaffold(
-      backgroundColor: DashboardColors.bgDarkNavyStart,
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0B1030),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Manual Purchase Entry',
-                style: DashboardTypography.poppins(
-                    fontSize: 17, fontWeight: FontWeight.w700)),
-            if (_billNumber.isNotEmpty)
-              Text(_billNumber,
-                  style: const TextStyle(
-                      color: DashboardColors.textMuted, fontSize: 11)),
-          ],
-        ),
-        actions: [
-          // Auto-Extract from Bill (OCR) button
-          if (_isParsingBill)
-            Container(
-              margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: DashboardColors.neonGreen.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: DashboardColors.neonGreen),
-              ),
-              child: const Row(
-                children: [
-                  SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: DashboardColors.neonGreen,
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                  Text('Parsing OCR...',
-                      style: TextStyle(
-                          color: DashboardColors.neonGreen,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700)),
-                ],
-              ),
-            )
-          else if (_attachment != null)
-            Container(
-              margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: DashboardColors.neonBlue.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.4)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.attach_file_rounded,
-                      color: DashboardColors.neonBlue, size: 14),
-                  const SizedBox(width: 4),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 120),
-                    child: Text(
-                      _attachment!.fileName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  InkWell(
-                    onTap: () {
-                      setState(() {
-                        _attachment = null;
-                        _attachmentBytes = null;
-                        _parsedBillBanner = null;
-                      });
-                      TekFeedback.toast('Bill detached');
-                    },
-                    child: const Icon(Icons.close_rounded,
-                        color: DashboardColors.textMuted, size: 14),
-                  ),
-                ],
-              ),
-            )
-          else
-            Container(
-              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: DashboardColors.neonGreen,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                  elevation: 2,
-                ),
-                icon: const Icon(Icons.document_scanner_rounded,
-                    size: 16, color: Colors.black),
-                label: const Text('Auto-Extract Bill (OCR)',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.black)),
-                onPressed: _pickAndAutoParseBill,
-              ),
-            ),
-
-          // Source chip
-          Container(
-            margin: const EdgeInsets.only(right: 12),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: DashboardColors.neonBlue.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                  color: DashboardColors.neonBlue.withValues(alpha: 0.3)),
-            ),
-            child: const Row(
+        return Scaffold(
+          backgroundColor: DashboardColors.bgDarkNavyStart,
+          appBar: AppBar(
+            backgroundColor: const Color(0xFF0B1030),
+            foregroundColor: Colors.white,
+            elevation: 0,
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.edit_note_rounded,
-                    color: DashboardColors.neonBlue, size: 14),
-                SizedBox(width: 5),
-                Text('Manual Entry',
-                    style: TextStyle(
-                        color: DashboardColors.neonBlue,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700)),
+                Text('Manual Purchase Entry',
+                    style: DashboardTypography.poppins(
+                        fontSize: 17, fontWeight: FontWeight.w700)),
+                if (_billNumber.isNotEmpty)
+                  Text(_billNumber,
+                      style: const TextStyle(
+                          color: DashboardColors.textMuted, fontSize: 11)),
               ],
             ),
+            actions: [
+              // Auto-Extract from Bill (OCR) button
+              if (_isParsingBill)
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: DashboardColors.neonGreen.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: DashboardColors.neonGreen),
+                  ),
+                  child: const Row(
+                    children: [
+                      SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: DashboardColors.neonGreen,
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Parsing OCR...',
+                          style: TextStyle(
+                              color: DashboardColors.neonGreen,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                )
+              else if (_attachment != null)
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: DashboardColors.neonBlue.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.attach_file_rounded,
+                          color: DashboardColors.neonBlue, size: 14),
+                      const SizedBox(width: 4),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 80),
+                        child: Text(
+                          _attachment!.fileName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            _attachment = null;
+                            _attachmentBytes = null;
+                            _parsedBillBanner = null;
+                          });
+                          TekFeedback.toast('Bill detached');
+                        },
+                        child: const Icon(Icons.close_rounded,
+                            color: DashboardColors.textMuted, size: 14),
+                      ),
+                    ],
+                  ),
+                )
+              else if (isCompact)
+                IconButton(
+                  tooltip: 'Auto-Extract Bill (OCR)',
+                  icon: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: DashboardColors.neonGreen.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: DashboardColors.neonGreen),
+                    ),
+                    child: const Icon(Icons.document_scanner_rounded,
+                        size: 18, color: DashboardColors.neonGreen),
+                  ),
+                  onPressed: _pickAndAutoParseBill,
+                )
+              else
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: DashboardColors.neonGreen,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      elevation: 2,
+                    ),
+                    icon: const Icon(Icons.document_scanner_rounded,
+                        size: 16, color: Colors.black),
+                    label: const Text('Auto-Extract Bill (OCR)',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.black)),
+                    onPressed: _pickAndAutoParseBill,
+                  ),
+                ),
+
+              // Source chip (shown on screens >= 500)
+              if (!isVeryNarrow)
+                Container(
+                  margin: const EdgeInsets.only(right: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: DashboardColors.neonBlue.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: DashboardColors.neonBlue.withValues(alpha: 0.3)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.edit_note_rounded,
+                          color: DashboardColors.neonBlue, size: 14),
+                      SizedBox(width: 5),
+                      Text('Manual Entry',
+                          style: TextStyle(
+                              color: DashboardColors.neonBlue,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                ),
+            ],
           ),
-        ],
-      ),
-      body: isWide ? _buildWideLayout() : _buildNarrowLayout(),
-      bottomNavigationBar: isWide ? null : _buildStickyBottom(),
+          body: isWide ? _buildWideLayout() : _buildNarrowLayout(),
+          bottomNavigationBar: isWide ? null : _buildStickyBottom(),
+        );
+      },
     );
   }
 
