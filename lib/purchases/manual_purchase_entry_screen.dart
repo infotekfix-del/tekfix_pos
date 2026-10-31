@@ -123,11 +123,13 @@ class _EditableItem {
 class ManualPurchaseEntryScreen extends StatefulWidget {
   final dynamic initialVendorKey;
   final String? initialVendorName;
+  final PurchaseBill? editBill;
 
   const ManualPurchaseEntryScreen({
     super.key,
     this.initialVendorKey,
     this.initialVendorName,
+    this.editBill,
   });
 
   @override
@@ -137,6 +139,7 @@ class ManualPurchaseEntryScreen extends StatefulWidget {
 
 class _ManualPurchaseEntryScreenState
     extends State<ManualPurchaseEntryScreen> {
+  bool get _isEditing => widget.editBill != null;
   // ---- Supplier ----
   dynamic _vendorKey;
   String _vendorName = '';
@@ -202,6 +205,52 @@ class _ManualPurchaseEntryScreenState
   }
 
   Future<void> _init() async {
+    if (_isEditing) {
+      final b = widget.editBill!;
+      _billNumber = b.billNumber;
+      _vendorKey = b.vendorKey;
+      _vendorName = b.vendorName;
+      _vendorPhone = b.vendorPhone;
+      _vendorGst = b.vendorGst ?? '';
+      _vendorAddress = b.vendorAddress ?? '';
+      _invoiceNumCtrl.text = b.vendorInvoiceNumber;
+      _invoiceDate = b.purchaseDate;
+      _notesCtrl.text = b.notes ?? '';
+      _chargesCtrl.text = b.otherCharges > 0 ? b.otherCharges.toStringAsFixed(2) : '0';
+      _paidCtrl.text = b.paidAmount > 0 ? b.paidAmount.toStringAsFixed(2) : '0';
+      _paymentMethod = b.payments.isNotEmpty ? b.payments.first.paymentMethod : 'Cash';
+      _attachment = b.attachment;
+
+      _items.clear();
+      for (final it in b.items) {
+        _items.add(_EditableItem(
+          rowId: it.id.isNotEmpty ? it.id : 'ROW_${DateTime.now().microsecondsSinceEpoch}_${_items.length}',
+          itemKey: it.itemKey,
+          name: it.name,
+          brand: it.brand,
+          model: it.model,
+          sku: it.sku,
+          hsnCode: it.hsnCode,
+          quantity: it.quantity,
+          purchaseRate: it.purchaseRate,
+          mrp: it.mrp,
+          sellingPrice: it.sellingPrice,
+          discount: it.discount,
+          taxPercent: it.taxPercent,
+          isNewProduct: it.isNewProduct,
+          isStagedReady: true,
+          matchedProductId: it.itemId ?? it.matchedProductId,
+          matchedProductName: it.matchedProductName ?? it.name,
+          matchStatus: it.matchStatusOverride ?? ProductMatchStatus.matched,
+          imeiRequired: it.imeiRequired,
+          warrantyDuration: it.warrantyDuration.isNotEmpty ? it.warrantyDuration : ItemWarrantyDuration.noWarranty,
+        ));
+      }
+      _recalcState();
+      if (mounted) setState(() {});
+      return;
+    }
+
     _billNumber = await PurchaseBillService.instance.generateBillNumber();
     if (mounted) setState(() {});
 
@@ -364,6 +413,7 @@ class _ManualPurchaseEntryScreenState
   }
 
   void _scheduleDraftSave() {
+    if (_isEditing) return;
     _draftTimer?.cancel();
     _draftTimer = Timer(_draftDebounce, _saveDraft);
   }
@@ -804,6 +854,30 @@ class _ManualPurchaseEntryScreenState
     try {
       final auth = Provider.of<AuthController>(context, listen: false);
 
+      if (_isEditing) {
+        final updatedBill = await PurchaseBillService.instance.updateConfirmedPurchaseBill(
+          originalBill: widget.editBill!,
+          vendorInvoiceNumber: _invoiceNumCtrl.text.trim(),
+          vendorKey: _vendorKey,
+          vendorName: _vendorName,
+          vendorPhone: _vendorPhone,
+          vendorGst: _vendorGst,
+          vendorAddress: _vendorAddress,
+          purchaseDate: _invoiceDate,
+          items: _items.map((e) => e.toItem()).toList(),
+          otherCharges: double.tryParse(_chargesCtrl.text) ?? 0.0,
+          staffId: auth.uid,
+          staffName: auth.name.isNotEmpty ? auth.name : 'Owner',
+          notes: _notesCtrl.text.trim(),
+        );
+
+        if (mounted) {
+          TekFeedback.success('Purchase bill ${updatedBill.billNumber} updated!');
+          Navigator.of(context).pop(updatedBill);
+        }
+        return;
+      }
+
       final confirmedBill = await PurchaseBillService.instance.confirmPurchaseBill(
         billNumber: _billNumber,
         vendorInvoiceNumber: _invoiceNumCtrl.text.trim(),
@@ -1037,9 +1111,11 @@ class _ManualPurchaseEntryScreenState
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Manual Purchase Entry',
-                    style: DashboardTypography.poppins(
-                        fontSize: 17, fontWeight: FontWeight.w700)),
+                Text(
+                  _isEditing ? 'Edit Purchase Bill' : 'Manual Purchase Entry',
+                  style: DashboardTypography.poppins(
+                      fontSize: 17, fontWeight: FontWeight.w700),
+                ),
                 if (_billNumber.isNotEmpty)
                   Text(_billNumber,
                       style: const TextStyle(
@@ -1811,6 +1887,10 @@ class _ManualPurchaseEntryScreenState
                 _itemChip('₹${row.purchaseRate.toStringAsFixed(0)}', DashboardColors.textMuted),
                 const SizedBox(width: 6),
                 _itemChip('GST: ${row.taxPercent.toStringAsFixed(0)}%', DashboardColors.neonPurple),
+                if (row.warrantyDuration.isNotEmpty && row.warrantyDuration != ItemWarrantyDuration.noWarranty) ...[
+                  const SizedBox(width: 6),
+                  _itemChip(row.warrantyDuration, DashboardColors.neonGreen),
+                ],
                 const Spacer(),
                 Text(
                   '₹${NumberFormat('#,##0.00', 'en_IN').format((row.quantity * row.purchaseRate * (1 + row.taxPercent / 100)) - row.discount)}',
@@ -1919,6 +1999,12 @@ class _ManualPurchaseEntryScreenState
     final spCtrl = TextEditingController(text: row.sellingPrice.toStringAsFixed(0));
     final hsnCtrl = TextEditingController(text: row.hsnCode);
     double taxPct = row.taxPercent;
+    String selectedWarranty = row.warrantyDuration.isNotEmpty
+        ? row.warrantyDuration
+        : ItemWarrantyDuration.noWarranty;
+    if (!ItemWarrantyDuration.options.contains(selectedWarranty)) {
+      selectedWarranty = ItemWarrantyDuration.noWarranty;
+    }
 
     await showDialog(
       context: context,
@@ -1991,6 +2077,30 @@ class _ManualPurchaseEntryScreenState
               ]),
               const SizedBox(height: 10),
               _dialogField(hsnCtrl, 'HSN Code', TextInputType.number),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                value: selectedWarranty,
+                dropdownColor: const Color(0xFF0B1030),
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                decoration: InputDecoration(
+                  labelText: 'Warranty Term',
+                  labelStyle: const TextStyle(
+                      color: DashboardColors.textMuted, fontSize: 12),
+                  filled: true,
+                  fillColor: Colors.white.withValues(alpha: 0.04),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                          color: DashboardColors.glassBorder)),
+                  isDense: true,
+                ),
+                items: ItemWarrantyDuration.options
+                    .map((w) => DropdownMenuItem(value: w, child: Text(w)))
+                    .toList(),
+                onChanged: (v) {
+                  if (v != null) setLocal(() => selectedWarranty = v);
+                },
+              ),
             ]),
           ),
           actions: [
@@ -2015,6 +2125,7 @@ class _ManualPurchaseEntryScreenState
                   row.sellingPrice =
                       double.tryParse(spCtrl.text) ?? row.sellingPrice;
                   row.hsnCode = hsnCtrl.text.trim();
+                  row.warrantyDuration = selectedWarranty;
                 });
                 _recalcState();
                 _scheduleDraftSave();
@@ -2420,7 +2531,7 @@ class _ManualPurchaseEntryScreenState
         label: FittedBox(
           fit: BoxFit.scaleDown,
           child: Text(
-            _isSaving ? 'Saving...' : 'Review & Save',
+            _isSaving ? 'Saving...' : (_isEditing ? 'Save Changes' : 'Review & Save'),
             style: DashboardTypography.poppins(
                 fontSize: 14, fontWeight: FontWeight.w800),
           ),

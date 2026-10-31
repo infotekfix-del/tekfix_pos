@@ -1795,6 +1795,23 @@ class _PurchaseBillsDashboardViewState
                   DataCell(
                     Row(
                       children: [
+                        // Edit Bill Button
+                        IconButton(
+                          icon: const Icon(Icons.edit_note_rounded,
+                              color: DashboardColors.neonOrange, size: 20),
+                          tooltip: 'Edit Bill',
+                          onPressed: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    ManualPurchaseEntryScreen(editBill: b),
+                              ),
+                            );
+                            if (mounted) setState(() {});
+                          },
+                        ),
+
                         // View Details Button
                         IconButton(
                           icon: const Icon(Icons.visibility_rounded,
@@ -1951,6 +1968,52 @@ class _PurchaseBillsDashboardViewState
                           ),
                         ),
                       ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: DashboardColors.neonOrange,
+                        side: const BorderSide(color: DashboardColors.neonOrange),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        minimumSize: const Size(0, 30),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      icon: const Icon(Icons.edit_note_rounded, size: 16),
+                      label: const Text('Edit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      onPressed: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ManualPurchaseEntryScreen(editBill: b),
+                          ),
+                        );
+                        if (mounted) setState(() {});
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: DashboardColors.neonBlue,
+                        side: const BorderSide(color: DashboardColors.neonBlue),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        minimumSize: const Size(0, 30),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      icon: const Icon(Icons.visibility_rounded, size: 16),
+                      label: const Text('Details', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => PurchaseBillDetailsScreen(bill: b),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),

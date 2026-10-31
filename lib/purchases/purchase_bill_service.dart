@@ -1117,6 +1117,288 @@ class PurchaseBillService {
   }
 
   // ---------------------------------------------------------------------------
+  // 4B. EDIT & RECONCILE CONFIRMED PURCHASE BILL (Line-Item Diffs & Stock Sync)
+  // ---------------------------------------------------------------------------
+
+  Future<PurchaseBill> updateConfirmedPurchaseBill({
+    required PurchaseBill originalBill,
+    required String vendorInvoiceNumber,
+    required dynamic vendorKey,
+    required String vendorName,
+    required String vendorPhone,
+    String? vendorGst,
+    String? vendorAddress,
+    required DateTime purchaseDate,
+    required List<PurchaseBillItem> items,
+    double otherCharges = 0.0,
+    required String staffId,
+    required String staffName,
+    String? notes,
+    String? shopId,
+  }) async {
+    if (items.isEmpty) {
+      throw Exception('Purchase bill must have at least one item');
+    }
+
+    final billNumber = originalBill.billNumber;
+    final billId = originalBill.key?.toString() ?? billNumber.replaceAll('/', '_');
+    final sId = (shopId != null && shopId.isNotEmpty) ? shopId : Db.setting('shop_id', 'tekfix');
+    final now = DateTime.now();
+
+    // Recalculate warrantyExpiryDate and line totals for any item that has been updated
+    final processedItems = <PurchaseBillItem>[];
+    for (final it in items) {
+      DateTime? expiry = it.warrantyExpiryDate;
+      if (it.warrantyDuration.isNotEmpty && it.warrantyDuration != ItemWarrantyDuration.noWarranty) {
+        expiry = calculateItemWarrantyExpiry(purchaseDate, it.warrantyDuration, customDays: it.customWarrantyDays);
+      } else {
+        expiry = null;
+      }
+      final gross = it.quantity * it.purchaseRate;
+      final taxable = (gross - it.discount).clamp(0.0, double.infinity);
+      final tax = it.taxPercent > 0 ? (taxable * it.taxPercent / 100.0) : it.taxAmount;
+      final total = taxable + tax;
+
+      processedItems.add(it.copyWith(
+        taxAmount: tax,
+        lineTotal: total,
+        warrantyExpiryDate: expiry,
+        warrantyAvailable: it.warrantyDuration.isNotEmpty && it.warrantyDuration != ItemWarrantyDuration.noWarranty,
+      ));
+    }
+
+    // Integer paise calculations
+    int subtotalPaise = 0;
+    int totalQty = 0;
+    int totalDiscountPaise = 0;
+    int totalTaxPaise = 0;
+    final int otherChargesPaise = (otherCharges * 100).round();
+
+    for (final it in processedItems) {
+      subtotalPaise += (it.quantity * it.purchaseRatePaise);
+      totalQty += it.quantity;
+      totalDiscountPaise += it.discountPaise;
+      totalTaxPaise += it.taxAmountPaise;
+    }
+
+    final int grandTotalPaise =
+        (subtotalPaise - totalDiscountPaise + totalTaxPaise + otherChargesPaise).clamp(0, 1 << 62);
+    final int paidAmountPaise = (originalBill.paidAmount * 100).round().clamp(0, grandTotalPaise);
+    final int balanceDuePaise = (grandTotalPaise - paidAmountPaise).clamp(0, grandTotalPaise);
+
+    String paymentStatus;
+    if (balanceDuePaise == 0) {
+      paymentStatus = BillPaymentStatus.paid;
+    } else if (paidAmountPaise > 0) {
+      paymentStatus = BillPaymentStatus.partiallyPaid;
+    } else {
+      paymentStatus = BillPaymentStatus.unpaid;
+    }
+
+    // -------------------------------------------------------------------------
+    // INVENTORY RECONCILIATION VIA LINE-ITEM DIFFS
+    // -------------------------------------------------------------------------
+    if (Db.items.isOpen) {
+      // 1. Group previous quantities by item identifier
+      final oldQtyMap = <String, int>{};
+      final oldItemMap = <String, PurchaseBillItem>{};
+      for (final oldIt in originalBill.items) {
+        final idKey = (oldIt.itemKey ?? oldIt.itemId ?? normalizeProductName(oldIt.name)).toString();
+        oldQtyMap[idKey] = (oldQtyMap[idKey] ?? 0) + oldIt.quantity;
+        oldItemMap[idKey] = oldIt;
+      }
+
+      // 2. Group new quantities by item identifier
+      final newQtyMap = <String, int>{};
+      final newItemMap = <String, PurchaseBillItem>{};
+      for (final newIt in processedItems) {
+        final idKey = (newIt.itemKey ?? newIt.itemId ?? normalizeProductName(newIt.name)).toString();
+        newQtyMap[idKey] = (newQtyMap[idKey] ?? 0) + newIt.quantity;
+        newItemMap[idKey] = newIt;
+      }
+
+      // 3. Compute union of all product identifiers
+      final allKeys = {...oldQtyMap.keys, ...newQtyMap.keys};
+
+      for (final k in allKeys) {
+        final oldQty = oldQtyMap[k] ?? 0;
+        final newQty = newQtyMap[k] ?? 0;
+        final diffQty = newQty - oldQty;
+        final lineItem = newItemMap[k] ?? oldItemMap[k]!;
+
+        // Locate in Db.items
+        dynamic matchedKey = lineItem.itemKey;
+        if (matchedKey == null || !Db.items.containsKey(matchedKey)) {
+          if (lineItem.matchedProductId != null && Db.items.containsKey(lineItem.matchedProductId)) {
+            matchedKey = lineItem.matchedProductId;
+          } else {
+            final lineNorm = normalizeProductName(lineItem.name);
+            for (final dk in Db.items.keys) {
+              final raw = Db.items.get(dk);
+              if (raw is! Map) continue;
+              final b = raw['barcode']?.toString().trim();
+              final c = raw['code']?.toString().trim();
+              final s = raw['sku']?.toString().trim();
+              final n = normalizeProductName(raw['name']?.toString() ?? '');
+              final isSkuMatch = lineItem.sku.isNotEmpty && (lineItem.sku == b || lineItem.sku == c || lineItem.sku == s);
+              final isNameMatch = lineNorm.isNotEmpty && lineNorm == n;
+              if (isSkuMatch || isNameMatch) {
+                matchedKey = dk;
+                break;
+              }
+            }
+          }
+        }
+
+        if (matchedKey != null && Db.items.containsKey(matchedKey)) {
+          final existing = Db.items.get(matchedKey);
+          if (existing is Map) {
+            final m = Map<String, dynamic>.from(existing);
+            final currentStock = (m['stock'] as num?)?.toInt() ?? 0;
+            // Apply diffQty
+            if (diffQty != 0) {
+              m['stock'] = currentStock + diffQty;
+              final sign = diffQty > 0 ? '+$diffQty' : '$diffQty';
+              await Db.stockMove(matchedKey, lineItem.name, diffQty, 'Purchase Bill $billNumber edit ($sign)');
+            }
+            // Update prices and warranty if updated in new bill
+            if (newQty > 0 && newItemMap.containsKey(k)) {
+              final fresh = newItemMap[k]!;
+              m['costPrice'] = fresh.purchaseRate;
+              if (fresh.sellingPrice > 0) m['sellingPrice'] = fresh.sellingPrice;
+              if (fresh.mrp > 0) m['mrp'] = fresh.mrp;
+              if (fresh.warrantyDuration.isNotEmpty) {
+                m['warranty'] = fresh.warrantyDuration;
+              }
+            }
+            await Db.items.put(matchedKey, m);
+          }
+        } else if (newQty > 0 && newItemMap.containsKey(k)) {
+          // Brand new item added during bill edit
+          final fresh = newItemMap[k]!;
+          final newItem = <String, dynamic>{
+            'name': fresh.name,
+            'category': fresh.category.isNotEmpty ? fresh.category : 'General',
+            'brand': fresh.brand,
+            'model': fresh.model,
+            'sku': fresh.sku.isNotEmpty ? fresh.sku : 'SKU_${DateTime.now().millisecondsSinceEpoch}',
+            'barcode': fresh.sku.isNotEmpty ? fresh.sku : '',
+            'stock': fresh.quantity,
+            'costPrice': fresh.purchaseRate,
+            'sellingPrice': fresh.sellingPrice > 0 ? fresh.sellingPrice : (fresh.mrp > 0 ? fresh.mrp : fresh.purchaseRate * 1.2),
+            'mrp': fresh.mrp > 0 ? fresh.mrp : fresh.purchaseRate * 1.25,
+            'minStock': 3,
+            'warranty': fresh.warrantyDuration,
+            'isMultiUnit': fresh.isMultiUnit,
+          };
+          final newKey = await Db.items.add(newItem);
+          await Db.stockMove(newKey, fresh.name, fresh.quantity, 'Purchase Bill $billNumber (added on edit)');
+        }
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // VENDOR LEDGER RECONCILIATION
+    // -------------------------------------------------------------------------
+    final oldBalanceDue = originalBill.balanceDue;
+    final newBalanceDue = balanceDuePaise / 100.0;
+    final balanceDiff = newBalanceDue - oldBalanceDue;
+
+    if (originalBill.vendorKey == vendorKey) {
+      if (vendorKey != null && balanceDiff.abs() > 0.001) {
+        // More debt owed -> negative adjustment
+        await Db.adjustParty(vendorKey, -balanceDiff);
+      }
+    } else {
+      // Vendor was changed
+      if (originalBill.vendorKey != null && oldBalanceDue > 0) {
+        await Db.adjustParty(originalBill.vendorKey, oldBalanceDue);
+      }
+      if (vendorKey != null && newBalanceDue > 0) {
+        await Db.adjustParty(vendorKey, -newBalanceDue);
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // CONSTRUCT UPDATED BILL & PERSIST
+    // -------------------------------------------------------------------------
+    final updatedBill = PurchaseBill(
+      key: billId,
+      billNumber: billNumber,
+      vendorInvoiceNumber: vendorInvoiceNumber.trim(),
+      vendorKey: vendorKey,
+      vendorName: vendorName,
+      vendorPhone: vendorPhone,
+      vendorGst: vendorGst,
+      vendorAddress: vendorAddress,
+      purchaseDate: purchaseDate,
+      uploadTimestamp: originalBill.uploadTimestamp,
+      items: processedItems,
+      subtotal: subtotalPaise / 100.0,
+      totalQuantity: totalQty,
+      totalDiscount: totalDiscountPaise / 100.0,
+      totalTax: totalTaxPaise / 100.0,
+      otherCharges: otherChargesPaise / 100.0,
+      grandTotal: grandTotalPaise / 100.0,
+      paidAmount: paidAmountPaise / 100.0,
+      balanceDue: balanceDuePaise / 100.0,
+      paymentStatus: paymentStatus,
+      payments: originalBill.payments,
+      attachment: originalBill.attachment,
+      storagePath: originalBill.storagePath,
+      invoiceExtractedTotal: originalBill.invoiceExtractedTotal,
+      createdById: originalBill.createdById,
+      createdByName: originalBill.createdByName,
+      notes: notes,
+      isDraft: false,
+      createdAt: originalBill.createdAt,
+      updatedAt: now,
+      entrySource: originalBill.entrySource,
+    );
+
+    if (_billsBox.isOpen) {
+      await _billsBox.put(billId, updatedBill.toMap());
+    }
+
+    if (Db.audit.isOpen) {
+      await Db.audit.add({
+        'action': 'Purchase Bill Updated',
+        'entity': 'PurchaseBill',
+        'entityId': billId,
+        'billNumber': billNumber,
+        'actorId': staffId,
+        'actorName': staffName,
+        'vendorName': vendorName,
+        'oldGrandTotal': originalBill.grandTotal,
+        'newGrandTotal': grandTotalPaise / 100.0,
+        'balanceDiff': balanceDiff,
+        'timestamp': now.toIso8601String(),
+      });
+    }
+
+    // -------------------------------------------------------------------------
+    // FIRESTORE SYNC (Non-blocking)
+    // -------------------------------------------------------------------------
+    if (Firebase.apps.isNotEmpty) {
+      try {
+        final firestore = FirebaseFirestore.instance;
+        final docRef = firestore.collection('shops').doc(sId).collection('purchase_bills').doc(billId);
+        await docRef.set(updatedBill.toMap(), SetOptions(merge: true));
+
+        final itemsCol = docRef.collection('items');
+        for (final item in processedItems) {
+          final itemId = item.id.isNotEmpty ? item.id : 'item_${processedItems.indexOf(item)}';
+          await itemsCol.doc(itemId).set(item.toMap(), SetOptions(merge: true));
+        }
+      } catch (e) {
+        debugPrint('[PurchaseBillService] Cloud Firestore update sync notice: $e');
+      }
+    }
+
+    return updatedBill;
+  }
+
+  // ---------------------------------------------------------------------------
   // 5. SAVE DRAFT PURCHASE BILL
   // ---------------------------------------------------------------------------
 

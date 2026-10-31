@@ -10,6 +10,7 @@ import 'purchase_models.dart';
 import 'purchase_bill_service.dart';
 import 'vendor_ledger_screen.dart';
 import '../barcode/barcode_print_dialog.dart';
+import 'manual_purchase_entry_screen.dart';
 
 /// Detailed view of a single Purchase Bill.
 /// Displays bill metadata, items table, warranty settings, payment status,
@@ -31,6 +32,15 @@ class PurchaseBillDetailsScreen extends StatefulWidget {
 class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
   final _dateFormat = DateFormat('dd MMM yyyy, hh:mm a');
   final _shortDateFormat = DateFormat('dd MMM yyyy');
+
+  Future<void> _editBill(PurchaseBill bill) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ManualPurchaseEntryScreen(editBill: bill),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -209,6 +219,12 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
               style: DashboardTypography.inter(fontSize: 11, fontWeight: FontWeight.bold, color: DashboardColors.neonOrange),
             ),
           ),
+        IconButton(
+          icon: const Icon(Icons.edit_note_rounded, color: DashboardColors.neonOrange),
+          tooltip: 'Edit Purchase Bill',
+          onPressed: () => _editBill(bill),
+        ),
+        const SizedBox(width: 8),
       ],
     );
   }
@@ -393,6 +409,21 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
               'Print Barcode Labels (38×25mm)',
               style: DashboardTypography.poppins(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
             ),
+          ),
+
+          const SizedBox(width: 10),
+
+          // 5. Edit Bill
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: DashboardColors.neonOrange,
+              side: const BorderSide(color: DashboardColors.neonOrange),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            ),
+            onPressed: () => _editBill(bill),
+            icon: const Icon(Icons.edit_note_rounded, size: 16),
+            label: Text('Edit Bill', style: DashboardTypography.poppins(fontSize: 12, fontWeight: FontWeight.bold)),
           ),
         ],
       ),

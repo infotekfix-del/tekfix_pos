@@ -43,12 +43,12 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView> {
   }
 
   void _applyLocalDefaults() {
-    _versionController.text = '1.0.10';
-    _buildNumberController.text = '10';
+    _versionController.text = '1.0.11';
+    _buildNumberController.text = '11';
     _apkUrlController.text =
-        'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.10/app-release.apk';
+        'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.11/app-release.apk';
     _releaseNotesController.text =
-        '• Offline-First Purchase Bill Persistence: Guarantees local database write and stock sync before Cloud Firestore sync\n• Draft Resume Loop Fix: Auto-clears and deletes draft state on save or discard with manual reset button\n• Interactive Dashboard: Tap "Unpaid Bills" or other KPI cards to instantly filter bills table\n• Interactive & Responsive Bills Table: Tapping anywhere on bill rows opens details, with responsive card list on mobile\n• Complete Windows Package (.zip) with all plugin DLLs included';
+        '• Edit Purchase Bills: Full editing capabilities across Purchase Bills table and detail view\n• Item Details & Warranty Editing: Update quantities, purchase rate, discount, GST %, and Warranty Term dropdown with automated expiry calculation\n• Atomic Stock Reconciliation: Automatic stock adjustments based on line-item diffs\n• Vendor Ledger & Outstanding Balance Sync: Real-time debt reconciliation and recalculation of totals\n• Complete Windows Package (.zip) with all plugin DLLs included';
     _isMandatory = true;
   }
 

@@ -63,6 +63,8 @@ class ItemWarrantyDuration {
     custom,
     noWarranty,
   ];
+
+  static const List<String> options = presets;
 }
 
 /// Product Match Status for Review Table
