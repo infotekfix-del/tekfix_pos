@@ -43,12 +43,12 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView> {
   }
 
   void _applyLocalDefaults() {
-    _versionController.text = '1.0.8';
-    _buildNumberController.text = '8';
+    _versionController.text = '1.0.9';
+    _buildNumberController.text = '9';
     _apkUrlController.text =
-        'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.8/app-release.apk';
+        'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.9/app-release.apk';
     _releaseNotesController.text =
-        '• Manual Purchase Entry core feature in Purchase Module (Phase 2)\n• Two clear choices: Upload / Capture Bill or Manual Purchase Entry\n• Integer paise GST calculation engine (Intra-state CGST+SGST, Inter-state IGST, Round-Off)\n• Draft auto-save and restore capability\n• Inline Quick Register drawer and Quick Add Supplier sheet\n• Unified atomic stock, ledger & accounting entry pipeline with entrySource tagging';
+        '• Vyapar-like Purchase Bills & Vendor Payments Workflow (v1.0.9)\n• Automated OCR bill extraction for PDF, JPG, PNG & WebP (Vendor details, Invoice #, Date, Line Items with MRP)\n• Single-step atomic inventory synchronization: instant stock increments, auto-cataloging & movement audit logs\n• Vendor-Wise Bill Tracking & Ledger KPIs (Total Bills, Purchases, Paid & Outstanding Balance)\n• Multi-screen responsive layout optimized for Phone, Tablet, and Desktop';
     _isMandatory = true;
   }
 
@@ -86,12 +86,12 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView> {
 
       if (doc.exists && doc.data() != null) {
         final data = doc.data()!;
-        _versionController.text = (data['latest_version'] ?? '1.0.2').toString();
+        _versionController.text = (data['latest_version'] ?? '1.0.9').toString();
         _buildNumberController.text =
-            (data['latest_build_number'] ?? '2').toString();
+            (data['latest_build_number'] ?? '9').toString();
         _apkUrlController.text = (data['apk_url'] != null && data['apk_url'].toString().isNotEmpty)
             ? data['apk_url'].toString()
-            : 'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.2/app-release.apk';
+            : 'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.9/app-release.apk';
         _releaseNotesController.text = (data['release_notes'] ?? '').toString();
         _isMandatory = data['is_mandatory'] ?? true;
       } else {
