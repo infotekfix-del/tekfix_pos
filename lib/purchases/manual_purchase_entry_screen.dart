@@ -2936,17 +2936,42 @@ class _ManualPurchaseEntryScreenState
           // Section header
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 12, 0),
-            child: Row(children: [
-              Icon(icon, color: iconColor, size: 18),
-              const SizedBox(width: 10),
-              Text(title,
-                  style: DashboardTypography.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white)),
-              const Spacer(),
-              if (trailing != null) trailing,
-            ]),
+            child: LayoutBuilder(
+              builder: (ctx, constraints) {
+                final isNarrow = constraints.maxWidth < 460;
+                if (isNarrow && trailing != null) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Icon(icon, color: iconColor, size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(title,
+                              style: DashboardTypography.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white)),
+                        ),
+                      ]),
+                      const SizedBox(height: 8),
+                      trailing,
+                    ],
+                  );
+                }
+                return Row(children: [
+                  Icon(icon, color: iconColor, size: 18),
+                  const SizedBox(width: 10),
+                  Text(title,
+                      style: DashboardTypography.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white)),
+                  const Spacer(),
+                  if (trailing != null) Flexible(child: trailing),
+                ]);
+              },
+            ),
           ),
           const SizedBox(height: 10),
           const Divider(
