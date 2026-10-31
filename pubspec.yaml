@@ -1,7 +1,7 @@
 name: tekfix_erp_pos
 description: Tek Fix ERP & POS — offline-first retail billing and inventory app.
 publish_to: 'none'
-version: 1.0.11+11
+version: 1.0.12+12
 
 environment:
   sdk: '>=3.3.0 <4.0.0'

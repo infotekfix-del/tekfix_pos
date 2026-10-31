@@ -43,12 +43,12 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView> {
   }
 
   void _applyLocalDefaults() {
-    _versionController.text = '1.0.11';
-    _buildNumberController.text = '11';
+    _versionController.text = '1.0.12';
+    _buildNumberController.text = '12';
     _apkUrlController.text =
-        'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.11/app-release.apk';
+        'https://github.com/infotekfix-del/tekfix_pos/releases/download/v1.0.12/app-release.apk';
     _releaseNotesController.text =
-        '• Edit Purchase Bills: Full editing capabilities across Purchase Bills table and detail view\n• Item Details & Warranty Editing: Update quantities, purchase rate, discount, GST %, and Warranty Term dropdown with automated expiry calculation\n• Atomic Stock Reconciliation: Automatic stock adjustments based on line-item diffs\n• Vendor Ledger & Outstanding Balance Sync: Real-time debt reconciliation and recalculation of totals\n• Complete Windows Package (.zip) with all plugin DLLs included';
+        '• Streamlined Item Addition: Direct + Add Item dialog and fluid search entry without redundant Quick Register popups\n• Direct Item Editing: Update Qty, Purchase Rate, Discount, GST %, MRP, and Warranty directly inline\n• Auto Barcode Generation: Unique TKF barcode auto-generated for new items if blank\n• Global GST Toggle: 1-click toggle to enable or disable GST calculations across all items\n• Enhanced Windows Packaging: Complete standalone zip bundle with all companion DLLs included';
     _isMandatory = true;
   }
 

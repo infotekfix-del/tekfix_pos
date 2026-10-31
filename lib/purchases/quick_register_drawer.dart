@@ -31,7 +31,7 @@ class QuickRegisterDrawer extends StatefulWidget {
     this.prefillBrand = '',
     this.prefillModel = '',
     this.prefillSku = '',
-    this.prefillGstRate = 18.0,
+    this.prefillGstRate = 0.0,
     this.prefillHsn = '',
     this.prefillMrp = 0.0,
     this.prefillSellingPrice = 0.0,
@@ -45,7 +45,7 @@ class QuickRegisterDrawer extends StatefulWidget {
     String prefillBrand = '',
     String prefillModel = '',
     String prefillSku = '',
-    double prefillGstRate = 18.0,
+    double prefillGstRate = 0.0,
     String prefillHsn = '',
     double prefillMrp = 0.0,
     double prefillSellingPrice = 0.0,
@@ -85,7 +85,7 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
   late final TextEditingController _sellingPriceCtrl;
   late final TextEditingController _warrantyCtrl;
 
-  double _gstRate = 18.0;
+  double _gstRate = 0.0;
   String _unit = 'Piece';
   bool _trackImei = false;
   bool _isSaving = false;
@@ -110,7 +110,7 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
         text: widget.prefillSellingPrice > 0
             ? widget.prefillSellingPrice.toStringAsFixed(0)
             : '');
-    _warrantyCtrl = TextEditingController(text: '12 Months');
+    _warrantyCtrl = TextEditingController(text: 'No Warranty');
     _gstRate = widget.prefillGstRate;
   }
 
@@ -129,8 +129,17 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
     if (!_formKey.currentState!.validate()) return;
 
     final name = _nameCtrl.text.trim();
-    final sku = _skuCtrl.text.trim();
-    final barcode = _barcodeCtrl.text.trim();
+    var sku = _skuCtrl.text.trim();
+    var barcode = _barcodeCtrl.text.trim();
+
+    // Auto-generate SKU and Barcode if left blank
+    if (sku.isEmpty) {
+      sku = 'SKU_${DateTime.now().millisecondsSinceEpoch}';
+    }
+    if (barcode.isEmpty) {
+      barcode = 'TKF${DateTime.now().millisecondsSinceEpoch.toString().substring(3)}';
+    }
+
     final mrp = double.tryParse(_mrpCtrl.text) ?? 0.0;
     final sp = double.tryParse(_sellingPriceCtrl.text) ?? 0.0;
 
@@ -146,10 +155,10 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
         if (raw is! Map) continue;
         final existingSku = raw['sku']?.toString().trim() ?? '';
         final existingBarcode = raw['barcode']?.toString().trim() ?? '';
-        if (sku.isNotEmpty && existingSku == sku) {
+        if (_skuCtrl.text.trim().isNotEmpty && existingSku == sku) {
           throw Exception('A product with SKU "$sku" already exists: ${raw['name']}');
         }
-        if (barcode.isNotEmpty && existingBarcode == barcode) {
+        if (_barcodeCtrl.text.trim().isNotEmpty && existingBarcode == barcode) {
           throw Exception('A product with barcode "$barcode" already exists: ${raw['name']}');
         }
       }
@@ -355,7 +364,8 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
                         _fField('Category', _categoryCtrl),
                         _fField('SKU / Code', _skuCtrl),
                       ]),
-                      _fField('Barcode (optional)', _barcodeCtrl),
+                      _fField('Barcode (auto-generated if blank)', _barcodeCtrl,
+                          hint: 'Leave blank to auto-generate unique barcode'),
 
                       const SizedBox(height: 16),
                       _sectionLabel('Pricing & Tax'),
@@ -375,8 +385,7 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
                       _sectionLabel('Unit & Tracking'),
                       _row([
                         _dropdownUnit(),
-                        _fField('Default Warranty', _warrantyCtrl,
-                            hint: 'e.g. 12 Months'),
+                        _dropdownWarranty(),
                       ]),
 
                       // Track IMEI toggle
@@ -601,6 +610,44 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
             .toList(),
         onChanged: (v) {
           if (v != null) setState(() => _unit = v);
+        },
+      ),
+    );
+  }
+
+  Widget _dropdownWarranty() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DropdownButtonFormField<String>(
+        value: _warrantyCtrl.text.isNotEmpty ? _warrantyCtrl.text : 'No Warranty',
+        dropdownColor: const Color(0xFF0B1030),
+        style: const TextStyle(color: Colors.white, fontSize: 13),
+        decoration: InputDecoration(
+          labelText: 'Default Warranty',
+          labelStyle: const TextStyle(
+              color: DashboardColors.textMuted, fontSize: 12),
+          isDense: true,
+          filled: true,
+          fillColor: Colors.white.withValues(alpha: 0.04),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: DashboardColors.glassBorder),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: DashboardColors.glassBorder),
+          ),
+        ),
+        items: const [
+          'No Warranty',
+          '1 Month',
+          '3 Months',
+          '6 Months',
+          '12 Months',
+          '24 Months',
+        ].map((w) => DropdownMenuItem(value: w, child: Text(w))).toList(),
+        onChanged: (v) {
+          if (v != null) setState(() => _warrantyCtrl.text = v);
         },
       ),
     );

@@ -665,13 +665,16 @@ class PurchaseBillService {
             await Db.stockMove(matchedKey, line.name, baseQty, moveDesc);
           }
         } else {
+          final autoBarcode = line.sku.isNotEmpty
+              ? line.sku
+              : 'TKF${DateTime.now().millisecondsSinceEpoch}${items.indexOf(line)}';
           final newItem = <String, dynamic>{
             'name': line.name,
             'category': line.category.isNotEmpty ? line.category : 'General',
             'brand': line.brand,
             'model': line.model,
-            'sku': line.sku.isNotEmpty ? line.sku : 'SKU_${DateTime.now().millisecondsSinceEpoch}',
-            'barcode': line.sku.isNotEmpty ? line.sku : '',
+            'sku': autoBarcode,
+            'barcode': autoBarcode,
             'stock': line.quantity,
             'costPrice': line.purchaseRate,
             'sellingPrice': line.sellingPrice > 0 ? line.sellingPrice : (line.mrp > 0 ? line.mrp : line.purchaseRate * 1.2),
@@ -829,6 +832,10 @@ class PurchaseBillService {
               final newProdId = newProdRef.id;
               resolvedItemMap[it] = newProdId;
 
+              final autoBarcode = it.sku.isNotEmpty
+                  ? it.sku
+                  : 'TKF${DateTime.now().millisecondsSinceEpoch}${items.indexOf(it)}';
+
               final prodPayload = <String, dynamic>{
                 'id': newProdId,
                 'name': it.name,
@@ -836,8 +843,8 @@ class PurchaseBillService {
                 'brand': it.brand,
                 'model': it.model,
                 'category': it.category.isNotEmpty ? it.category : 'General',
-                'sku': it.sku.isNotEmpty ? it.sku : newProdId,
-                'barcode': it.sku.isNotEmpty ? it.sku : newProdId,
+                'sku': autoBarcode,
+                'barcode': autoBarcode,
                 'currentStock': it.quantity,
                 'lastPurchaseRatePaise': it.purchaseRatePaise,
                 'sellingPricePaise': it.sellingPricePaise,
@@ -1626,12 +1633,16 @@ class PurchaseBillService {
                 'Purchase Bill $finalBillNum (+${line.quantity} ${line.purchaseUnit} = +$baseQty ${line.baseUnit})';
             await Db.stockMove(newKey, line.name, baseQty, moveDesc);
           } else {
+            final autoBarcode = line.sku.isNotEmpty
+                ? line.sku
+                : 'TKF${DateTime.now().millisecondsSinceEpoch}';
             final newItem = <String, dynamic>{
               'name': line.name,
               'category': line.category.isNotEmpty ? line.category : 'General',
               'brand': line.brand,
               'model': line.model,
-              'sku': line.sku,
+              'sku': autoBarcode,
+              'barcode': autoBarcode,
               'stock': line.quantity,
               'costPrice': line.purchaseRate,
               'sellingPrice': 0.0,

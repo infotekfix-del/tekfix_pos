@@ -62,7 +62,7 @@ class _EditableItem {
     this.name = '',
     this.brand = '',
     this.model = '',
-    this.sku = '',
+    String sku = '',
     this.hsnCode = '',
     this.quantity = 1,
     this.purchaseRate = 0.0,
@@ -79,10 +79,16 @@ class _EditableItem {
     this.matchNotes,
     this.imeiRequired = false,
     this.warrantyDuration = 'No Warranty',
-  }) : rowId = rowId ?? 'ROW_${DateTime.now().microsecondsSinceEpoch}';
+  })  : rowId = rowId ?? 'ROW_${DateTime.now().microsecondsSinceEpoch}',
+        sku = sku.trim().isNotEmpty
+            ? sku.trim()
+            : 'TKF${DateTime.now().millisecondsSinceEpoch}';
 
   /// Converts to a PurchaseBillItem for saving/calculation
   PurchaseBillItem toItem() {
+    final effectiveSku = sku.trim().isNotEmpty
+        ? sku.trim()
+        : 'TKF${DateTime.now().millisecondsSinceEpoch}';
     final gross = quantity * purchaseRate;
     final taxable = (gross - discount).clamp(0.0, double.infinity);
     final tax = taxable * taxPercent / 100;
@@ -93,7 +99,7 @@ class _EditableItem {
       name: name,
       brand: brand,
       model: model,
-      sku: sku,
+      sku: effectiveSku,
       hsnCode: hsnCode,
       quantity: quantity,
       purchaseRate: purchaseRate,
@@ -161,8 +167,10 @@ class _ManualPurchaseEntryScreenState
   // ---- Items ----
   final List<_EditableItem> _items = [];
   final _productSearchCtrl = TextEditingController();
+  final _productSearchFocus = FocusNode();
   bool _isSearchingProduct = false;
   Timer? _matchDebounce;
+  bool _isGstEnabled = true;
 
   // ---- Charges & round-off ----
   final _chargesCtrl = TextEditingController(text: '0');
@@ -448,6 +456,7 @@ class _ManualPurchaseEntryScreenState
     _invoiceNumCtrl.dispose();
     _notesCtrl.dispose();
     _productSearchCtrl.dispose();
+    _productSearchFocus.dispose();
     _chargesCtrl.dispose();
     _paidCtrl.dispose();
     _paymentRefCtrl.dispose();
@@ -658,19 +667,33 @@ class _ManualPurchaseEntryScreenState
   Future<void> _addItemBySearch(String query) async {
     if (query.trim().isEmpty) return;
 
+    final generatedBarcode = 'TKF${DateTime.now().millisecondsSinceEpoch}';
     final newRow = _EditableItem(
       name: query.trim(),
+      sku: generatedBarcode,
       isMatchLoading: true,
       matchStatus: null,
+      taxPercent: _isGstEnabled ? 18.0 : 0.0,
+      warrantyDuration: 'No Warranty',
+      isNewProduct: false,
+      isStagedReady: true,
     );
 
     setState(() {
       _items.add(newRow);
       _productSearchCtrl.clear();
-      _isSearchingProduct = false;
+      _isSearchingProduct = true;
     });
 
+    _recalcState();
     _scheduleDraftSave();
+
+    // Ensure focus moves forward naturally for continuous item additions
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _productSearchFocus.canRequestFocus) {
+        _productSearchFocus.requestFocus();
+      }
+    });
 
     // Trigger async product match
     _triggerProductMatch(newRow);
@@ -696,13 +719,17 @@ class _ManualPurchaseEntryScreenState
           row.matchedProductName = match['name']?.toString() ?? row.name;
           row.matchNotes = match['notes']?.toString();
           row.isNewProduct = match['status'] == ProductMatchStatus.quickRegister;
-          row.isStagedReady = match['status'] == ProductMatchStatus.matched;
+          row.isStagedReady = true;
 
           // Pre-fill from catalog data
           final data = match['data'] as Map?;
           if (data != null) {
-            if (row.taxPercent == 18.0 && data['gstRate'] != null) {
-              row.taxPercent = (data['gstRate'] as num).toDouble();
+            if (_isGstEnabled) {
+              if (data['gstRate'] != null) {
+                row.taxPercent = (data['gstRate'] as num).toDouble();
+              }
+            } else {
+              row.taxPercent = 0.0;
             }
             if (row.sellingPrice == 0.0 && data['sellingPrice'] != null) {
               row.sellingPrice = (data['sellingPrice'] as num).toDouble();
@@ -718,7 +745,10 @@ class _ManualPurchaseEntryScreenState
         } else {
           row.matchStatus = ProductMatchStatus.quickRegister;
           row.isNewProduct = true;
-          row.isStagedReady = false;
+          row.isStagedReady = true;
+          if (row.sku.isEmpty) {
+            row.sku = 'TKF${DateTime.now().millisecondsSinceEpoch}';
+          }
         }
       });
       _recalcState();
@@ -728,10 +758,207 @@ class _ManualPurchaseEntryScreenState
           row.isMatchLoading = false;
           row.matchStatus = ProductMatchStatus.quickRegister;
           row.isNewProduct = true;
-          row.isStagedReady = false;
+          row.isStagedReady = true;
+          if (row.sku.isEmpty) {
+            row.sku = 'TKF${DateTime.now().millisecondsSinceEpoch}';
+          }
         });
       }
     }
+  }
+
+  /// Direct item addition dialog - adds item directly to purchase list without Quick Register popups
+  Future<void> _showDirectAddItemDialog() async {
+    final nameCtrl = TextEditingController();
+    final barcodeCtrl = TextEditingController();
+    final qtyCtrl = TextEditingController(text: '1');
+    final rateCtrl = TextEditingController(text: '0.00');
+    final discCtrl = TextEditingController(text: '0.00');
+    final mrpCtrl = TextEditingController(text: '0.00');
+    final spCtrl = TextEditingController(text: '0.00');
+    final hsnCtrl = TextEditingController();
+    double taxPct = _isGstEnabled ? 18.0 : 0.0;
+    String selectedWarranty = ItemWarrantyDuration.noWarranty;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx2, setLocal) => AlertDialog(
+          backgroundColor: const Color(0xFF0B1030),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: Row(
+            children: [
+              const Icon(Icons.add_shopping_cart_rounded, color: DashboardColors.neonGreen, size: 22),
+              const SizedBox(width: 10),
+              Text('Add Item to Purchase Bill',
+                  style: DashboardTypography.poppins(
+                      fontSize: 16, fontWeight: FontWeight.w700)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              _dialogField(nameCtrl, 'Product Name *', TextInputType.text),
+              const SizedBox(height: 10),
+              _dialogField(barcodeCtrl, 'Barcode / SKU (auto-generated if blank)', TextInputType.text),
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(
+                    child: _dialogField(
+                        qtyCtrl, 'Qty *', TextInputType.number)),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: _dialogField(
+                        rateCtrl, 'Purchase Rate (₹) *',
+                        const TextInputType.numberWithOptions(decimal: true))),
+              ]),
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(
+                    child: _dialogField(
+                        discCtrl, 'Discount (₹)',
+                        const TextInputType.numberWithOptions(decimal: true))),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: DropdownButtonFormField<double>(
+                    value: taxPct,
+                    dropdownColor: const Color(0xFF0B1030),
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    decoration: InputDecoration(
+                      labelText: 'GST %',
+                      labelStyle: const TextStyle(
+                          color: DashboardColors.textMuted, fontSize: 12),
+                      filled: true,
+                      fillColor: Colors.white.withValues(alpha: 0.04),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
+                              color: DashboardColors.glassBorder)),
+                      isDense: true,
+                    ),
+                    items: [0.0, 3.0, 5.0, 12.0, 18.0, 28.0]
+                        .map((r) => DropdownMenuItem(
+                            value: r, child: Text('${r.toStringAsFixed(0)}%')))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) setLocal(() => taxPct = v);
+                    },
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(
+                    child: _dialogField(
+                        mrpCtrl, 'MRP (₹)',
+                        const TextInputType.numberWithOptions(decimal: true))),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: _dialogField(
+                        spCtrl, 'Selling Price (₹)',
+                        const TextInputType.numberWithOptions(decimal: true))),
+              ]),
+              const SizedBox(height: 10),
+              _dialogField(hsnCtrl, 'HSN Code', TextInputType.number),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                value: selectedWarranty,
+                dropdownColor: const Color(0xFF0B1030),
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                decoration: InputDecoration(
+                  labelText: 'Warranty Term',
+                  labelStyle: const TextStyle(
+                      color: DashboardColors.textMuted, fontSize: 12),
+                  filled: true,
+                  fillColor: Colors.white.withValues(alpha: 0.04),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                          color: DashboardColors.glassBorder)),
+                  isDense: true,
+                ),
+                items: ItemWarrantyDuration.options
+                    .map((w) => DropdownMenuItem(value: w, child: Text(w)))
+                    .toList(),
+                onChanged: (v) {
+                  if (v != null) setLocal(() => selectedWarranty = v);
+                },
+              ),
+            ]),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel',
+                    style: TextStyle(color: DashboardColors.textMuted))),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.add_shopping_cart_rounded, size: 16),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: DashboardColors.neonGreen,
+                  foregroundColor: Colors.black),
+              onPressed: () {
+                final name = nameCtrl.text.trim();
+                if (name.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please enter a product name.')),
+                  );
+                  return;
+                }
+                final qty = int.tryParse(qtyCtrl.text) ?? 1;
+                final rate = double.tryParse(rateCtrl.text) ?? 0.0;
+                final disc = double.tryParse(discCtrl.text) ?? 0.0;
+                final mrp = double.tryParse(mrpCtrl.text) ?? 0.0;
+                final sp = double.tryParse(spCtrl.text) ?? 0.0;
+                final hsn = hsnCtrl.text.trim();
+                final barcode = barcodeCtrl.text.trim().isNotEmpty
+                    ? barcodeCtrl.text.trim()
+                    : 'TKF${DateTime.now().millisecondsSinceEpoch}';
+
+                final newRow = _EditableItem(
+                  name: name,
+                  sku: barcode,
+                  quantity: qty > 0 ? qty : 1,
+                  purchaseRate: rate >= 0 ? rate : 0.0,
+                  discount: disc,
+                  taxPercent: taxPct,
+                  mrp: mrp,
+                  sellingPrice: sp,
+                  hsnCode: hsn,
+                  warrantyDuration: selectedWarranty,
+                  isNewProduct: true,
+                  isStagedReady: true,
+                  matchStatus: ProductMatchStatus.matched,
+                );
+
+                setState(() {
+                  _items.add(newRow);
+                  _isSearchingProduct = true;
+                });
+
+                _recalcState();
+                _scheduleDraftSave();
+                Navigator.pop(ctx);
+
+                // Check background match to pre-fill catalog references if matched
+                _triggerProductMatch(newRow);
+
+                TekFeedback.success('Added "${newRow.name}" to bill');
+              },
+              label: const Text('Add to Bill',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    nameCtrl.dispose();
+    barcodeCtrl.dispose();
+    qtyCtrl.dispose();
+    rateCtrl.dispose();
+    discCtrl.dispose();
+    mrpCtrl.dispose();
+    spCtrl.dispose();
+    hsnCtrl.dispose();
   }
 
   Future<void> _openQuickRegister(_EditableItem row) async {
@@ -741,7 +968,7 @@ class _ManualPurchaseEntryScreenState
       prefillBrand: row.brand,
       prefillModel: row.model,
       prefillSku: row.sku,
-      prefillGstRate: row.taxPercent,
+      prefillGstRate: _isGstEnabled ? row.taxPercent : 0.0,
       prefillHsn: row.hsnCode,
       prefillMrp: row.mrp,
       prefillSellingPrice: row.sellingPrice,
@@ -750,6 +977,11 @@ class _ManualPurchaseEntryScreenState
     if (result == null || !mounted) return;
 
     setState(() {
+      row.name = result['name']?.toString() ?? row.name;
+      row.sku = result['sku']?.toString() ?? row.sku;
+      row.brand = result['brand']?.toString() ?? row.brand;
+      row.model = result['model']?.toString() ?? row.model;
+      row.hsnCode = result['hsn']?.toString() ?? row.hsnCode;
       row.matchedProductId = result['id']?.toString() ?? result['matchedProductId']?.toString();
       row.itemKey = result['key'] ?? result['itemKey'] ?? result['id'];
       row.matchedProductName = result['name']?.toString() ?? row.name;
@@ -758,8 +990,10 @@ class _ManualPurchaseEntryScreenState
       row.matchStatus = ProductMatchStatus.matched;
       row.matchNotes = null;
       // Update fields from registered product
-      if ((result['gstRate'] as num?) != null) {
+      if (_isGstEnabled && (result['gstRate'] as num?) != null) {
         row.taxPercent = (result['gstRate'] as num).toDouble();
+      } else if (!_isGstEnabled) {
+        row.taxPercent = 0.0;
       }
       if ((result['sellingPrice'] as num?) != null && row.sellingPrice == 0.0) {
         row.sellingPrice = (result['sellingPrice'] as num).toDouble();
@@ -772,6 +1006,70 @@ class _ManualPurchaseEntryScreenState
     });
     _recalcState();
     _scheduleDraftSave();
+  }
+
+  Future<void> _quickRegisterNewItem() async {
+    final result = await QuickRegisterDrawer.show(
+      context,
+      prefillGstRate: _isGstEnabled ? 18.0 : 0.0,
+    );
+
+    if (result == null || !mounted) return;
+
+    final newRow = _EditableItem(
+      itemKey: result['key'] ?? result['itemKey'] ?? result['id'],
+      matchedProductId: result['id']?.toString() ?? result['matchedProductId']?.toString(),
+      matchedProductName: result['name']?.toString() ?? '',
+      name: result['name']?.toString() ?? 'Unnamed Item',
+      brand: result['brand']?.toString() ?? '',
+      model: result['model']?.toString() ?? '',
+      sku: result['sku']?.toString() ?? '',
+      hsnCode: result['hsn']?.toString() ?? '',
+      quantity: 1,
+      purchaseRate: (result['costPrice'] as num?)?.toDouble() ?? 0.0,
+      mrp: (result['mrp'] as num?)?.toDouble() ?? 0.0,
+      sellingPrice: (result['sellingPrice'] as num?)?.toDouble() ?? 0.0,
+      taxPercent: _isGstEnabled ? ((result['gstRate'] as num?)?.toDouble() ?? 0.0) : 0.0,
+      isNewProduct: false,
+      isStagedReady: true,
+      matchStatus: ProductMatchStatus.matched,
+      imeiRequired: result['imeiRequired'] == true,
+      warrantyDuration: result['warranty']?.toString() ?? 'No Warranty',
+    );
+
+    setState(() {
+      _items.add(newRow);
+      _isSearchingProduct = true;
+    });
+
+    _recalcState();
+    _scheduleDraftSave();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _productSearchFocus.canRequestFocus) {
+        _productSearchFocus.requestFocus();
+      }
+    });
+
+    TekFeedback.success('Registered & added "${newRow.name}" to bill');
+  }
+
+  void _toggleGst(bool enable) {
+    setState(() {
+      _isGstEnabled = enable;
+      for (final item in _items) {
+        if (!enable) {
+          item.taxPercent = 0.0;
+        } else {
+          if (item.taxPercent == 0.0) {
+            item.taxPercent = 18.0;
+          }
+        }
+      }
+    });
+    _recalcState();
+    _scheduleDraftSave();
+    TekFeedback.toast(enable ? 'GST enabled (18%)' : 'GST disabled (0%)');
   }
 
   void _removeItem(int index) {
@@ -816,9 +1114,6 @@ class _ManualPurchaseEntryScreenState
       if (it.name.isEmpty) errors.add('Row ${i + 1}: Product name is missing.');
       if (it.quantity <= 0) errors.add('Row ${i + 1}: Quantity must be > 0.');
       if (it.purchaseRate < 0) errors.add('Row ${i + 1}: Purchase rate cannot be negative.');
-      if (it.isNewProduct && !it.isStagedReady) {
-        errors.add('Row ${i + 1}: "${it.name}" needs to be registered via Quick Register before saving.');
-      }
     }
     final paid = double.tryParse(_paidCtrl.text) ?? 0.0;
     if (paid < 0) errors.add('Paid amount cannot be negative.');
@@ -1719,16 +2014,89 @@ class _ManualPurchaseEntryScreenState
   }
 
   // ---- C. ITEMS ----
+  Widget _buildGstToggle() {
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () => _toggleGst(!_isGstEnabled),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: _isGstEnabled
+              ? DashboardColors.neonPurple.withValues(alpha: 0.15)
+              : Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _isGstEnabled
+                ? DashboardColors.neonPurple.withValues(alpha: 0.5)
+                : DashboardColors.glassBorder,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _isGstEnabled ? Icons.percent_rounded : Icons.money_off_rounded,
+              size: 13,
+              color: _isGstEnabled ? DashboardColors.neonPurple : DashboardColors.textMuted,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              _isGstEnabled ? 'GST: ON' : 'GST: OFF (0%)',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: _isGstEnabled ? Colors.white : DashboardColors.textMuted,
+              ),
+            ),
+            const SizedBox(width: 4),
+            SizedBox(
+              height: 18,
+              width: 30,
+              child: Switch(
+                value: _isGstEnabled,
+                activeColor: DashboardColors.neonPurple,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                onChanged: _toggleGst,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildItemsSection() {
     return _sectionCard(
       icon: Icons.inventory_2_rounded,
       iconColor: DashboardColors.neonGreen,
-      title: 'Items  (${_items.length})',
-      trailing: IconButton(
-        icon: const Icon(Icons.add_circle_rounded,
-            color: DashboardColors.neonGreen, size: 22),
-        tooltip: 'Add item',
-        onPressed: () => setState(() => _isSearchingProduct = true),
+      title: 'Items (${_items.length})',
+      trailing: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        children: [
+          _buildGstToggle(),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: DashboardColors.neonGreen,
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              minimumSize: const Size(0, 32),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            icon: const Icon(Icons.add_rounded, size: 16),
+            label: const Text('+ Add Item', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+            onPressed: _showDirectAddItemDialog,
+          ),
+          IconButton(
+            icon: const Icon(Icons.add_circle_rounded,
+                color: DashboardColors.neonGreen, size: 22),
+            tooltip: 'Add item',
+            onPressed: () {
+              setState(() => _isSearchingProduct = true);
+              _productSearchFocus.requestFocus();
+            },
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -1740,6 +2108,7 @@ class _ManualPurchaseEntryScreenState
                 Expanded(
                   child: TextField(
                     controller: _productSearchCtrl,
+                    focusNode: _productSearchFocus,
                     autofocus: _isSearchingProduct,
                     style: const TextStyle(color: Colors.white, fontSize: 13),
                     decoration: InputDecoration(
@@ -1800,8 +2169,10 @@ class _ManualPurchaseEntryScreenState
                     label: const Text('Add First Item',
                         style:
                             TextStyle(color: DashboardColors.neonGreen)),
-                    onPressed: () =>
-                        setState(() => _isSearchingProduct = true),
+                    onPressed: () {
+                      setState(() => _isSearchingProduct = true);
+                      _productSearchFocus.requestFocus();
+                    },
                   ),
                 ],
               ),
@@ -1849,6 +2220,23 @@ class _ManualPurchaseEntryScreenState
             children: [
               Row(
                 children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      color: DashboardColors.neonBlue.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(
+                      '#${i + 1}',
+                      style: const TextStyle(
+                        color: DashboardColors.neonBlue,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
                   Expanded(
                     child: Text(
                       row.name.isNotEmpty ? row.name : 'Unnamed Item',
@@ -1900,27 +2288,6 @@ class _ManualPurchaseEntryScreenState
                       fontSize: 14),
                 ),
               ]),
-
-              // Quick Register button for new products
-              if (row.matchStatus == ProductMatchStatus.quickRegister &&
-                  !row.isStagedReady) ...[
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: DashboardColors.neonOrange,
-                    side: const BorderSide(color: DashboardColors.neonOrange),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    minimumSize: const Size(0, 32),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                  ),
-                  icon: const Icon(Icons.add_box_rounded, size: 16),
-                  label: const Text('+ Quick Register',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                  onPressed: () => _openQuickRegister(row),
-                ),
-              ],
 
               // Duplicate / review warning
               if (row.matchNotes != null &&
@@ -1992,6 +2359,7 @@ class _ManualPurchaseEntryScreenState
     final row = _items[index];
 
     final nameCtrl = TextEditingController(text: row.name);
+    final barcodeCtrl = TextEditingController(text: row.sku);
     final qtyCtrl = TextEditingController(text: row.quantity.toString());
     final rateCtrl = TextEditingController(text: row.purchaseRate.toStringAsFixed(2));
     final discCtrl = TextEditingController(text: row.discount.toStringAsFixed(2));
@@ -2018,6 +2386,8 @@ class _ManualPurchaseEntryScreenState
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               _dialogField(nameCtrl, 'Product Name', TextInputType.text),
+              const SizedBox(height: 10),
+              _dialogField(barcodeCtrl, 'Barcode / SKU (auto-generated if blank)', TextInputType.text),
               const SizedBox(height: 10),
               Row(children: [
                 Expanded(
@@ -2114,7 +2484,7 @@ class _ManualPurchaseEntryScreenState
                   foregroundColor: Colors.black),
               onPressed: () {
                 setState(() {
-                  row.name = nameCtrl.text.trim();
+                  row.name = nameCtrl.text.trim().isNotEmpty ? nameCtrl.text.trim() : row.name;
                   row.quantity = int.tryParse(qtyCtrl.text) ?? row.quantity;
                   row.purchaseRate =
                       double.tryParse(rateCtrl.text) ?? row.purchaseRate;
@@ -2125,7 +2495,12 @@ class _ManualPurchaseEntryScreenState
                   row.sellingPrice =
                       double.tryParse(spCtrl.text) ?? row.sellingPrice;
                   row.hsnCode = hsnCtrl.text.trim();
+                  final customBarcode = barcodeCtrl.text.trim();
+                  row.sku = customBarcode.isNotEmpty
+                      ? customBarcode
+                      : (row.sku.isNotEmpty ? row.sku : 'TKF${DateTime.now().millisecondsSinceEpoch}');
                   row.warrantyDuration = selectedWarranty;
+                  row.isStagedReady = true;
                 });
                 _recalcState();
                 _scheduleDraftSave();
@@ -2140,6 +2515,7 @@ class _ManualPurchaseEntryScreenState
     );
 
     nameCtrl.dispose();
+    barcodeCtrl.dispose();
     qtyCtrl.dispose();
     rateCtrl.dispose();
     discCtrl.dispose();
