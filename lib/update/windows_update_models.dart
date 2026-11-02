@@ -88,9 +88,10 @@ class GitHubReleaseAsset {
 
   bool get isWindowsInstaller {
     final lower = name.toLowerCase();
-    return lower.endsWith('.exe') &&
+    return (lower.endsWith('.exe') || lower.endsWith('.zip')) &&
         !lower.endsWith('.sha256') &&
-        !lower.endsWith('.md5');
+        !lower.endsWith('.md5') &&
+        !lower.contains('source');
   }
 
   bool get isChecksumFile {
@@ -141,17 +142,21 @@ class GitHubReleaseInfo {
     );
   }
 
-  /// Locates the primary Windows Inno Setup installer asset.
+  /// Locates the primary Windows Inno Setup installer or release ZIP asset.
   GitHubReleaseAsset? get windowsInstallerAsset {
-    // Prefer asset with TekFixERP-Setup or tekfix_pos setup
+    // 1. Prefer Inno Setup .exe installer
     for (final a in assets) {
-      if (a.isWindowsInstaller &&
-          (a.name.toLowerCase().contains('setup') ||
-           a.name.toLowerCase().contains('tekfix'))) {
+      if (a.isWindowsInstaller && a.name.toLowerCase().endsWith('.exe')) {
         return a;
       }
     }
-    // Fallback to any .exe asset
+    // 2. Fallback to windows release zip
+    for (final a in assets) {
+      if (a.isWindowsInstaller && a.name.toLowerCase().contains('windows')) {
+        return a;
+      }
+    }
+    // 3. Fallback to any windows asset
     for (final a in assets) {
       if (a.isWindowsInstaller) return a;
     }

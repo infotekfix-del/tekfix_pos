@@ -486,6 +486,30 @@ class WindowsUpdateService extends ChangeNotifier {
     required String installerPath,
     required String executablePath,
   }) {
+    final isZip = installerPath.toLowerCase().endsWith('.zip');
+    final appDir = File(executablePath).parent.path;
+
+    if (isZip) {
+      return '''
+@echo off
+setlocal
+title TekFix ERP Updater
+
+:: 1. Wait for parent process to exit and release file locks
+timeout /t 2 /nobreak >nul
+
+:: 2. Extract ZIP package over application directory
+powershell -NoProfile -Command "Expand-Archive -LiteralPath '$installerPath' -DestinationPath '$appDir' -Force"
+
+:: 3. Give filesystem a brief moment then relaunch TekFix ERP
+timeout /t 1 /nobreak >nul
+start "" "$executablePath"
+
+:: 4. Clean up batch script and exit
+(goto) 2>nul & del "%~f0" & exit
+''';
+    }
+
     return '''
 @echo off
 setlocal
