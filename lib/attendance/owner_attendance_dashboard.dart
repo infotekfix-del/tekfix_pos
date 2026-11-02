@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../main.dart' show Db, rs, toast, formDialog, tf, AppCard, kPrimary;
+import '../staff/salary_calculator.dart';
 import 'attendance_models.dart';
 import 'attendance_service.dart';
 
@@ -209,15 +210,24 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
 
   void _calculateAndPostSalary(
       BuildContext context, Map<String, dynamic> staff, int presentDays) {
-    final double monthlySalary = (staff['monthlySalary'] as num?)?.toDouble() ?? 15000.0;
     final totalDaysInMonth =
-        DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0).day;
-    final calculatedSalary = (monthlySalary / totalDaysInMonth) * presentDays;
+        SalaryCalculator.getDaysInMonth(_selectedMonth);
+    final double dailyRate =
+        SalaryCalculator.getDailyRate(staff, _selectedMonth);
+    final double monthlySalary = SalaryCalculator.calculateMonthlySalary(
+      dailyRate: dailyRate,
+      date: _selectedMonth,
+      customDaysInMonth: totalDaysInMonth,
+    );
+    final calculatedSalary = SalaryCalculator.calculateEarnedSalary(
+      dailyRate: dailyRate,
+      daysWorked: presentDays,
+    );
     final roundedSalary = (calculatedSalary * 100).round() / 100.0;
 
     final amtCtrl = TextEditingController(text: roundedSalary.toStringAsFixed(0));
     final noteCtrl = TextEditingController(
-        text: 'Salary (${_monthDisplayFormat.format(_selectedMonth)}): ${staff['name']} ($presentDays/$totalDaysInMonth days)');
+        text: 'Salary (${_monthDisplayFormat.format(_selectedMonth)}): ${staff['name']} ($presentDays/$totalDaysInMonth days @ ₹${dailyRate.toStringAsFixed(0)}/day)');
     String mode = 'Cash';
 
     formDialog(
@@ -228,8 +238,19 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
         children: [
           Text('ജീവനക്കാരൻ: ${staff['name']}',
               style: const TextStyle(fontWeight: FontWeight.bold)),
-          Text('ഹാജർ: $presentDays/$totalDaysInMonth ദിവസം (കണക്കാക്കിയ തുക: ${rs(roundedSalary)})',
-              style: const TextStyle(fontSize: 13, color: Colors.teal)),
+          const SizedBox(height: 4),
+          Text(
+            'Daily Rate: ₹${dailyRate.toStringAsFixed(0)} / day  •  Month Days: $totalDaysInMonth days',
+            style: TextStyle(fontSize: 12.5, color: Colors.grey.shade400),
+          ),
+          Text(
+            'Calculated Monthly Total: ${rs(monthlySalary)}',
+            style: const TextStyle(fontSize: 12.5, color: Colors.blueAccent, fontWeight: FontWeight.w600),
+          ),
+          Text(
+            'ഹാജർ: $presentDays/$totalDaysInMonth ദിവസം (കണക്കാക്കിയ തുക: ${rs(roundedSalary)})',
+            style: const TextStyle(fontSize: 13, color: Colors.teal, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 12),
           tf(amtCtrl, 'നൽകുന്ന തുക ₹', number: true),
           tf(noteCtrl, 'വിവരണം (Description)'),
@@ -571,6 +592,18 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
                     }
                   }
 
+                  final double staffDailyRate = SalaryCalculator.getDailyRate(s, _selectedMonth);
+                  final int staffMonthDays = SalaryCalculator.getDaysInMonth(_selectedMonth);
+                  final double calculatedMonthTotal = SalaryCalculator.calculateMonthlySalary(
+                    dailyRate: staffDailyRate,
+                    date: _selectedMonth,
+                    customDaysInMonth: staffMonthDays,
+                  );
+                  final double earnedSoFar = SalaryCalculator.calculateEarnedSalary(
+                    dailyRate: staffDailyRate,
+                    daysWorked: presentDays,
+                  );
+
                   return Card(
                     margin: const EdgeInsets.only(bottom: 14),
                     child: ExpansionTile(
@@ -617,9 +650,20 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text('മാസ ശമ്പളം (Monthly Salary):'),
-                                  Text(rs((s['monthlySalary'] as num?)?.toDouble() ?? 15000),
+                                  Text('Daily Rate: ₹${staffDailyRate.toStringAsFixed(0)} / day ($staffMonthDays days)',
+                                      style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
+                                  Text('മാസ ശമ്പളം: ${rs(calculatedMonthTotal)}',
                                       style: const TextStyle(fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text('Days Worked: $presentDays days',
+                                      style: const TextStyle(color: Colors.teal, fontWeight: FontWeight.w600, fontSize: 12)),
+                                  Text('നേടിയത് (Earned): ${rs(earnedSoFar)}',
+                                      style: const TextStyle(color: Colors.teal, fontWeight: FontWeight.bold)),
                                 ],
                               ),
                               const SizedBox(height: 10),

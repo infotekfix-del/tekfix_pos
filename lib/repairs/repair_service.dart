@@ -97,6 +97,26 @@ class RepairService {
     } catch (_) {}
   }
 
+  /// Direct status update helper that records history and preserves all financial/billing information
+  Future<void> updateRepairStatus({
+    required String shopId,
+    required String jobId,
+    dynamic hiveKey,
+    required String newStatus,
+    String notes = '',
+    required String staffName,
+    required String staffId,
+  }) =>
+      updateRepairStatusAndNotes(
+        shopId: shopId,
+        jobId: jobId,
+        hiveKey: hiveKey,
+        newStatus: newStatus,
+        notes: notes,
+        staffName: staffName,
+        staffId: staffId,
+      );
+
   /// Staff action to update repair status and internal technician notes
   /// Strictly syncs with both Firestore server and local Hive database
   Future<void> updateRepairStatusAndNotes({

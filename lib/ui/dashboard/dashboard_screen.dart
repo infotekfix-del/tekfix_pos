@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -13,6 +15,8 @@ import '../../reminders/reminder_service.dart';
 import '../../reminders/reminders_screen.dart';
 import '../../reminders/followups_screen.dart';
 import '../../update/app_update_management_view.dart';
+import '../../update/windows_update_service.dart';
+import '../../update/windows_update_banner.dart';
 import '../../utils/tek_helpers.dart';
 import '../../main.dart'
     show
@@ -33,6 +37,10 @@ import '../../main.dart'
         showPartyForm;
 
 import '../tek_global_search_dialog.dart';
+import '../../expenses/add_expense_dialog.dart';
+import '../../rent/daily_rent_payment_dialog.dart';
+import '../../owner/owner_withdrawal_dialog.dart';
+import '../../owner/owner_ledger_view.dart';
 import 'dashboard_tokens.dart';
 import 'sidebar.dart';
 import 'top_bar.dart';
@@ -64,6 +72,21 @@ class TekDashboardScreen extends StatefulWidget {
 class _TekDashboardScreenState extends State<TekDashboardScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   String _activeMenu = 'Dashboard';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!kIsWeb && Platform.isWindows) {
+        final winService = WindowsUpdateService.instance;
+        winService.initialize().then((_) {
+          if (winService.settings.checkOnStartup) {
+            winService.checkForUpdates();
+          }
+        });
+      }
+    });
+  }
 
   void _navigateTo(Widget page, [String? menuLabel]) {
     if (menuLabel != null) setState(() => _activeMenu = menuLabel);
@@ -116,6 +139,9 @@ class _TekDashboardScreenState extends State<TekDashboardScreen> {
         break;
       case 'Audit / Change History':
         _navigateTo(const AuditLogView(), item);
+        break;
+      case 'Owner Salary & Drawings':
+        _navigateTo(const OwnerLedgerView(), item);
         break;
       case 'System Settings':
         _navigateTo(const SettingsView(), item);
@@ -421,6 +447,9 @@ class TekDashboardContent extends StatelessWidget {
                 isDesktopResolved ? 30.0 : (MediaQuery.of(context).padding.bottom + 85.0),
               ),
               children: [
+                if (!kIsWeb && Platform.isWindows)
+                  const WindowsUpdateBanner(),
+
                 // 1. Hero Banner
                 const TekHeroBanner(
                   title: 'TEKFIX ERP',
@@ -481,6 +510,9 @@ class TekDashboardContent extends StatelessWidget {
                             TekQuickActionsGrid(
                               onNewSale: () => _nav(context, const SaleView()),
                               onAddItem: () => showItemForm(context),
+                              onAddExpense: () => AddExpenseDialog.show(context),
+                              onDailyRent: () => DailyRentPaymentDialog.show(context),
+                              onOwnerWithdrawal: () => OwnerWithdrawalDialog.show(context),
                               onServiceRequest: () => showServiceJobForm(context),
                               onAddCustomer: () => showPartyForm(context),
                               onViewReports: () => _nav(context, const ReportsView()),
@@ -522,6 +554,9 @@ class TekDashboardContent extends StatelessWidget {
                       TekQuickActionsGrid(
                         onNewSale: () => _nav(context, const SaleView()),
                         onAddItem: () => showItemForm(context),
+                        onAddExpense: () => AddExpenseDialog.show(context),
+                        onDailyRent: () => DailyRentPaymentDialog.show(context),
+                        onOwnerWithdrawal: () => OwnerWithdrawalDialog.show(context),
                         onServiceRequest: () => showServiceJobForm(context),
                         onAddCustomer: () => showPartyForm(context),
                         onViewReports: () => _nav(context, const ReportsView()),

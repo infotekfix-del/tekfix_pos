@@ -8,6 +8,8 @@ import '../main.dart' show Db, toast;
 import '../shared/tek_pos_strings.dart';
 import '../theme/tek_tokens.dart';
 import '../inventory/consumables_service.dart';
+import '../repairs/repair_models.dart';
+import 'daily_sales_ledger_view.dart';
 import 'pos_models.dart';
 import 'pos_service.dart';
 import '../returns/returns_dashboard_view.dart';
@@ -17,6 +19,7 @@ class StaffPosScreen extends StatefulWidget {
   final String staffId;
   final String staffName;
   final VoidCallback onNavigateToAttendance;
+  final RepairJob? serviceJob;
 
   const StaffPosScreen({
     super.key,
@@ -24,6 +27,7 @@ class StaffPosScreen extends StatefulWidget {
     required this.staffId,
     required this.staffName,
     required this.onNavigateToAttendance,
+    this.serviceJob,
   });
 
   @override
@@ -63,6 +67,28 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
   void initState() {
     super.initState();
     _initStreams();
+    _initServiceJob();
+  }
+
+  void _initServiceJob() {
+    if (widget.serviceJob != null) {
+      final s = widget.serviceJob!;
+      _custNameCtrl.text = s.customerName;
+      _custPhoneCtrl.text = s.phone;
+      final cost = s.estimatedCost > 0 ? s.estimatedCost : 0.0;
+      _cart.add(PosCartItem(
+        item: PosItem(
+          id: 'service_${s.id}',
+          name: 'Service: ${s.brandModel} (#${s.id})',
+          category: 'Services',
+          sellingPrice: cost,
+          minPrice: 0.0,
+          stock: 9999,
+        ),
+        qty: 1,
+        unitPrice: cost,
+      ));
+    }
   }
 
   void _initStreams() {
@@ -91,7 +117,13 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
 
   double get _subtotal => _cart.fold(0.0, (sum, i) => sum + i.lineTotal);
   double get _discount => 0.0;
-  double get _total => _subtotal - _discount;
+  double get _advanceApplied =>
+      (widget.serviceJob != null && widget.serviceJob!.advance > 0)
+          ? widget.serviceJob!.advance
+          : 0.0;
+  double get _netPayable =>
+      ((_subtotal - _discount) - _advanceApplied).clamp(0.0, double.infinity);
+  double get _total => _netPayable;
 
   void _addToCart(PosItem item) {
     if (item.isOutOfStock) {
@@ -468,7 +500,25 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Grand Total (ആകെ തുക):', style: TextStyle(fontWeight: FontWeight.bold, color: TekColors.textPrimary)),
+                            const Text('Subtotal:', style: TextStyle(color: TekColors.textSecondary, fontSize: 13)),
+                            Text('₹${_subtotal.toStringAsFixed(2)}', style: const TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.w600, fontSize: 13)),
+                          ],
+                        ),
+                        if (_advanceApplied > 0) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Advance Paid (മുൻകൂർ നൽകിയത്):', style: TextStyle(color: TekColors.info, fontSize: 12.5)),
+                              Text('-₹${_advanceApplied.toStringAsFixed(2)}', style: const TextStyle(color: TekColors.info, fontWeight: FontWeight.bold, fontSize: 13)),
+                            ],
+                          ),
+                        ],
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Net Balance to Collect (ബാക്കി):', style: TextStyle(fontWeight: FontWeight.bold, color: TekColors.textPrimary)),
                             Text('₹${_total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: TekColors.success, fontSize: 16)),
                           ],
                         ),
@@ -699,9 +749,12 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                                 payment: payment,
                                 subtotal: _subtotal,
                                 discount: _discount,
-                                total: _total,
+                                total: (_subtotal - _discount),
                                 customerName: _custNameCtrl.text,
                                 customerPhone: _custPhoneCtrl.text,
+                                serviceJobId: widget.serviceJob?.id,
+                                serviceJobKey: widget.serviceJob?.key,
+                                serviceAdvanceApplied: _advanceApplied,
                               );
 
                               if (!mounted) return;
@@ -943,58 +996,122 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
   }
 
   Widget _buildUnlockedPos(BuildContext context, AttendanceRecord record) {
-    return Scaffold(
-      backgroundColor: TekColors.bgMain,
-      appBar: AppBar(
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
         backgroundColor: TekColors.bgMain,
-        elevation: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('POS Billing (സെയിൽസ്)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
-            _buildApprovalBadge(record),
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Customer Returns & Warranty',
-            icon: const Icon(Icons.assignment_return_rounded, color: TekColors.secondary, size: 24),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ReturnsDashboardView()),
-              );
-            },
-          ),
-          const SizedBox(width: 4),
-          Stack(
+        appBar: AppBar(
+          backgroundColor: TekColors.bgMain,
+          elevation: 0,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              IconButton(
-                tooltip: 'Shopping Cart',
-                icon: const Icon(Icons.shopping_cart_rounded, color: TekColors.secondary, size: 24),
-                onPressed: _openCheckoutSheet,
-              ),
-              if (_cart.isNotEmpty)
-                Positioned(
-                  right: 6,
-                  top: 6,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(color: TekColors.error, shape: BoxShape.circle),
-                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                    child: Text(
-                      '${_cart.length}',
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
+              const Text('POS Billing (സെയിൽസ്)',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+              _buildApprovalBadge(record),
             ],
           ),
-          const SizedBox(width: 6),
-        ],
+          actions: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F766E),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () {
+                  DailySalesLedgerView.showEodClosingModal(
+                    context,
+                    shopId: widget.shopId,
+                    currentStaffId: widget.staffId,
+                    currentStaffName: widget.staffName,
+                  );
+                },
+                icon: const Icon(Icons.nights_stay_rounded, size: 15),
+                label: const Text('End of Day Close',
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Customer Returns & Warranty',
+              icon: const Icon(Icons.assignment_return_rounded,
+                  color: TekColors.secondary, size: 22),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const ReturnsDashboardView()),
+                );
+              },
+            ),
+            const SizedBox(width: 2),
+            Stack(
+              children: [
+                IconButton(
+                  tooltip: 'Shopping Cart',
+                  icon: const Icon(Icons.shopping_cart_rounded,
+                      color: TekColors.secondary, size: 24),
+                  onPressed: _openCheckoutSheet,
+                ),
+                if (_cart.isNotEmpty)
+                  Positioned(
+                    right: 6,
+                    top: 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                          color: TekColors.error, shape: BoxShape.circle),
+                      constraints:
+                          const BoxConstraints(minWidth: 18, minHeight: 18),
+                      child: Text(
+                        '${_cart.length}',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 4),
+          ],
+          bottom: const TabBar(
+            indicatorColor: TekColors.primary,
+            indicatorWeight: 3,
+            tabs: [
+              Tab(
+                icon: Icon(Icons.point_of_sale_rounded, size: 18),
+                text: 'New Sale / Billing',
+              ),
+              Tab(
+                icon: Icon(Icons.receipt_long_rounded, size: 18),
+                text: 'Daily Sales Ledger / Orders',
+              ),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            _buildCatalogView(),
+            DailySalesLedgerView(
+              shopId: widget.shopId,
+              currentStaffId: widget.staffId,
+              currentStaffName: widget.staffName,
+            ),
+          ],
+        ),
       ),
-      body: StreamBuilder<List<PosItem>>(
+    );
+  }
+
+  Widget _buildCatalogView() {
+    return StreamBuilder<List<PosItem>>(
         stream: _catalogStream,
         builder: (context, snapshot) {
           final catalog = snapshot.data ?? PosService.instance.getCatalogItems();
@@ -1037,6 +1154,44 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
 
           return Column(
             children: [
+              if (widget.serviceJob != null) ...[
+                Container(
+                  margin: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: TekColors.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: TekColors.primary.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.build_circle_rounded, color: TekColors.primary, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Service Job #${widget.serviceJob!.id} • ${widget.serviceJob!.brandModel}',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: TekColors.textPrimary),
+                            ),
+                            Text(
+                              'Customer: ${widget.serviceJob!.customerName} (${widget.serviceJob!.phone})${_advanceApplied > 0 ? " • Advance Paid: ₹${_advanceApplied.toStringAsFixed(0)}" : ""}',
+                              style: const TextStyle(fontSize: 11.5, color: TekColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Checkout',
+                        icon: const Icon(Icons.shopping_cart_checkout_rounded, color: TekColors.primary),
+                        onPressed: _openCheckoutSheet,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
               // Search Bar
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -1140,8 +1295,7 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
             ],
           );
         },
-      ),
-    );
+      );
   }
 
   Widget _buildPaperStockIndicator() {

@@ -12,6 +12,9 @@ class TekQuickActionsGrid extends StatelessWidget {
   final VoidCallback onAddCustomer;
   final VoidCallback onViewReports;
   final VoidCallback onOpenSettings;
+  final VoidCallback? onAddExpense;
+  final VoidCallback? onDailyRent;
+  final VoidCallback? onOwnerWithdrawal;
 
   const TekQuickActionsGrid({
     super.key,
@@ -21,6 +24,9 @@ class TekQuickActionsGrid extends StatelessWidget {
     required this.onAddCustomer,
     required this.onViewReports,
     required this.onOpenSettings,
+    this.onAddExpense,
+    this.onDailyRent,
+    this.onOwnerWithdrawal,
   });
 
   @override
@@ -50,6 +56,45 @@ class TekQuickActionsGrid extends StatelessWidget {
         glowColor: DashboardColors.neonGreen,
         onTap: onAddItem,
       ),
+      if (onAddExpense != null)
+        _ActionTileData(
+          title: 'Add Expense',
+          subtitle: 'ചിലവുകൾ രേഖപ്പെടുത്തുക',
+          icon: Icons.receipt_long_rounded,
+          gradient: const LinearGradient(
+            colors: [Color(0xFFF43F5E), Color(0xFFBE123C)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          glowColor: const Color(0xFFF43F5E),
+          onTap: onAddExpense!,
+        ),
+      if (onDailyRent != null)
+        _ActionTileData(
+          title: 'Daily Rent',
+          subtitle: 'കട വാടക',
+          icon: Icons.store_mall_directory_rounded,
+          gradient: const LinearGradient(
+            colors: [Color(0xFFF59E0B), Color(0xFFB45309)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          glowColor: const Color(0xFFF59E0B),
+          onTap: onDailyRent!,
+        ),
+      if (onOwnerWithdrawal != null)
+        _ActionTileData(
+          title: 'Owner Withdrawal',
+          subtitle: 'ഉടമയുടെ പിൻവലിക്കൽ',
+          icon: Icons.account_balance_wallet_rounded,
+          gradient: const LinearGradient(
+            colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          glowColor: const Color(0xFF8B5CF6),
+          onTap: onOwnerWithdrawal!,
+        ),
       _ActionTileData(
         title: 'Service Request',
         subtitle: 'സർവീസ് റിപ്പയർ',

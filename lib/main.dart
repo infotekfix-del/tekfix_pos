@@ -54,6 +54,10 @@ import 'notifications/notification_service.dart';
 import 'notifications/tek_notification_panel.dart';
 import 'returns/returns_dashboard_view.dart';
 import 'purchases/purchase_bills_dashboard_view.dart';
+import 'pos/daily_sales_ledger_view.dart';
+import 'staff/salary_calculator.dart';
+import 'expenses/expense_management_screen.dart';
+import 'expenses/add_expense_dialog.dart';
 export 'utils/tek_helpers.dart';
 export 'theme/tek_tokens.dart';
 export 'ui/dashboard/dashboard_screen.dart';
@@ -1006,20 +1010,22 @@ List<NavCategory> _getNavCategories(String shopId) => [
     items: [
       const AppModule('Home', Icons.dashboard_rounded, HomeView()),
       const AppModule('Sale / POS', Icons.point_of_sale_rounded, SaleView()),
+      AppModule('Daily Sales & EOD', Icons.receipt_long_rounded, DailySalesLedgerView(shopId: shopId)),
       const AppModule('Items / Stock', Icons.inventory_2_rounded, ItemsView()),
       const AppModule('Services / Repairs', Icons.build_circle_rounded, ServicesView()),
       const AppModule('Customer Returns', Icons.assignment_return_rounded, ReturnsDashboardView()),
       const AppModule('Purchase Bills', Icons.receipt_long_rounded, PurchaseBillsDashboardView()),
     ],
   ),
-  const NavCategory(
+  NavCategory(
     title: 'Finance & Accounts',
     icon: Icons.account_balance_wallet_rounded,
     items: [
-      AppModule('Purchase & Expense', Icons.shopping_bag_rounded, PurchaseExpenseView()),
-      AppModule('Parties', Icons.groups_rounded, PartiesView()),
-      AppModule('Cash & Bank', Icons.account_balance_rounded, CashBankView()),
-      AppModule('Reports', Icons.bar_chart_rounded, ReportsView()),
+      AppModule('Expenses', Icons.receipt_long_rounded, ExpenseManagementScreen(shopId: shopId)),
+      const AppModule('Purchase & Expense', Icons.shopping_bag_rounded, PurchaseExpenseView()),
+      const AppModule('Parties', Icons.groups_rounded, PartiesView()),
+      const AppModule('Cash & Bank', Icons.account_balance_rounded, CashBankView()),
+      const AppModule('Reports', Icons.bar_chart_rounded, ReportsView()),
     ],
   ),
   NavCategory(
@@ -1230,33 +1236,37 @@ class _AppShellState extends State<AppShell> {
       case 1:
         return 'Sale / POS';
       case 2:
-        return 'Items / Stock';
+        return 'Daily Sales & EOD';
       case 3:
-        return 'Services / Repairs';
+        return 'Items / Stock';
       case 4:
-        return 'Customer Returns';
+        return 'Services / Repairs';
       case 5:
+        return 'Customer Returns';
+      case 6:
         return 'Purchase Bills';
       case 7:
+        return 'Expenses';
+      case 9:
         return 'Customer Management';
-      case 10:
-      case 11:
       case 12:
       case 13:
       case 14:
       case 15:
-        return 'Staff Management';
       case 16:
-        return 'Payment Reminders';
       case 17:
-        return 'After-Sales Follow-ups';
+        return 'Staff Management';
       case 18:
-        return 'App Updates & Releases';
+        return 'Payment Reminders';
       case 19:
-        return 'Backup & Sync';
+        return 'After-Sales Follow-ups';
       case 20:
-        return 'Audit / Change History';
+        return 'App Updates & Releases';
       case 21:
+        return 'Backup & Sync';
+      case 22:
+        return 'Audit / Change History';
+      case 23:
         return 'Settings & Print';
       default:
         return '';
@@ -1269,31 +1279,37 @@ class _AppShellState extends State<AppShell> {
         return 0;
       case 'Sale / POS':
         return 1;
-      case 'Items / Stock':
+      case 'Daily Sales & EOD':
+      case 'Daily Sales Ledger / Orders':
         return 2;
-      case 'Services / Repairs':
+      case 'Items / Stock':
         return 3;
-      case 'Customer Returns':
+      case 'Services / Repairs':
         return 4;
-      case 'Purchase Bills':
+      case 'Customer Returns':
         return 5;
-      case 'Customer Management':
+      case 'Purchase Bills':
+        return 6;
+      case 'Expenses':
         return 7;
+      case 'Customer Management':
+      case 'Parties':
+        return 9;
       case 'Staff Management':
-        return 10;
+        return 12;
       case 'Payment Reminders':
-        return 16;
-      case 'After-Sales Follow-ups':
-        return 17;
-      case 'App Updates & Releases':
         return 18;
-      case 'Backup & Sync':
+      case 'After-Sales Follow-ups':
         return 19;
-      case 'Audit / Change History':
+      case 'App Updates & Releases':
         return 20;
+      case 'Backup & Sync':
+        return 21;
+      case 'Audit / Change History':
+        return 22;
       case 'Settings & Print':
       case 'System Settings':
-        return 21;
+        return 23;
       default:
         return 0;
     }
@@ -2054,57 +2070,111 @@ class _SaleViewState extends State<SaleView> {
       ],
     );
 
-    return Scaffold(
-      appBar: const TekAppBar(title: Text('സെയിൽ & ബില്ലിംഗ് (Sale POS)')),
-      body: wide
-          ? Row(
-              children: [
-                Expanded(child: catalog),
-                Container(
-                  width: 390,
-                  decoration: BoxDecoration(
-                      color: _surface(context),
-                      border: Border(left: BorderSide(color: _line(context)))),
-                  child: _cartPanel(),
+    final auth = context.watch<AuthController>();
+
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: TekAppBar(
+          title: const Text('സെയിൽ & ബില്ലിംഗ് (Sale POS)'),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F766E),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
                 ),
-              ],
-            )
-          : catalog,
-      bottomNavigationBar: wide || _cart.isEmpty
-          ? null
-          : SafeArea(
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-                decoration: BoxDecoration(
-                    color: _surface(context),
-                    border: Border(top: BorderSide(color: _line(context)))),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('$_qtyCount ഇനങ്ങൾ',
-                              style: TextStyle(
-                                  color: _muted(context), fontSize: 12.5)),
-                          Text(rs(_total),
-                              style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w800,
-                                  color: primary)),
-                        ],
-                      ),
-                    ),
-                    FilledButton.icon(
-                      onPressed: _openCartSheet,
-                      icon: const Icon(Icons.shopping_cart_checkout_rounded),
-                      label: const Text('കാർട്ട് / ബിൽ'),
-                    ),
-                  ],
-                ),
+                onPressed: () {
+                  DailySalesLedgerView.showEodClosingModal(
+                    context,
+                    shopId: auth.shopId,
+                    currentStaffId: auth.uid,
+                    currentStaffName: auth.name,
+                  );
+                },
+                icon: const Icon(Icons.nights_stay_rounded, size: 16),
+                label: const Text('End of Day / Register Close',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 13)),
               ),
             ),
+          ],
+          bottom: const TabBar(
+            tabs: [
+              Tab(
+                icon: Icon(Icons.point_of_sale_rounded, size: 20),
+                text: 'New Sale / Billing',
+              ),
+              Tab(
+                icon: Icon(Icons.receipt_long_rounded, size: 20),
+                text: 'Daily Sales Ledger / Orders',
+              ),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            wide
+                ? Row(
+                    children: [
+                      Expanded(child: catalog),
+                      Container(
+                        width: 390,
+                        decoration: BoxDecoration(
+                            color: _surface(context),
+                            border: Border(left: BorderSide(color: _line(context)))),
+                        child: _cartPanel(),
+                      ),
+                    ],
+                  )
+                : catalog,
+            DailySalesLedgerView(
+              shopId: auth.shopId,
+              currentStaffId: auth.uid,
+              currentStaffName: auth.name,
+            ),
+          ],
+        ),
+        bottomNavigationBar: wide || _cart.isEmpty
+            ? null
+            : SafeArea(
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                  decoration: BoxDecoration(
+                      color: _surface(context),
+                      border: Border(top: BorderSide(color: _line(context)))),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('$_qtyCount ഇനങ്ങൾ',
+                                style: TextStyle(
+                                    color: _muted(context), fontSize: 12.5)),
+                            Text(rs(_total),
+                                style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w800,
+                                    color: primary)),
+                          ],
+                        ),
+                      ),
+                      FilledButton.icon(
+                        onPressed: _openCartSheet,
+                        icon: const Icon(Icons.shopping_cart_checkout_rounded),
+                        label: const Text('കാർട്ട് / ബിൽ'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+      ),
     );
   }
 }
@@ -3374,11 +3444,22 @@ class StaffView extends StatelessWidget {
 
   void _staffForm(BuildContext context,
       [dynamic key, Map<String, dynamic>? staff]) {
+    final now = DateTime.now();
+    final currentMonthDays = SalaryCalculator.getDaysInMonth(now);
+    final initialDailyRate = staff != null
+        ? SalaryCalculator.getDailyRate(staff, now)
+        : 350.0;
+    final initialMonthly = staff != null
+        ? ((staff['monthlySalary'] as num?)?.toDouble() ??
+            (initialDailyRate * currentMonthDays))
+        : (initialDailyRate * currentMonthDays);
+
     final name = TextEditingController(text: '${staff?['name'] ?? ''}');
     final role = TextEditingController(text: '${staff?['role'] ?? ''}');
     final phone = TextEditingController(text: '${staff?['phone'] ?? ''}');
-    final salary =
-        TextEditingController(text: _numText(staff?['monthlySalary'] ?? 15000));
+    final dailyRateCtrl =
+        TextEditingController(text: _numText(initialDailyRate));
+    final salary = TextEditingController(text: _numText(initialMonthly));
     final loc = TextEditingController(
         text: '${staff?['lastLocation'] ?? 'Store Desk'}');
     final pin = TextEditingController(text: '${staff?['pin'] ?? ''}');
@@ -3391,7 +3472,26 @@ class StaffView extends StatelessWidget {
           tf(name, 'ജീവനക്കാരന്റെ പേര് *'),
           tf(role, 'തസ്തിക (Designation)'),
           tf(phone, 'ഫോൺ നമ്പർ *', phone: true),
-          tf(salary, 'പ്രതിമാസ ശമ്പളം ₹', number: true),
+          tf(dailyRateCtrl, 'പ്രതിദിന വേതനം (Daily Rate ₹) *',
+              number: true, onChanged: (v) {
+            final dr = double.tryParse(v.trim()) ?? 0.0;
+            if (dr > 0) {
+              set(() {
+                salary.text = _numText((dr * currentMonthDays).round());
+              });
+            }
+          }),
+          tf(salary,
+              'കണക്കാക്കിയ മാസ ശമ്പളം ($currentMonthDays Days × Daily Rate) ₹',
+              number: true, onChanged: (v) {
+            final salVal = double.tryParse(v.trim()) ?? 0.0;
+            if (salVal > 0) {
+              set(() {
+                dailyRateCtrl.text =
+                    _numText((salVal / currentMonthDays).round());
+              });
+            }
+          }),
           tf(pin, '4-Digit Login PIN *', number: true),
           tf(loc, 'ഡ്യൂട്ടി ലൊക്കേഷൻ / റൂട്ട്'),
         ],
@@ -3402,10 +3502,14 @@ class StaffView extends StatelessWidget {
         if (pText.length != 4) return '4 അക്ക ലോഗിൻ PIN നൽകുക (Enter 4-digit PIN)';
         final sal = double.tryParse(salary.text.trim());
         if (sal == null || sal < 0) return 'ശരിയായ ശമ്പളം നൽകുക';
+        final dRate = double.tryParse(dailyRateCtrl.text.trim()) ??
+            (sal / currentMonthDays);
         final payload = {
           'name': name.text.trim(),
           'role': role.text.trim(),
           'phone': phone.text.trim(),
+          'dailyRate': dRate,
+          'daily_rate': dRate,
           'monthlySalary': sal,
           'pin': pText,
           'lastLocation': loc.text.trim(),
@@ -3428,7 +3532,7 @@ class StaffView extends StatelessWidget {
               action: 'Staff Updated',
               entity: 'Staff',
               entityId: '$key',
-              newValue: {'name': payload['name'], 'salary': sal});
+              newValue: {'name': payload['name'], 'salary': sal, 'dailyRate': dRate});
         }
 
         // Sync to Firestore under shops/{shopId}/staff/{id} so staff can log in using PIN
@@ -3448,6 +3552,8 @@ class StaffView extends StatelessWidget {
               'role': payload['role'],
               'phone': payload['phone'],
               'pin': pText,
+              'dailyRate': dRate,
+              'daily_rate': dRate,
               'monthlySalary': sal,
               'active': true,
               'updatedAt': FieldValue.serverTimestamp(),
@@ -3641,8 +3747,17 @@ class StaffView extends StatelessWidget {
                   if (st == 'Absent') a++;
                 }
               });
-              final monthly = _d(s['monthlySalary']);
-              final earned = _r2(monthly / daysInMonth * (p + 0.5 * h));
+              final dailyRate = SalaryCalculator.getDailyRate(s, now);
+              final monthly = SalaryCalculator.calculateMonthlySalary(
+                dailyRate: dailyRate,
+                date: now,
+                customDaysInMonth: daysInMonth,
+              );
+              final daysWorked = p + 0.5 * h;
+              final earned = _r2(SalaryCalculator.calculateEarnedSalary(
+                dailyRate: dailyRate,
+                daysWorked: daysWorked,
+              ));
               final paid = ((s['payments'] as List?) ?? [])
                   .where((e) => '${(e as Map)['month']}' == month)
                   .fold<double>(0, (acc, e) => acc + _d((e as Map)['amount']));
@@ -3697,7 +3812,22 @@ class StaffView extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        _kv(context, 'മാസ ശമ്പളം', rs(monthly), null),
+                        _kv(context, 'Daily Rate', '${rs(dailyRate)}/day',
+                            Colors.amber),
+                        _kv(context, 'Total Days', '$daysInMonth days', null),
+                        _kv(context, 'Monthly Salary', rs(monthly),
+                            Theme.of(context).colorScheme.primary),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _kv(
+                            context,
+                            'Days Worked',
+                            '${daysWorked % 1 == 0 ? daysWorked.toInt() : daysWorked} days',
+                            Colors.teal),
                         _kv(context, 'നേടിയത് (Earned)', rs(earned),
                             Colors.indigo.shade300),
                         _kv(context, 'നൽകിയത്', rs(paid),
@@ -4157,11 +4287,6 @@ class _ServicesViewState extends State<ServicesView> {
       toast(context, 'ഈ Job-ന് ബിൽ ഇതിനകം സൃഷ്ടിച്ചിട്ടുണ്ട്', error: true);
       return;
     }
-    if ('${job['status']}' != 'Ready') {
-      toast(context, 'Bill Now ചെയ്യുന്നതിന് മുമ്പ് status Ready ആക്കുക',
-          error: true);
-      return;
-    }
     final serviceCharge =
         TextEditingController(text: _numText(job['estimatedCost'] ?? 0));
     final partsCharge = TextEditingController(text: '0');
@@ -4457,14 +4582,29 @@ class _ServicesViewState extends State<ServicesView> {
                                         avatar: Icon(Icons.sync, size: 16),
                                         label: Text('Status')),
                                   ),
-                                  if (status == 'Ready' &&
-                                      j['billCreated'] != true)
+                                  if (j['billCreated'] != true)
                                     FilledButton.icon(
                                         onPressed: () =>
                                             _billNow(context, e.key, j),
+                                        icon: const Icon(Icons.shopping_cart_rounded,
+                                            size: 16),
+                                        label: const Text('Sale to Customer')),
+                                  if (j['billCreated'] == true)
+                                    OutlinedButton.icon(
+                                        onPressed: () async {
+                                          final allSales = entriesOf(Db.sales);
+                                          final match = allSales.where((s) =>
+                                              '${s.value['invoice']}' == '${j['invoice']}' ||
+                                              '${s.value['serviceJobId']}' == '${j['jobId']}').toList();
+                                          if (match.isNotEmpty) {
+                                            await printInvoice(context, match.first.value, a4: true);
+                                          } else {
+                                            toast(context, 'Invoice #${j['invoice']}');
+                                          }
+                                        },
                                         icon: const Icon(Icons.receipt_long,
                                             size: 16),
-                                        label: const Text('Bill Now')),
+                                        label: Text('View Invoice${j['invoice'] != null ? " (#${j['invoice']})" : ""}')),
                                   OutlinedButton.icon(
                                       onPressed: () =>
                                           _notify(context, j, 'Service update'),

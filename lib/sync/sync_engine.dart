@@ -579,6 +579,14 @@ class SyncEngine extends ChangeNotifier {
           // revert optimistic counter baselines so deltas are re-sent
           restoreLs
               .forEach((k, v) => v == null ? _meta.delete(k) : _meta.put(k, v));
+          if (_isPermDenied(e)) {
+            debugPrint('[SyncEngine] Batch failed with permission-denied. Resolving items individually to unblock outbox...');
+            final dropped = await _flushIndividually(keys, seen);
+            if (dropped > 0) {
+              debugPrint('[SyncEngine] Cleared $dropped unpermitted items from outbox to prevent persistent sync failure.');
+            }
+            continue;
+          }
           rethrow;
         }
         await _meta.putAll(donePh);
@@ -597,6 +605,156 @@ class SyncEngine extends ChangeNotifier {
       _flushing = false;
       _refreshState();
     }
+  }
+
+  bool _isPermDenied(dynamic e) {
+    if (e == null) return false;
+    final s = '$e'.toLowerCase();
+    return s.contains('permission-denied') ||
+        s.contains('insufficient permissions') ||
+        (e is FirebaseException && e.code == 'permission-denied');
+  }
+
+  Future<int> _flushIndividually(
+      List<dynamic> keys, Map<dynamic, dynamic> seen) async {
+    var droppedCount = 0;
+    for (final k in keys) {
+      final op = _asMap(_outbox.get(k))['op'];
+      final parts = '$k'.split('|');
+      final box = parts[0], id = parts.sublist(1).join('|');
+
+      if (box == 'bank') {
+        final cur = _num(Db.bank.get(id));
+        final lsKey = 'ls:bank|$id';
+        final delta = _r(cur - _num(_meta.get(lsKey)));
+        if (delta != 0) {
+          try {
+            await _fs.doc('shops/$_shop/bank/$id').set({
+              'v': FieldValue.increment(delta),
+              '_by': DeviceInfo.id,
+              '_st': FieldValue.serverTimestamp()
+            }, SetOptions(merge: true));
+            await _meta.put(lsKey, cur);
+            if (_asMap(_outbox.get(k))['t'] == seen[k]) await _outbox.delete(k);
+          } catch (e) {
+            if (_isPermDenied(e)) {
+              debugPrint('[SyncEngine] Permission denied for $k -> dropping from outbox.');
+              await _outbox.delete(k);
+              droppedCount++;
+            }
+          }
+        } else {
+          if (_asMap(_outbox.get(k))['t'] == seen[k]) await _outbox.delete(k);
+        }
+        continue;
+      }
+
+      if (box == 'bank_txn') {
+        final raw = Db.bank.get('txn_log');
+        final m = raw is List
+            ? raw.map(_asMap).firstWhere((e) => e['_id'] == id,
+                orElse: () => <String, dynamic>{})
+            : <String, dynamic>{};
+        if (m.isNotEmpty) {
+          final txn = Map<String, dynamic>.from(_canon(m) as Map)
+            ..['_by'] = DeviceInfo.id
+            ..['_st'] = FieldValue.serverTimestamp();
+          try {
+            await _fs
+                .doc('shops/$_shop/bank_txns/$id')
+                .set(txn, SetOptions(merge: true));
+            await _meta.put('ph:bank_txn|$id', '1');
+            if (_asMap(_outbox.get(k))['t'] == seen[k]) await _outbox.delete(k);
+          } catch (e) {
+            if (_isPermDenied(e)) {
+              debugPrint('[SyncEngine] Permission denied for $k -> dropping from outbox.');
+              await _outbox.delete(k);
+              droppedCount++;
+            }
+          }
+        } else {
+          if (_asMap(_outbox.get(k))['t'] == seen[k]) await _outbox.delete(k);
+        }
+        continue;
+      }
+
+      final col = _cols.firstWhere((c) => c.box == box,
+          orElse: () => const _Col('', ''));
+      if (col.box.isEmpty) {
+        // Unknown box / legacy queue item -> safe drop to avoid blocking
+        await _outbox.delete(k);
+        droppedCount++;
+        continue;
+      }
+
+      final kk = '$box|$id';
+      final ref = _fs.doc('shops/$_shop/${col.name}/$id');
+
+      if (op == 'delete') {
+        try {
+          await ref.set({
+            '_del': true,
+            '_u': DateTime.now().millisecondsSinceEpoch,
+            '_by': DeviceInfo.id,
+            '_st': FieldValue.serverTimestamp()
+          }, SetOptions(merge: true));
+          if (_asMap(_outbox.get(k))['t'] == seen[k]) await _outbox.delete(k);
+        } catch (e) {
+          if (_isPermDenied(e)) {
+            debugPrint('[SyncEngine] Permission denied for delete $kk -> dropping.');
+            await _outbox.delete(k);
+            droppedCount++;
+          }
+        }
+        continue;
+      }
+
+      final key = _uidToKey[kk];
+      final raw = key == null
+          ? null
+          : (Hive.isBoxOpen(box) ? Hive.box(box).get(key) : null);
+      if (raw == null) {
+        await _outbox.delete(k);
+        continue;
+      }
+
+      final rec = _asMap(raw);
+      final h = _hash(rec);
+      final data = Map<String, dynamic>.from(_canon(rec) as Map)..remove('_st');
+      var delta = 0.0;
+      final lsKey = 'ls:$kk';
+      if (col.counter != null) {
+        final cur = _num(rec[col.counter]);
+        final oldLs = _meta.get(lsKey);
+        delta = _r(cur - _num(oldLs));
+        data.remove(col.counter);
+        if (delta != 0 || !_meta.containsKey(lsKey)) {
+          data[col.counter!] = FieldValue.increment(delta);
+        }
+      }
+
+      if (delta == 0 && _meta.get('ph:$kk') == h) {
+        if (_asMap(_outbox.get(k))['t'] == seen[k]) await _outbox.delete(k);
+        continue;
+      }
+
+      data['_st'] = FieldValue.serverTimestamp();
+      try {
+        await ref.set(data, SetOptions(merge: true));
+        if (col.counter != null && (delta != 0 || !_meta.containsKey(lsKey))) {
+          await _meta.put(lsKey, _num(rec[col.counter]));
+        }
+        await _meta.put('ph:$kk', h);
+        if (_asMap(_outbox.get(k))['t'] == seen[k]) await _outbox.delete(k);
+      } catch (e) {
+        if (_isPermDenied(e)) {
+          debugPrint('[SyncEngine] Permission denied for write $kk -> dropping.');
+          await _outbox.delete(k);
+          droppedCount++;
+        }
+      }
+    }
+    return droppedCount;
   }
 
   double _r(double v) => (v * 100).round() / 100;
@@ -794,5 +952,28 @@ class SyncEngine extends ChangeNotifier {
     _online = true;
     await _begin();
     await _flush();
+  }
+
+  /// Clears all pending writes in the local sync outbox without modifying
+  /// any local records stored in Hive boxes. Unblocks frozen sync engines.
+  Future<void> clearOutbox() async {
+    if (!_boxesOpen) return;
+    await _outbox.clear();
+    lastError = null;
+    _refreshState();
+    notifyListeners();
+  }
+
+  /// Recovers the sync queue by clearing stuck error states and triggering
+  /// an immediate resilient synchronization pass.
+  Future<void> recoverSyncQueue() async {
+    lastError = null;
+    _online = true;
+    _refreshState();
+    if (_boxesOpen && _outbox.isNotEmpty) {
+      await _flush();
+    } else {
+      await syncNow();
+    }
   }
 }

@@ -80,7 +80,63 @@ class _SyncStatusIconState extends State<SyncStatusIcon> with SingleTickerProvid
             ),
           ],
           const SizedBox(height: 12),
-          OutlinedButton.icon(onPressed: () { Navigator.pop(ctx); e.syncNow(); }, icon: const Icon(Icons.sync), label: const Text('Sync now')),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  e.recoverSyncQueue();
+                },
+                icon: const Icon(Icons.sync),
+                label: const Text('Sync Now / Retry Uploads'),
+              ),
+              if (e.pending > 0 || e.state == SyncState.error)
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red.shade700,
+                  ),
+                  onPressed: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (dCtx) => AlertDialog(
+                        title: const Text('Clear Stuck Uploads?'),
+                        content: Text(
+                          'This will clear the ${e.pending} pending upload queue items without deleting any local sales, inventory, or bills on this device. Use this to unblock the sync engine.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(dCtx, false),
+                            child: const Text('Cancel'),
+                          ),
+                          FilledButton(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.red,
+                            ),
+                            onPressed: () => Navigator.pop(dCtx, true),
+                            child: const Text('Clear Queue'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirm == true) {
+                      if (ctx.mounted) Navigator.pop(ctx);
+                      await e.clearOutbox();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Sync outbox cleared. Pending uploads reset.'),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.cleaning_services_rounded),
+                  label: Text('Clear Stuck Uploads (${e.pending})'),
+                ),
+            ],
+          ),
         ]),
       ),
     );

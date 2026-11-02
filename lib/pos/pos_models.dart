@@ -115,6 +115,8 @@ class PosInvoice {
   final PosPayment payment;
   final DateTime createdAt;
   final String status; // "completed", "needs_review", "voided"
+  final String? serviceJobId;
+  final double serviceAdvanceApplied;
 
   const PosInvoice({
     required this.invoiceId,
@@ -132,6 +134,8 @@ class PosInvoice {
     required this.payment,
     required this.createdAt,
     this.status = 'completed',
+    this.serviceJobId,
+    this.serviceAdvanceApplied = 0.0,
   });
 
   Map<String, dynamic> toMap() => {
@@ -153,5 +157,8 @@ class PosInvoice {
         'card': payment.cardAmount,
         'createdAt': FieldValue.serverTimestamp(),
         'status': status,
+        if (serviceJobId != null) 'serviceJobId': serviceJobId,
+        if (serviceAdvanceApplied > 0) 'serviceAdvanceApplied': serviceAdvanceApplied,
+        if (serviceJobId != null) 'serviceBill': true,
       };
 }

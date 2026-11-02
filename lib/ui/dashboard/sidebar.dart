@@ -119,6 +119,12 @@ class TekSidebar extends StatelessWidget {
                   onTap: () => onItemSelected?.call('Sale / POS'),
                 ),
                 _buildNavItem(
+                  label: 'Daily Sales & EOD',
+                  icon: Icons.receipt_long_rounded,
+                  isActive: activeItem == 'Daily Sales & EOD',
+                  onTap: () => onItemSelected?.call('Daily Sales & EOD'),
+                ),
+                _buildNavItem(
                   label: 'Items / Stock',
                   icon: Icons.inventory_2_rounded,
                   isActive: activeItem == 'Items / Stock',
@@ -176,10 +182,16 @@ class TekSidebar extends StatelessWidget {
                   onTap: () => onItemSelected?.call('After-Sales Follow-ups'),
                 ),
                 _buildNavItem(
-                  label: 'Settings & Print',
+                  label: 'Expenses',
                   icon: Icons.receipt_long_rounded,
-                  isActive: activeItem == 'Settings & Print',
-                  onTap: () => onItemSelected?.call('Settings & Print'),
+                  isActive: activeItem == 'Expenses',
+                  onTap: () => onItemSelected?.call('Expenses'),
+                ),
+                _buildNavItem(
+                  label: 'Owner Salary & Drawings',
+                  icon: Icons.account_balance_wallet_rounded,
+                  isActive: activeItem == 'Owner Salary & Drawings',
+                  onTap: () => onItemSelected?.call('Owner Salary & Drawings'),
                 ),
 
                 const SizedBox(height: 18),

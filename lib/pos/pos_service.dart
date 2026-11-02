@@ -138,7 +138,7 @@ class PosService {
         final item = PosItem.fromMap(doc.id, data);
         list.add(item);
       }
-
+      _cacheAllLocalItems(list);
       return list;
     }).handleError((e) {
       debugPrint('Error streaming catalog items: $e. Falling back to local cache.');
@@ -204,6 +204,9 @@ class PosService {
     required double total,
     String customerName = 'Walk-in Customer',
     String customerPhone = '',
+    String? serviceJobId,
+    dynamic serviceJobKey,
+    double serviceAdvanceApplied = 0.0,
   }) async {
     if (cartItems.isEmpty) {
       throw Exception('കാർട്ടിൽ ഉൽപ്പന്നങ്ങളൊന്നുമില്ല (Cart is empty).');
@@ -270,105 +273,131 @@ class PosService {
       payment: payment,
       createdAt: now,
       status: 'completed',
+      serviceJobId: serviceJobId,
+      serviceAdvanceApplied: serviceAdvanceApplied,
     );
 
     try {
       // 3. Firestore Atomic Transaction
       if (shopId.isNotEmpty) {
-        await FirebaseFirestore.instance.runTransaction((transaction) async {
-          final invRef = FirebaseFirestore.instance
-              .collection('shops')
-              .doc(shopId)
-              .collection('sales')
-              .doc(invoiceId);
-
-          // Check if invoice already exists (Idempotency)
-          final invSnap = await transaction.get(invRef);
-          if (invSnap.exists) {
-            debugPrint('Invoice $invoiceId already exists in Firestore. Aborting duplicate.');
-            return;
-          }
-
-          // READ PHASE: Read all item documents & verify live stock
-          final itemSnapshots = <String, DocumentSnapshot<Map<String, dynamic>>>{};
-          for (final line in cartItems) {
-            final itemRef = FirebaseFirestore.instance
+        try {
+          await FirebaseFirestore.instance.runTransaction((transaction) async {
+            final invRef = FirebaseFirestore.instance
                 .collection('shops')
                 .doc(shopId)
-                .collection('items')
-                .doc(line.item.id);
+                .collection('sales')
+                .doc(invoiceId);
 
-            final snap = await transaction.get(itemRef);
-            itemSnapshots[line.item.id] = snap;
+            // Check if invoice already exists (Idempotency)
+            final invSnap = await transaction.get(invRef);
+            if (invSnap.exists) {
+              debugPrint('Invoice $invoiceId already exists in Firestore. Aborting duplicate.');
+              return;
+            }
 
-            if (snap.exists) {
-              final curStock = (snap.data()?['stock'] as num?)?.toInt() ?? 0;
-              if (curStock < line.qty) {
-                throw Exception(
-                  'ആവശ്യത്തിന് സ്റ്റോക്കില്ല: "${line.item.name}" (ലഭ്യമായത്: $curStock, ആവശ്യപ്പെട്ടത്: ${line.qty})',
-                );
+            // READ PHASE: Read all item documents & verify live stock
+            final itemSnapshots = <String, DocumentSnapshot<Map<String, dynamic>>>{};
+            for (final line in cartItems) {
+              if (line.item.id.startsWith('service_')) continue; // Skip pure service charge line items
+              final itemRef = FirebaseFirestore.instance
+                  .collection('shops')
+                  .doc(shopId)
+                  .collection('items')
+                  .doc(line.item.id);
+
+              final snap = await transaction.get(itemRef);
+              itemSnapshots[line.item.id] = snap;
+
+              if (snap.exists) {
+                final curStock = (snap.data()?['stock'] as num?)?.toInt() ?? 0;
+                if (curStock < line.qty) {
+                  throw Exception(
+                    'ആവശ്യത്തിന് സ്റ്റോക്കില്ല: "${line.item.name}" (ലഭ്യമായത്: $curStock, ആവശ്യപ്പെട്ടത്: ${line.qty})',
+                  );
+                }
               }
             }
-          }
 
-          // WRITE PHASE:
-          // 3a. Save Invoice
-          transaction.set(invRef, invoice.toMap());
-
-          // 3b. Decrement live stock atomically and log stock movements
-          for (final line in cartItems) {
-            final itemRef = FirebaseFirestore.instance
+            // WRITE PHASE:
+            // 3a. Save Invoice to both sales and sales_orders
+            transaction.set(invRef, invoice.toMap());
+            final orderRef = FirebaseFirestore.instance
                 .collection('shops')
                 .doc(shopId)
-                .collection('items')
-                .doc(line.item.id);
+                .collection('sales_orders')
+                .doc(invoiceId);
+            transaction.set(orderRef, invoice.toMap());
 
-            final snap = itemSnapshots[line.item.id];
-            if (snap != null && snap.exists) {
-              final curStock = (snap.data()?['stock'] as num?)?.toInt() ?? 0;
-              transaction.update(itemRef, {
-                'stock': curStock - line.qty,
-                'updatedAt': FieldValue.serverTimestamp(),
-              });
-            } else {
-              transaction.update(itemRef, {
-                'stock': FieldValue.increment(-line.qty),
-                'updatedAt': FieldValue.serverTimestamp(),
-              });
+            // 3b. Decrement live stock atomically and log stock movements
+            for (final line in cartItems) {
+              if (line.item.id.startsWith('service_')) continue; // Skip pure service charge
+              final itemRef = FirebaseFirestore.instance
+                  .collection('shops')
+                  .doc(shopId)
+                  .collection('items')
+                  .doc(line.item.id);
+
+              final snap = itemSnapshots[line.item.id];
+              if (snap != null && snap.exists) {
+                final curStock = (snap.data()?['stock'] as num?)?.toInt() ?? 0;
+                transaction.update(itemRef, {
+                  'stock': curStock - line.qty,
+                  'updatedAt': FieldValue.serverTimestamp(),
+                });
+
+                final moveRef = FirebaseFirestore.instance
+                    .collection('shops')
+                    .doc(shopId)
+                    .collection('stockMovements')
+                    .doc();
+                transaction.set(moveRef, {
+                  'itemId': line.item.id,
+                  'itemName': line.item.name,
+                  'qtyChange': -line.qty,
+                  'reason': 'POS Sale $invoiceId',
+                  'staffId': staffId,
+                  'staffName': staffName,
+                  'timestamp': FieldValue.serverTimestamp(),
+                });
+              }
             }
 
-            final moveRef = FirebaseFirestore.instance
+            // 3b-2. If this sale is linked to a Service Job, update the service job atomically in Firestore
+            if (serviceJobId != null && serviceJobId.isNotEmpty) {
+              final srvRef = FirebaseFirestore.instance
+                  .collection('shops')
+                  .doc(shopId)
+                  .collection('services')
+                  .doc(serviceJobId);
+              transaction.set(srvRef, {
+                'billCreated': true,
+                'invoice': invoiceId,
+                'finalAmount': total,
+                'paidAmount': total,
+                'advanceApplied': serviceAdvanceApplied,
+                'updatedAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
+            }
+
+            // 3c. Update daily sales counters & cash register
+            final counterRef = FirebaseFirestore.instance
                 .collection('shops')
                 .doc(shopId)
-                .collection('stockMovements')
-                .doc();
-            transaction.set(moveRef, {
-              'itemId': line.item.id,
-              'itemName': line.item.name,
-              'qtyChange': -line.qty,
-              'reason': 'POS Sale $invoiceId',
-              'staffId': staffId,
-              'staffName': staffName,
-              'timestamp': FieldValue.serverTimestamp(),
-            });
-          }
+                .collection('counters')
+                .doc('daily_sales_$todayStr');
 
-          // 3c. Update daily sales counters & cash register
-          final counterRef = FirebaseFirestore.instance
-              .collection('shops')
-              .doc(shopId)
-              .collection('counters')
-              .doc('daily_sales_$todayStr');
-
-          transaction.set(counterRef, {
-            'totalSales': FieldValue.increment(total),
-            'cashSales': FieldValue.increment(payment.cashAmount),
-            'upiSales': FieldValue.increment(payment.upiAmount),
-            'cardSales': FieldValue.increment(payment.cardAmount),
-            'billCount': FieldValue.increment(1),
-            'lastUpdated': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
-        });
+            transaction.set(counterRef, {
+              'totalSales': FieldValue.increment(total),
+              'cashSales': FieldValue.increment(payment.cashAmount),
+              'upiSales': FieldValue.increment(payment.upiAmount),
+              'cardSales': FieldValue.increment(payment.cardAmount),
+              'billCount': FieldValue.increment(1),
+              'lastUpdated': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+          });
+        } catch (e) {
+          debugPrint('Firestore POS transaction error: $e. SyncEngine will push on reconnect.');
+        }
       }
 
       // 4. Update Hive local storage (instant offline sync & local sales view)
@@ -411,9 +440,52 @@ class PosService {
         'status': 'SOLD',
         'staffId': staffId,
         'staffName': staffName,
+        if (serviceJobId != null) 'serviceJobId': serviceJobId,
+        if (serviceAdvanceApplied > 0) 'serviceAdvanceApplied': serviceAdvanceApplied,
+        if (serviceJobId != null) 'serviceBill': true,
       };
 
       await Db.sales.add(billData);
+
+      // 4c. Update Service Job in Hive
+      if (serviceJobId != null && serviceJobId.isNotEmpty) {
+        dynamic keyToUpdate = serviceJobKey;
+        Map<String, dynamic>? currentJob;
+        if (keyToUpdate != null) {
+          final v = Db.services.get(keyToUpdate);
+          if (v != null) currentJob = tekM(v);
+        }
+        if (currentJob == null) {
+          for (final k in Db.services.keys) {
+            final v = Db.services.get(k);
+            if (v != null) {
+              final m = tekM(v);
+              if ('${m['jobId']}' == serviceJobId || '${m['_id']}' == serviceJobId) {
+                currentJob = m;
+                keyToUpdate = k;
+                break;
+              }
+            }
+          }
+        }
+        if (currentJob != null && keyToUpdate != null) {
+          final updated = Map<String, dynamic>.from(currentJob);
+          updated['billCreated'] = true;
+          updated['invoice'] = invoiceId;
+          updated['finalAmount'] = total;
+          updated['paidAmount'] = total;
+          updated['advanceApplied'] = serviceAdvanceApplied;
+          updated['updatedAt'] = now.toIso8601String();
+          await Db.services.put(keyToUpdate, updated);
+        }
+
+        await Db.logAction(
+          action: 'Service Billed',
+          entity: 'Invoice',
+          entityId: invoiceId,
+          newValue: {'jobId': serviceJobId, 'total': total, 'staff': staffName},
+        );
+      }
 
       if (payment.cashAmount > 0) {
         await Db.moveMoney('Cash', payment.cashAmount, 'Sale $invoiceId');
@@ -426,6 +498,47 @@ class PosService {
     } finally {
       _inFlightInvoices.remove(invoiceId);
     }
+  }
+
+  /// Checks if a service job has already been billed or paid
+  bool isJobBilled(String jobId) {
+    if (jobId.isEmpty) return false;
+    for (final k in Db.services.keys) {
+      final m = tekM(Db.services.get(k));
+      if ('${m['jobId']}' == jobId || '${m['_id']}' == jobId) {
+        if (m['billCreated'] == true || (m['invoice'] != null && '${m['invoice']}'.isNotEmpty)) {
+          return true;
+        }
+      }
+    }
+    for (final k in Db.sales.keys) {
+      final s = tekM(Db.sales.get(k));
+      if ('${s['serviceJobId']}' == jobId && s['status'] != 'voided') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Retrieves the linked sale/invoice data for a service job
+  Map<String, dynamic>? getLinkedSale(String? invoiceId, String jobId) {
+    if (invoiceId != null && invoiceId.isNotEmpty) {
+      for (final k in Db.sales.keys) {
+        final s = tekM(Db.sales.get(k));
+        if ('${s['invoice']}' == invoiceId) {
+          return s;
+        }
+      }
+    }
+    if (jobId.isNotEmpty) {
+      for (final k in Db.sales.keys) {
+        final s = tekM(Db.sales.get(k));
+        if ('${s['serviceJobId']}' == jobId && s['status'] != 'voided') {
+          return s;
+        }
+      }
+    }
+    return null;
   }
 
   /// Formats UPI Pay URI

@@ -10,6 +10,8 @@ class TekQuickActions extends StatelessWidget {
   final VoidCallback onAddCustomer;
   final VoidCallback onViewReports;
   final VoidCallback onOpenSettings;
+  final VoidCallback? onAddExpense;
+  final VoidCallback? onDailyRent;
 
   const TekQuickActions({
     super.key,
@@ -19,7 +21,12 @@ class TekQuickActions extends StatelessWidget {
     required this.onAddCustomer,
     required this.onViewReports,
     required this.onOpenSettings,
+    this.onAddExpense,
+    this.onDailyRent,
+    this.onOwnerWithdrawal,
   });
+
+  final VoidCallback? onOwnerWithdrawal;
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +45,30 @@ class TekQuickActions extends StatelessWidget {
         gradient: const LinearGradient(colors: [Color(0xFF22C55E), Color(0xFF16A34A)]),
         onTap: onAddItem,
       ),
+      if (onAddExpense != null)
+        _ActionItem(
+          title: 'Add Expense',
+          malayalam: 'ചിലവുകൾ രേഖപ്പെടുത്തുക',
+          icon: Icons.receipt_long_rounded,
+          gradient: const LinearGradient(colors: [Color(0xFFF43F5E), Color(0xFFBE123C)]),
+          onTap: onAddExpense!,
+        ),
+      if (onDailyRent != null)
+        _ActionItem(
+          title: 'Daily Rent',
+          malayalam: 'കട വാടക',
+          icon: Icons.store_mall_directory_rounded,
+          gradient: const LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFB45309)]),
+          onTap: onDailyRent!,
+        ),
+      if (onOwnerWithdrawal != null)
+        _ActionItem(
+          title: 'Owner Withdrawal',
+          malayalam: 'ഉടമയുടെ പിൻവലിക്കൽ',
+          icon: Icons.account_balance_wallet_rounded,
+          gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)]),
+          onTap: onOwnerWithdrawal!,
+        ),
       _ActionItem(
         title: 'Service Request',
         malayalam: 'സർവീസ് റിപ്പയർ',

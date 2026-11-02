@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../main.dart' show printInvoice;
+import '../pos/pos_models.dart';
+import '../pos/pos_service.dart';
+import '../pos/staff_pos_screen.dart';
 import '../theme/tek_tokens.dart';
 import 'repair_models.dart';
 import 'repair_service.dart';
@@ -27,7 +30,6 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
   String _searchQuery = '';
   String _selectedFilter = 'Active'; // Default to Active jobs
   String _sortBy = 'newest'; // 'newest', 'delivery', 'balance'
-  bool _isUpdating = false;
 
   final List<String> _filters = [
     'Active',
@@ -89,321 +91,6 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
     }
   }
 
-  Future<void> _showUpdateModal(RepairJob job) async {
-    String selectedStatus = job.status;
-    final notesController = TextEditingController(text: job.notes);
-    String? localError;
-
-    final statuses = [
-      'Received',
-      'Diagnosing',
-      'Waiting for Parts',
-      'In Progress',
-      'Ready',
-      'Delivered',
-      'Cancelled',
-    ];
-
-    try {
-      await showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) {
-          return Container(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-              top: 20,
-              left: 20,
-              right: 20,
-            ),
-            decoration: const BoxDecoration(
-              color: TekColors.bgCard,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              border: Border(top: BorderSide(color: TekColors.border, width: 1.5)),
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Drag handle
-                  Center(
-                    child: Container(
-                      width: 44,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: TekColors.border,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Header
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Update Repair Job #${job.id}',
-                              style: TekTypography.titleMedium.copyWith(fontSize: 18),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${job.customerName} • ${job.brandModel}',
-                              style: const TextStyle(color: TekColors.textSecondary, fontSize: 13),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close_rounded, color: TekColors.textSecondary),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-
-                  // Status Selector Dropdown
-                  const Text(
-                    'Repair Status (സ്റ്റാറ്റസ് തിരഞ്ഞെടുക്കുക)',
-                    style: TextStyle(
-                      color: TekColors.textPrimary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      fontFamilyFallback: TekTypography.malayalamFallback,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: statuses.map((st) {
-                      final isSelected = selectedStatus == st;
-                      final col = _getStatusColor(st);
-                      return ChoiceChip(
-                        label: Text(
-                          st,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                            color: isSelected ? Colors.white : TekColors.textSecondary,
-                          ),
-                        ),
-                        selected: isSelected,
-                        selectedColor: col,
-                        backgroundColor: TekColors.bgSecondary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          side: BorderSide(
-                            color: isSelected ? col : TekColors.border,
-                          ),
-                        ),
-                        onSelected: (val) {
-                          if (val) {
-                            HapticFeedback.selectionClick();
-                            setModalState(() => selectedStatus = st);
-                          }
-                        },
-                      );
-                    }).toList(),
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  // Technician Notes Input
-                  const Text(
-                    'Technician Notes (സർവീസ് വിവരങ്ങൾ / കുറിപ്പുകൾ)',
-                    style: TextStyle(
-                      color: TekColors.textPrimary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      fontFamilyFallback: TekTypography.malayalamFallback,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  TextField(
-                    controller: notesController,
-                    maxLines: 3,
-                    style: const TextStyle(color: TekColors.textPrimary, fontSize: 14),
-                    decoration: InputDecoration(
-                      hintText: 'ഉദാ: സ്ക്രീൻ മാറ്റി, ബാറ്ററി ചെക്ക് ചെയ്തു, ടെസ്റ്റിംഗ് കഴിഞ്ഞു...',
-                      hintStyle: const TextStyle(
-                        color: TekColors.textMuted,
-                        fontSize: 13,
-                        fontFamilyFallback: TekTypography.malayalamFallback,
-                      ),
-                      filled: true,
-                      fillColor: TekColors.bgSecondary,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: TekColors.border),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: TekColors.border),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: TekColors.primary, width: 1.5),
-                      ),
-                    ),
-                  ),
-
-                  if (localError != null) ...[
-                    const SizedBox(height: 10),
-                    Text(
-                      localError!,
-                      style: const TextStyle(color: TekColors.error, fontSize: 12),
-                    ),
-                  ],
-
-                  // Status History Preview
-                  if (job.statusHistory.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Recent Status History (മുൻകാല മാറ്റങ്ങൾ)',
-                      style: TextStyle(
-                        color: TekColors.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        fontFamilyFallback: TekTypography.malayalamFallback,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: TekColors.bgSecondary,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: TekColors.border),
-                      ),
-                      child: Column(
-                        children: job.statusHistory.reversed.take(3).map((h) {
-                          final hDate = h['date'] != null
-                              ? DateTime.tryParse('${h['date']}')
-                              : null;
-                          final dateStr = hDate != null
-                              ? DateFormat('dd MMM, hh:mm a').format(hDate)
-                              : '';
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 3),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.circle, size: 6, color: TekColors.secondary),
-                                const SizedBox(width: 6),
-                                Text(
-                                  '${h['status']}',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: TekColors.textPrimary,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    'by ${h['user'] ?? "Staff"}',
-                                    style: const TextStyle(fontSize: 10, color: TekColors.textMuted),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                Text(
-                                  dateStr,
-                                  style: const TextStyle(fontSize: 10, color: TekColors.textSecondary),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ],
-
-                  const SizedBox(height: 20),
-
-                  // Confirm Update Button
-                  GestureDetector(
-                    onTap: _isUpdating
-                        ? null
-                        : () async {
-                            HapticFeedback.heavyImpact();
-                            setModalState(() => _isUpdating = true);
-                            try {
-                              await RepairService.instance.updateRepairStatusAndNotes(
-                                shopId: widget.shopId,
-                                jobId: job.id,
-                                hiveKey: job.key,
-                                newStatus: selectedStatus,
-                                notes: notesController.text,
-                                staffName: widget.staffName,
-                                staffId: widget.staffId,
-                              );
-
-                              if (!mounted) return;
-                              if (ctx.mounted) Navigator.pop(ctx);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Job #${job.id} updated to "$selectedStatus" (Synced with Owner database)',
-                                  ),
-                                  backgroundColor: TekColors.success,
-                                  behavior: SnackBarBehavior.floating,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                ),
-                              );
-                            } catch (e) {
-                              setModalState(() {
-                                _isUpdating = false;
-                                localError = 'Update failed: $e';
-                              });
-                            }
-                          },
-                    child: Container(
-                      height: 52,
-                      decoration: BoxDecoration(
-                        gradient: TekColors.primaryGradient,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: TekColors.primaryGlow,
-                      ),
-                      child: Center(
-                        child: _isUpdating
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                              )
-                            : const Text(
-                                'Save & Sync with Owner (മാറ്റങ്ങൾ സേവ് ചെയ്യുക)',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  fontFamilyFallback: TekTypography.malayalamFallback,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  } finally {
-    notesController.dispose();
-  }
-  }
-
   Color _getStatusColor(String status) {
     switch (status) {
       case 'Ready':
@@ -417,7 +104,7 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
       case 'Received':
         return TekColors.info;
       case 'Delivered':
-        return const Color(0xFF64748B);
+        return const Color(0xFF0D9488); // Teal / Emerald for Delivered
       case 'Cancelled':
         return TekColors.error;
       default:
@@ -830,7 +517,7 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                         ],
                       ),
                       Text(
-                        job.productType,
+                        '${job.productType}${job.formattedCreatedAt.isNotEmpty ? ' • ${job.formattedCreatedAt}' : ''}',
                         style: const TextStyle(fontSize: 10.5, color: TekColors.textSecondary),
                       ),
                     ],
@@ -1091,37 +778,938 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
 
           const SizedBox(height: 14),
 
-          // Primary Action: Update Status & Notes Button
-          GestureDetector(
-            onTap: () => _showUpdateModal(job),
-            child: Container(
-              height: 42,
-              decoration: BoxDecoration(
-                gradient: TekColors.primaryGradient,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: TekColors.primaryGlow,
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.edit_note_rounded, size: 18, color: Colors.white),
-                  SizedBox(width: 8),
-                  Text(
-                    'Update Status & Notes (സ്റ്റാറ്റസ് തിരുത്തുക)',
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontFamilyFallback: TekTypography.malayalamFallback,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          // Premium Inline Actions: Sale to Customer & Update Status
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isBilled = _isJobBilled(job);
+              final isWide = constraints.maxWidth >= 380;
+
+              final saleOrInvoiceBtn = isBilled
+                  ? OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF0D9488), width: 1.5),
+                        backgroundColor: const Color(0xFF0D9488).withValues(alpha: 0.1),
+                        foregroundColor: const Color(0xFF0D9488),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        minimumSize: const Size(0, 44),
+                      ),
+                      onPressed: () => _showInvoiceDetails(job),
+                      icon: const Icon(Icons.receipt_rounded, size: 18),
+                      label: Text(
+                        'View Invoice${job.invoice != null ? " (#${job.invoice})" : ""}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    )
+                  : ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: TekColors.primary,
+                        foregroundColor: Colors.white,
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        minimumSize: const Size(0, 44),
+                      ),
+                      onPressed: () => _openServiceCheckout(job),
+                      icon: const Icon(Icons.shopping_cart_rounded, size: 18, color: Colors.white),
+                      label: const Text(
+                        'Sale to Customer',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+
+              final statusBtn = OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: TekColors.secondary, width: 1.3),
+                  foregroundColor: TekColors.secondary,
+                  backgroundColor: TekColors.secondary.withValues(alpha: 0.08),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  minimumSize: const Size(0, 44),
+                ),
+                onPressed: () => _showCompactStatusUpdateSheet(job),
+                icon: const Icon(Icons.sync_alt_rounded, size: 18),
+                label: const Text(
+                  'Update Status',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              );
+
+              if (isWide) {
+                return Row(
+                  children: [
+                    Expanded(flex: 3, child: saleOrInvoiceBtn),
+                    const SizedBox(width: 10),
+                    Expanded(flex: 2, child: statusBtn),
+                  ],
+                );
+              } else {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    saleOrInvoiceBtn,
+                    const SizedBox(height: 8),
+                    statusBtn,
+                  ],
+                );
+              }
+            },
           ),
         ],
       ),
     );
+  }
+
+  bool _isJobBilled(RepairJob job) {
+    if (job.billCreated || (job.invoice != null && job.invoice!.isNotEmpty)) {
+      return true;
+    }
+    return PosService.instance.isJobBilled(job.id);
+  }
+
+  Future<void> _openServiceCheckout(RepairJob job) async {
+    final serviceChargeCtrl = TextEditingController(
+      text: job.estimatedCost > 0 ? job.estimatedCost.toStringAsFixed(0) : '0',
+    );
+    final discountCtrl = TextEditingController(text: '0');
+    final List<PosCartItem> extraItems = [];
+    String paymentMode = 'Cash';
+    bool isSubmitting = false;
+    String? localError;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final serviceCharge = double.tryParse(serviceChargeCtrl.text) ?? 0.0;
+          final extraSubtotal = extraItems.fold(0.0, (sum, i) => sum + i.lineTotal);
+          final discount = double.tryParse(discountCtrl.text) ?? 0.0;
+          final grossTotal = (serviceCharge + extraSubtotal - discount).clamp(0.0, double.infinity);
+          final advanceApplied = (job.advance > 0)
+              ? (grossTotal < job.advance ? grossTotal : job.advance)
+              : 0.0;
+          final netBalanceDue = (grossTotal - advanceApplied).clamp(0.0, double.infinity);
+
+          return Container(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+              top: 20,
+              left: 20,
+              right: 20,
+            ),
+            decoration: const BoxDecoration(
+              color: TekColors.bgCard,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              border: Border(top: BorderSide(color: TekColors.border, width: 1.5)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: TekColors.border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Sale to Customer • Job #${job.id}',
+                              style: TekTypography.titleMedium.copyWith(fontSize: 18),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${job.customerName} (${job.phone}) • ${job.brandModel}',
+                              style: const TextStyle(color: TekColors.textSecondary, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: TekColors.textSecondary),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Service charge line item
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: TekColors.bgSecondary,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: TekColors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.build_circle_rounded, color: TekColors.primary, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Service: ${job.brandModel} (#${job.id})',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: TekColors.textPrimary),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            const Text('Service Charge ₹', style: TextStyle(color: TekColors.textSecondary, fontSize: 13)),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextField(
+                                controller: serviceChargeCtrl,
+                                keyboardType: TextInputType.number,
+                                style: const TextStyle(fontWeight: FontWeight.bold, color: TekColors.textPrimary),
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: TekColors.border)),
+                                  filled: true,
+                                  fillColor: TekColors.bgCard,
+                                ),
+                                onChanged: (_) => setSheet(() {}),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Extra accessories / parts list
+                  if (extraItems.isNotEmpty) ...[
+                    const Text('Additional Products / Accessories:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: TekColors.textSecondary)),
+                    const SizedBox(height: 6),
+                    ...extraItems.map((item) => Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: TekColors.bgSecondary,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: TekColors.border),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${item.item.name} (x${item.qty})',
+                              style: const TextStyle(fontSize: 12.5, color: TekColors.textPrimary),
+                            ),
+                          ),
+                          Text('₹${item.lineTotal.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, color: TekColors.secondary)),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () {
+                              setSheet(() => extraItems.remove(item));
+                            },
+                            child: const Icon(Icons.remove_circle_outline_rounded, size: 18, color: TekColors.error),
+                          ),
+                        ],
+                      ),
+                    )),
+                    const SizedBox(height: 6),
+                  ],
+
+                  // Add Products button
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: TekColors.secondary),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    onPressed: () async {
+                      final catalog = PosService.instance.getCatalogItems();
+                      final PosItem? picked = await showDialog<PosItem>(
+                        context: context,
+                        builder: (dCtx) => _ProductPickerDialog(items: catalog),
+                      );
+                      if (picked != null) {
+                        setSheet(() {
+                          final existing = extraItems.indexWhere((e) => e.item.id == picked.id);
+                          if (existing >= 0) {
+                            extraItems[existing].qty++;
+                          } else {
+                            extraItems.add(PosCartItem(
+                              item: picked,
+                              qty: 1,
+                              unitPrice: picked.sellingPrice,
+                            ));
+                          }
+                        });
+                      }
+                    },
+                    icon: const Icon(Icons.add_shopping_cart_rounded, size: 16, color: TekColors.secondary),
+                    label: const Text('+ Add Products / Accessories / Parts', style: TextStyle(color: TekColors.secondary, fontSize: 12.5)),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Advance paid banner if any
+                  if (job.advance > 0) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: TekColors.info.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: TekColors.info.withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.check_circle_outline_rounded, color: TekColors.info, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Advance Paid: ₹${job.advance.toStringAsFixed(0)} (Automatically deducted from bill)',
+                              style: const TextStyle(color: TekColors.info, fontWeight: FontWeight.w600, fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // Summary breakdown
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: TekColors.bgSecondary,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: TekColors.border),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Gross Total:', style: TextStyle(color: TekColors.textSecondary, fontSize: 12.5)),
+                            Text('₹${grossTotal.toStringAsFixed(2)}', style: const TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                        if (advanceApplied > 0) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Advance Credited:', style: TextStyle(color: TekColors.info, fontSize: 12.5)),
+                              Text('-₹${advanceApplied.toStringAsFixed(2)}', style: const TextStyle(color: TekColors.info, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ],
+                        const Divider(height: 16, color: TekColors.border),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Balance Due to Collect:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: TekColors.textPrimary)),
+                            Text('₹${netBalanceDue.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: TekColors.success, fontSize: 17)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Payment mode selector
+                  const Text('Payment Mode (പണം അടയ്ക്കുന്ന രീതി):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: TekColors.textPrimary)),
+                  const SizedBox(height: 6),
+                  SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(value: 'Cash', label: Text('Cash')),
+                      ButtonSegment(value: 'UPI', label: Text('UPI')),
+                      ButtonSegment(value: 'Card', label: Text('Card')),
+                    ],
+                    selected: {paymentMode},
+                    onSelectionChanged: (v) => setSheet(() => paymentMode = v.first),
+                  ),
+                  const SizedBox(height: 16),
+
+                  if (localError != null) ...[
+                    Text(localError!, style: const TextStyle(color: TekColors.error, fontSize: 12)),
+                    const SizedBox(height: 10),
+                  ],
+
+                  // Complete Sale button
+                  GestureDetector(
+                    onTap: isSubmitting
+                        ? null
+                        : () async {
+                            HapticFeedback.heavyImpact();
+                            setSheet(() => isSubmitting = true);
+                            try {
+                              // Verify double billing
+                              if (_isJobBilled(job)) {
+                                throw Exception('ഈ Job-ന് ബിൽ ഇതിനകം സൃഷ്ടിച്ചിട്ടുണ്ട് (Already billed).');
+                              }
+
+                              final cart = <PosCartItem>[
+                                PosCartItem(
+                                  item: PosItem(
+                                    id: 'service_${job.id}',
+                                    name: 'Service: ${job.brandModel} (#${job.id})',
+                                    category: 'Services',
+                                    sellingPrice: serviceCharge,
+                                    minPrice: 0.0,
+                                    stock: 9999,
+                                  ),
+                                  qty: 1,
+                                  unitPrice: serviceCharge,
+                                ),
+                                ...extraItems,
+                              ];
+
+                              final payment = PosPayment(
+                                mode: paymentMode,
+                                totalAmount: netBalanceDue,
+                                cashAmount: paymentMode == 'Cash' ? netBalanceDue : 0.0,
+                                upiAmount: paymentMode == 'UPI' ? netBalanceDue : 0.0,
+                                cardAmount: paymentMode == 'Card' ? netBalanceDue : 0.0,
+                                cashReceived: netBalanceDue,
+                                changeDue: 0.0,
+                              );
+
+                              final invoice = await PosService.instance.completeSale(
+                                shopId: widget.shopId,
+                                staffId: widget.staffId,
+                                staffName: widget.staffName,
+                                cartItems: cart,
+                                payment: payment,
+                                subtotal: serviceCharge + extraSubtotal,
+                                discount: discount,
+                                total: grossTotal,
+                                customerName: job.customerName,
+                                customerPhone: job.phone,
+                                serviceJobId: job.id,
+                                serviceJobKey: job.key,
+                                serviceAdvanceApplied: advanceApplied,
+                              );
+
+                              if (!mounted) return;
+                              if (ctx.mounted) Navigator.pop(ctx);
+
+                              // Show success dialog with Print & WhatsApp
+                              _showPostSaleSuccessDialog(invoice, job);
+                            } catch (e) {
+                              setSheet(() {
+                                isSubmitting = false;
+                                localError = 'Billing failed: $e';
+                              });
+                            }
+                          },
+                    child: Container(
+                      height: 48,
+                      decoration: BoxDecoration(
+                        gradient: isSubmitting ? null : TekColors.primaryGradient,
+                        color: isSubmitting ? Colors.grey : null,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: TekColors.primaryGlow,
+                      ),
+                      child: Center(
+                        child: isSubmitting
+                            ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.receipt_long_rounded, color: Colors.white, size: 18),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Complete Sale & Generate Invoice',
+                                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Or Open in Full POS
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => StaffPosScreen(
+                            shopId: widget.shopId,
+                            staffId: widget.staffId,
+                            staffName: widget.staffName,
+                            onNavigateToAttendance: () => Navigator.pop(context),
+                            serviceJob: job,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.open_in_new_rounded, size: 16, color: TekColors.secondary),
+                    label: const Text('Open in Full Store POS Screen', style: TextStyle(color: TekColors.secondary, fontSize: 13)),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showPostSaleSuccessDialog(PosInvoice invoice, RepairJob job) {
+    showDialog(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        backgroundColor: TekColors.bgCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: TekColors.border)),
+        icon: const Icon(Icons.check_circle_rounded, color: TekColors.success, size: 48),
+        title: const Text('Invoice Generated Successfully', style: TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Invoice: #${invoice.invoiceId}', style: const TextStyle(fontWeight: FontWeight.bold, color: TekColors.secondary)),
+            const SizedBox(height: 4),
+            Text('Customer: ${job.customerName}', style: const TextStyle(color: TekColors.textPrimary)),
+            Text('Device: ${job.brandModel}', style: const TextStyle(color: TekColors.textSecondary, fontSize: 13)),
+            const SizedBox(height: 6),
+            Text('Total Billed: ₹${invoice.total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: TekColors.success)),
+          ],
+        ),
+        actions: [
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(side: const BorderSide(color: Color(0xFF22C55E))),
+            onPressed: () {
+              final text = 'നമസ്കാരം ${job.customerName},\n'
+                  'TEKFIX സർവീസ് ഇൻവോയ്സ് (#${invoice.invoiceId}):\n'
+                  'ഡിവൈസ്: ${job.brandModel}\n'
+                  'ആകെ തുക: ₹${invoice.total.toStringAsFixed(2)}\n'
+                  'നന്ദി!';
+              final clean = job.phone.replaceAll(RegExp(r'[^0-9]'), '');
+              final phone = clean.startsWith('91') ? clean : '91$clean';
+              launchUrl(Uri.parse('https://wa.me/$phone?text=${Uri.encodeComponent(text)}'), mode: LaunchMode.externalApplication);
+            },
+            icon: const Icon(Icons.chat_bubble_rounded, size: 16, color: Color(0xFF22C55E)),
+            label: const Text('WhatsApp Receipt', style: TextStyle(color: Color(0xFF22C55E))),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: TekColors.primary),
+            onPressed: () async {
+              Navigator.pop(dCtx);
+              final sale = PosService.instance.getLinkedSale(invoice.invoiceId, job.id);
+              if (sale != null) {
+                await printInvoice(context, sale, a4: true);
+              }
+            },
+            icon: const Icon(Icons.print_rounded, size: 16),
+            label: const Text('Print Invoice'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showInvoiceDetails(RepairJob job) async {
+    final sale = PosService.instance.getLinkedSale(job.invoice, job.id);
+    final invId = job.invoice ?? sale?['invoice'] ?? 'N/A';
+    final items = (sale?['items'] as List?) ?? [];
+    final totalVal = sale != null ? (sale['total'] ?? job.finalAmount) : (job.finalAmount > 0 ? job.finalAmount : job.estimatedCost);
+    final double total = (totalVal is num) ? totalVal.toDouble() : 0.0;
+    final cash = sale != null ? (sale['cash'] ?? 0.0) : 0.0;
+    final upi = sale != null ? (sale['upi'] ?? 0.0) : 0.0;
+    final card = sale != null ? (sale['card'] ?? 0.0) : 0.0;
+    final pMode = (cash as num) > 0 ? 'Cash' : ((upi as num) > 0 ? 'UPI' : ((card as num) > 0 ? 'Card' : 'Paid'));
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(20),
+        decoration: const BoxDecoration(
+          color: TekColors.bgCard,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border(top: BorderSide(color: TekColors.border, width: 1.5)),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(color: TekColors.border, borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: TekColors.success.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.check_circle_rounded, color: TekColors.success, size: 22),
+                      ),
+                      const SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Invoice #$invId', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: TekColors.textPrimary)),
+                          Text('Linked to Job #${job.id}', style: const TextStyle(fontSize: 12, color: TekColors.textSecondary)),
+                        ],
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, color: TekColors.textSecondary),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: TekColors.bgSecondary,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: TekColors.border),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Customer:', style: TextStyle(color: TekColors.textSecondary, fontSize: 12.5)),
+                        Text('${job.customerName} (${job.phone})', style: const TextStyle(fontWeight: FontWeight.bold, color: TekColors.textPrimary)),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Device Model:', style: TextStyle(color: TekColors.textSecondary, fontSize: 12.5)),
+                        Text(job.brandModel, style: const TextStyle(fontWeight: FontWeight.w600, color: TekColors.secondary)),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Payment Mode:', style: TextStyle(color: TekColors.textSecondary, fontSize: 12.5)),
+                        Text(pMode, style: const TextStyle(fontWeight: FontWeight.bold, color: TekColors.success)),
+                      ],
+                    ),
+                    const Divider(height: 16, color: TekColors.border),
+                    if (items.isNotEmpty) ...[
+                      ...items.map((it) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('${it['name']} (x${it['qty'] ?? 1})', style: const TextStyle(fontSize: 12, color: TekColors.textPrimary)),
+                            Text('₹${it['price'] ?? it['lineTotal'] ?? 0}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: TekColors.textPrimary)),
+                          ],
+                        ),
+                      )),
+                      const Divider(height: 16, color: TekColors.border),
+                    ],
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Total Paid:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: TekColors.textPrimary)),
+                        Text('₹${total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: TekColors.success)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF22C55E)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () {
+                        final text = 'നമസ്കാരം ${job.customerName},\n'
+                            'TEKFIX സർവീസ് ഇൻവോയ്സ് (#$invId):\n'
+                            'ഡിവൈസ്: ${job.brandModel}\n'
+                            'ആകെ തുക: ₹${total.toStringAsFixed(2)} (PAID)\n'
+                            'നന്ദി!';
+                        final clean = job.phone.replaceAll(RegExp(r'[^0-9]'), '');
+                        final phone = clean.startsWith('91') ? clean : '91$clean';
+                        launchUrl(Uri.parse('https://wa.me/$phone?text=${Uri.encodeComponent(text)}'), mode: LaunchMode.externalApplication);
+                      },
+                      icon: const Icon(Icons.chat_bubble_rounded, size: 16, color: Color(0xFF22C55E)),
+                      label: const Text('WhatsApp Receipt', style: TextStyle(color: Color(0xFF22C55E), fontSize: 12.5)),
+                    ),
+                  ),
+                  if (sale != null) ...[
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: TekColors.primary,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: () async {
+                          await printInvoice(context, sale, a4: true);
+                        },
+                        icon: const Icon(Icons.print_rounded, size: 16),
+                        label: const Text('Print Invoice', style: TextStyle(fontSize: 12.5)),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showCompactStatusUpdateSheet(RepairJob job) async {
+    String selectedStatus = job.status;
+    final notesController = TextEditingController(text: job.notes);
+    String? localError;
+    bool isSaving = false;
+
+    final statuses = [
+      'Received',
+      'Diagnosing',
+      'In Progress',
+      'Waiting for Parts',
+      'Ready',
+      'Delivered',
+      'Cancelled',
+    ];
+
+    try {
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setSheet) {
+            return Container(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+                top: 20,
+                left: 20,
+                right: 20,
+              ),
+              decoration: const BoxDecoration(
+                color: TekColors.bgCard,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                border: Border(top: BorderSide(color: TekColors.border, width: 1.5)),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 4,
+                        decoration: BoxDecoration(color: TekColors.border, borderRadius: BorderRadius.circular(2)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Update Job Status • #${job.id}', style: TekTypography.titleMedium.copyWith(fontSize: 18)),
+                              const SizedBox(height: 2),
+                              Text('${job.customerName} • ${job.brandModel}', style: const TextStyle(color: TekColors.textSecondary, fontSize: 13)),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, color: TekColors.textSecondary),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Current status indicator
+                    Row(
+                      children: [
+                        const Text('Current Status: ', style: TextStyle(color: TekColors.textSecondary, fontSize: 12.5)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: _getStatusColor(job.status).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: _getStatusColor(job.status).withValues(alpha: 0.4)),
+                          ),
+                          child: Text(
+                            job.status,
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: _getStatusColor(job.status)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Status Choices
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: statuses.map((st) {
+                        final isSel = selectedStatus == st;
+                        final col = _getStatusColor(st);
+                        return ChoiceChip(
+                          label: Text(
+                            st,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
+                              color: isSel ? Colors.white : TekColors.textPrimary,
+                            ),
+                          ),
+                          selected: isSel,
+                          selectedColor: col,
+                          backgroundColor: TekColors.bgSecondary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            side: BorderSide(color: isSel ? col : TekColors.border),
+                          ),
+                          onSelected: (val) {
+                            if (val) {
+                              HapticFeedback.selectionClick();
+                              setSheet(() => selectedStatus = st);
+                            }
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Technician Notes
+                    const Text('Technician Notes (ഓപ്ഷണൽ കുറിപ്പുകൾ):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: TekColors.textPrimary)),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: notesController,
+                      maxLines: 2,
+                      style: const TextStyle(color: TekColors.textPrimary, fontSize: 13.5),
+                      decoration: InputDecoration(
+                        hintText: 'ഉദാ: സ്ക്രീൻ മാറ്റി, ടെസ്റ്റിംഗ് പൂർത്തിയായി...',
+                        hintStyle: const TextStyle(color: TekColors.textMuted, fontSize: 12.5),
+                        filled: true,
+                        fillColor: TekColors.bgSecondary,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TekColors.border)),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    if (localError != null) ...[
+                      Text(localError!, style: const TextStyle(color: TekColors.error, fontSize: 12)),
+                      const SizedBox(height: 8),
+                    ],
+
+                    // Save Button
+                    GestureDetector(
+                      onTap: isSaving
+                          ? null
+                          : () async {
+                              HapticFeedback.heavyImpact();
+                              setSheet(() => isSaving = true);
+                              try {
+                                await RepairService.instance.updateRepairStatusAndNotes(
+                                  shopId: widget.shopId,
+                                  jobId: job.id,
+                                  hiveKey: job.key,
+                                  newStatus: selectedStatus,
+                                  notes: notesController.text,
+                                  staffName: widget.staffName,
+                                  staffId: widget.staffId,
+                                );
+
+                                if (!mounted) return;
+                                if (ctx.mounted) Navigator.pop(ctx);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Job #${job.id} updated to "$selectedStatus" (Synced)'),
+                                    backgroundColor: TekColors.success,
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                );
+                              } catch (e) {
+                                setSheet(() {
+                                  isSaving = false;
+                                  localError = 'Update failed: $e';
+                                });
+                              }
+                            },
+                      child: Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          gradient: isSaving ? null : TekColors.primaryGradient,
+                          color: isSaving ? Colors.grey : null,
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: TekColors.primaryGlow,
+                        ),
+                        child: Center(
+                          child: isSaving
+                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                              : const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.check_rounded, color: Colors.white, size: 18),
+                                    SizedBox(width: 8),
+                                    Text('Save Status Update', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14)),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    } finally {
+      notesController.dispose();
+    }
   }
 
   Widget _buildAmountColumn(String label, String value, Color color, {bool isBold = false}) {
@@ -1175,6 +1763,112 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
             style: TextStyle(fontSize: 12, color: TekColors.textSecondary),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ProductPickerDialog extends StatefulWidget {
+  final List<PosItem> items;
+
+  const _ProductPickerDialog({required this.items});
+
+  @override
+  State<_ProductPickerDialog> createState() => _ProductPickerDialogState();
+}
+
+class _ProductPickerDialogState extends State<_ProductPickerDialog> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = widget.items.where((item) {
+      if (_query.isEmpty) return true;
+      final q = _query.toLowerCase();
+      return item.name.toLowerCase().contains(q) ||
+          item.category.toLowerCase().contains(q) ||
+          item.barcode.toLowerCase().contains(q);
+    }).toList();
+
+    return Dialog(
+      backgroundColor: TekColors.bgCard,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: TekColors.border),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        constraints: const BoxConstraints(maxHeight: 520, maxWidth: 420),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Select Product / Accessory',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: TekColors.textPrimary,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, color: TekColors.textSecondary),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              style: const TextStyle(color: TekColors.textPrimary, fontSize: 13),
+              decoration: InputDecoration(
+                hintText: 'Search items, tempered glass, cables...',
+                hintStyle: const TextStyle(color: TekColors.textMuted, fontSize: 12),
+                prefixIcon: const Icon(Icons.search_rounded, color: TekColors.secondary, size: 18),
+                isDense: true,
+                filled: true,
+                fillColor: TekColors.bgSecondary,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TekColors.border)),
+              ),
+              onChanged: (v) => setState(() => _query = v.trim()),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: filtered.isEmpty
+                  ? const Center(
+                      child: Text('No matching items found', style: TextStyle(color: TekColors.textMuted, fontSize: 12)),
+                    )
+                  : ListView.separated(
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1, color: TekColors.border),
+                      itemBuilder: (ctx, idx) {
+                        final item = filtered[idx];
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          title: Text(
+                            item.name,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: TekColors.textPrimary),
+                          ),
+                          subtitle: Text(
+                            'Stock: ${item.stock} • ${item.category}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: item.stock <= 0 ? TekColors.error : TekColors.textSecondary,
+                            ),
+                          ),
+                          trailing: Text(
+                            '₹${item.sellingPrice.toStringAsFixed(0)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: TekColors.secondary, fontSize: 13),
+                          ),
+                          onTap: () {
+                            Navigator.pop(context, item);
+                          },
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
