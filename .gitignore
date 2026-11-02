@@ -6,7 +6,9 @@
 # 1. Build Outputs, Binaries, and Compilations
 # ------------------------------------------------------------------------------
 /build/
+/Output/
 **/build/
+/Output/
 .dart_tool/
 .pub-cache/
 .pub/
