@@ -47,20 +47,6 @@ service cloud.firestore {
       );
     }
 
-    // Aliases for backwards compatibility with existing rules
-    function signedIn() { return isSignedIn(); }
-    function isAuthenticated() { return isSignedIn(); }
-    function isShopOwner(shopId) { return isOwner(shopId); }
-    function owner(shopId) { return isOwner(shopId); }
-    function member(shopId) { return isShopMember(shopId); }
-
-    function isStaffMatch(fieldVal) {
-      return isSignedIn() && (
-        fieldVal == request.auth.uid ||
-        (request.auth.token.email != null && fieldVal == request.auth.token.email)
-      );
-    }
-
     // -------------------------------------------------------------
     // Shop Isolation & Subcollection Rules (/shops/{shop})
     // -------------------------------------------------------------
@@ -74,30 +60,60 @@ service cloud.firestore {
         allow read: if isShopMember(shop);
         allow create, update: if isShopMember(shop);
         allow delete: if isOwner(shop);
+
+        match /{allChildren=**} {
+          allow read: if isShopMember(shop);
+          allow create, update: if isShopMember(shop);
+          allow delete: if isOwner(shop);
+        }
       }
 
       match /services/{id} {
         allow read: if isShopMember(shop);
         allow create, update: if isShopMember(shop);
         allow delete: if isOwner(shop);
+
+        match /{allChildren=**} {
+          allow read: if isShopMember(shop);
+          allow create, update: if isShopMember(shop);
+          allow delete: if isOwner(shop);
+        }
       }
 
       match /sales_invoices/{invoiceId} {
         allow read: if isShopMember(shop);
         allow create, update: if isShopMember(shop);
         allow delete: if isOwner(shop);
+
+        match /{allChildren=**} {
+          allow read: if isShopMember(shop);
+          allow create, update: if isShopMember(shop);
+          allow delete: if isOwner(shop);
+        }
       }
 
       match /sales/{id} {
         allow read: if isShopMember(shop);
         allow create, update: if isShopMember(shop);
         allow delete: if isOwner(shop);
+
+        match /{allChildren=**} {
+          allow read: if isShopMember(shop);
+          allow create, update: if isShopMember(shop);
+          allow delete: if isOwner(shop);
+        }
       }
 
       match /sales_orders/{orderId} {
         allow read: if isShopMember(shop);
         allow create, update: if isShopMember(shop);
         allow delete: if isOwner(shop);
+
+        match /{allChildren=**} {
+          allow read: if isShopMember(shop);
+          allow create, update: if isShopMember(shop);
+          allow delete: if isOwner(shop);
+        }
       }
 
       // 2. Inventory & Stock Updates (stockCount decrement & logs)
@@ -105,18 +121,36 @@ service cloud.firestore {
         allow read: if isShopMember(shop);
         allow create, update: if isShopMember(shop);
         allow delete: if isOwner(shop);
+
+        match /{allChildren=**} {
+          allow read: if isShopMember(shop);
+          allow create, update: if isShopMember(shop);
+          allow delete: if isOwner(shop);
+        }
       }
 
       match /items/{id} {
         allow read: if isShopMember(shop);
         allow create, update: if isShopMember(shop);
         allow delete: if isOwner(shop);
+
+        match /{allChildren=**} {
+          allow read: if isShopMember(shop);
+          allow create, update: if isShopMember(shop);
+          allow delete: if isOwner(shop);
+        }
       }
 
       match /inventory_logs/{logId} {
         allow read: if isShopMember(shop);
         allow create, update: if isShopMember(shop);
         allow delete: if isOwner(shop);
+
+        match /{allChildren=**} {
+          allow read: if isShopMember(shop);
+          allow create, update: if isShopMember(shop);
+          allow delete: if isOwner(shop);
+        }
       }
 
       match /inventory_private/{itemId} {
@@ -142,12 +176,24 @@ service cloud.firestore {
         allow read: if isShopMember(shop);
         allow create, update: if isShopMember(shop);
         allow delete: if isOwner(shop);
+
+        match /{allChildren=**} {
+          allow read: if isShopMember(shop);
+          allow create, update: if isShopMember(shop);
+          allow delete: if isOwner(shop);
+        }
       }
 
       match /daily_registers/{dateId} {
         allow read: if isShopMember(shop);
         allow create, update: if isShopMember(shop);
         allow delete: if isOwner(shop);
+
+        match /{allChildren=**} {
+          allow read: if isShopMember(shop);
+          allow create, update: if isShopMember(shop);
+          allow delete: if isOwner(shop);
+        }
       }
 
       match /daily_sales/{id} {

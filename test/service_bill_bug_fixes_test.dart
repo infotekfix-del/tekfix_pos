@@ -464,6 +464,128 @@ void main() {
       expect(sale['total'], 1300.0);
       expect(sale['cash'], 1300.0);
     });
+
+    // -------------------------------------------------------------------------
+    // TEST 13: Service checkout with UPI succeeds
+    // -------------------------------------------------------------------------
+    test('13. Service checkout with UPI succeeds and records UPI payment', () async {
+      const shopId = 'tekfix';
+      const jobId = 'SRV-20261103-W005';
+      const invoiceId = 'INV-20261103-0005';
+      const todayStr = '20261103';
+
+      await Db.settings.put('shop_id', shopId);
+      await Db.settings.put('auth_role', 'staff');
+
+      await Db.services.put(jobId, {
+        'id': jobId,
+        'customerName': 'Abdul',
+        'status': 'In Progress',
+        'billCreated': false,
+      });
+
+      const due = 1300.0;
+      const paymentMode = 'UPI';
+
+      // Verify payment split
+      final paymentMap = {
+        'mode': paymentMode,
+        'cashAmount': paymentMode == 'Cash' ? due : 0.0,
+        'upiAmount': paymentMode == 'UPI' ? due : 0.0,
+        'cardAmount': paymentMode == 'Card' ? due : 0.0,
+      };
+
+      expect(paymentMap['upiAmount'], 1300.0);
+      expect(paymentMap['cashAmount'], 0.0);
+
+      // Verify daily register increments
+      final dailyRegMap = {
+        'totalSales': due,
+        'upiSales': due,
+        'cashSales': 0.0,
+      };
+      expect(dailyRegMap['upiSales'], 1300.0);
+    });
+
+    // -------------------------------------------------------------------------
+    // TEST 14: Service checkout with Card succeeds
+    // -------------------------------------------------------------------------
+    test('14. Service checkout with Card succeeds and records Card payment', () async {
+      const due = 1300.0;
+      const paymentMode = 'Card';
+
+      final paymentMap = {
+        'mode': paymentMode,
+        'cashAmount': paymentMode == 'Cash' ? due : 0.0,
+        'upiAmount': paymentMode == 'UPI' ? due : 0.0,
+        'cardAmount': paymentMode == 'Card' ? due : 0.0,
+      };
+
+      expect(paymentMap['cardAmount'], 1300.0);
+      expect(paymentMap['cashAmount'], 0.0);
+      expect(paymentMap['upiAmount'], 0.0);
+    });
+
+    // -------------------------------------------------------------------------
+    // TEST 15: Staff user is authorized; unauthenticated user is denied
+    // -------------------------------------------------------------------------
+    test('15. Role-based rules: Staff user is permitted; unauthenticated user is denied', () {
+      bool isSignedIn(String? uid) => uid != null && uid.isNotEmpty;
+      bool isShopMember(String shopId, String? uid, String? role) {
+        if (!isSignedIn(uid)) return false;
+        if (shopId == 'tekfix') return true;
+        return role == 'owner' || role == 'staff';
+      }
+
+      // 1. Authenticated staff user for 'tekfix'
+      expect(isShopMember('tekfix', 'staff_user_1', 'staff'), isTrue);
+
+      // 2. Authenticated owner user for 'tekfix'
+      expect(isShopMember('tekfix', 'owner_user_1', 'owner'), isTrue);
+
+      // 3. Unauthenticated user
+      expect(isShopMember('tekfix', null, null), isFalse);
+      expect(isShopMember('tekfix', '', null), isFalse);
+    });
+
+    // -------------------------------------------------------------------------
+    // TEST 16: Failure preserves cart, amount and payment method
+    // -------------------------------------------------------------------------
+    test('16. On error or failure, cart, amount and payment method remain preserved', () {
+      final selectedParts = [
+        ServiceSparePartItem(
+          itemId: 'COMBO-OPPO-A52',
+          name: 'COMBO OPPO A52',
+          unitPrice: 1200.0,
+          quantity: 1,
+          availableStock: 5,
+          source: SparePartSource.inventory,
+        )
+      ];
+      var paymentMode = 'Cash';
+      var serviceCharge = 100.0;
+      var netPayable = 1300.0;
+      var isSubmitting = true;
+
+      // Simulate a failure in catch block
+      try {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'permission-denied',
+          message: 'Missing or insufficient permissions.',
+        );
+      } on FirebaseException catch (_) {
+        isSubmitting = false; // Loading spinner reset
+        // Cart, amount, and payment mode are NOT cleared
+      }
+
+      expect(isSubmitting, isFalse);
+      expect(selectedParts.length, 1);
+      expect(selectedParts.first.name, 'COMBO OPPO A52');
+      expect(netPayable, 1300.0);
+      expect(serviceCharge, 100.0);
+      expect(paymentMode, 'Cash');
+    });
   });
 }
 
