@@ -20,8 +20,8 @@ service cloud.firestore {
 
     function isShopOwner(shop) {
       return signedIn() && (
-        (exists(shopDoc(shop)) && get(shopDoc(shop)).data.ownerUid == request.auth.uid) ||
-        (exists(userDoc(shop)) && get(userDoc(shop)).data.get('role', '') == 'owner') ||
+        (exists(shopDoc(shop)) && ('ownerUid' in get(shopDoc(shop)).data) && get(shopDoc(shop)).data.ownerUid == request.auth.uid) ||
+        (exists(userDoc(shop)) && ('role' in get(userDoc(shop)).data) && (get(userDoc(shop)).data.role == 'owner' || get(userDoc(shop)).data.role == 'admin')) ||
         (request.auth.token.email != null &&
          (request.auth.token.email.matches('.*owner.*') || request.auth.token.email.matches('.*admin.*')))
       );
@@ -33,9 +33,10 @@ service cloud.firestore {
         (request.auth.token.shopId != null && request.auth.token.shopId == shop) ||
         exists(/databases/$(db)/documents/shops/$(shop)/members/$(request.auth.uid)) ||
         (exists(userDoc(shop)) &&
-         get(userDoc(shop)).data.get('active', true) != false &&
-         get(userDoc(shop)).data.get('approved', true) != false) ||
+         (!('active' in get(userDoc(shop)).data) || get(userDoc(shop)).data.active != false) &&
+         (!('approved' in get(userDoc(shop)).data) || get(userDoc(shop)).data.approved != false)) ||
         exists(staffDoc(shop)) ||
+        exists(/databases/$(db)/documents/shops/$(shop)/staff/$(request.auth.uid)) ||
         shop == 'tekfix' ||
         shop == 'default'
       );
@@ -62,32 +63,48 @@ service cloud.firestore {
     // Rules for shops subcollections
     match /shops/{shop} {
       allow create: if signedIn();
-      allow read: if isShopMember(shop) || signedIn();
+      allow read: if isShopMember(shop);
       allow update, delete: if isShopOwner(shop);
 
       // Staff, Attendance & Salary Collections
       match /staff/{staffId} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /staff_attendance/{recordId} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /attendance/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /salary_payments/{paymentId} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /daily_registers/{recordId} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
+      }
+
+      match /daily_sales/{id} {
+        allow read, write: if isShopMember(shop);
+      }
+
+      match /daily_sales_ledger/{id} {
+        allow read, write: if isShopMember(shop);
       }
 
       match /sales_orders/{orderId} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
+      }
+
+      match /payment_records/{id} {
+        allow read, write: if isShopMember(shop);
+      }
+
+      match /payments/{id} {
+        allow read, write: if isShopMember(shop);
       }
 
       // Users and authentication
@@ -97,138 +114,146 @@ service cloud.firestore {
 
       // Shop metadata and settings
       match /meta/{doc} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /settings/{doc} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       // Inventory & Items
       match /items/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /inventory/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
+      }
+
+      match /inventory_logs/{id} {
+        allow read, write: if isShopMember(shop);
       }
 
       match /inventory_private/{itemId} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       // Parties & Customers
       match /parties/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       // Services & Repairs
       match /services/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
+      }
+
+      match /service_jobs/{id} {
+        allow read, write: if isShopMember(shop);
       }
 
       // Sales & Invoices
       match /sales/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       // Purchases & Expenses
       match /purchases/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /expenses/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /rent_records/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /owner_withdrawals/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /returns/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /vendor_payments/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       // Purchase automation, products, stock units & vendor accounting
       match /products/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /purchase_bills/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
 
         match /items/{itemId} {
-          allow read, write: if isShopMember(shop) || signedIn();
+          allow read, write: if isShopMember(shop);
         }
       }
 
       match /stock_units/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /vendor_ledger/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /accounting_cash_bank/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /audit_logs/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /attendanceAudit/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /priceApprovals/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /stockMovements/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /stock_moves/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /activity_logs/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /bank_txns/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /bank/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /orders/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /notifications/{id} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
 
       match /counters/{id} {
-        allow read, write: if signedIn() && (owner(shop) || member(shop));
+        allow read, write: if isShopMember(shop);
       }
 
       // Universal catch-all for any other shop subcollections
       match /{document=**} {
-        allow read, write: if isShopMember(shop) || signedIn();
+        allow read, write: if isShopMember(shop);
       }
     }
 
@@ -252,9 +277,17 @@ service cloud.firestore {
     match /staff_attendance/{id} { allow read, write: if signedIn(); }
     match /salary_payments/{id} { allow read, write: if signedIn(); }
     match /daily_registers/{id} { allow read, write: if signedIn(); }
+    match /daily_sales/{id} { allow read, write: if signedIn(); }
+    match /daily_sales_ledger/{id} { allow read, write: if signedIn(); }
     match /sales_orders/{id} { allow read, write: if signedIn(); }
-    match /audit_logs/{id} {
-      allow read, write: if signedIn();
-    }
+    match /sales/{id} { allow read, write: if signedIn(); }
+    match /payment_records/{id} { allow read, write: if signedIn(); }
+    match /payments/{id} { allow read, write: if signedIn(); }
+    match /service_jobs/{id} { allow read, write: if signedIn(); }
+    match /services/{id} { allow read, write: if signedIn(); }
+    match /inventory/{id} { allow read, write: if signedIn(); }
+    match /inventory_logs/{id} { allow read, write: if signedIn(); }
+    match /counters/{id} { allow read, write: if signedIn(); }
+    match /audit_logs/{id} { allow read, write: if signedIn(); }
   }
 }

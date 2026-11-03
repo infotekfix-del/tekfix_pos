@@ -4309,7 +4309,25 @@ class _ServicesViewState extends State<ServicesView> {
 
   Future<void> _billNow(
       BuildContext context, dynamic key, Map<String, dynamic> job) async {
-    await ServiceBillDialog.show(context, jobKey: key, job: job);
+    final auth = Provider.of<AuthController>(context, listen: false);
+    final sid = auth.shopId.trim().isNotEmpty
+        ? auth.shopId.trim()
+        : Db.setting('shop_id', 'tekfix').trim();
+    final uid = auth.uid.trim().isNotEmpty
+        ? auth.uid.trim()
+        : Db.setting('active_user_id', Db.setting('active_user', 'Staff'));
+    final name = auth.name.trim().isNotEmpty
+        ? auth.name.trim()
+        : Db.setting('active_user', 'Staff');
+
+    await ServiceBillDialog.show(
+      context,
+      jobKey: key,
+      job: job,
+      shopId: sid,
+      staffId: uid,
+      staffName: name,
+    );
   }
 
   Future<void> _notify(

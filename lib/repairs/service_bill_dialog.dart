@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../auth/auth_controller.dart';
 import '../main.dart' show Db, ModeSelector, printInvoice, toast;
 import '../pos/pos_models.dart';
 import '../pos/pos_service.dart';
@@ -189,17 +191,25 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
   String? _errorMessage;
 
   String get _shopId {
-    if (widget.shopId != null && widget.shopId!.isNotEmpty) return widget.shopId!;
-    return Db.setting('shop_id', 'tekfix');
+    if (widget.shopId != null && widget.shopId!.trim().isNotEmpty) return widget.shopId!.trim();
+    final authShop = AuthController.instance.shopId.trim();
+    if (authShop.isNotEmpty) return authShop;
+    final dbShop = Db.setting('shop_id', '').trim();
+    if (dbShop.isNotEmpty) return dbShop;
+    return 'tekfix';
   }
 
   String get _staffId {
-    if (widget.staffId != null && widget.staffId!.isNotEmpty) return widget.staffId!;
+    if (widget.staffId != null && widget.staffId!.trim().isNotEmpty) return widget.staffId!.trim();
+    final authUid = AuthController.instance.uid.trim();
+    if (authUid.isNotEmpty) return authUid;
     return Db.setting('active_user_id', Db.setting('active_user', 'Staff'));
   }
 
   String get _staffName {
-    if (widget.staffName != null && widget.staffName!.isNotEmpty) return widget.staffName!;
+    if (widget.staffName != null && widget.staffName!.trim().isNotEmpty) return widget.staffName!.trim();
+    final authName = AuthController.instance.name.trim();
+    if (authName.isNotEmpty) return authName;
     return Db.setting('active_user', 'Staff');
   }
 
@@ -637,7 +647,8 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
 
       // ATOMIC FIRESTORE TRANSACTION
       if (_shopId.isNotEmpty) {
-        await FirebaseFirestore.instance.runTransaction((transaction) async {
+        if (FirebaseAuth.instance.currentUser != null) {
+          await FirebaseFirestore.instance.runTransaction((transaction) async {
           final shopDocRef = FirebaseFirestore.instance.collection('shops').doc(_shopId);
 
           // 1. READ PHASE: Verify live stock for all inventory items
@@ -816,7 +827,42 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
             'billCount': FieldValue.increment(1),
             'lastUpdated': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
+
+          // E. Payment Records & Daily Sales Ledger
+          final paymentRecordMap = {
+            'paymentId': invoiceId,
+            'billId': invoiceId,
+            'jobId': _jobId,
+            'type': 'SERVICE_PAYMENT',
+            'amount': due,
+            'amountPaise': _netPayablePaise,
+            'method': _paymentMode,
+            'status': 'SUCCESS',
+            'shopId': _shopId,
+            'staffId': _staffId,
+            'staffName': _staffName,
+            'customerName': _customerName,
+            'customerPhone': _customerPhone,
+            'createdAt': FieldValue.serverTimestamp(),
+          };
+          transaction.set(shopDocRef.collection('payment_records').doc(invoiceId), paymentRecordMap);
+
+          final dailyLedgerRef = shopDocRef.collection('daily_sales_ledger').doc('${todayStr}_$invoiceId');
+          transaction.set(dailyLedgerRef, {
+            'date': todayStr,
+            'invoiceId': invoiceId,
+            'type': 'SERVICE_SALE',
+            'amount': due,
+            'paymentMethod': _paymentMode,
+            'staffId': _staffId,
+            'staffName': _staffName,
+            'customerName': _customerName,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
         });
+        } else {
+          debugPrint('ServiceBillDialog: Firebase user not authenticated, completing bill locally.');
+        }
       }
 
       // 3. Local Hive & Accounting Updates (Offline Safe)
@@ -1049,9 +1095,9 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
 
                     const SizedBox(height: 8),
 
-                    // Searchable Autocomplete Bar
-                    Stack(
-                      clipBehavior: Clip.none,
+                    // Searchable Autocomplete Bar (In-flow Column to prevent overlap)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         TextField(
                           controller: _searchCtrl,
@@ -1088,140 +1134,190 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                           ),
                         ),
 
-                        // Suggestions Dropdown
-                        if (_isSearching && _searchResults.isNotEmpty)
-                          Positioned(
-                            top: 48,
-                            left: 0,
-                            right: 0,
-                            child: Material(
-                              elevation: 12,
-                              borderRadius: BorderRadius.circular(10),
+                        // Suggestions Panel (Inline below search bar with distinct vertical space)
+                        if (_isSearching && _searchResults.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            constraints: const BoxConstraints(maxHeight: 220),
+                            decoration: BoxDecoration(
                               color: const Color(0xFF141C48),
-                              child: Container(
-                                constraints: const BoxConstraints(maxHeight: 240),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.5)),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.5)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.4),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
                                 ),
-                                child: ListView.separated(
-                                  shrinkWrap: true,
-                                  padding: const EdgeInsets.symmetric(vertical: 4),
-                                  itemCount: _searchResults.length,
-                                  separatorBuilder: (_, __) => const Divider(color: Color(0x14FFFFFF), height: 1),
-                                  itemBuilder: (ctx, idx) {
-                                    final it = _searchResults[idx];
-                                    final inStock = it.availableStock > 0;
-
-                                    return ListTile(
-                                      dense: true,
-                                      leading: CircleAvatar(
-                                        radius: 14,
-                                        backgroundColor: inStock
-                                            ? DashboardColors.neonGreen.withValues(alpha: 0.15)
-                                            : Colors.red.withValues(alpha: 0.15),
-                                        child: Icon(
-                                          inStock ? Icons.check_circle_rounded : Icons.warning_rounded,
-                                          size: 16,
-                                          color: inStock ? DashboardColors.neonGreen : Colors.red,
-                                        ),
-                                      ),
-                                      title: Text(
-                                        it.name,
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        'Available Spare Parts (${_searchResults.length})',
                                         style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
+                                          color: DashboardColors.neonBlue,
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 0.3,
                                         ),
                                       ),
-                                      subtitle: Text(
-                                        '${it.model.isNotEmpty ? "${it.model} • " : ""}${it.category.isNotEmpty ? "${it.category} • " : ""}Stock: ${it.availableStock}',
-                                        style: TextStyle(
-                                          color: inStock ? DashboardColors.neonGreen : Colors.red,
-                                          fontSize: 11,
+                                      InkWell(
+                                        onTap: () {
+                                          setState(() {
+                                            _searchResults = [];
+                                            _isSearching = false;
+                                          });
+                                        },
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: const Padding(
+                                          padding: EdgeInsets.all(2),
+                                          child: Icon(Icons.close_rounded, size: 16, color: Colors.white60),
                                         ),
                                       ),
-                                      trailing: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            '₹${it.unitPrice.toStringAsFixed(0)}',
-                                            style: const TextStyle(
-                                              color: DashboardColors.neonBlue,
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: inStock ? DashboardColors.neonBlue : Colors.white24,
-                                              foregroundColor: Colors.black,
-                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                              minimumSize: Size.zero,
-                                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                            ),
-                                            onPressed: () => _addInventoryPart(it),
-                                            child: const Text('Add', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                          ),
-                                        ],
-                                      ),
-                                      onTap: () => _addInventoryPart(it),
-                                    );
-                                  },
+                                    ],
+                                  ),
                                 ),
-                              ),
+                                const Divider(color: Color(0x1FFFFFFF), height: 1),
+                                Flexible(
+                                  child: ListView.separated(
+                                    shrinkWrap: true,
+                                    padding: const EdgeInsets.symmetric(vertical: 4),
+                                    itemCount: _searchResults.length,
+                                    separatorBuilder: (_, __) => const Divider(color: Color(0x14FFFFFF), height: 1),
+                                    itemBuilder: (ctx, idx) {
+                                      final it = _searchResults[idx];
+                                      final inStock = it.availableStock > 0;
+
+                                      return ListTile(
+                                        dense: true,
+                                        leading: CircleAvatar(
+                                          radius: 14,
+                                          backgroundColor: inStock
+                                              ? DashboardColors.neonGreen.withValues(alpha: 0.15)
+                                              : Colors.red.withValues(alpha: 0.15),
+                                          child: Icon(
+                                            inStock ? Icons.check_circle_rounded : Icons.warning_rounded,
+                                            size: 16,
+                                            color: inStock ? DashboardColors.neonGreen : Colors.red,
+                                          ),
+                                        ),
+                                        title: Text(
+                                          it.name,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        subtitle: Text(
+                                          '${it.model.isNotEmpty ? "${it.model} • " : ""}${it.category.isNotEmpty ? "${it.category} • " : ""}Stock: ${it.availableStock}',
+                                          style: TextStyle(
+                                            color: inStock ? DashboardColors.neonGreen : Colors.red,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                        trailing: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              '₹${it.unitPrice.toStringAsFixed(0)}',
+                                              style: const TextStyle(
+                                                color: DashboardColors.neonBlue,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            ElevatedButton(
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: inStock ? DashboardColors.neonBlue : Colors.white24,
+                                                foregroundColor: Colors.black,
+                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                                minimumSize: Size.zero,
+                                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              ),
+                                              onPressed: () => _addInventoryPart(it),
+                                              child: const Text('Add', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                            ),
+                                          ],
+                                        ),
+                                        onTap: () => _addInventoryPart(it),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
+                        ],
                       ],
                     ),
 
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 18),
 
-                    // C. SELECTED SPARE PARTS TABLE
+                    // C. SELECTED SPARE PARTS SECTION (Dedicated vertical space & distinct responsive cards)
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.03),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: const Color(0x1AFFFFFF)),
                       ),
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(14),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // SECTION HEADING WITH PROPER VERTICAL SPACING & BADGES
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                'Selected Spare Parts (${_selectedParts.length})',
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
-                              ),
                               Row(
                                 children: [
-                                  if (_inventorySparesTotal > 0) ...[
+                                  const Icon(Icons.build_circle_outlined, size: 18, color: DashboardColors.neonBlue),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Selected Spare Parts (${_selectedParts.length})',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13.5,
+                                      letterSpacing: 0.2,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 4,
+                                children: [
+                                  if (_inventorySparesTotal > 0)
                                     _buildBadge('Inventory: ₹${_inventorySparesTotal.toStringAsFixed(0)}', DashboardColors.neonBlue),
-                                    const SizedBox(width: 6),
-                                  ],
-                                  if (_externalSparesTotal > 0) ...[
+                                  if (_externalSparesTotal > 0)
                                     _buildBadge('External: ₹${_externalSparesTotal.toStringAsFixed(0)}', DashboardColors.neonOrange),
-                                    const SizedBox(width: 6),
-                                  ],
                                   _buildBadge('Total: ₹${_allSparesTotal.toStringAsFixed(0)}', DashboardColors.neonGreen),
                                 ],
                               ),
                             ],
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 12),
 
                           if (_selectedParts.isEmpty)
                             Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 20),
+                              padding: const EdgeInsets.symmetric(vertical: 22),
                               child: Center(
                                 child: Column(
                                   children: const [
-                                    Icon(Icons.inventory_2_outlined, size: 30, color: Colors.white24),
+                                    Icon(Icons.inventory_2_outlined, size: 32, color: Colors.white24),
                                     SizedBox(height: 8),
                                     Text('No spare parts attached yet.', style: TextStyle(color: DashboardColors.textMuted, fontSize: 12.5)),
+                                    SizedBox(height: 4),
                                     Text('Search inventory above to add screens, batteries, or click "+ Add Custom / External Spare"',
                                         style: TextStyle(color: Colors.white38, fontSize: 11)),
                                   ],
@@ -1229,162 +1325,221 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                               ),
                             )
                           else
-                            Column(
-                              children: [
-                                // Table Header
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            ListView.separated(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: _selectedParts.length,
+                              separatorBuilder: (_, __) => const SizedBox(height: 10),
+                              itemBuilder: (ctx, idx) {
+                                final part = _selectedParts[idx];
+                                return Container(
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.04),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Row(
-                                    children: const [
-                                      Expanded(flex: 4, child: Text('Item Name', style: TextStyle(color: DashboardColors.textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
-                                      Expanded(flex: 2, child: Text('Qty', textAlign: TextAlign.center, style: TextStyle(color: DashboardColors.textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
-                                      Expanded(flex: 2, child: Text('Rate (₹)', textAlign: TextAlign.right, style: TextStyle(color: DashboardColors.textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
-                                      Expanded(flex: 2, child: Text('Total (₹)', textAlign: TextAlign.right, style: TextStyle(color: DashboardColors.textMuted, fontSize: 11, fontWeight: FontWeight.bold))),
-                                      SizedBox(width: 32),
+                                    color: const Color(0xFF131B38),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: part.isInventory
+                                          ? DashboardColors.neonBlue.withValues(alpha: 0.25)
+                                          : DashboardColors.neonOrange.withValues(alpha: 0.25),
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.25),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      ),
                                     ],
                                   ),
-                                ),
-                                const SizedBox(height: 4),
-
-                                // Table Rows
-                                ListView.separated(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  itemCount: _selectedParts.length,
-                                  separatorBuilder: (_, __) => const Divider(color: Color(0x14FFFFFF), height: 10),
-                                  itemBuilder: (ctx, idx) {
-                                    final part = _selectedParts[idx];
-                                    return Row(
-                                      children: [
-                                        // Item Name & Source Tag
-                                        Expanded(
-                                          flex: 4,
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: Text(
-                                                      part.name,
-                                                      style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600),
-                                                      maxLines: 1,
-                                                      overflow: TextOverflow.ellipsis,
-                                                    ),
+                                  padding: const EdgeInsets.all(12),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Row 1: Product Name, Badge & Delete Action
+                                      Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(6),
+                                            decoration: BoxDecoration(
+                                              color: part.isInventory
+                                                  ? DashboardColors.neonBlue.withValues(alpha: 0.15)
+                                                  : DashboardColors.neonOrange.withValues(alpha: 0.15),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Icon(
+                                              part.isInventory ? Icons.memory_rounded : Icons.handyman_rounded,
+                                              size: 18,
+                                              color: part.isInventory ? DashboardColors.neonBlue : DashboardColors.neonOrange,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  part.name,
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 13.5,
+                                                    fontWeight: FontWeight.bold,
+                                                    height: 1.25,
                                                   ),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Row(
-                                                children: [
-                                                  Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                                    decoration: BoxDecoration(
-                                                      color: part.isInventory
-                                                          ? DashboardColors.neonBlue.withValues(alpha: 0.15)
-                                                          : DashboardColors.neonOrange.withValues(alpha: 0.15),
-                                                      borderRadius: BorderRadius.circular(4),
-                                                    ),
-                                                    child: Text(
-                                                      part.isInventory ? 'INVENTORY (Stock: ${part.availableStock})' : 'EXTERNAL SPARE',
-                                                      style: TextStyle(
-                                                        color: part.isInventory ? DashboardColors.neonBlue : DashboardColors.neonOrange,
-                                                        fontSize: 9.5,
-                                                        fontWeight: FontWeight.bold,
+                                                  maxLines: 2,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                                const SizedBox(height: 5),
+                                                Row(
+                                                  children: [
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                      decoration: BoxDecoration(
+                                                        color: part.isInventory
+                                                            ? DashboardColors.neonBlue.withValues(alpha: 0.12)
+                                                            : DashboardColors.neonOrange.withValues(alpha: 0.12),
+                                                        borderRadius: BorderRadius.circular(4),
+                                                        border: Border.all(
+                                                          color: part.isInventory
+                                                              ? DashboardColors.neonBlue.withValues(alpha: 0.3)
+                                                              : DashboardColors.neonOrange.withValues(alpha: 0.3),
+                                                        ),
+                                                      ),
+                                                      child: Text(
+                                                        part.isInventory
+                                                            ? 'INVENTORY • Stock: ${part.availableStock}'
+                                                            : 'EXTERNAL VENDOR PART',
+                                                        style: TextStyle(
+                                                          color: part.isInventory ? DashboardColors.neonBlue : DashboardColors.neonOrange,
+                                                          fontSize: 9.5,
+                                                          fontWeight: FontWeight.bold,
+                                                        ),
                                                       ),
                                                     ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-
-                                        // Quantity Stepper
-                                        Expanded(
-                                          flex: 2,
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              color: Colors.black.withValues(alpha: 0.4),
-                                              borderRadius: BorderRadius.circular(6),
-                                              border: Border.all(color: const Color(0x2AFFFFFF)),
-                                            ),
-                                            child: Row(
-                                              mainAxisAlignment: MainAxisAlignment.center,
-                                              children: [
-                                                IconButton(
-                                                  padding: EdgeInsets.zero,
-                                                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                                                  icon: const Icon(Icons.remove_rounded, size: 14, color: Colors.white70),
-                                                  onPressed: () => _updateQuantity(idx, -1),
-                                                ),
-                                                Text(
-                                                  '${part.quantity}',
-                                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                                                ),
-                                                IconButton(
-                                                  padding: EdgeInsets.zero,
-                                                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                                                  icon: const Icon(Icons.add_rounded, size: 14, color: DashboardColors.neonGreen),
-                                                  onPressed: () => _updateQuantity(idx, 1),
+                                                    if (part.model.isNotEmpty) ...[
+                                                      const SizedBox(width: 8),
+                                                      Flexible(
+                                                        child: Text(
+                                                          part.model,
+                                                          style: const TextStyle(color: DashboardColors.textMuted, fontSize: 11),
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow.ellipsis,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ],
                                                 ),
                                               ],
                                             ),
                                           ),
-                                        ),
+                                          IconButton(
+                                            icon: const Icon(Icons.delete_outline_rounded, size: 20, color: Colors.redAccent),
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                            tooltip: 'Remove spare part',
+                                            onPressed: () => _removePart(idx),
+                                          ),
+                                        ],
+                                      ),
 
-                                        // Editable Unit Rate (₹)
-                                        Expanded(
-                                          flex: 2,
-                                          child: Container(
-                                            margin: const EdgeInsets.symmetric(horizontal: 6),
-                                            height: 32,
-                                            child: TextFormField(
-                                              initialValue: part.unitPrice.toStringAsFixed(0),
-                                              keyboardType: TextInputType.number,
-                                              textAlign: TextAlign.right,
-                                              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                                              decoration: InputDecoration(
-                                                isDense: true,
-                                                contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                                                filled: true,
-                                                fillColor: Colors.white.withValues(alpha: 0.05),
+                                      const SizedBox(height: 10),
+                                      const Divider(color: Color(0x14FFFFFF), height: 1),
+                                      const SizedBox(height: 10),
+
+                                      // Row 2: Quantity Controls, Editable Rate, Line Total
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          // Quantity Stepper
+                                          Row(
+                                            children: [
+                                              const Text(
+                                                'Qty: ',
+                                                style: TextStyle(color: DashboardColors.textMuted, fontSize: 11.5, fontWeight: FontWeight.w600),
                                               ),
-                                              onChanged: (v) => _updateUnitPrice(idx, v),
-                                            ),
+                                              Container(
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black.withValues(alpha: 0.35),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                  border: Border.all(color: const Color(0x2EFFFFFF)),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    IconButton(
+                                                      padding: EdgeInsets.zero,
+                                                      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                                                      icon: const Icon(Icons.remove_rounded, size: 14, color: Colors.white70),
+                                                      onPressed: () => _updateQuantity(idx, -1),
+                                                    ),
+                                                    Padding(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                                                      child: Text(
+                                                        '${part.quantity}',
+                                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                                      ),
+                                                    ),
+                                                    IconButton(
+                                                      padding: EdgeInsets.zero,
+                                                      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                                                      icon: const Icon(Icons.add_rounded, size: 14, color: DashboardColors.neonGreen),
+                                                      onPressed: () => _updateQuantity(idx, 1),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                        ),
 
-                                        // Line Total
-                                        Expanded(
-                                          flex: 2,
-                                          child: Text(
-                                            '₹${part.lineTotal.toStringAsFixed(0)}',
-                                            textAlign: TextAlign.right,
-                                            style: const TextStyle(
-                                              color: DashboardColors.neonBlue,
-                                              fontSize: 12.5,
-                                              fontWeight: FontWeight.bold,
-                                            ),
+                                          // Editable Unit Rate
+                                          Row(
+                                            children: [
+                                              const Text(
+                                                'Rate: ₹',
+                                                style: TextStyle(color: DashboardColors.textMuted, fontSize: 11.5, fontWeight: FontWeight.w600),
+                                              ),
+                                              SizedBox(
+                                                width: 72,
+                                                height: 28,
+                                                child: TextFormField(
+                                                  initialValue: part.unitPrice.toStringAsFixed(0),
+                                                  keyboardType: TextInputType.number,
+                                                  textAlign: TextAlign.right,
+                                                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                                  decoration: InputDecoration(
+                                                    isDense: true,
+                                                    contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                                                    filled: true,
+                                                    fillColor: Colors.black.withValues(alpha: 0.3),
+                                                  ),
+                                                  onChanged: (v) => _updateUnitPrice(idx, v),
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                        ),
 
-                                        // Remove Button
-                                        IconButton(
-                                          icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.redAccent),
-                                          onPressed: () => _removePart(idx),
-                                          tooltip: 'Remove',
-                                        ),
-                                      ],
-                                    );
-                                  },
-                                ),
-                              ],
+                                          // Line Total
+                                          Row(
+                                            children: [
+                                              const Text(
+                                                'Total: ',
+                                                style: TextStyle(color: DashboardColors.textMuted, fontSize: 11.5, fontWeight: FontWeight.w600),
+                                              ),
+                                              Text(
+                                                '₹${part.lineTotal.toStringAsFixed(0)}',
+                                                style: const TextStyle(
+                                                  color: DashboardColors.neonGreen,
+                                                  fontSize: 13.5,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
                             ),
                         ],
                       ),
