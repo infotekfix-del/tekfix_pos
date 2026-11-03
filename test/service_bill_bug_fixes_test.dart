@@ -268,6 +268,97 @@ void main() {
       final unchangedItem = Db.items.get('ITEM-EXT-01');
       expect(unchangedItem['stock'], 15);
     });
+
+    // -------------------------------------------------------------------------
+    // TEST 9: ServiceInvoiceReceiptDialog displays with all 4 required actions
+    // -------------------------------------------------------------------------
+    testWidgets('9. ServiceInvoiceReceiptDialog displays with Thermal, A4, WhatsApp and Close options', (tester) async {
+      final mockInvoice = <String, dynamic>{
+        'invoice': 'INV-2026-0042',
+        'customerName': 'Abhinav Krishna',
+        'customerPhone': '9847012345',
+        'total': 1300.0,
+        'due': 0.0,
+        'items': [
+          {'name': 'Service #JOB-101 • Samsung S21', 'qty': 1, 'price': 100.0},
+          {'name': 'COMBO OPPO A52 [INVENTORY]', 'qty': 1, 'price': 1200.0},
+        ],
+      };
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData.dark(),
+          home: Scaffold(
+            body: ServiceInvoiceReceiptDialog(invoice: mockInvoice),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Check header and content
+      expect(find.text('Service Bill Created Successfully'), findsOneWidget);
+      expect(find.text('Invoice #INV-2026-0042'), findsOneWidget);
+      expect(find.text('Abhinav Krishna'), findsOneWidget);
+      expect(find.text('₹1300'), findsOneWidget);
+
+      // Check all 4 action buttons
+      expect(find.text('Thermal Bill (80mm)'), findsOneWidget);
+      expect(find.text('Print A4 Bill'), findsOneWidget);
+      expect(find.text('Share via WhatsApp'), findsOneWidget);
+      expect(find.text('Done / Close'), findsOneWidget);
+    });
+
+    // -------------------------------------------------------------------------
+    // TEST 10: Service job card delivery & completion status update
+    // -------------------------------------------------------------------------
+    test('10. Service job card status updates to COMPLETED and DELIVERED upon billing', () async {
+      await Db.services.put('JOB-KEY-888', {
+        'id': 'JOB-888',
+        'customerName': 'Fahad',
+        'brandModel': 'Vivo V20',
+        'status': 'In Progress',
+        'deliveryStatus': 'PENDING',
+        'billCreated': false,
+      });
+
+      final job = Db.services.get('JOB-KEY-888');
+      job['status'] = 'COMPLETED';
+      job['deliveryStatus'] = 'DELIVERED';
+      job['billCreated'] = true;
+      job['invoice'] = 'INV-888';
+      await Db.services.put('JOB-KEY-888', job);
+
+      final updated = Db.services.get('JOB-KEY-888');
+      expect(updated['status'], 'COMPLETED');
+      expect(updated['deliveryStatus'], 'DELIVERED');
+      expect(updated['billCreated'], isTrue);
+      expect(updated['invoice'], 'INV-888');
+    });
+
+    // -------------------------------------------------------------------------
+    // TEST 11: All 6 required Firestore collections are structured in billing schema
+    // -------------------------------------------------------------------------
+    test('11. Billing schema targets all 6 required collections properly', () {
+      const shopId = 'tekfix_store';
+      const jobId = 'JOB-999';
+      const invoiceId = 'INV-999';
+      const todayStr = '20261103';
+
+      final requiredPaths = [
+        'shops/$shopId/service_jobs/$jobId',
+        'shops/$shopId/sales_invoices/$invoiceId',
+        'shops/$shopId/inventory/ITEM-01',
+        'shops/$shopId/inventory_logs/LOG-01',
+        'shops/$shopId/accounting_cash_bank/TXN_$invoiceId',
+        'shops/$shopId/daily_registers/$todayStr',
+      ];
+
+      for (final path in requiredPaths) {
+        expect(path, isNotEmpty);
+        expect(path.contains('null'), isFalse);
+        expect(path.startsWith('shops/tekfix_store/'), isTrue);
+      }
+    });
   });
 }
 

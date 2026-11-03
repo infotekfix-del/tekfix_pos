@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../auth/auth_controller.dart';
-import '../main.dart' show Db, ModeSelector, printInvoice, toast;
+import '../main.dart' show Db, ModeSelector, printInvoice, sendInvoiceWhatsApp, toast;
 import '../pos/pos_models.dart';
 import '../pos/pos_service.dart';
 import '../staff/activity_log.dart';
@@ -113,7 +113,7 @@ class ServiceBillDialog extends StatefulWidget {
       return false;
     }
 
-    final result = await showDialog<bool>(
+    final result = await showDialog<dynamic>(
       context: context,
       barrierDismissible: false,
       builder: (_) => ServiceBillDialog(
@@ -124,7 +124,12 @@ class ServiceBillDialog extends StatefulWidget {
         staffName: staffName,
       ),
     );
-    return result ?? false;
+
+    if (result is Map<String, dynamic> && context.mounted) {
+      await ServiceInvoiceReceiptDialog.show(context, result);
+      return true;
+    }
+    return result != null && result != false;
   }
 
   /// Factory helper for RepairJob objects (from staff_repairs_screen.dart).
@@ -155,7 +160,7 @@ class ServiceBillDialog extends StatefulWidget {
       'invoice': job.invoice,
     };
 
-    final result = await showDialog<bool>(
+    final result = await showDialog<dynamic>(
       context: context,
       barrierDismissible: false,
       builder: (_) => ServiceBillDialog(
@@ -167,7 +172,12 @@ class ServiceBillDialog extends StatefulWidget {
         staffName: staffName,
       ),
     );
-    return result ?? false;
+
+    if (result is Map<String, dynamic> && context.mounted) {
+      await ServiceInvoiceReceiptDialog.show(context, result);
+      return true;
+    }
+    return result != null && result != false;
   }
 
   @override
@@ -750,7 +760,9 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
             'advanceApplied': appliedAdvance,
             'paymentMethod': _paymentMode,
             'paymentStatus': 'PAID',
-            'status': 'Ready',
+            'status': 'COMPLETED',
+            'deliveryStatus': 'DELIVERED',
+            'deliveredAt': FieldValue.serverTimestamp(),
             'updatedAt': FieldValue.serverTimestamp(),
             'createdBy': _staffId,
           };
@@ -763,7 +775,7 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
             transaction.set(jobRef2, jobPayload, SetOptions(merge: true));
           }
 
-          // C. Sales & Daily Ledger Invoices
+          // C. Sales & Invoices (shops/{shopId}/sales_invoices, sales, sales_orders)
           final lineItems = <Map<String, dynamic>>[
             {
               'name': 'Service #$_jobId • $_brandModel (Service & Labour)',
@@ -813,10 +825,42 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
             'createdAt': FieldValue.serverTimestamp(),
           };
 
+          transaction.set(shopDocRef.collection('sales_invoices').doc(invoiceId), salesInvoiceMap);
           transaction.set(shopDocRef.collection('sales').doc(invoiceId), salesInvoiceMap);
           transaction.set(shopDocRef.collection('sales_orders').doc(invoiceId), salesInvoiceMap);
 
-          // D. Daily Sales Counters for EOD Closing & Cash/UPI Register
+          // D. Accounting & Cash Registers (shops/{shopId}/accounting_cash_bank & daily_registers)
+          final cashBankRef = shopDocRef.collection('accounting_cash_bank').doc('TXN_$invoiceId');
+          transaction.set(cashBankRef, {
+            'txId': 'TXN_$invoiceId',
+            'invoiceId': invoiceId,
+            'jobId': _jobId,
+            'type': 'SERVICE_INCOME',
+            'paymentMode': _paymentMode,
+            'amount': due,
+            'amountPaise': _netPayablePaise,
+            'staffId': _staffId,
+            'staffName': _staffName,
+            'shopId': _shopId,
+            'customerName': _customerName,
+            'customerPhone': _customerPhone,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+
+          final dailyRegRef = shopDocRef.collection('daily_registers').doc(todayStr);
+          transaction.set(dailyRegRef, {
+            'date': todayStr,
+            'shopId': _shopId,
+            'totalSales': FieldValue.increment(due),
+            'cashSales': FieldValue.increment(_paymentMode == 'Cash' ? due : 0.0),
+            'upiSales': FieldValue.increment(_paymentMode == 'UPI' ? due : 0.0),
+            'cardSales': FieldValue.increment(_paymentMode == 'Card' ? due : 0.0),
+            'serviceSales': FieldValue.increment(due),
+            'billCount': FieldValue.increment(1),
+            'lastUpdated': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+          // E. Daily Sales Counters & Payment Records & Daily Sales Ledger
           final counterRef = shopDocRef.collection('counters').doc('daily_sales_$todayStr');
           transaction.set(counterRef, {
             'totalSales': FieldValue.increment(due),
@@ -828,7 +872,6 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
             'lastUpdated': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
 
-          // E. Payment Records & Daily Sales Ledger
           final paymentRecordMap = {
             'paymentId': invoiceId,
             'billId': invoiceId,
@@ -859,7 +902,12 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
             'customerName': _customerName,
             'createdAt': FieldValue.serverTimestamp(),
           });
-        });
+        }).timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            throw TimeoutException('Firestore billing transaction timed out after 10s. Please check network.');
+          },
+        );
         } else {
           debugPrint('ServiceBillDialog: Firebase user not authenticated, completing bill locally.');
         }
@@ -904,6 +952,7 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
         'upi': _paymentMode == 'UPI' ? due : 0.0,
         'card': _paymentMode == 'Card' ? due : 0.0,
         'due': 0.0,
+        'netPayable': due,
         'serviceJobId': _jobId,
         'serviceAdvanceApplied': appliedAdvance,
         'serviceBill': true,
@@ -934,7 +983,9 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
         updatedJob['billCreated'] = true;
         updatedJob['invoice'] = invoiceId;
         updatedJob['parts'] = _selectedParts.map((p) => p.toJobSpareMap()).toList();
-        updatedJob['status'] = 'Ready';
+        updatedJob['status'] = 'COMPLETED';
+        updatedJob['deliveryStatus'] = 'DELIVERED';
+        updatedJob['deliveredAt'] = now.toIso8601String();
         updatedJob['warrantyStart'] = now.toIso8601String();
         updatedJob['warrantyEnd'] = now.add(Duration(days: _warrantyDays)).toIso8601String();
         await Db.services.put(widget.jobKey, updatedJob);
@@ -942,20 +993,75 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
 
       if (mounted) {
         TekFeedback.success('Service Invoice #$invoiceId created successfully!');
-        Navigator.of(context).pop(true);
-        await printInvoice(context, localBill, a4: true);
+        Navigator.of(context).pop(localBill);
       }
-    } catch (e) {
+    } on FirebaseException catch (fe) {
+      final errorMsg = 'Firestore [${fe.code}]: ${fe.message ?? 'Access denied'}\n'
+          'Collections: shops/$_shopId/{service_jobs, sales_invoices, inventory, inventory_logs, accounting_cash_bank, daily_registers}';
+      debugPrint('ServiceBillDialog: $errorMsg');
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+          _errorMessage = 'Firestore Error (${fe.code}): ${fe.message}';
+        });
+        await _showErrorDetailsDialog(context, 'Firestore Permission / Billing Error', errorMsg);
+      }
+    } on TimeoutException catch (te) {
+      final errorMsg = '${te.message ?? 'Connection timed out'}\nCheck your internet connectivity or Firestore access.';
+      debugPrint('ServiceBillDialog: $errorMsg');
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+          _errorMessage = errorMsg;
+        });
+        await _showErrorDetailsDialog(context, 'Transaction Timeout', errorMsg);
+      }
+    } catch (e, stack) {
+      debugPrint('ServiceBillDialog unexpected error: $e\n$stack');
       if (mounted) {
         setState(() {
           _isSubmitting = false;
           _errorMessage = 'Billing error: $e';
         });
-        TekFeedback.error('Billing failed: $e');
+        await _showErrorDetailsDialog(context, 'Billing Error', '$e');
       }
     } finally {
       _inFlightInvoices.remove(invoiceId);
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
     }
+  }
+
+  Future<void> _showErrorDetailsDialog(BuildContext context, String title, String message) async {
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1B0B14),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Colors.redAccent),
+        ),
+        icon: const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 40),
+        title: Text(
+          title,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        content: SelectableText(
+          message,
+          style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Dismiss', style: TextStyle(color: DashboardColors.neonBlue, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -1778,6 +1884,221 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Modal dialog showing the generated Service Invoice / Receipt with options:
+/// 1. Print Thermal Bill (80mm)
+/// 2. Print A4 Bill
+/// 3. Share via WhatsApp
+/// 4. Done / Close
+class ServiceInvoiceReceiptDialog extends StatelessWidget {
+  final Map<String, dynamic> invoice;
+
+  const ServiceInvoiceReceiptDialog({super.key, required this.invoice});
+
+  static Future<void> show(BuildContext context, Map<String, dynamic> invoice) async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ServiceInvoiceReceiptDialog(invoice: invoice),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final invoiceId = '${invoice['invoice'] ?? ''}';
+    final customerName = '${invoice['customerName'] ?? 'Customer'}';
+    final customerPhone = '${invoice['customerPhone'] ?? ''}';
+    final total = (invoice['total'] as num?)?.toDouble() ?? 0.0;
+    final due = (invoice['due'] as num?)?.toDouble() ?? 0.0;
+    final items = (invoice['items'] as List?) ?? [];
+
+    return Dialog(
+      backgroundColor: const Color(0xFF0C1236),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: DashboardColors.glassBorderHover),
+      ),
+      child: Container(
+        width: 500,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Success header icon
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: DashboardColors.neonGreen.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_circle_rounded, color: DashboardColors.neonGreen, size: 48),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Center(
+              child: Text(
+                'Service Bill Created Successfully',
+                style: DashboardTypography.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Center(
+              child: Text(
+                'Invoice #$invoiceId',
+                style: const TextStyle(
+                  color: DashboardColors.neonBlue,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Summary Card
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF141C48),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Customer:', style: TextStyle(color: DashboardColors.textMuted, fontSize: 13)),
+                      Text(customerName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                    ],
+                  ),
+                  if (customerPhone.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Phone:', style: TextStyle(color: DashboardColors.textMuted, fontSize: 13)),
+                        Text(customerPhone, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Items Billed:', style: TextStyle(color: DashboardColors.textMuted, fontSize: 13)),
+                      Text('${items.length} item(s)', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                    ],
+                  ),
+                  const Divider(color: Color(0x26FFFFFF), height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total Amount:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text(
+                        '₹${total.toStringAsFixed(0)}',
+                        style: const TextStyle(color: DashboardColors.neonGreen, fontWeight: FontWeight.w900, fontSize: 17),
+                      ),
+                    ],
+                  ),
+                  if (due > 0) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Balance Due:', style: TextStyle(color: Colors.orangeAccent, fontSize: 13)),
+                        Text('₹${due.toStringAsFixed(0)}', style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold, fontSize: 13)),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // 4 ACTION BUTTONS
+            // Row 1: Thermal & A4 print buttons
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1A2350),
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: DashboardColors.neonBlue),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    icon: const Icon(Icons.receipt_long_rounded, color: DashboardColors.neonBlue, size: 18),
+                    label: const Text('Thermal Bill (80mm)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    onPressed: () => printInvoice(context, invoice, a4: false),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1A2350),
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: DashboardColors.neonBlue),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    icon: const Icon(Icons.print_rounded, color: DashboardColors.neonBlue, size: 18),
+                    label: const Text('Print A4 Bill', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    onPressed: () => printInvoice(context, invoice, a4: true),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // Row 2: WhatsApp & Close
+            Row(
+              children: [
+                if (customerPhone.trim().isNotEmpty) ...[
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF128C7E),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(Icons.chat_bubble_rounded, size: 18),
+                      label: const Text('Share via WhatsApp', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      onPressed: () => sendInvoiceWhatsApp(context, invoice),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white70,
+                      side: const BorderSide(color: Color(0x33FFFFFF)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Done / Close', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
