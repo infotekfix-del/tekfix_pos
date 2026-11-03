@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../main.dart' show Db;
@@ -29,16 +28,21 @@ class BarcodePrintDialog extends StatefulWidget {
     final labelItems = <BarcodeLabelItem>[];
 
     for (final it in bill.items) {
-      // 1. Look up item in Db.items to find existing barcode and selling price
+      // 1. Look up item in Db.items to find existing barcode, selling price and MRP
       double? sellingPrice;
+      double? mrp;
       String barcode = it.sku.trim();
 
       if (it.itemKey != null && Db.items.containsKey(it.itemKey)) {
         final rec = tekM(Db.items.get(it.itemKey));
         barcode = '${rec['barcode'] ?? rec['code'] ?? rec['sku'] ?? barcode}'.trim();
-        sellingPrice = (rec['price'] as num?)?.toDouble() ??
-            (rec['sellingPrice'] as num?)?.toDouble();
+        sellingPrice = (rec['sellingPrice'] as num?)?.toDouble() ??
+            (rec['price'] as num?)?.toDouble();
+        mrp = (rec['mrp'] as num?)?.toDouble();
       }
+
+      // Fallback from bill line item if available
+      sellingPrice ??= (it.sellingPrice > 0 ? it.sellingPrice : null);
 
       // If still empty, ensure permanent barcode in Db.items
       if (barcode.isEmpty) {
@@ -46,6 +50,7 @@ class BarcodePrintDialog extends StatefulWidget {
           it.itemKey,
           defaultBarcode: it.sku.isNotEmpty ? it.sku : null,
           sellingPrice: sellingPrice,
+          mrp: mrp,
         );
       }
 
@@ -58,6 +63,7 @@ class BarcodePrintDialog extends StatefulWidget {
           brand: it.brand,
           barcode: barcode,
           sellingPrice: sellingPrice,
+          mrp: mrp,
           quantity: it.quantity > 0 ? it.quantity : 1,
         ),
       );
@@ -84,15 +90,28 @@ class BarcodePrintDialog extends StatefulWidget {
     String brand = '',
     String? existingBarcode,
     double? sellingPrice,
+    double? mrp,
     int initialQuantity = 1,
   }) async {
     final service = BarcodeLabelService.instance;
+
+    // Look up from DB if not supplied
+    double? effectiveSellingPrice = sellingPrice;
+    double? effectiveMrp = mrp;
+    if (itemKey != null && Db.items.containsKey(itemKey)) {
+      final rec = tekM(Db.items.get(itemKey));
+      effectiveSellingPrice ??= (rec['sellingPrice'] as num?)?.toDouble() ??
+          (rec['price'] as num?)?.toDouble();
+      effectiveMrp ??= (rec['mrp'] as num?)?.toDouble();
+    }
+
     String barcode = (existingBarcode ?? '').trim();
     if (barcode.isEmpty) {
       barcode = await service.ensureItemHasBarcode(
         itemKey,
         defaultBarcode: existingBarcode,
-        sellingPrice: sellingPrice,
+        sellingPrice: effectiveSellingPrice,
+        mrp: effectiveMrp,
       );
     }
 
@@ -102,7 +121,8 @@ class BarcodePrintDialog extends StatefulWidget {
       model: model,
       brand: brand,
       barcode: barcode,
-      sellingPrice: sellingPrice,
+      sellingPrice: effectiveSellingPrice,
+      mrp: effectiveMrp,
       quantity: initialQuantity > 0 ? initialQuantity : 1,
     );
 
@@ -229,7 +249,7 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
       );
       if (mounted) {
         if (res.success) {
-          TekFeedback.success('Test label printed successfully on 50 mm × 25 mm sticker.');
+          TekFeedback.success('Test label printed successfully on ${_service.config.profile.shortName} sticker.');
         } else {
           TekFeedback.error(res.message);
         }
@@ -256,11 +276,11 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
           borderRadius: BorderRadius.circular(16),
           side: const BorderSide(color: DashboardColors.glassBorderHover),
         ),
-        title: Row(
+        title: const Row(
           children: [
-            const Icon(Icons.code_rounded, color: DashboardColors.neonBlue),
-            const SizedBox(width: 8),
-            const Text(
+            Icon(Icons.code_rounded, color: DashboardColors.neonBlue),
+            SizedBox(width: 8),
+            Text(
               'TVS LP 46 Lite Native TSPL Commands',
               style: TextStyle(color: Colors.white, fontSize: 16),
             ),
@@ -364,7 +384,7 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                             Icons.check_circle_outline_rounded,
                           ),
                           _buildBadge(
-                            '50 mm × 25 mm Sticker (3 mm Gap)',
+                            '${_service.config.profile.name} (3 mm Gap)',
                             DashboardColors.neonBlue,
                             Icons.aspect_ratio_rounded,
                           ),
@@ -801,139 +821,222 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
 
                   const SizedBox(width: 18),
 
-                  // Right Column: Physical 50x25mm Sticker Preview & Options
+                  // Right Column: Physical Sticker Preview & Profile Options
                   Expanded(
                     flex: 2,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          '50 × 25 mm Physical Label Preview',
-                          style: DashboardTypography.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
+                        // PROFILE SWITCHER & PREVIEW HEADER
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Preview',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.5)),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<LabelProfile>(
+                                  value: _service.config.profile,
+                                  isDense: true,
+                                  dropdownColor: const Color(0xFF141A42),
+                                  style: const TextStyle(
+                                    color: DashboardColors.neonBlue,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  icon: const Icon(Icons.arrow_drop_down, color: DashboardColors.neonBlue, size: 16),
+                                  items: LabelProfile.values.map((prof) {
+                                    return DropdownMenuItem<LabelProfile>(
+                                      value: prof,
+                                      child: Text(prof.shortName),
+                                    );
+                                  }).toList(),
+                                  onChanged: (newProf) {
+                                    if (newProf != null) {
+                                      _service.setProfile(newProf);
+                                    }
+                                  },
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
 
-                        // Physical Sticker Simulation Card (Exact 50mm x 25mm 2:1 Aspect Ratio)
+                        // Physical Sticker Simulation Card (Exact Proportions for 38x25mm or 50x25mm)
                         Center(
-                          child: Container(
-                            width: 280, // 50 mm proportional preview (5.6x scale)
-                            height: 140, // 25 mm proportional preview (5.6x scale)
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(4),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.4),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: previewItem != null
-                                ? Column(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      // 1. Store Name Header
-                                      Text(
-                                        _service.config.storeName.toUpperCase(),
-                                        style: const TextStyle(
-                                          color: Colors.black,
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w900,
-                                          letterSpacing: 0.6,
-                                        ),
-                                      ),
+                          child: Builder(
+                            builder: (context) {
+                              final is38x25 = _service.config.profile == LabelProfile.profile38x25;
+                              final previewWidth = is38x25 ? 240.0 : 280.0;
+                              final previewHeight = is38x25 ? 158.0 : 140.0;
 
-                                      // 2. Product Name (Clean auto-wrap)
-                                      Text(
-                                        previewItem.name,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                          color: Colors.black,
-                                          fontSize: 9.5,
-                                          fontWeight: FontWeight.bold,
-                                          height: 1.1,
-                                        ),
-                                      ),
-
-                                      // 3. Simulated Code 128 Barcode graphic
-                                      _buildSimulatedBarcode(previewItem.barcode),
-
-                                      // 4. Barcode Human-Readable String
-                                      Text(
-                                        previewItem.barcode,
-                                        style: const TextStyle(
-                                          color: Colors.black,
-                                          fontSize: 9.5,
-                                          fontFamily: 'Courier',
-                                          fontWeight: FontWeight.w700,
-                                          letterSpacing: 1.2,
-                                        ),
-                                      ),
-
-                                      // 5. Item Code / MRP
-                                      Text(
-                                        _showPrice &&
-                                                previewItem.sellingPrice != null &&
-                                                previewItem.sellingPrice! > 0
-                                            ? '${previewItem.itemCode} • MRP: Rs. ${previewItem.sellingPrice!.toStringAsFixed(0)}'
-                                            : previewItem.itemCode,
-                                        style: const TextStyle(
-                                          color: Colors.black,
-                                          fontSize: 9.0,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                    ],
-                                  )
-                                : const Center(
-                                    child: Text(
-                                      'No Item Selected',
-                                      style: TextStyle(color: Colors.black54),
+                              return Container(
+                                width: previewWidth,
+                                height: previewHeight,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(4),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.4),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4),
                                     ),
-                                  ),
+                                  ],
+                                ),
+                                child: previewItem != null
+                                    ? Column(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        crossAxisAlignment: CrossAxisAlignment.center,
+                                        children: [
+                                          // 1. Store Name Header (Bold Uppercase, Single Line, Center)
+                                          Text(
+                                            _service.config.storeName.toUpperCase(),
+                                            maxLines: 1,
+                                            style: const TextStyle(
+                                              color: Colors.black,
+                                              fontSize: 10.0,
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: 0.5,
+                                            ),
+                                          ),
+
+                                          // 2. Product Name (Single Line Truncated with Ellipsis)
+                                          Text(
+                                            previewItem.name.replaceAll(RegExp(r'\s+'), ' '),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              color: Colors.black,
+                                              fontSize: 9.5,
+                                              fontWeight: FontWeight.bold,
+                                              height: 1.1,
+                                            ),
+                                          ),
+
+                                          // 3. Simulated Code 128 Barcode graphic (Height 10-11mm, Max 32mm width)
+                                          _buildSimulatedBarcode(
+                                            previewItem.barcode,
+                                            maxWidth: is38x25 ? 180 : 220,
+                                          ),
+
+                                          // 4. Barcode Human-Readable String (Below bars, 5.5-6pt, no redundant IDs)
+                                          Text(
+                                            previewItem.barcode,
+                                            maxLines: 1,
+                                            style: const TextStyle(
+                                              color: Colors.black,
+                                              fontSize: 8.5,
+                                              fontFamily: 'Courier',
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: 1.1,
+                                            ),
+                                          ),
+
+                                          // 5. Footer: PRICE: ₹450 (High Contrast Bold, Inside Margins)
+                                          if (_showPrice && previewItem.hasValidPrice) ...[
+                                            Text(
+                                              'PRICE: ₹${previewItem.effectivePrice!.toStringAsFixed(previewItem.effectivePrice!.truncateToDouble() == previewItem.effectivePrice! ? 0 : 2)}',
+                                              maxLines: 1,
+                                              style: const TextStyle(
+                                                color: Colors.black,
+                                                fontSize: 11.0,
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                            ),
+                                          ] else if (_showPrice) ...[
+                                            const Text(
+                                              '⚠️ PRICE NOT SET',
+                                              style: TextStyle(
+                                                color: Colors.red,
+                                                fontSize: 8.5,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ] else ...[
+                                            const SizedBox(height: 12),
+                                          ],
+                                        ],
+                                      )
+                                    : const Center(
+                                        child: Text(
+                                          'No Item Selected',
+                                          style: TextStyle(color: Colors.black54),
+                                        ),
+                                      ),
+                              );
+                            },
                           ),
                         ),
 
-                        const SizedBox(height: 14),
+                        // Validation warning if price is missing/0
+                        if (previewItem != null && _showPrice && !previewItem.hasValidPrice) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 16),
+                                SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Selling Price / MRP is missing or ₹0. Price will not be printed.',
+                                    style: TextStyle(color: Colors.orangeAccent, fontSize: 11),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        const SizedBox(height: 10),
 
                         // Options & Toggles
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.04),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(color: const Color(0x1AFFFFFF)),
                           ),
-                          child: SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            dense: true,
-                            title: const Text(
-                              'Print Selling Price (MRP)',
-                              style: TextStyle(
-                                  color: Colors.white, fontSize: 12),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: SwitchListTile(
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                              title: const Text(
+                                'Print Selling Price (MRP)',
+                                style: TextStyle(color: Colors.white, fontSize: 12),
+                              ),
+                              subtitle: const Text(
+                                'Prints "PRICE: ₹..." on the sticker footer',
+                                style: TextStyle(color: DashboardColors.textMuted, fontSize: 10.5),
+                              ),
+                              activeTrackColor: DashboardColors.neonGreen.withAlpha(128),
+                              activeThumbColor: DashboardColors.neonGreen,
+                              value: _showPrice,
+                              onChanged: (v) => setState(() => _showPrice = v),
                             ),
-                            subtitle: const Text(
-                              'Prints MRP alongside item code on label bottom',
-                              style: TextStyle(
-                                  color: DashboardColors.textMuted,
-                                  fontSize: 10.5),
-                            ),
-                            activeColor: DashboardColors.neonGreen,
-                            value: _showPrice,
-                            onChanged: (v) => setState(() => _showPrice = v),
                           ),
                         ),
 
@@ -971,14 +1074,17 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                   child: const Text('Cancel',
                       style: TextStyle(color: DashboardColors.textMuted)),
                 ),
-                Row(
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: DashboardColors.neonOrange,
                         side: const BorderSide(color: DashboardColors.neonOrange),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 12),
+                            horizontal: 12, vertical: 10),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10)),
                       ),
@@ -986,18 +1092,17 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                       label: const Text('Test Print (1 Label)'),
                       onPressed: _isPrinting ? null : _handleTestPrint,
                     ),
-                    const SizedBox(width: 10),
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: DashboardColors.neonBlue,
                         side: const BorderSide(color: DashboardColors.neonBlue),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 12),
+                            horizontal: 12, vertical: 10),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10)),
                       ),
                       icon: const Icon(Icons.refresh_rounded, size: 16),
-                      label: const Text('Reset Quantities'),
+                      label: const Text('Reset'),
                       onPressed: () {
                         setState(() {
                           _items = widget.initialItems
@@ -1006,13 +1111,12 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                         });
                       },
                     ),
-                    const SizedBox(width: 12),
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: DashboardColors.neonGreen,
                         foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 22, vertical: 14),
+                            horizontal: 18, vertical: 12),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10)),
                       ),
@@ -1028,11 +1132,11 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                           : const Icon(Icons.print_rounded, size: 18),
                       label: Text(
                         _isPrinting
-                            ? 'Sending to Printer...'
-                            : 'Print $_totalLabelsCount Labels (TVS LP 46)',
+                            ? 'Sending...'
+                            : 'Print $_totalLabelsCount Labels',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                          fontSize: 13.5,
                         ),
                       ),
                       onPressed: _isPrinting ? null : _handlePrint,
@@ -1073,10 +1177,10 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
     );
   }
 
-  Widget _buildSimulatedBarcode(String code) {
+  Widget _buildSimulatedBarcode(String code, {double maxWidth = 200}) {
     return Container(
       height: 34,
-      width: 200,
+      width: maxWidth,
       decoration: const BoxDecoration(
         color: Colors.transparent,
       ),

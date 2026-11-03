@@ -44,64 +44,63 @@ class TsplGenerator {
     final buffer = StringBuffer();
 
     // 1. PRINTER INITIALIZATION & MEDIA SETUP
-    // Exact 50 mm width, 25 mm height, 3 mm die-cut gap, zero offset, reference 0,0
+    // Configurable size (38mm x 25mm default, or 50mm x 25mm), 3mm gap, 0 offset, reference 0,0
     buffer.writeln('SIZE ${config.widthMm.toStringAsFixed(0)} mm,${config.heightMm.toStringAsFixed(0)} mm');
     buffer.writeln('GAP ${config.gapMm.toStringAsFixed(0)} mm,0 mm');
     buffer.writeln('DIRECTION 1');
     buffer.writeln('REFERENCE 0,0');
     buffer.writeln('OFFSET ${config.offsetMm.toStringAsFixed(0)} mm');
+    buffer.writeln('DENSITY ${config.darkness}');
+    buffer.writeln('SPEED ${config.speed}');
     buffer.writeln('CLS');
 
     // 2. STORE NAME (TEKFIX DIGITAL)
-    // Horizontally centered, Font "2" (12x20 dots)
+    // Centered, bold uppercase, Font "2" (12x20 dots, ~7-8pt)
     final storeX = _calculateCenterX(store.length, charWidth: 12, maxDots: config.widthDots);
-    buffer.writeln('TEXT $storeX,14,"2",0,1,1,"$store"');
+    buffer.writeln('TEXT $storeX,10,"2",0,1,1,"$store"');
 
-    // 3. PRODUCT NAME (DYNAMIC SCALING & WRAPPING)
-    final prodName = item.name.trim();
-    final modelText = item.model.trim().isNotEmpty ? ' (${item.model.trim()})' : '';
-    final fullProductName = '$prodName$modelText';
-
-    if (fullProductName.length <= 20) {
-      // Single line Font "2" (12x20 dots)
-      final prodX = _calculateCenterX(fullProductName.length, charWidth: 12, maxDots: config.widthDots);
-      buffer.writeln('TEXT $prodX,38,"2",0,1,1,"$fullProductName"');
-    } else {
-      // Multi-line intelligent wrap using Font "1" (8x12 dots)
-      final lines = _wrapText(fullProductName, maxCharsPerLine: 44);
-      final line1 = lines.isNotEmpty ? lines[0] : fullProductName;
-      final line1X = _calculateCenterX(line1.length, charWidth: 8, maxDots: config.widthDots);
-      buffer.writeln('TEXT $line1X,36,"1",0,1,1,"$line1"');
-
-      if (lines.length > 1) {
-        final line2 = lines[1];
-        final line2X = _calculateCenterX(line2.length, charWidth: 8, maxDots: config.widthDots);
-        buffer.writeln('TEXT $line2X,50,"1",0,1,1,"$line2"');
-      }
-    }
+    // 3. PRODUCT NAME (MAX 1 LINE, CENTER ALIGNED, TRUNCATE WITH ELLIPSIS)
+    // Printable width: 38mm = 280 dots; 50mm = 376 dots.
+    // Font "1" is 8 dots wide, 12 dots high (~6-7pt).
+    final maxChars = (config.printableWidthDots ~/ 8).clamp(20, 60);
+    final rawName = item.name.trim();
+    final singleLineName = rawName.replaceAll(RegExp(r'\s+'), ' ');
+    final truncatedName = singleLineName.length > maxChars
+        ? '${singleLineName.substring(0, maxChars - 3)}...'
+        : singleLineName;
+    final prodX = _calculateCenterX(truncatedName.length, charWidth: 8, maxDots: config.widthDots);
+    buffer.writeln('TEXT $prodX,32,"1",0,1,1,"$truncatedName"');
 
     // 4. CODE 128 BARCODE GRAPHIC
-    // Centered horizontally, height 50 dots, module narrow 2, wide 2
-    final barcodeWidth = (barcodeData.length + 3) * 11 * 2;
-    final barcodeX = ((config.widthDots - barcodeWidth) / 2).clamp(12.0, 100.0).toInt();
-    buffer.writeln('BARCODE $barcodeX,66,"128",50,0,0,2,2,"$barcodeData"');
+    // Barcode height: 10.5mm = 84 dots (range 10-11mm = 80-88 dots)
+    // Narrow module: 1 dot, Wide module: 1 dot
+    // Code 128 width: (N chars * 11) + 35 modules. Max barcode width: 32mm (256 dots).
+    final int estimatedBarcodeWidth = (barcodeData.length * 11) + 35;
+    final int safeBarcodeWidth = estimatedBarcodeWidth.clamp(40, 256);
+    int barcodeX = ((config.widthDots - safeBarcodeWidth) ~/ 2);
+    if (barcodeX < config.safetyMarginDots) barcodeX = config.safetyMarginDots;
+    buffer.writeln('BARCODE $barcodeX,48,"128",84,0,0,1,1,"$barcodeData"');
 
-    // 5. PRODUCT BARCODE (HUMAN READABLE STRING)
-    // Centered directly beneath barcode, Font "2" (12x20 dots)
-    final numX = _calculateCenterX(barcodeData.length, charWidth: 12, maxDots: config.widthDots);
-    buffer.writeln('TEXT $numX,122,"2",0,1,1,"$barcodeData"');
+    // 5. HUMAN READABLE TEXT (BARCODE NUMBER BELOW BARS)
+    // Font "1" (8x12 dots, ~5.5-6pt), centered, no redundant document IDs
+    final numX = _calculateCenterX(barcodeData.length, charWidth: 8, maxDots: config.widthDots);
+    buffer.writeln('TEXT $numX,136,"1",0,1,1,"$barcodeData"');
 
-    // 6. ITEM CODE / SKU & PRICE
-    final priceStr = showPrice && (item.sellingPrice != null && item.sellingPrice! > 0)
-        ? ' • MRP: Rs.${item.sellingPrice!.toStringAsFixed(0)}'
-        : '';
-    final itemCodeDisplay = item.itemCode.isNotEmpty ? item.itemCode : barcodeData;
-    final footerText = '$itemCodeDisplay$priceStr';
-    final footerX = _calculateCenterX(footerText.length, charWidth: 8, maxDots: config.widthDots);
-    buffer.writeln('TEXT $footerX,146,"1",0,1,1,"$footerText"');
+    // 6. FOOTER: SELLING PRICE / MRP
+    // High contrast, bold, Font "2" (12x20 dots, ~8-9pt).
+    // Uses "PRICE: Rs.450" (ASCII-safe for physical thermal printers, preventing symbol corruption)
+    if (showPrice && item.hasValidPrice) {
+      final price = item.effectivePrice!;
+      final priceVal = price.truncateToDouble() == price
+          ? price.toStringAsFixed(0)
+          : price.toStringAsFixed(2);
+      final priceText = 'PRICE: Rs.$priceVal';
+      final priceX = _calculateCenterX(priceText.length, charWidth: 12, maxDots: config.widthDots);
+      buffer.writeln('TEXT $priceX,152,"2",0,1,1,"$priceText"');
+    }
 
     // 7. PRINT COMMAND
-    // Zero additional feed commands after PRINT ensures 1:1 label count without blank skips
+    // Exact quantity without trailing feeds prevents blank sticker skips
     buffer.writeln('PRINT $qty,1');
     buffer.writeln();
 
@@ -121,31 +120,5 @@ class TsplGenerator {
     return x < 12 ? 12 : x;
   }
 
-  /// Wraps long text into lines without breaking mid-word when possible.
-  static List<String> _wrapText(String text, {required int maxCharsPerLine}) {
-    if (text.length <= maxCharsPerLine) return [text];
-
-    final words = text.split(' ');
-    final lines = <String>[];
-    var currentLine = StringBuffer();
-
-    for (final word in words) {
-      if (currentLine.isEmpty) {
-        currentLine.write(word);
-      } else if (currentLine.length + 1 + word.length <= maxCharsPerLine) {
-        currentLine.write(' $word');
-      } else {
-        lines.add(currentLine.toString());
-        currentLine = StringBuffer(word);
-        if (lines.length >= 2) break; // Limit to 2 lines to fit 25mm label
-      }
-    }
-
-    if (currentLine.isNotEmpty && lines.length < 2) {
-      lines.add(currentLine.toString());
-    }
-
-    return lines;
-  }
 }
 

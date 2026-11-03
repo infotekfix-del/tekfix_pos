@@ -218,10 +218,10 @@ class WindowsRawPrinter {
     );
   }
 
-  /// Sends a 50x25mm single test label to verify alignment.
+  /// Sends a single test label (38x25mm or 50x25mm) to verify alignment.
   Future<PrintJobResult> testPrint(String printerName, {PrinterConfig config = const PrinterConfig()}) async {
     final testItem = BarcodeLabelItem(
-      name: 'TEST PRODUCT 50X25MM',
+      name: 'TEST PRODUCT ${config.widthMm.toStringAsFixed(0)}X${config.heightMm.toStringAsFixed(0)}MM',
       barcode: 'TF999888',
       itemCode: 'TEST-001',
       sellingPrice: 499.0,
@@ -238,7 +238,7 @@ class WindowsRawPrinter {
     return sendRawTspl(
       printerName: printerName,
       tsplCommand: tspl,
-      docName: 'TekFix Test Label 50x25mm',
+      docName: 'TekFix Test Label ${config.profile.shortName}',
       labelsCount: 1,
     );
   }

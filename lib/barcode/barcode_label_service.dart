@@ -39,22 +39,37 @@ class BarcodeLabelService extends ChangeNotifier {
   bool get isPrinting => _status == PrinterConnectionStatus.printing;
 
   // ---------------------------------------------------------------------------
-  // 1. SPECIFICATIONS: 50 mm x 25 mm at 203 DPI (8 dots/mm) with 3 mm GAP
+  // 1. SPECIFICATIONS: 38 mm × 25 mm (DEFAULT) & 50 mm × 25 mm PROFILES
   // ---------------------------------------------------------------------------
-  static const double labelWidthMm = 50.0;
-  static const double labelHeightMm = 25.0;
-  static const double labelGapMm = 3.0;
+  static const double defaultLabelWidthMm = 38.0;
+  static const double defaultLabelHeightMm = 25.0;
+  static const double defaultLabelGapMm = 3.0;
 
-  /// Standard PdfPageFormat matching physical sticker dimensions (50 mm x 25 mm).
+  /// Dynamic PdfPageFormat matching physical sticker dimensions (38x25mm or 50x25mm).
   /// Margins: 1.5 mm on all sides (12 dots).
-  static PdfPageFormat get pageFormat => const PdfPageFormat(
-        labelWidthMm * PdfPageFormat.mm,
-        labelHeightMm * PdfPageFormat.mm,
-        marginTop: 1.5 * PdfPageFormat.mm,
-        marginBottom: 1.5 * PdfPageFormat.mm,
-        marginLeft: 1.5 * PdfPageFormat.mm,
-        marginRight: 1.5 * PdfPageFormat.mm,
+  PdfPageFormat get pageFormat => PdfPageFormat(
+        _config.widthMm * PdfPageFormat.mm,
+        _config.heightMm * PdfPageFormat.mm,
+        marginTop: _config.safetyMarginMm * PdfPageFormat.mm,
+        marginBottom: _config.safetyMarginMm * PdfPageFormat.mm,
+        marginLeft: _config.safetyMarginMm * PdfPageFormat.mm,
+        marginRight: _config.safetyMarginMm * PdfPageFormat.mm,
       );
+
+  /// Sets label profile (38x25mm or 50x25mm) and persists to settings.
+  Future<void> setProfile(LabelProfile profile) async {
+    await saveSettings(_config.withProfile(profile));
+  }
+
+  /// Sets thermal printing darkness (DENSITY: 1 to 15).
+  Future<void> setDarkness(int darkness) async {
+    await saveSettings(_config.copyWith(darkness: darkness.clamp(1, 15)));
+  }
+
+  /// Sets thermal printing speed (SPEED: 2 to 6).
+  Future<void> setSpeed(int speed) async {
+    await saveSettings(_config.copyWith(speed: speed.clamp(2, 6)));
+  }
 
   /// Initializes the service, loads saved configuration, and discovers printers.
   Future<void> initialize() async {
@@ -196,6 +211,7 @@ class BarcodeLabelService extends ChangeNotifier {
     dynamic itemKey, {
     String? defaultBarcode,
     double? sellingPrice,
+    double? mrp,
   }) async {
     if (itemKey == null || !Db.items.containsKey(itemKey)) {
       return defaultBarcode?.trim().isNotEmpty == true
@@ -223,11 +239,14 @@ class BarcodeLabelService extends ChangeNotifier {
     if ((updated['sku'] ?? '').toString().trim().isEmpty) {
       updated['sku'] = newBarcode;
     }
-    if (sellingPrice != null && sellingPrice > 0) {
+    final p = (sellingPrice != null && sellingPrice > 0)
+        ? sellingPrice
+        : ((mrp != null && mrp > 0) ? mrp : null);
+    if (p != null) {
       if ((updated['price'] as num?) == null ||
           (updated['price'] as num) == 0) {
-        updated['price'] = sellingPrice;
-        updated['sellingPrice'] = sellingPrice;
+        updated['price'] = p;
+        updated['sellingPrice'] = p;
       }
     }
 
@@ -236,7 +255,12 @@ class BarcodeLabelService extends ChangeNotifier {
   }
 
   /// Permanently updates the barcode of an item in Db.items.
-  Future<void> saveItemBarcode(dynamic itemKey, String barcode, {double? price}) async {
+  Future<void> saveItemBarcode(
+    dynamic itemKey,
+    String barcode, {
+    double? price,
+    double? mrp,
+  }) async {
     if (itemKey == null || !Db.items.containsKey(itemKey)) return;
     final raw = tekM(Db.items.get(itemKey));
     final updated = Map<String, dynamic>.from(raw);
@@ -244,9 +268,15 @@ class BarcodeLabelService extends ChangeNotifier {
     if ((updated['code'] ?? '').toString().trim().isEmpty) {
       updated['code'] = barcode.trim();
     }
-    if (price != null && price > 0) {
-      updated['price'] = price;
-      updated['sellingPrice'] = price;
+    final effective = (price != null && price > 0)
+        ? price
+        : ((mrp != null && mrp > 0) ? mrp : null);
+    if (effective != null) {
+      updated['price'] = effective;
+      updated['sellingPrice'] = effective;
+    }
+    if (mrp != null && mrp > 0) {
+      updated['mrp'] = mrp;
     }
     await Db.items.put(itemKey, updated);
   }
@@ -414,17 +444,17 @@ class BarcodeLabelService extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------------------
-  // 4. CODE 128 BARCODE PDF GENERATION (50 mm x 25 mm)
+  // 4. CODE 128 BARCODE PDF GENERATION (38x25mm & 50x25mm)
   // ---------------------------------------------------------------------------
 
-  /// Generates a PDF document with exact 50 mm x 25 mm pages.
+  /// Generates a PDF document with exact physical label page dimensions.
   Future<Uint8List> generateLabelsPdf({
     required List<BarcodeLabelItem> items,
     bool showPrice = true,
     String shopName = defaultStoreName,
   }) async {
     final doc = pw.Document(
-      title: 'TekFix Barcode Labels 50x25mm',
+      title: 'TekFix Barcode Labels ${_config.widthMm.toStringAsFixed(0)}x${_config.heightMm.toStringAsFixed(0)}mm',
       author: 'TekFix POS',
     );
 
@@ -457,7 +487,7 @@ class BarcodeLabelService extends ChangeNotifier {
     return await doc.save();
   }
 
-  /// Accurate physical representation for 50 mm x 25 mm layout.
+  /// Compact, high-precision representation for 38x25mm / 50x25mm thermal stickers.
   pw.Widget _buildLabelWidget({
     required BarcodeLabelItem item,
     required String barcodeData,
@@ -465,8 +495,18 @@ class BarcodeLabelService extends ChangeNotifier {
     required bool showPrice,
     required String shopName,
   }) {
-    final hasPrice = showPrice && (item.sellingPrice != null && item.sellingPrice! > 0);
-    final itemCode = item.itemCode.isNotEmpty ? item.itemCode : barcodeData;
+    final hasPrice = showPrice && item.hasValidPrice;
+    final price = item.effectivePrice ?? 0.0;
+    final priceVal = price.truncateToDouble() == price
+        ? price.toStringAsFixed(0)
+        : price.toStringAsFixed(2);
+
+    final rawName = item.name.trim();
+    final singleLineName = rawName.replaceAll(RegExp(r'\s+'), ' ');
+    final maxChars = (_config.widthMm <= 40 ? 28 : 40);
+    final truncatedPdfName = singleLineName.length > maxChars
+        ? '${singleLineName.substring(0, maxChars - 3)}...'
+        : singleLineName;
 
     return pw.Container(
       width: double.infinity,
@@ -475,33 +515,33 @@ class BarcodeLabelService extends ChangeNotifier {
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
-          // 1. STORE NAME
+          // 1. HEADER: TEKFIX DIGITAL (7-8pt, bold, single line)
           pw.Text(
             shopName.toUpperCase(),
             maxLines: 1,
-            style: pw.TextStyle(
-              fontSize: 7.0,
+            style: const pw.TextStyle(
+              fontSize: 7.5,
               fontWeight: pw.FontWeight.bold,
-              letterSpacing: 0.5,
+              letterSpacing: 0.4,
             ),
           ),
 
-          // 2. PRODUCT NAME
+          // 2. PRODUCT NAME (6-7pt, single line, truncated with ellipsis)
           pw.Text(
-            item.name.trim(),
-            maxLines: 2,
+            truncatedPdfName,
+            maxLines: 1,
             overflow: pw.TextOverflow.clip,
             textAlign: pw.TextAlign.center,
-            style: pw.TextStyle(
-              fontSize: 6.0,
+            style: const pw.TextStyle(
+              fontSize: 6.5,
               fontWeight: pw.FontWeight.bold,
             ),
           ),
 
-          // 3. CODE 128 BARCODE
+          // 3. CODE 128 BARCODE (height 10.5mm ≈ 29.8pt, max width 32mm ≈ 90.7pt)
           pw.Container(
-            height: 25.0,
-            width: 120.0,
+            height: 29.8,
+            constraints: const pw.BoxConstraints(maxWidth: 90.7),
             child: pw.BarcodeWidget(
               barcode: barcode,
               data: barcodeData,
@@ -509,7 +549,7 @@ class BarcodeLabelService extends ChangeNotifier {
             ),
           ),
 
-          // 4. BARCODE NUMBER
+          // 4. HUMAN READABLE TEXT (5.5-6pt below bars, no redundant document IDs)
           pw.Text(
             barcodeData,
             maxLines: 1,
@@ -519,17 +559,16 @@ class BarcodeLabelService extends ChangeNotifier {
             ),
           ),
 
-          // 5. ITEM CODE / MRP
-          pw.Text(
-            hasPrice
-                ? '$itemCode • Rs.${item.sellingPrice!.toStringAsFixed(0)}'
-                : itemCode,
-            maxLines: 1,
-            style: pw.TextStyle(
-              fontSize: 6.0,
-              fontWeight: pw.FontWeight.bold,
+          // 5. FOOTER: PRICE: ₹450 (8-9pt, bold, high contrast)
+          if (hasPrice)
+            pw.Text(
+              'PRICE: Rs.$priceVal',
+              maxLines: 1,
+              style: const pw.TextStyle(
+                fontSize: 8.5,
+                fontWeight: pw.FontWeight.bold,
+              ),
             ),
-          ),
         ],
       ),
     );
