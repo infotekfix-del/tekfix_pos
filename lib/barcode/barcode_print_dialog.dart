@@ -149,17 +149,27 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
   bool _isPrinting = false;
   bool _isCalibrating = false;
   int _selectedPreviewIndex = 0;
+  late TextEditingController _customWidthController;
+  late TextEditingController _customHeightController;
 
   @override
   void initState() {
     super.initState();
     _items = widget.initialItems.map((e) => e.copyWith()).toList();
+    _customWidthController = TextEditingController(
+      text: _service.config.widthMm.toStringAsFixed(0),
+    );
+    _customHeightController = TextEditingController(
+      text: _service.config.heightMm.toStringAsFixed(0),
+    );
     _service.addListener(_onServiceChanged);
     _service.initialize();
   }
 
   @override
   void dispose() {
+    _customWidthController.dispose();
+    _customHeightController.dispose();
     _service.removeListener(_onServiceChanged);
     super.dispose();
   }
@@ -256,6 +266,24 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
       }
     } catch (e) {
       if (mounted) TekFeedback.error('Test print failed: $e');
+    } finally {
+      if (mounted) setState(() => _isPrinting = false);
+    }
+  }
+
+  Future<void> _handleBorderTest() async {
+    setState(() => _isPrinting = true);
+    try {
+      final res = await _service.printBorderTest();
+      if (mounted) {
+        if (res.success) {
+          TekFeedback.success('Border Test sent to printer. Verify even border on all 4 sides.');
+        } else {
+          TekFeedback.error(res.message);
+        }
+      }
+    } catch (e) {
+      if (mounted) TekFeedback.error('Border test failed: $e');
     } finally {
       if (mounted) setState(() => _isPrinting = false);
     }
@@ -598,14 +626,19 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'Items to Print (${_items.length})',
-                              style: DashboardTypography.poppins(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
+                            Expanded(
+                              child: Text(
+                                'Items to Print (${_items.length})',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: DashboardTypography.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
+                            const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 10, vertical: 3),
@@ -821,240 +854,392 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
 
                   const SizedBox(width: 18),
 
-                  // Right Column: Physical Sticker Preview & Profile Options
+                  // Right Column: Physical Sticker Preview & Settings (1-up only)
                   Expanded(
                     flex: 2,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // PROFILE SWITCHER & PREVIEW HEADER
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Preview',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.5)),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<LabelProfile>(
-                                  value: _service.config.profile,
-                                  isDense: true,
-                                  dropdownColor: const Color(0xFF141A42),
-                                  style: const TextStyle(
-                                    color: DashboardColors.neonBlue,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // PRESET SWITCHER & PREVIEW HEADER
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Flexible(
+                                child: Text(
+                                  'Preview (1-up Roll)',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
                                   ),
-                                  icon: const Icon(Icons.arrow_drop_down, color: DashboardColors.neonBlue, size: 16),
-                                  items: LabelProfile.values.map((prof) {
-                                    return DropdownMenuItem<LabelProfile>(
-                                      value: prof,
-                                      child: Text(prof.shortName),
-                                    );
-                                  }).toList(),
-                                  onChanged: (newProf) {
-                                    if (newProf != null) {
-                                      _service.setProfile(newProf);
-                                    }
-                                  },
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-
-                        // Physical Sticker Simulation Card (Exact Proportions for 38x25mm or 50x25mm)
-                        Center(
-                          child: Builder(
-                            builder: (context) {
-                              final is38x25 = _service.config.profile == LabelProfile.profile38x25;
-                              final previewWidth = is38x25 ? 240.0 : 280.0;
-                              final previewHeight = is38x25 ? 158.0 : 140.0;
-
-                              return Container(
-                                width: previewWidth,
-                                height: previewHeight,
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(4),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.4),
-                                      blurRadius: 12,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
+                                  color: Colors.white.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.5)),
                                 ),
-                                child: previewItem != null
-                                    ? Column(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        crossAxisAlignment: CrossAxisAlignment.center,
-                                        children: [
-                                          // 1. Store Name Header (Bold Uppercase, Single Line, Center)
-                                          Text(
-                                            _service.config.storeName.toUpperCase(),
-                                            maxLines: 1,
-                                            style: const TextStyle(
-                                              color: Colors.black,
-                                              fontSize: 10.0,
-                                              fontWeight: FontWeight.w900,
-                                              letterSpacing: 0.5,
-                                            ),
-                                          ),
-
-                                          // 2. Product Name (Single Line Truncated with Ellipsis)
-                                          Text(
-                                            previewItem.name.replaceAll(RegExp(r'\s+'), ' '),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            textAlign: TextAlign.center,
-                                            style: const TextStyle(
-                                              color: Colors.black,
-                                              fontSize: 9.5,
-                                              fontWeight: FontWeight.bold,
-                                              height: 1.1,
-                                            ),
-                                          ),
-
-                                          // 3. Simulated Code 128 Barcode graphic (Height 10-11mm, Max 32mm width)
-                                          _buildSimulatedBarcode(
-                                            previewItem.barcode,
-                                            maxWidth: is38x25 ? 180 : 220,
-                                          ),
-
-                                          // 4. Barcode Human-Readable String (Below bars, 5.5-6pt, no redundant IDs)
-                                          Text(
-                                            previewItem.barcode,
-                                            maxLines: 1,
-                                            style: const TextStyle(
-                                              color: Colors.black,
-                                              fontSize: 8.5,
-                                              fontFamily: 'Courier',
-                                              fontWeight: FontWeight.w700,
-                                              letterSpacing: 1.1,
-                                            ),
-                                          ),
-
-                                          // 5. Footer: PRICE: ₹450 (High Contrast Bold, Inside Margins)
-                                          if (_showPrice && previewItem.hasValidPrice) ...[
-                                            Text(
-                                              'PRICE: ₹${previewItem.effectivePrice!.toStringAsFixed(previewItem.effectivePrice!.truncateToDouble() == previewItem.effectivePrice! ? 0 : 2)}',
-                                              maxLines: 1,
-                                              style: const TextStyle(
-                                                color: Colors.black,
-                                                fontSize: 11.0,
-                                                fontWeight: FontWeight.w900,
-                                              ),
-                                            ),
-                                          ] else if (_showPrice) ...[
-                                            const Text(
-                                              '⚠️ PRICE NOT SET',
-                                              style: TextStyle(
-                                                color: Colors.red,
-                                                fontSize: 8.5,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ] else ...[
-                                            const SizedBox(height: 12),
-                                          ],
-                                        ],
-                                      )
-                                    : const Center(
-                                        child: Text(
-                                          'No Item Selected',
-                                          style: TextStyle(color: Colors.black54),
-                                        ),
-                                      ),
-                              );
-                            },
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<LabelPreset>(
+                                    value: _service.config.preset,
+                                    isDense: true,
+                                    dropdownColor: const Color(0xFF141A42),
+                                    style: const TextStyle(
+                                      color: DashboardColors.neonBlue,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    icon: const Icon(Icons.arrow_drop_down, color: DashboardColors.neonBlue, size: 16),
+                                    items: LabelPreset.values.map((prof) {
+                                      return DropdownMenuItem<LabelPreset>(
+                                        value: prof,
+                                        child: Text(prof.shortName),
+                                      );
+                                    }).toList(),
+                                    onChanged: (newProf) {
+                                      if (newProf != null) {
+                                        _service.setPreset(newProf);
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-
-                        // Validation warning if price is missing/0
-                        if (previewItem != null && _showPrice && !previewItem.hasValidPrice) ...[
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
-                            ),
-                            child: const Row(
+                          if (_service.config.preset == LabelPreset.custom) ...[
+                            const SizedBox(height: 6),
+                            Row(
                               children: [
-                                Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 16),
-                                SizedBox(width: 6),
                                 Expanded(
-                                  child: Text(
-                                    'Selling Price / MRP is missing or ₹0. Price will not be printed.',
-                                    style: TextStyle(color: Colors.orangeAccent, fontSize: 11),
+                                  child: TextField(
+                                    controller: _customWidthController,
+                                    keyboardType: TextInputType.number,
+                                    style: const TextStyle(color: Colors.white, fontSize: 11),
+                                    decoration: const InputDecoration(
+                                      labelText: 'Width (mm)',
+                                      labelStyle: TextStyle(color: DashboardColors.textMuted, fontSize: 10),
+                                      isDense: true,
+                                    ),
+                                    onChanged: (val) {
+                                      final w = double.tryParse(val);
+                                      if (w != null && w > 10) {
+                                        _service.setPreset(LabelPreset.custom, customWidth: w);
+                                      }
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: TextField(
+                                    controller: _customHeightController,
+                                    keyboardType: TextInputType.number,
+                                    style: const TextStyle(color: Colors.white, fontSize: 11),
+                                    decoration: const InputDecoration(
+                                      labelText: 'Height (mm)',
+                                      labelStyle: TextStyle(color: DashboardColors.textMuted, fontSize: 10),
+                                      isDense: true,
+                                    ),
+                                    onChanged: (val) {
+                                      final h = double.tryParse(val);
+                                      if (h != null && h > 10) {
+                                        _service.setPreset(LabelPreset.custom, customHeight: h);
+                                      }
+                                    },
                                   ),
                                 ),
                               ],
                             ),
+                          ],
+                          const SizedBox(height: 8),
+
+                          // Physical Sticker Simulation Card (304x200 dots, 16-dot margin)
+                          Center(
+                            child: Builder(
+                              builder: (context) {
+                                final is38x25 = _service.config.preset == LabelPreset.preset38x25;
+                                final previewWidth = is38x25 ? 240.0 : 280.0;
+                                final previewHeight = is38x25 ? 158.0 : 140.0;
+
+                                return Container(
+                                  width: previewWidth,
+                                  height: previewHeight,
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(4),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.4),
+                                        blurRadius: 12,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: previewItem != null
+                                      ? Column(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          crossAxisAlignment: CrossAxisAlignment.center,
+                                          children: [
+                                            // 1. Store Name Header (small, centered)
+                                            Text(
+                                              _service.config.storeName.toUpperCase(),
+                                              maxLines: 1,
+                                              style: const TextStyle(
+                                                color: Colors.black,
+                                                fontSize: 9.0,
+                                                fontWeight: FontWeight.w900,
+                                                letterSpacing: 0.5,
+                                              ),
+                                            ),
+
+                                            // 2. Product Name (Max 2 Lines, centered)
+                                            Text(
+                                              previewItem.name.replaceAll(RegExp(r'\s+'), ' '),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                color: Colors.black,
+                                                fontSize: 8.5,
+                                                fontWeight: FontWeight.bold,
+                                                height: 1.1,
+                                              ),
+                                            ),
+
+                                            // 3. Simulated Code 128 Barcode graphic (Height ~60 dots)
+                                            _buildSimulatedBarcode(
+                                              previewItem.barcode,
+                                              maxWidth: is38x25 ? 180 : 220,
+                                            ),
+
+                                            // 4. Barcode Primary Code Only (TKF... / IMEI) - no ITEM_... line
+                                            Text(
+                                              previewItem.barcode,
+                                              maxLines: 1,
+                                              style: const TextStyle(
+                                                color: Colors.black,
+                                                fontSize: 8.5,
+                                                fontFamily: 'Courier',
+                                                fontWeight: FontWeight.w700,
+                                                letterSpacing: 1.1,
+                                              ),
+                                            ),
+
+                                            // 5. Footer: MRP at bottom
+                                            if (_showPrice && previewItem.hasValidPrice) ...[
+                                              Text(
+                                                'MRP: ₹${previewItem.effectivePrice!.toStringAsFixed(previewItem.effectivePrice!.truncateToDouble() == previewItem.effectivePrice! ? 0 : 2)}',
+                                                maxLines: 1,
+                                                style: const TextStyle(
+                                                  color: Colors.black,
+                                                  fontSize: 10.5,
+                                                  fontWeight: FontWeight.w900,
+                                                ),
+                                              ),
+                                            ] else if (_showPrice) ...[
+                                              const Text(
+                                                '⚠️ MRP NOT SET',
+                                                style: TextStyle(
+                                                  color: Colors.red,
+                                                  fontSize: 8.5,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ] else ...[
+                                              const SizedBox(height: 12),
+                                            ],
+                                          ],
+                                        )
+                                      : const Center(
+                                          child: Text(
+                                            'No Item Selected',
+                                            style: TextStyle(color: Colors.black54),
+                                          ),
+                                        ),
+                                );
+                              },
+                            ),
+                          ),
+
+                          // Validation warning if price is missing/0
+                          if (previewItem != null && _showPrice && !previewItem.hasValidPrice) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 16),
+                                  SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      'MRP is missing or ₹0. Price will not be printed on sticker.',
+                                      style: TextStyle(color: Colors.orangeAccent, fontSize: 11),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+
+                          const SizedBox(height: 10),
+
+                          // Settings Card (MRP toggle, Density 1-15, X/Y Offset)
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.04),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0x1AFFFFFF)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Toggle: Print MRP
+                                Material(
+                                  color: Colors.transparent,
+                                  child: SwitchListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    dense: true,
+                                    title: const Text(
+                                      'Print MRP',
+                                      style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                                    ),
+                                    subtitle: const Text(
+                                      'Prints "MRP: Rs..." on sticker footer',
+                                      style: TextStyle(color: DashboardColors.textMuted, fontSize: 10),
+                                    ),
+                                    activeTrackColor: DashboardColors.neonGreen.withAlpha(128),
+                                    activeThumbColor: DashboardColors.neonGreen,
+                                    value: _showPrice,
+                                    onChanged: (v) => setState(() => _showPrice = v),
+                                  ),
+                                ),
+                                const Divider(color: Color(0x1AFFFFFF), height: 12),
+
+                                // DENSITY Setting (1-15, default 8)
+                                Row(
+                                  children: [
+                                    Text(
+                                      'Density: ${_service.config.darkness}',
+                                      style: const TextStyle(color: Colors.white70, fontSize: 11),
+                                    ),
+                                    Expanded(
+                                      child: SliderTheme(
+                                        data: SliderTheme.of(context).copyWith(
+                                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
+                                        ),
+                                        child: Slider(
+                                          min: 1,
+                                          max: 15,
+                                          divisions: 14,
+                                          value: _service.config.darkness.toDouble(),
+                                          activeColor: DashboardColors.neonBlue,
+                                          onChanged: (val) {
+                                            _service.setDarkness(val.round());
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                // X Offset Setting
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'X Offset: ${_service.config.xOffsetMm.toStringAsFixed(1)} mm',
+                                      style: const TextStyle(color: Colors.white70, fontSize: 11),
+                                    ),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(Icons.remove_circle_outline, size: 16, color: DashboardColors.neonBlue),
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () {
+                                            _service.setOffset(xOffsetMm: (_service.config.xOffsetMm - 0.5).clamp(-10.0, 10.0));
+                                          },
+                                        ),
+                                        const SizedBox(width: 8),
+                                        IconButton(
+                                          icon: const Icon(Icons.add_circle_outline, size: 16, color: DashboardColors.neonBlue),
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () {
+                                            _service.setOffset(xOffsetMm: (_service.config.xOffsetMm + 0.5).clamp(-10.0, 10.0));
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                // Y Offset Setting
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Y Offset: ${_service.config.yOffsetMm.toStringAsFixed(1)} mm',
+                                      style: const TextStyle(color: Colors.white70, fontSize: 11),
+                                    ),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(Icons.remove_circle_outline, size: 16, color: DashboardColors.neonBlue),
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () {
+                                            _service.setOffset(yOffsetMm: (_service.config.yOffsetMm - 0.5).clamp(-10.0, 10.0));
+                                          },
+                                        ),
+                                        const SizedBox(width: 8),
+                                        IconButton(
+                                          icon: const Icon(Icons.add_circle_outline, size: 16, color: DashboardColors.neonBlue),
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () {
+                                            _service.setOffset(yOffsetMm: (_service.config.yOffsetMm + 0.5).clamp(-10.0, 10.0));
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          // Advanced TSPL command viewer link
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton.icon(
+                              icon: const Icon(Icons.code_rounded, size: 14),
+                              label: const Text(
+                                'View TSPL Commands (Direct Thermal)',
+                                style: TextStyle(fontSize: 11),
+                              ),
+                              onPressed: _showTsplCodeDialog,
+                            ),
                           ),
                         ],
-
-                        const SizedBox(height: 10),
-
-                        // Options & Toggles
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.04),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0x1AFFFFFF)),
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: SwitchListTile(
-                              contentPadding: EdgeInsets.zero,
-                              dense: true,
-                              title: const Text(
-                                'Print Selling Price (MRP)',
-                                style: TextStyle(color: Colors.white, fontSize: 12),
-                              ),
-                              subtitle: const Text(
-                                'Prints "PRICE: ₹..." on the sticker footer',
-                                style: TextStyle(color: DashboardColors.textMuted, fontSize: 10.5),
-                              ),
-                              activeTrackColor: DashboardColors.neonGreen.withAlpha(128),
-                              activeThumbColor: DashboardColors.neonGreen,
-                              value: _showPrice,
-                              onChanged: (v) => setState(() => _showPrice = v),
-                            ),
-                          ),
-                        ),
-
-                        const Spacer(),
-
-                        // Advanced TSPL command viewer link
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            icon: const Icon(Icons.code_rounded, size: 14),
-                            label: const Text(
-                              'View TSPL Commands (Direct Thermal)',
-                              style: TextStyle(fontSize: 11),
-                            ),
-                            onPressed: _showTsplCodeDialog,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ],
@@ -1066,8 +1251,11 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
             const SizedBox(height: 8),
 
             // 4. DIALOG ACTIONS
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
@@ -1075,21 +1263,34 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                       style: TextStyle(color: DashboardColors.textMuted)),
                 ),
                 Wrap(
-                  spacing: 10,
+                  spacing: 8,
                   runSpacing: 6,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
+                        foregroundColor: DashboardColors.neonPurple,
+                        side: const BorderSide(color: DashboardColors.neonPurple),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                      ),
+                      icon: const Icon(Icons.crop_square_rounded, size: 15),
+                      label: const Text('Print Border Test', style: TextStyle(fontSize: 12)),
+                      onPressed: _isPrinting ? null : _handleBorderTest,
+                    ),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
                         foregroundColor: DashboardColors.neonOrange,
                         side: const BorderSide(color: DashboardColors.neonOrange),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
+                            horizontal: 10, vertical: 8),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
+                            borderRadius: BorderRadius.circular(8)),
                       ),
-                      icon: const Icon(Icons.print_outlined, size: 16),
-                      label: const Text('Test Print (1 Label)'),
+                      icon: const Icon(Icons.print_outlined, size: 15),
+                      label: const Text('Test Print (1 Label)', style: TextStyle(fontSize: 12)),
                       onPressed: _isPrinting ? null : _handleTestPrint,
                     ),
                     OutlinedButton.icon(
@@ -1097,12 +1298,12 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                         foregroundColor: DashboardColors.neonBlue,
                         side: const BorderSide(color: DashboardColors.neonBlue),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
+                            horizontal: 10, vertical: 8),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
+                            borderRadius: BorderRadius.circular(8)),
                       ),
-                      icon: const Icon(Icons.refresh_rounded, size: 16),
-                      label: const Text('Reset'),
+                      icon: const Icon(Icons.refresh_rounded, size: 15),
+                      label: const Text('Reset', style: TextStyle(fontSize: 12)),
                       onPressed: () {
                         setState(() {
                           _items = widget.initialItems
@@ -1116,27 +1317,27 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                         backgroundColor: DashboardColors.neonGreen,
                         foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 18, vertical: 12),
+                            horizontal: 14, vertical: 10),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                       icon: _isPrinting
                           ? const SizedBox(
-                              width: 18,
-                              height: 18,
+                              width: 16,
+                              height: 16,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 color: Colors.black,
                               ),
                             )
-                          : const Icon(Icons.print_rounded, size: 18),
+                          : const Icon(Icons.print_rounded, size: 16),
                       label: Text(
                         _isPrinting
                             ? 'Sending...'
                             : 'Print $_totalLabelsCount Labels',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 13.5,
+                          fontSize: 12.5,
                         ),
                       ),
                       onPressed: _isPrinting ? null : _handlePrint,

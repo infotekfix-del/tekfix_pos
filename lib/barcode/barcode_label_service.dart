@@ -56,12 +56,17 @@ class BarcodeLabelService extends ChangeNotifier {
         marginRight: _config.safetyMarginMm * PdfPageFormat.mm,
       );
 
-  /// Sets label profile (38x25mm or 50x25mm) and persists to settings.
-  Future<void> setProfile(LabelProfile profile) async {
-    await saveSettings(_config.withProfile(profile));
+  /// Sets label preset (38x25mm, 50x25mm, or Custom) and persists to settings.
+  Future<void> setPreset(LabelPreset preset, {double? customWidth, double? customHeight}) async {
+    await saveSettings(_config.withPreset(preset, customWidth: customWidth, customHeight: customHeight));
   }
 
-  /// Sets thermal printing darkness (DENSITY: 1 to 15).
+  /// Sets label profile (alias for setPreset).
+  Future<void> setProfile(LabelProfile profile) async {
+    await setPreset(profile);
+  }
+
+  /// Sets thermal printing darkness (DENSITY: 1 to 15, default 8 per spec).
   Future<void> setDarkness(int darkness) async {
     await saveSettings(_config.copyWith(darkness: darkness.clamp(1, 15)));
   }
@@ -69,6 +74,14 @@ class BarcodeLabelService extends ChangeNotifier {
   /// Sets thermal printing speed (SPEED: 2 to 6).
   Future<void> setSpeed(int speed) async {
     await saveSettings(_config.copyWith(speed: speed.clamp(2, 6)));
+  }
+
+  /// Sets X and Y offsets in millimeters.
+  Future<void> setOffset({double? xOffsetMm, double? yOffsetMm}) async {
+    await saveSettings(_config.copyWith(
+      xOffsetMm: xOffsetMm ?? _config.xOffsetMm,
+      yOffsetMm: yOffsetMm ?? _config.yOffsetMm,
+    ));
   }
 
   /// Initializes the service, loads saved configuration, and discovers printers.
@@ -409,7 +422,7 @@ class BarcodeLabelService extends ChangeNotifier {
     }
   }
 
-  /// Prints a single test label (50 mm x 25 mm).
+  /// Prints a single test label.
   Future<PrintJobResult> printTestLabel({String? printerOverride}) async {
     final target = printerOverride ?? _config.printerName;
     if (target.trim().isEmpty) {
@@ -438,6 +451,46 @@ class BarcodeLabelService extends ChangeNotifier {
       return PrintJobResult(
         success: false,
         message: 'Test print failed: $e',
+        error: e.toString(),
+      );
+    }
+  }
+
+  /// Prints a Border Test rectangle at the label edge to verify even borders on all 4 sides.
+  Future<PrintJobResult> printBorderTest({String? printerOverride}) async {
+    final target = printerOverride ?? _config.printerName;
+    if (target.trim().isEmpty) {
+      return const PrintJobResult(
+        success: false,
+        message: 'No printer selected for border test.',
+        error: 'No printer selected',
+      );
+    }
+
+    _status = PrinterConnectionStatus.printing;
+    notifyListeners();
+
+    try {
+      final tspl = TsplGenerator.generateBorderTestCommand(config: _config);
+      final res = await WindowsRawPrinter.instance.sendRawTspl(
+        printerName: target,
+        tsplCommand: tspl,
+        docName: 'TekFix Border Test',
+        labelsCount: 1,
+      );
+      _status = res.success
+          ? PrinterConnectionStatus.connected
+          : PrinterConnectionStatus.error;
+      _lastError = res.error;
+      notifyListeners();
+      return res;
+    } catch (e) {
+      _status = PrinterConnectionStatus.error;
+      _lastError = e.toString();
+      notifyListeners();
+      return PrintJobResult(
+        success: false,
+        message: 'Border test failed: $e',
         error: e.toString(),
       );
     }
@@ -501,13 +554,6 @@ class BarcodeLabelService extends ChangeNotifier {
         ? price.toStringAsFixed(0)
         : price.toStringAsFixed(2);
 
-    final rawName = item.name.trim();
-    final singleLineName = rawName.replaceAll(RegExp(r'\s+'), ' ');
-    final maxChars = (_config.widthMm <= 40 ? 28 : 40);
-    final truncatedPdfName = singleLineName.length > maxChars
-        ? '${singleLineName.substring(0, maxChars - 3)}...'
-        : singleLineName;
-
     return pw.Container(
       width: double.infinity,
       height: double.infinity,
@@ -515,33 +561,33 @@ class BarcodeLabelService extends ChangeNotifier {
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
-          // 1. HEADER: TEKFIX DIGITAL (7-8pt, bold, single line)
+          // 1. HEADER: TEKFIX DIGITAL (small, centered)
           pw.Text(
             shopName.toUpperCase(),
             maxLines: 1,
             style: const pw.TextStyle(
-              fontSize: 7.5,
+              fontSize: 7.0,
               fontWeight: pw.FontWeight.bold,
               letterSpacing: 0.4,
             ),
           ),
 
-          // 2. PRODUCT NAME (6-7pt, single line, truncated with ellipsis)
+          // 2. PRODUCT NAME (max 2 lines, centered)
           pw.Text(
-            truncatedPdfName,
-            maxLines: 1,
+            item.name.trim(),
+            maxLines: 2,
             overflow: pw.TextOverflow.clip,
             textAlign: pw.TextAlign.center,
             style: const pw.TextStyle(
-              fontSize: 6.5,
+              fontSize: 6.0,
               fontWeight: pw.FontWeight.bold,
             ),
           ),
 
-          // 3. CODE 128 BARCODE (height 10.5mm ≈ 29.8pt, max width 32mm ≈ 90.7pt)
+          // 3. CODE 128 BARCODE (height ~60 dots ≈ 21pt, auto-reduce width)
           pw.Container(
-            height: 29.8,
-            constraints: const pw.BoxConstraints(maxWidth: 90.7),
+            height: 21.0,
+            constraints: const pw.BoxConstraints(maxWidth: 95.0),
             child: pw.BarcodeWidget(
               barcode: barcode,
               data: barcodeData,
@@ -549,7 +595,7 @@ class BarcodeLabelService extends ChangeNotifier {
             ),
           ),
 
-          // 4. HUMAN READABLE TEXT (5.5-6pt below bars, no redundant document IDs)
+          // 4. HUMAN READABLE PRIMARY CODE ONLY (below bars, no ITEM_... line)
           pw.Text(
             barcodeData,
             maxLines: 1,
@@ -559,13 +605,13 @@ class BarcodeLabelService extends ChangeNotifier {
             ),
           ),
 
-          // 5. FOOTER: PRICE: ₹450 (8-9pt, bold, high contrast)
+          // 5. FOOTER: MRP AT THE BOTTOM
           if (hasPrice)
             pw.Text(
-              'PRICE: Rs.$priceVal',
+              'MRP: Rs.$priceVal',
               maxLines: 1,
               style: const pw.TextStyle(
-                fontSize: 8.5,
+                fontSize: 8.0,
                 fontWeight: pw.FontWeight.bold,
               ),
             ),
