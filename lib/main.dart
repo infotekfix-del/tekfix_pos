@@ -58,6 +58,8 @@ import 'pos/daily_sales_ledger_view.dart';
 import 'staff/salary_calculator.dart';
 import 'expenses/expense_management_screen.dart';
 import 'expenses/add_expense_dialog.dart';
+import 'barcode/barcode_print_dialog.dart';
+import 'repairs/service_bill_dialog.dart';
 export 'utils/tek_helpers.dart';
 export 'theme/tek_tokens.dart';
 export 'ui/dashboard/dashboard_screen.dart';
@@ -2512,24 +2514,48 @@ class _ItemsViewState extends State<ItemsView> {
                                           : 'Stock $stock',
                                       low ? Colors.red : Colors.green,
                                     ),
-                                    InkWell(
-                                      onTap: () async {
-                                        if (await guardedDelete(context,
-                                            '"${it['name']}" ഡിലീറ്റ് ചെയ്യണോ?')) {
-                                          await Db.logAction(
-                                              action: 'Product Deleted',
-                                              entity: 'Product',
-                                              entityId: '${e.key}',
-                                              oldValue: it);
-                                          await Db.items.delete(e.key);
-                                        }
-                                      },
-                                      child: Padding(
-                                        padding: const EdgeInsets.only(
-                                            top: 6, left: 6),
-                                        child: Icon(Icons.delete_outline,
-                                            size: 20, color: _muted(context)),
-                                      ),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        InkWell(
+                                          onTap: () {
+                                            BarcodePrintDialog.showForSingleProduct(
+                                              context,
+                                              itemKey: e.key,
+                                              name: '${it['name'] ?? ''}',
+                                              existingBarcode:
+                                                  '${it['barcode'] ?? it['code'] ?? it['sku'] ?? ''}',
+                                              sellingPrice: (it['sellingPrice'] as num?)?.toDouble() ??
+                                                  (it['price'] as num?)?.toDouble(),
+                                              initialQuantity: 1,
+                                            );
+                                          },
+                                          child: const Padding(
+                                            padding: EdgeInsets.only(top: 6, right: 6),
+                                            child: Icon(Icons.qr_code_2_rounded,
+                                                size: 20, color: DashboardColors.neonBlue),
+                                          ),
+                                        ),
+                                        InkWell(
+                                          onTap: () async {
+                                            if (await guardedDelete(context,
+                                                '"${it['name']}" ഡിലീറ്റ് ചെയ്യണോ?')) {
+                                              await Db.logAction(
+                                                  action: 'Product Deleted',
+                                                  entity: 'Product',
+                                                  entityId: '${e.key}',
+                                                  oldValue: it);
+                                              await Db.items.delete(e.key);
+                                            }
+                                          },
+                                          child: Padding(
+                                            padding: const EdgeInsets.only(
+                                                top: 6, left: 6),
+                                            child: Icon(Icons.delete_outline,
+                                                size: 20, color: _muted(context)),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
@@ -4283,175 +4309,7 @@ class _ServicesViewState extends State<ServicesView> {
 
   Future<void> _billNow(
       BuildContext context, dynamic key, Map<String, dynamic> job) async {
-    if (job['billCreated'] == true) {
-      toast(context, 'ഈ Job-ന് ബിൽ ഇതിനകം സൃഷ്ടിച്ചിട്ടുണ്ട്', error: true);
-      return;
-    }
-    final serviceCharge =
-        TextEditingController(text: _numText(job['estimatedCost'] ?? 0));
-    final partsCharge = TextEditingController(text: '0');
-    final labour = TextEditingController(text: '0');
-    final discount = TextEditingController(text: '0');
-    final partsUsage = TextEditingController();
-    String mode = 'Cash';
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, set) => AlertDialog(
-          title: Text('Service Bill • ${job['jobId']}'),
-          content: SingleChildScrollView(
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-            tf(serviceCharge, 'Service Charge ₹', number: true),
-            tf(partsCharge, 'Spare Parts Charge ₹', number: true),
-            tf(labour, 'Labour Charge ₹', number: true),
-            tf(discount, 'Discount ₹', number: true),
-            tf(partsUsage,
-                'Stock parts used (Product Name:Qty, comma-separated)',
-                lines: 2),
-            const SizedBox(height: 8),
-            ModeSelector(value: mode, onChanged: (v) => set(() => mode = v)),
-            const SizedBox(height: 8),
-            Text('Advance already received: ${rs(_d(job['advance']))}'),
-          ])),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
-            FilledButton(
-                onPressed: () {
-                  final gross = _d(serviceCharge.text) +
-                      _d(partsCharge.text) +
-                      _d(labour.text) -
-                      _d(discount.text);
-                  if (gross < 0 || _d(discount.text) < 0) {
-                    toast(ctx, 'തുക ശരിയാക്കുക', error: true);
-                    return;
-                  }
-                  Navigator.pop(ctx, {'total': _r2(gross), 'mode': mode});
-                },
-                child: const Text('Create Bill')),
-          ],
-        ),
-      ),
-    );
-    final partsText = partsUsage.text;
-    for (final c in [
-      serviceCharge,
-      partsCharge,
-      labour,
-      discount,
-      partsUsage
-    ]) {
-      c.dispose();
-    }
-    if (result == null || !context.mounted) return;
-    final total = _d(result['total']);
-    final advance = _d(job['advance']);
-    final requestedParts = <MapEntry<dynamic, int>>[];
-    for (final token in partsText.split(',')) {
-      if (token.trim().isEmpty) continue;
-      final split = token.split(':');
-      if (split.length != 2 || (int.tryParse(split.last.trim()) ?? 0) <= 0) {
-        toast(context, 'Spare parts format: Product Name:Qty', error: true);
-        return;
-      }
-      final name = split.first.trim().toLowerCase();
-      final match = entriesOf(Db.items)
-          .where((e) => '${e.value['name']}'.trim().toLowerCase() == name)
-          .toList();
-      if (match.isEmpty) {
-        toast(context, 'Stock item കണ്ടെത്തിയില്ല: ${split.first.trim()}',
-            error: true);
-        return;
-      }
-      requestedParts
-          .add(MapEntry(match.first.key, int.parse(split.last.trim())));
-    }
-    // Aggregate duplicates, then verify stock.
-    final need = <dynamic, int>{};
-    for (final p in requestedParts) {
-      need[p.key] = (need[p.key] ?? 0) + p.value;
-    }
-    for (final n in need.entries) {
-      final item = _m(Db.items.get(n.key));
-      if (_i(item['stock']) < n.value) {
-        toast(context, '${item['name']} stock മതിയാകില്ല', error: true);
-        return;
-      }
-    }
-    if (total < advance) {
-      toast(context, 'Final bill advance-നേക്കാൾ കുറവാണ്.', error: true);
-      return;
-    }
-    final due = _r2((total - advance).clamp(0, double.infinity).toDouble());
-    final appliedAdvance = _r2(total < advance ? total : advance);
-    final invoice = await Db.nextInvoice();
-    final usedParts = <Map<String, dynamic>>[];
-    double partsCost = 0;
-    for (final n in need.entries) {
-      final item = _m(Db.items.get(n.key));
-      item['stock'] = _i(item['stock']) - n.value;
-      await Db.items.put(n.key, item);
-      partsCost += _d(item['costPrice']) * n.value;
-      usedParts.add({'key': n.key, 'name': item['name'], 'qty': n.value});
-      await Db.stockMove(
-          n.key, '${item['name']}', -n.value, 'Service ${job['jobId']}');
-    }
-    final bill = <String, dynamic>{
-      'invoice': invoice,
-      'createdAt': DateTime.now().toIso8601String(),
-      'customerName': job['customerName'],
-      'customerPhone': job['phone'],
-      'partyKey': null,
-      'items': [
-        {
-          'name': 'Service ${job['jobId']} • ${job['brandModel']}',
-          'qty': 1,
-          'price': total,
-          'costPrice': partsCost,
-          'warranty': '${_i(job['warrantyDays'])} days'
-        }
-      ],
-      'subtotal': total,
-      'discount': 0,
-      'total': total,
-      'cash': result['mode'] == 'Cash' ? due : 0,
-      'upi': result['mode'] == 'Cash' ? 0 : due,
-      'due': 0,
-      'profit': _r2(total - partsCost),
-      'gstRate': double.tryParse(Db.setting('gst_rate', '0')) ?? 0.0,
-      'serviceJobId': job['jobId'],
-      'serviceAdvanceApplied': appliedAdvance,
-      'serviceBill': true,
-      'status': 'SOLD',
-      ...ActivityLog.stamp(),
-    };
-    await Db.sales.add(bill);
-    await Db.logAction(
-        action: 'Service Billed',
-        entity: 'Invoice',
-        entityId: invoice,
-        newValue: {'job': job['jobId'], 'total': total});
-    if (due > 0) {
-      await Db.moveMoney('${result['mode']}', due, 'Service bill $invoice');
-    }
-    final next = Map<String, dynamic>.from(job);
-    next['finalAmount'] = total;
-    next['paidAmount'] = total;
-    next['advanceApplied'] = appliedAdvance;
-    next['billCreated'] = true;
-    next['invoice'] = invoice;
-    next['parts'] = usedParts;
-    next['status'] = 'Ready';
-    next['warrantyStart'] = DateTime.now().toIso8601String();
-    next['warrantyEnd'] = DateTime.now()
-        .add(Duration(days: _i(job['warrantyDays'])))
-        .toIso8601String();
-    await Db.services.put(key, next);
-    if (context.mounted) {
-      toast(context, 'Service invoice $invoice സൃഷ്ടിച്ചു.');
-      await printInvoice(context, bill, a4: true);
-    }
+    await ServiceBillDialog.show(context, jobKey: key, job: job);
   }
 
   Future<void> _notify(

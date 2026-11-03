@@ -1,82 +1,164 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../main.dart' show Db;
 import '../utils/tek_helpers.dart';
+import 'barcode_label_models.dart';
+import 'tspl_generator.dart';
+import 'windows_raw_printer.dart';
 
-/// Represents a single item to be printed on a barcode label.
-class BarcodeLabelItem {
-  final dynamic itemKey;
-  final String itemId;
-  final String name;
-  final String model;
-  final String brand;
-  String barcode;
-  double? sellingPrice;
-  int quantity;
+export 'barcode_label_models.dart';
+export 'tspl_generator.dart';
+export 'windows_raw_printer.dart';
 
-  BarcodeLabelItem({
-    this.itemKey,
-    this.itemId = '',
-    required this.name,
-    this.model = '',
-    this.brand = '',
-    required this.barcode,
-    this.sellingPrice,
-    this.quantity = 1,
-  });
-
-  BarcodeLabelItem copyWith({
-    dynamic itemKey,
-    String? itemId,
-    String? name,
-    String? model,
-    String? brand,
-    String? barcode,
-    double? sellingPrice,
-    int? quantity,
-  }) {
-    return BarcodeLabelItem(
-      itemKey: itemKey ?? this.itemKey,
-      itemId: itemId ?? this.itemId,
-      name: name ?? this.name,
-      model: model ?? this.model,
-      brand: brand ?? this.brand,
-      barcode: barcode ?? this.barcode,
-      sellingPrice: sellingPrice ?? this.sellingPrice,
-      quantity: quantity ?? this.quantity,
-    );
-  }
-}
-
-/// Service configured specifically for TVS LP 46 Lite and standard 38 mm x 25 mm barcode labels.
-class BarcodeLabelService {
+/// Centralized Barcode Label Printing Service for TekFix ERP.
+/// Standardized for TVS LP 46 Lite and LP 44 Lite on 50 mm x 25 mm die-cut labels with 3 mm gap.
+class BarcodeLabelService extends ChangeNotifier {
   BarcodeLabelService._();
   static final BarcodeLabelService instance = BarcodeLabelService._();
 
-  // ---------------------------------------------------------------------------
-  // CONSTANTS: TVS LP 46 LITE & 38 x 25 MM SPECIFICATIONS
-  // ---------------------------------------------------------------------------
-  static const double labelWidthMm = 38.0;
-  static const double labelHeightMm = 25.0;
-  static const String defaultShopName = 'TEKFIX DIGITAL';
+  static const String settingsKey = 'barcode_printer_config';
+  static const String defaultStoreName = 'TEKFIX DIGITAL';
 
-  /// Standard PdfPageFormat matching physical sticker dimensions (38mm x 25mm).
-  /// Margins: 1.0mm top/bottom, 1.2mm left/right to maximize printable area
-  /// while preventing clipping on thermal printer edges.
+  PrinterConfig _config = const PrinterConfig();
+  PrinterConnectionStatus _status = PrinterConnectionStatus.disconnected;
+  List<PrinterDevice> _availablePrinters = [];
+  String? _lastError;
+  bool _isInitialized = false;
+
+  // Getters
+  PrinterConfig get config => _config;
+  PrinterConnectionStatus get status => _status;
+  List<PrinterDevice> get availablePrinters => _availablePrinters;
+  String? get lastError => _lastError;
+  bool get isConnected => _status == PrinterConnectionStatus.connected;
+  bool get isPrinting => _status == PrinterConnectionStatus.printing;
+
+  // ---------------------------------------------------------------------------
+  // 1. SPECIFICATIONS: 50 mm x 25 mm at 203 DPI (8 dots/mm) with 3 mm GAP
+  // ---------------------------------------------------------------------------
+  static const double labelWidthMm = 50.0;
+  static const double labelHeightMm = 25.0;
+  static const double labelGapMm = 3.0;
+
+  /// Standard PdfPageFormat matching physical sticker dimensions (50 mm x 25 mm).
+  /// Margins: 1.5 mm on all sides (12 dots).
   static PdfPageFormat get pageFormat => const PdfPageFormat(
         labelWidthMm * PdfPageFormat.mm,
         labelHeightMm * PdfPageFormat.mm,
-        marginTop: 1.0 * PdfPageFormat.mm,
-        marginBottom: 1.0 * PdfPageFormat.mm,
-        marginLeft: 1.2 * PdfPageFormat.mm,
-        marginRight: 1.2 * PdfPageFormat.mm,
+        marginTop: 1.5 * PdfPageFormat.mm,
+        marginBottom: 1.5 * PdfPageFormat.mm,
+        marginLeft: 1.5 * PdfPageFormat.mm,
+        marginRight: 1.5 * PdfPageFormat.mm,
       );
 
+  /// Initializes the service, loads saved configuration, and discovers printers.
+  Future<void> initialize() async {
+    if (_isInitialized) return;
+    await loadSettings();
+    await refreshPrinters();
+    _isInitialized = true;
+    notifyListeners();
+  }
+
+  /// Loads printer configuration from Hive storage.
+  Future<void> loadSettings() async {
+    try {
+      if (Hive.isBoxOpen('tek_settings')) {
+        final box = Hive.box('tek_settings');
+        final raw = box.get(settingsKey);
+        if (raw is Map) {
+          _config = PrinterConfig.fromMap(raw);
+        }
+      }
+    } catch (e) {
+      debugPrint('BarcodeLabelService: Error loading settings: $e');
+    }
+  }
+
+  /// Persists printer configuration to Hive.
+  Future<void> saveSettings(PrinterConfig newConfig) async {
+    _config = newConfig;
+    try {
+      if (Hive.isBoxOpen('tek_settings')) {
+        final box = Hive.box('tek_settings');
+        await box.put(settingsKey, newConfig.toMap());
+      }
+    } catch (e) {
+      debugPrint('BarcodeLabelService: Error saving settings: $e');
+    }
+    notifyListeners();
+  }
+
+  /// Discovers installed and connected printers.
+  Future<void> refreshPrinters() async {
+    _status = PrinterConnectionStatus.connecting;
+    notifyListeners();
+
+    try {
+      if (Platform.isWindows) {
+        _availablePrinters = await WindowsRawPrinter.instance.listPrinters();
+      } else {
+        final pList = await Printing.listPrinters();
+        _availablePrinters = pList
+            .map((p) => PrinterDevice(
+                  name: p.name,
+                  driver: p.model ?? '',
+                  port: p.url,
+                  isDefault: p.isDefault,
+                ))
+            .toList();
+      }
+
+      // Automatically connect to TVS LP 46 Lite or saved printer
+      if (_config.printerName.isNotEmpty &&
+          _availablePrinters.any((p) => p.name == _config.printerName)) {
+        _status = PrinterConnectionStatus.connected;
+      } else {
+        // Auto-select preferred TVS LP 46 / TT065 printer
+        final tvs = _availablePrinters.firstWhere(
+          (p) => p.isTargetTvs,
+          orElse: () => _availablePrinters.isNotEmpty
+              ? _availablePrinters.first
+              : const PrinterDevice(name: ''),
+        );
+        if (tvs.name.isNotEmpty) {
+          await saveSettings(_config.copyWith(printerName: tvs.name));
+          _status = PrinterConnectionStatus.connected;
+        } else {
+          _status = PrinterConnectionStatus.disconnected;
+        }
+      }
+      _lastError = null;
+    } catch (e) {
+      _status = PrinterConnectionStatus.error;
+      _lastError = e.toString();
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  /// Sets the active printer.
+  Future<void> selectPrinter(String printerName) async {
+    await saveSettings(_config.copyWith(printerName: printerName));
+    _status = printerName.isNotEmpty
+        ? PrinterConnectionStatus.connected
+        : PrinterConnectionStatus.disconnected;
+    notifyListeners();
+  }
+
+  /// Disconnects the active printer.
+  void disconnectPrinter() {
+    _status = PrinterConnectionStatus.disconnected;
+    notifyListeners();
+  }
+
   // ---------------------------------------------------------------------------
-  // 1. UNIQUE BARCODE GENERATION & PERMANENT DB STORAGE
+  // 2. UNIQUE BARCODE GENERATION & PERMANENT DB STORAGE
   // ---------------------------------------------------------------------------
 
   /// Generates a clean, unique Code 128 scannable barcode string.
@@ -87,7 +169,6 @@ class BarcodeLabelService {
     final suffix = millisPart.substring(millisPart.length - 6);
     var candidate = '$prefix$suffix';
 
-    // Verify uniqueness in local Db.items
     int attempts = 0;
     while (_isBarcodeInUse(candidate) && attempts < 100) {
       attempts++;
@@ -111,7 +192,11 @@ class BarcodeLabelService {
 
   /// Ensures that an item has a barcode. If missing, generates a unique barcode
   /// and permanently writes it to the product in Db.items.
-  Future<String> ensureItemHasBarcode(dynamic itemKey, {String? defaultBarcode, double? sellingPrice}) async {
+  Future<String> ensureItemHasBarcode(
+    dynamic itemKey, {
+    String? defaultBarcode,
+    double? sellingPrice,
+  }) async {
     if (itemKey == null || !Db.items.containsKey(itemKey)) {
       return defaultBarcode?.trim().isNotEmpty == true
           ? defaultBarcode!.trim()
@@ -119,13 +204,13 @@ class BarcodeLabelService {
     }
 
     final raw = tekM(Db.items.get(itemKey));
-    String existing = '${raw['barcode'] ?? raw['code'] ?? raw['sku'] ?? ''}'.trim();
+    String existing =
+        '${raw['barcode'] ?? raw['code'] ?? raw['sku'] ?? ''}'.trim();
 
     if (existing.isNotEmpty) {
       return existing;
     }
 
-    // Generate new permanent barcode
     final newBarcode = defaultBarcode?.trim().isNotEmpty == true
         ? defaultBarcode!.trim()
         : generateUniqueBarcode();
@@ -139,7 +224,8 @@ class BarcodeLabelService {
       updated['sku'] = newBarcode;
     }
     if (sellingPrice != null && sellingPrice > 0) {
-      if ((updated['price'] as num?) == null || (updated['price'] as num) == 0) {
+      if ((updated['price'] as num?) == null ||
+          (updated['price'] as num) == 0) {
         updated['price'] = sellingPrice;
         updated['sellingPrice'] = sellingPrice;
       }
@@ -166,18 +252,179 @@ class BarcodeLabelService {
   }
 
   // ---------------------------------------------------------------------------
-  // 2. CODE 128 BARCODE PDF GENERATION (38 mm x 25 mm)
+  // 3. TSPL DIRECT HARDWARE PRINTING ENGINE
   // ---------------------------------------------------------------------------
 
-  /// Generates a PDF document with exact 38 mm x 25 mm pages for each label.
-  /// If an item has quantity = 10, exactly 10 individual pages are generated.
+  /// Prints barcode labels directly using native TSPL commands on Windows,
+  /// or falls back to PDF printing on other platforms.
+  /// Prevents blank label skipping during single-label and multi-label printing.
+  Future<PrintJobResult> printLabels({
+    required List<BarcodeLabelItem> items,
+    bool showPrice = true,
+    String? printerOverride,
+  }) async {
+    final validItems = items.where((it) => it.quantity > 0).toList();
+    if (validItems.isEmpty) {
+      return const PrintJobResult(
+        success: false,
+        message: 'No labels to print (Quantities are 0)',
+        error: 'Zero quantity',
+      );
+    }
+
+    final targetPrinter = printerOverride ?? _config.printerName;
+    if (targetPrinter.trim().isEmpty) {
+      return const PrintJobResult(
+        success: false,
+        message: 'Please select a printer before printing.',
+        error: 'No printer selected',
+      );
+    }
+
+    final totalCount = validItems.fold<int>(0, (sum, it) => sum + it.quantity);
+    _status = PrinterConnectionStatus.printing;
+    _lastError = null;
+    notifyListeners();
+
+    try {
+      if (Platform.isWindows && _config.useDirectRaw) {
+        // Generate pure TSPL commands specifically for 50x25mm with 3mm gap
+        final tsplCommands = TsplGenerator.generateJob(
+          items: validItems,
+          config: _config,
+          showPrice: showPrice,
+        );
+
+        debugPrint('BarcodeLabelService: Sending raw TSPL commands to "$targetPrinter"');
+        final result = await WindowsRawPrinter.instance.sendRawTspl(
+          printerName: targetPrinter,
+          tsplCommand: tsplCommands,
+          docName: 'TekFix 50x25mm Barcode Labels',
+          labelsCount: totalCount,
+        );
+
+        if (result.success) {
+          _status = PrinterConnectionStatus.connected;
+        } else {
+          _status = PrinterConnectionStatus.error;
+          _lastError = result.error;
+        }
+        notifyListeners();
+        return result;
+      } else {
+        // Cross-platform PDF Fallback (exact 50x25mm page size)
+        final pdfBytes = await generateLabelsPdf(
+          items: validItems,
+          showPrice: showPrice,
+          shopName: _config.storeName,
+        );
+
+        await Printing.layoutPdf(
+          name: 'TekFix_Barcode_50x25mm',
+          format: pageFormat,
+          onLayout: (PdfPageFormat format) async => pdfBytes,
+        );
+
+        _status = PrinterConnectionStatus.connected;
+        notifyListeners();
+        return PrintJobResult(
+          success: true,
+          message: 'Printed $totalCount label(s) successfully.',
+          labelsPrinted: totalCount,
+        );
+      }
+    } catch (e) {
+      _status = PrinterConnectionStatus.error;
+      _lastError = e.toString();
+      notifyListeners();
+      return PrintJobResult(
+        success: false,
+        message: 'Print failed: $e',
+        error: e.toString(),
+      );
+    }
+  }
+
+  /// Sends the Gap Sensor Calibration command to TVS LP 46 Lite.
+  Future<PrintJobResult> calibratePrinter({String? printerOverride}) async {
+    final target = printerOverride ?? _config.printerName;
+    if (target.trim().isEmpty) {
+      return const PrintJobResult(
+        success: false,
+        message: 'No printer selected for calibration.',
+        error: 'No printer selected',
+      );
+    }
+
+    _status = PrinterConnectionStatus.printing;
+    notifyListeners();
+
+    try {
+      final res = await WindowsRawPrinter.instance.calibrate(target);
+      _status = res.success
+          ? PrinterConnectionStatus.connected
+          : PrinterConnectionStatus.error;
+      _lastError = res.error;
+      notifyListeners();
+      return res;
+    } catch (e) {
+      _status = PrinterConnectionStatus.error;
+      _lastError = e.toString();
+      notifyListeners();
+      return PrintJobResult(
+        success: false,
+        message: 'Calibration failed: $e',
+        error: e.toString(),
+      );
+    }
+  }
+
+  /// Prints a single test label (50 mm x 25 mm).
+  Future<PrintJobResult> printTestLabel({String? printerOverride}) async {
+    final target = printerOverride ?? _config.printerName;
+    if (target.trim().isEmpty) {
+      return const PrintJobResult(
+        success: false,
+        message: 'No printer selected for test printing.',
+        error: 'No printer selected',
+      );
+    }
+
+    _status = PrinterConnectionStatus.printing;
+    notifyListeners();
+
+    try {
+      final res = await WindowsRawPrinter.instance.testPrint(target, config: _config);
+      _status = res.success
+          ? PrinterConnectionStatus.connected
+          : PrinterConnectionStatus.error;
+      _lastError = res.error;
+      notifyListeners();
+      return res;
+    } catch (e) {
+      _status = PrinterConnectionStatus.error;
+      _lastError = e.toString();
+      notifyListeners();
+      return PrintJobResult(
+        success: false,
+        message: 'Test print failed: $e',
+        error: e.toString(),
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 4. CODE 128 BARCODE PDF GENERATION (50 mm x 25 mm)
+  // ---------------------------------------------------------------------------
+
+  /// Generates a PDF document with exact 50 mm x 25 mm pages.
   Future<Uint8List> generateLabelsPdf({
     required List<BarcodeLabelItem> items,
     bool showPrice = true,
-    String shopName = defaultShopName,
+    String shopName = defaultStoreName,
   }) async {
     final doc = pw.Document(
-      title: 'TekFix Barcode Labels',
+      title: 'TekFix Barcode Labels 50x25mm',
       author: 'TekFix POS',
     );
 
@@ -186,7 +433,8 @@ class BarcodeLabelService {
     for (final item in items) {
       final qty = item.quantity.clamp(1, 9999);
       final rawBarcode = item.barcode.trim();
-      final barcodeData = rawBarcode.isNotEmpty ? rawBarcode : generateUniqueBarcode();
+      final barcodeData =
+          rawBarcode.isNotEmpty ? rawBarcode : generateUniqueBarcode();
 
       for (int i = 0; i < qty; i++) {
         doc.addPage(
@@ -209,8 +457,7 @@ class BarcodeLabelService {
     return await doc.save();
   }
 
-  /// Layout optimized specifically for 38 mm x 25 mm label without overflow.
-  /// Total available height is ~65 points (23 mm), width is ~99 points (35 mm).
+  /// Accurate physical representation for 50 mm x 25 mm layout.
   pw.Widget _buildLabelWidget({
     required BarcodeLabelItem item,
     required String barcodeData,
@@ -218,8 +465,8 @@ class BarcodeLabelService {
     required bool showPrice,
     required String shopName,
   }) {
-    final hasModel = item.model.trim().isNotEmpty;
     final hasPrice = showPrice && (item.sellingPrice != null && item.sellingPrice! > 0);
+    final itemCode = item.itemCode.isNotEmpty ? item.itemCode : barcodeData;
 
     return pw.Container(
       width: double.infinity,
@@ -228,45 +475,33 @@ class BarcodeLabelService {
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
-          // 1. SHOP NAME HEADER
+          // 1. STORE NAME
           pw.Text(
             shopName.toUpperCase(),
             maxLines: 1,
             style: pw.TextStyle(
-              fontSize: 6.2,
+              fontSize: 7.0,
               fontWeight: pw.FontWeight.bold,
-              letterSpacing: 0.3,
+              letterSpacing: 0.5,
             ),
           ),
 
           // 2. PRODUCT NAME
           pw.Text(
             item.name.trim(),
-            maxLines: 1,
+            maxLines: 2,
             overflow: pw.TextOverflow.clip,
             textAlign: pw.TextAlign.center,
             style: pw.TextStyle(
-              fontSize: 5.5,
+              fontSize: 6.0,
               fontWeight: pw.FontWeight.bold,
             ),
           ),
 
-          // 3. PRODUCT MODEL (if present)
-          if (hasModel)
-            pw.Text(
-              'Model: ${item.model.trim()}',
-              maxLines: 1,
-              overflow: pw.TextOverflow.clip,
-              style: const pw.TextStyle(
-                fontSize: 4.5,
-              ),
-            ),
-
-          // 4. GENUINE CODE 128 BARCODE GRAPHIC
-          // Height: ~21 pt (~7.4 mm) for fast omnidirectional scanning
+          // 3. CODE 128 BARCODE
           pw.Container(
-            height: hasModel ? 19.5 : 22.0,
-            width: 92.0,
+            height: 25.0,
+            width: 120.0,
             child: pw.BarcodeWidget(
               barcode: barcode,
               data: barcodeData,
@@ -274,107 +509,41 @@ class BarcodeLabelService {
             ),
           ),
 
-          // 5. BARCODE / SKU NUMBER
+          // 4. BARCODE NUMBER
           pw.Text(
             barcodeData,
             maxLines: 1,
             style: const pw.TextStyle(
-              fontSize: 5.0,
-              letterSpacing: 0.6,
+              fontSize: 6.0,
+              letterSpacing: 0.8,
             ),
           ),
 
-          // 6. SELLING PRICE (MRP)
-          if (hasPrice)
-            pw.Text(
-              'MRP: Rs. ${item.sellingPrice!.toStringAsFixed(2)}',
-              maxLines: 1,
-              style: pw.TextStyle(
-                fontSize: 5.8,
-                fontWeight: pw.FontWeight.bold,
-              ),
-            )
-          else
-            pw.SizedBox(height: 1),
+          // 5. ITEM CODE / MRP
+          pw.Text(
+            hasPrice
+                ? '$itemCode • Rs.${item.sellingPrice!.toStringAsFixed(0)}'
+                : itemCode,
+            maxLines: 1,
+            style: pw.TextStyle(
+              fontSize: 6.0,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // 3. PRINT DISPATCHING VIA NATIVE WINDOWS / TVS DRIVER
-  // ---------------------------------------------------------------------------
-
-  /// Opens the native print dialog or sends directly to the TVS LP 46 Lite driver.
-  Future<void> printLabels(
-    BuildContext context, {
-    required List<BarcodeLabelItem> items,
-    bool showPrice = true,
-    String shopName = defaultShopName,
-    String jobName = 'TVS_LP46_Barcode_Job',
-  }) async {
-    try {
-      final pdfBytes = await generateLabelsPdf(
-        items: items,
-        showPrice: showPrice,
-        shopName: shopName,
-      );
-
-      // Use native print dialog so the user can select TVS LP 46 Lite
-      await Printing.layoutPdf(
-        name: jobName,
-        format: pageFormat,
-        onLayout: (PdfPageFormat format) async => pdfBytes,
-      );
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Print failed: $e'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // 4. TSPL COMMAND GENERATOR (FOR DIRECT THERMAL COMMUNICATOR)
-  // ---------------------------------------------------------------------------
-
-  /// Generates direct TSPL2 commands supported natively by TVS LP 46 Lite & TSC printers.
+  /// Generates the raw TSPL commands string for review or manual export.
   String generateTsplCommands({
     required List<BarcodeLabelItem> items,
     bool showPrice = true,
-    String shopName = defaultShopName,
   }) {
-    final buffer = StringBuffer();
-
-    for (final item in items) {
-      final qty = item.quantity.clamp(1, 9999);
-      final rawBarcode = item.barcode.trim();
-      final barcodeData = rawBarcode.isNotEmpty ? rawBarcode : generateUniqueBarcode();
-      final priceStr = showPrice && (item.sellingPrice != null && item.sellingPrice! > 0)
-          ? 'MRP: Rs. ${item.sellingPrice!.toStringAsFixed(2)}'
-          : '';
-
-      buffer.writeln('SIZE 38 mm, 25 mm');
-      buffer.writeln('GAP 2 mm, 0 mm');
-      buffer.writeln('DIRECTION 1');
-      buffer.writeln('CLS');
-      buffer.writeln('TEXT 152,10,"2",0,1,1,"$shopName"');
-      buffer.writeln('TEXT 152,32,"1",0,1,1,"${item.name}"');
-      if (item.model.isNotEmpty) {
-        buffer.writeln('TEXT 152,50,"1",0,1,1,"Model: ${item.model}"');
-      }
-      buffer.writeln('BARCODE 28,68,"128",50,1,0,2,2,"$barcodeData"');
-      if (priceStr.isNotEmpty) {
-        buffer.writeln('TEXT 152,148,"2",0,1,1,"$priceStr"');
-      }
-      buffer.writeln('PRINT $qty,1');
-      buffer.writeln();
-    }
-
-    return buffer.toString();
+    return TsplGenerator.generateJob(
+      items: items,
+      config: _config,
+      showPrice: showPrice,
+    );
   }
 }

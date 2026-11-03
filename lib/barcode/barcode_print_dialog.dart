@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../main.dart' show Db;
@@ -7,7 +8,8 @@ import '../ui/tek_feedback.dart';
 import '../utils/tek_helpers.dart';
 import 'barcode_label_service.dart';
 
-/// Modal dialog to configure and print barcode labels on TVS LP 46 Lite (38 mm x 25 mm).
+/// Modal dialog to configure, preview, and print barcode labels on TVS LP 46 Lite / LP 44 Lite.
+/// Standardized for 50 mm × 25 mm stickers with 3 mm die-cut gap at 203 DPI (TSPL RAW).
 class BarcodePrintDialog extends StatefulWidget {
   final List<BarcodeLabelItem> initialItems;
   final String title;
@@ -56,7 +58,6 @@ class BarcodePrintDialog extends StatefulWidget {
           brand: it.brand,
           barcode: barcode,
           sellingPrice: sellingPrice,
-          // Requirement 9: Default quantity to purchased quantity (e.g. 10 if 10 purchased)
           quantity: it.quantity > 0 ? it.quantity : 1,
         ),
       );
@@ -122,15 +123,29 @@ class BarcodePrintDialog extends StatefulWidget {
 }
 
 class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
+  final BarcodeLabelService _service = BarcodeLabelService.instance;
   late List<BarcodeLabelItem> _items;
   bool _showPrice = true;
   bool _isPrinting = false;
+  bool _isCalibrating = false;
   int _selectedPreviewIndex = 0;
 
   @override
   void initState() {
     super.initState();
     _items = widget.initialItems.map((e) => e.copyWith()).toList();
+    _service.addListener(_onServiceChanged);
+    _service.initialize();
+  }
+
+  @override
+  void dispose() {
+    _service.removeListener(_onServiceChanged);
+    super.dispose();
+  }
+
+  void _onServiceChanged() {
+    if (mounted) setState(() {});
   }
 
   int get _totalLabelsCount =>
@@ -145,10 +160,10 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
 
     setState(() => _isPrinting = true);
     try {
-      // 1. Ensure any edited barcodes are saved permanently in Db.items (Requirement 10)
+      // 1. Ensure any edited barcodes are saved permanently in Db.items
       for (final it in validItems) {
         if (it.itemKey != null && it.barcode.trim().isNotEmpty) {
-          await BarcodeLabelService.instance.saveItemBarcode(
+          await _service.saveItemBarcode(
             it.itemKey,
             it.barcode.trim(),
             price: it.sellingPrice,
@@ -156,17 +171,71 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
         }
       }
 
-      // 2. Dispatch print job using native printer dialog with exact 38x25mm specs
+      // 2. Dispatch direct TSPL print job to TVS LP 46 Lite
+      final result = await _service.printLabels(
+        items: validItems,
+        showPrice: _showPrice,
+      );
+
       if (mounted) {
-        await BarcodeLabelService.instance.printLabels(
-          context,
-          items: validItems,
-          showPrice: _showPrice,
-          jobName: 'TVS_LP46_38x25mm_Labels',
-        );
+        if (result.success) {
+          TekFeedback.success(
+            result.message.isNotEmpty
+                ? result.message
+                : 'Successfully sent $_totalLabelsCount labels to TVS LP 46 Lite.',
+          );
+          Navigator.of(context).pop();
+        } else {
+          TekFeedback.error(result.message);
+        }
       }
     } catch (e) {
-      TekFeedback.error('Print Error: $e');
+      if (mounted) TekFeedback.error('Print Error: $e');
+    } finally {
+      if (mounted) setState(() => _isPrinting = false);
+    }
+  }
+
+  Future<void> _handleCalibrate() async {
+    setState(() => _isCalibrating = true);
+    try {
+      final res = await _service.calibratePrinter();
+      if (mounted) {
+        if (res.success) {
+          TekFeedback.success('TVS LP 46 Lite Gap Sensor calibrated successfully (GAPDETECT).');
+        } else {
+          TekFeedback.error(res.message);
+        }
+      }
+    } catch (e) {
+      if (mounted) TekFeedback.error('Calibration error: $e');
+    } finally {
+      if (mounted) setState(() => _isCalibrating = false);
+    }
+  }
+
+  Future<void> _handleTestPrint() async {
+    final preview = _items.isNotEmpty
+        ? _items[_selectedPreviewIndex.clamp(0, _items.length - 1)]
+        : null;
+    if (preview == null) return;
+
+    setState(() => _isPrinting = true);
+    try {
+      final testItem = preview.copyWith(quantity: 1);
+      final res = await _service.printLabels(
+        items: [testItem],
+        showPrice: _showPrice,
+      );
+      if (mounted) {
+        if (res.success) {
+          TekFeedback.success('Test label printed successfully on 50 mm × 25 mm sticker.');
+        } else {
+          TekFeedback.error(res.message);
+        }
+      }
+    } catch (e) {
+      if (mounted) TekFeedback.error('Test print failed: $e');
     } finally {
       if (mounted) setState(() => _isPrinting = false);
     }
@@ -174,7 +243,7 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
 
   void _showTsplCodeDialog() {
     final validItems = _items.where((it) => it.quantity > 0).toList();
-    final tspl = BarcodeLabelService.instance.generateTsplCommands(
+    final tspl = _service.generateTsplCommands(
       items: validItems,
       showPrice: _showPrice,
     );
@@ -192,14 +261,14 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
             const Icon(Icons.code_rounded, color: DashboardColors.neonBlue),
             const SizedBox(width: 8),
             const Text(
-              'TVS LP 46 Lite TSPL Commands',
+              'TVS LP 46 Lite Native TSPL Commands',
               style: TextStyle(color: Colors.white, fontSize: 16),
             ),
           ],
         ),
         content: Container(
-          width: 520,
-          height: 320,
+          width: 540,
+          height: 340,
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.5),
@@ -242,21 +311,24 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
         ? _items[_selectedPreviewIndex.clamp(0, _items.length - 1)]
         : null;
 
+    final isPrinterConnected = _service.isConnected;
+    final activePrinterName = _service.config.printerName;
+
     return Dialog(
       backgroundColor: const Color(0xFF0C1236),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
         side: const BorderSide(color: DashboardColors.glassBorderHover),
       ),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
       child: Container(
-        width: 860,
-        constraints: const BoxConstraints(maxHeight: 680),
-        padding: const EdgeInsets.all(24),
+        width: 900,
+        constraints: const BoxConstraints(maxHeight: 720),
+        padding: const EdgeInsets.all(22),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. DIALOG HEADER
+            // 1. DIALOG HEADER & PRINTER BADGES
             Row(
               children: [
                 Container(
@@ -276,30 +348,30 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                       Text(
                         widget.title,
                         style: DashboardTypography.poppins(
-                          fontSize: 18,
+                          fontSize: 17,
                           fontWeight: FontWeight.w700,
                           color: Colors.white,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Row(
+                      const SizedBox(height: 3),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
                         children: [
                           _buildBadge(
-                            'TVS LP 46 Lite',
+                            'TVS LP 46 Lite / LP 44 Lite',
                             DashboardColors.neonGreen,
                             Icons.check_circle_outline_rounded,
                           ),
-                          const SizedBox(width: 8),
                           _buildBadge(
-                            '38 mm × 25 mm Sticker',
+                            '50 mm × 25 mm Sticker (3 mm Gap)',
                             DashboardColors.neonBlue,
                             Icons.aspect_ratio_rounded,
                           ),
-                          const SizedBox(width: 8),
                           _buildBadge(
-                            'Code 128 Standard',
+                            '203 DPI • TSPL RAW',
                             DashboardColors.neonPurple,
-                            Icons.qr_code_2_rounded,
+                            Icons.speed_rounded,
                           ),
                         ],
                       ),
@@ -314,11 +386,185 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
               ],
             ),
 
-            const SizedBox(height: 18),
-            const Divider(color: Color(0x1AFFFFFF)),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
-            // 2. MAIN BODY (Items list on left, sticker preview & settings on right)
+            // 2. PRINTER HARDWARE SELECTION & STATUS BAR
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isPrinterConnected
+                      ? DashboardColors.neonGreen.withValues(alpha: 0.3)
+                      : DashboardColors.neonOrange.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  // Status Icon Indicator
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isPrinterConnected
+                          ? DashboardColors.neonGreen
+                          : DashboardColors.neonOrange,
+                      boxShadow: [
+                        BoxShadow(
+                          color: (isPrinterConnected
+                                  ? DashboardColors.neonGreen
+                                  : DashboardColors.neonOrange)
+                              .withValues(alpha: 0.6),
+                          blurRadius: 6,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+
+                  // Connection status text
+                  Text(
+                    isPrinterConnected ? 'Printer Connected:' : 'Target Printer:',
+                    style: TextStyle(
+                      color: isPrinterConnected
+                          ? DashboardColors.neonGreen
+                          : DashboardColors.textMuted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Printer Selector Dropdown
+                  Expanded(
+                    child: _service.availablePrinters.isEmpty
+                        ? Text(
+                            activePrinterName.isNotEmpty
+                                ? activePrinterName
+                                : 'No printers detected. Click refresh to scan.',
+                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                          )
+                        : DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: _service.availablePrinters
+                                      .any((p) => p.name == activePrinterName)
+                                  ? activePrinterName
+                                  : (_service.availablePrinters.isNotEmpty
+                                      ? _service.availablePrinters.first.name
+                                      : null),
+                              isDense: true,
+                              dropdownColor: const Color(0xFF141A42),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              items: _service.availablePrinters.map((p) {
+                                final isTvs = p.isTargetTvs;
+                                return DropdownMenuItem<String>(
+                                  value: p.name,
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        p.name,
+                                        style: TextStyle(
+                                          color: isTvs
+                                              ? DashboardColors.neonGreen
+                                              : Colors.white,
+                                          fontWeight: isTvs
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                        ),
+                                      ),
+                                      if (isTvs) ...[
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: DashboardColors.neonGreen
+                                                .withValues(alpha: 0.15),
+                                            borderRadius:
+                                                BorderRadius.circular(4),
+                                          ),
+                                          child: const Text(
+                                            'TVS Recommended',
+                                            style: TextStyle(
+                                              color: DashboardColors.neonGreen,
+                                              fontSize: 10,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                      if (p.port.isNotEmpty) ...[
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          '(${p.port})',
+                                          style: const TextStyle(
+                                            color: DashboardColors.textMuted,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (val) {
+                                if (val != null) {
+                                  _service.selectPrinter(val);
+                                }
+                              },
+                            ),
+                          ),
+                  ),
+
+                  // Refresh printers button
+                  IconButton(
+                    icon: const Icon(Icons.sync_rounded,
+                        size: 18, color: DashboardColors.neonBlue),
+                    tooltip: 'Rescan Printers',
+                    onPressed: () => _service.refreshPrinters(),
+                  ),
+
+                  const SizedBox(width: 6),
+
+                  // Calibrate Gap Sensor Button
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: DashboardColors.neonPurple,
+                      side: const BorderSide(color: DashboardColors.neonPurple),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                    icon: _isCalibrating
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: DashboardColors.neonPurple,
+                            ),
+                          )
+                        : const Icon(Icons.tune_rounded, size: 14),
+                    label: const Text('Calibrate Gap',
+                        style: TextStyle(fontSize: 12)),
+                    onPressed: _isCalibrating || _isPrinting
+                        ? null
+                        : _handleCalibrate,
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            // 3. MAIN BODY (Items list on left, sticker preview & settings on right)
             Expanded(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -335,17 +581,29 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                             Text(
                               'Items to Print (${_items.length})',
                               style: DashboardTypography.poppins(
-                                fontSize: 14,
+                                fontSize: 13,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.white,
                               ),
                             ),
-                            Text(
-                              'Total Stickers: $_totalLabelsCount',
-                              style: DashboardTypography.inter(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: DashboardColors.neonGreen,
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: DashboardColors.neonGreen
+                                    .withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                    color: DashboardColors.neonGreen
+                                        .withValues(alpha: 0.3)),
+                              ),
+                              child: Text(
+                                'Total Stickers: $_totalLabelsCount',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: DashboardColors.neonGreen,
+                                ),
                               ),
                             ),
                           ],
@@ -359,10 +617,10 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                               border: Border.all(color: const Color(0x1AFFFFFF)),
                             ),
                             child: ListView.separated(
-                              padding: const EdgeInsets.all(10),
+                              padding: const EdgeInsets.all(8),
                               itemCount: _items.length,
                               separatorBuilder: (_, __) =>
-                                  const Divider(color: Color(0x12FFFFFF), height: 16),
+                                  const Divider(color: Color(0x12FFFFFF), height: 12),
                               itemBuilder: (ctx, idx) {
                                 final it = _items[idx];
                                 final isSelected = _selectedPreviewIndex == idx;
@@ -424,7 +682,8 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                                                     Text(
                                                       'Model: ${it.model}',
                                                       style: const TextStyle(
-                                                        color: DashboardColors.textMuted,
+                                                        color: DashboardColors
+                                                            .textMuted,
                                                         fontSize: 11,
                                                       ),
                                                     ),
@@ -444,10 +703,12 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                                                     child: Text(
                                                       it.barcode,
                                                       style: const TextStyle(
-                                                        color: DashboardColors.neonPurple,
+                                                        color: DashboardColors
+                                                            .neonPurple,
                                                         fontSize: 10.5,
                                                         fontFamily: 'Courier',
-                                                        fontWeight: FontWeight.bold,
+                                                        fontWeight:
+                                                            FontWeight.bold,
                                                       ),
                                                     ),
                                                   ),
@@ -457,7 +718,7 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                                           ),
                                         ),
 
-                                        // Price display / edit
+                                        // Selling Price
                                         if (it.sellingPrice != null &&
                                             it.sellingPrice! > 0) ...[
                                           Text(
@@ -468,10 +729,10 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                                               fontWeight: FontWeight.w600,
                                             ),
                                           ),
-                                          const SizedBox(width: 12),
+                                          const SizedBox(width: 10),
                                         ],
 
-                                        // Quantity Stepper (Requirement 9)
+                                        // Quantity Stepper
                                         Container(
                                           decoration: BoxDecoration(
                                             color: Colors.black
@@ -487,10 +748,10 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                                               IconButton(
                                                 padding: EdgeInsets.zero,
                                                 constraints: const BoxConstraints(
-                                                    minWidth: 28, minHeight: 28),
+                                                    minWidth: 26, minHeight: 26),
                                                 icon: const Icon(
                                                     Icons.remove_rounded,
-                                                    size: 16,
+                                                    size: 15,
                                                     color: Colors.white70),
                                                 onPressed: () {
                                                   if (it.quantity > 0) {
@@ -499,25 +760,26 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                                                 },
                                               ),
                                               Container(
-                                                width: 34,
+                                                width: 30,
                                                 alignment: Alignment.center,
                                                 child: Text(
                                                   '${it.quantity}',
                                                   style: const TextStyle(
                                                     color: Colors.white,
                                                     fontWeight: FontWeight.bold,
-                                                    fontSize: 13,
+                                                    fontSize: 12,
                                                   ),
                                                 ),
                                               ),
                                               IconButton(
                                                 padding: EdgeInsets.zero,
                                                 constraints: const BoxConstraints(
-                                                    minWidth: 28, minHeight: 28),
+                                                    minWidth: 26, minHeight: 26),
                                                 icon: const Icon(
                                                     Icons.add_rounded,
-                                                    size: 16,
-                                                    color: DashboardColors.neonGreen),
+                                                    size: 15,
+                                                    color: DashboardColors
+                                                        .neonGreen),
                                                 onPressed: () {
                                                   setState(() => it.quantity++);
                                                 },
@@ -537,37 +799,37 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                     ),
                   ),
 
-                  const SizedBox(width: 20),
+                  const SizedBox(width: 18),
 
-                  // Right Column: Physical Sticker Preview & Settings
+                  // Right Column: Physical 50x25mm Sticker Preview & Options
                   Expanded(
                     flex: 2,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '38 × 25 mm Physical Preview',
+                          '50 × 25 mm Physical Label Preview',
                           style: DashboardTypography.poppins(
-                            fontSize: 14,
+                            fontSize: 13,
                             fontWeight: FontWeight.w600,
                             color: Colors.white,
                           ),
                         ),
                         const SizedBox(height: 8),
 
-                        // Physical Sticker Simulation Card
+                        // Physical Sticker Simulation Card (Exact 50mm x 25mm 2:1 Aspect Ratio)
                         Center(
                           child: Container(
-                            width: 228, // 38 mm proportional preview (6x scale)
-                            height: 150, // 25 mm proportional preview (6x scale)
+                            width: 280, // 50 mm proportional preview (5.6x scale)
+                            height: 140, // 25 mm proportional preview (5.6x scale)
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 8),
+                                horizontal: 10, vertical: 6),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(4),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.35),
+                                  color: Colors.black.withValues(alpha: 0.4),
                                   blurRadius: 12,
                                   offset: const Offset(0, 4),
                                 ),
@@ -580,71 +842,59 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.center,
                                     children: [
-                                      // Shop Name Header
-                                      const Text(
-                                        'TEKFIX DIGITAL',
-                                        style: TextStyle(
+                                      // 1. Store Name Header
+                                      Text(
+                                        _service.config.storeName.toUpperCase(),
+                                        style: const TextStyle(
                                           color: Colors.black,
-                                          fontSize: 11,
+                                          fontSize: 10.5,
                                           fontWeight: FontWeight.w900,
-                                          letterSpacing: 0.5,
+                                          letterSpacing: 0.6,
                                         ),
                                       ),
 
-                                      // Item Name
+                                      // 2. Product Name (Clean auto-wrap)
                                       Text(
                                         previewItem.name,
-                                        maxLines: 1,
+                                        maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
                                         textAlign: TextAlign.center,
                                         style: const TextStyle(
                                           color: Colors.black,
                                           fontSize: 9.5,
                                           fontWeight: FontWeight.bold,
+                                          height: 1.1,
                                         ),
                                       ),
 
-                                      // Model (if any)
-                                      if (previewItem.model.isNotEmpty)
-                                        Text(
-                                          'Model: ${previewItem.model}',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            color: Colors.black87,
-                                            fontSize: 8.5,
-                                          ),
-                                        ),
-
-                                      // Simulated Barcode graphic
+                                      // 3. Simulated Code 128 Barcode graphic
                                       _buildSimulatedBarcode(previewItem.barcode),
 
-                                      // Barcode Text
+                                      // 4. Barcode Human-Readable String
                                       Text(
                                         previewItem.barcode,
                                         style: const TextStyle(
                                           color: Colors.black,
-                                          fontSize: 9,
+                                          fontSize: 9.5,
                                           fontFamily: 'Courier',
                                           fontWeight: FontWeight.w700,
-                                          letterSpacing: 1.0,
+                                          letterSpacing: 1.2,
                                         ),
                                       ),
 
-                                      // Selling Price (MRP)
-                                      if (_showPrice &&
-                                          previewItem.sellingPrice != null &&
-                                          previewItem.sellingPrice! > 0)
-                                        Text(
-                                          'MRP: Rs. ${previewItem.sellingPrice!.toStringAsFixed(2)}',
-                                          style: const TextStyle(
-                                            color: Colors.black,
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w900,
-                                          ),
-                                        )
-                                      else
-                                        const SizedBox(height: 2),
+                                      // 5. Item Code / MRP
+                                      Text(
+                                        _showPrice &&
+                                                previewItem.sellingPrice != null &&
+                                                previewItem.sellingPrice! > 0
+                                            ? '${previewItem.itemCode} • MRP: Rs. ${previewItem.sellingPrice!.toStringAsFixed(0)}'
+                                            : previewItem.itemCode,
+                                        style: const TextStyle(
+                                          color: Colors.black,
+                                          fontSize: 9.0,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
                                     ],
                                   )
                                 : const Center(
@@ -656,37 +906,34 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                           ),
                         ),
 
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
 
                         // Options & Toggles
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.04),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(color: const Color(0x1AFFFFFF)),
                           ),
-                          child: Column(
-                            children: [
-                              SwitchListTile(
-                                contentPadding: EdgeInsets.zero,
-                                dense: true,
-                                title: const Text(
-                                  'Print Selling Price (MRP)',
-                                  style: TextStyle(
-                                      color: Colors.white, fontSize: 13),
-                                ),
-                                subtitle: const Text(
-                                  'Includes MRP at the bottom of the label',
-                                  style: TextStyle(
-                                      color: DashboardColors.textMuted,
-                                      fontSize: 11),
-                                ),
-                                activeColor: DashboardColors.neonGreen,
-                                value: _showPrice,
-                                onChanged: (v) => setState(() => _showPrice = v),
-                              ),
-                            ],
+                          child: SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            title: const Text(
+                              'Print Selling Price (MRP)',
+                              style: TextStyle(
+                                  color: Colors.white, fontSize: 12),
+                            ),
+                            subtitle: const Text(
+                              'Prints MRP alongside item code on label bottom',
+                              style: TextStyle(
+                                  color: DashboardColors.textMuted,
+                                  fontSize: 10.5),
+                            ),
+                            activeColor: DashboardColors.neonGreen,
+                            value: _showPrice,
+                            onChanged: (v) => setState(() => _showPrice = v),
                           ),
                         ),
 
@@ -696,7 +943,7 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton.icon(
-                            icon: const Icon(Icons.code_rounded, size: 15),
+                            icon: const Icon(Icons.code_rounded, size: 14),
                             label: const Text(
                               'View TSPL Commands (Direct Thermal)',
                               style: TextStyle(fontSize: 11),
@@ -711,11 +958,11 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
               ),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             const Divider(color: Color(0x1AFFFFFF)),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
 
-            // 3. DIALOG ACTIONS
+            // 4. DIALOG ACTIONS
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -737,25 +984,7 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                       ),
                       icon: const Icon(Icons.print_outlined, size: 16),
                       label: const Text('Test Print (1 Label)'),
-                      onPressed: _isPrinting
-                          ? null
-                          : () async {
-                              final preview = previewItem ??
-                                  (_items.isNotEmpty ? _items.first : null);
-                              if (preview == null) return;
-                              final testItem = preview.copyWith(quantity: 1);
-                              setState(() => _isPrinting = true);
-                              try {
-                                await BarcodeLabelService.instance.printLabels(
-                                  context,
-                                  items: [testItem],
-                                  showPrice: _showPrice,
-                                  jobName: 'TVS_LP46_Test_Label',
-                                );
-                              } finally {
-                                if (mounted) setState(() => _isPrinting = false);
-                              }
-                            },
+                      onPressed: _isPrinting ? null : _handleTestPrint,
                     ),
                     const SizedBox(width: 10),
                     OutlinedButton.icon(
@@ -783,7 +1012,7 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                         backgroundColor: DashboardColors.neonGreen,
                         foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 14),
+                            horizontal: 22, vertical: 14),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10)),
                       ),
@@ -799,7 +1028,7 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                           : const Icon(Icons.print_rounded, size: 18),
                       label: Text(
                         _isPrinting
-                            ? 'Preparing Print Job...'
+                            ? 'Sending to Printer...'
                             : 'Print $_totalLabelsCount Labels (TVS LP 46)',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
@@ -846,8 +1075,8 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
 
   Widget _buildSimulatedBarcode(String code) {
     return Container(
-      height: 38,
-      width: 180,
+      height: 34,
+      width: 200,
       decoration: const BoxDecoration(
         color: Colors.transparent,
       ),
@@ -869,12 +1098,12 @@ class _BarcodePainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     final int hash = text.hashCode.abs();
-    final double step = size.width / 42.0;
+    final double step = size.width / 46.0;
 
-    for (int i = 0; i < 42; i++) {
+    for (int i = 0; i < 46; i++) {
       final bool bar = ((hash >> (i % 30)) & 1) == 1 || (i % 3 != 0);
       if (bar) {
-        final double barWidth = (i % 5 == 0) ? step * 1.5 : step * 0.8;
+        final double barWidth = (i % 5 == 0) ? step * 1.6 : step * 0.85;
         canvas.drawRect(
           Rect.fromLTWH(i * step, 0, barWidth, size.height),
           paint,
