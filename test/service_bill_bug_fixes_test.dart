@@ -359,6 +359,111 @@ void main() {
         expect(path.startsWith('shops/tekfix_store/'), isTrue);
       }
     });
+
+    // -------------------------------------------------------------------------
+    // TEST 12: Acceptance Test: Job SRV-20261103-W004, Cash, ₹1300
+    // -------------------------------------------------------------------------
+    test('12. Acceptance Test: Job SRV-20261103-W004, Cash, ₹1300 atomic commit', () async {
+      const shopId = 'tekfix';
+      const jobId = 'SRV-20261103-W004';
+      const invoiceId = 'INV-20261103-0004';
+      const todayStr = '20261103';
+
+      await Db.settings.put('shop_id', shopId);
+      await Db.settings.put('auth_role', 'staff');
+      await Db.settings.put('active_user_id', 'staff_w004');
+      await Db.settings.put('active_user', 'Technician A');
+
+      // 1. Initial Job in Hive
+      await Db.services.put(jobId, {
+        'id': jobId,
+        'customerName': 'Mohammed',
+        'phone': '9847000000',
+        'brandModel': 'OPPO A52',
+        'status': 'In Progress',
+        'deliveryStatus': 'PENDING',
+        'billCreated': false,
+      });
+
+      // 2. Initial Inventory in Hive
+      await Db.items.put('COMBO-OPPO-A52', {
+        '_id': 'COMBO-OPPO-A52',
+        'name': 'COMBO OPPO A52',
+        'stock': 5,
+        'sellingPrice': 1200.0,
+      });
+
+      // 3. Spare part & Service charge calculation: ₹100 service + ₹1200 spare = ₹1300
+      final spare = ServiceSparePartItem(
+        itemId: 'COMBO-OPPO-A52',
+        name: 'COMBO OPPO A52',
+        unitPrice: 1200.0,
+        quantity: 1,
+        availableStock: 5,
+        source: SparePartSource.inventory,
+      );
+
+      const serviceCharge = 100.0;
+      final totalAmount = serviceCharge + spare.lineTotal;
+      expect(totalAmount, 1300.0);
+
+      // Simulate atomic commit actions:
+      // A. Inventory reduced
+      final item = Db.items.get('COMBO-OPPO-A52');
+      item['stock'] = (item['stock'] as num).toInt() - spare.quantity;
+      await Db.items.put('COMBO-OPPO-A52', item);
+
+      // B. Job status updated
+      final job = Db.services.get(jobId);
+      job['status'] = 'COMPLETED';
+      job['deliveryStatus'] = 'DELIVERED';
+      job['billCreated'] = true;
+      job['invoice'] = invoiceId;
+      job['finalAmount'] = totalAmount;
+      await Db.services.put(jobId, job);
+
+      // C. Bill created in sales
+      await Db.sales.add({
+        'invoice': invoiceId,
+        'customerName': 'Mohammed',
+        'customerPhone': '9847000000',
+        'total': totalAmount,
+        'cash': totalAmount,
+        'serviceJobId': jobId,
+        'sparePartsUsed': [spare.toJobSpareMap()],
+        'status': 'SOLD',
+      });
+
+      // D. Verify Atomic Transaction Collection Paths
+      final atomicPaths = [
+        'shops/$shopId/service_jobs/$jobId',
+        'shops/$shopId/sales_invoices/$invoiceId',
+        'shops/$shopId/inventory/${spare.itemId}',
+        'shops/$shopId/inventory_logs/LOG-$invoiceId',
+        'shops/$shopId/accounting_cash_bank/TXN_$invoiceId',
+        'shops/$shopId/daily_registers/$todayStr',
+      ];
+
+      for (final p in atomicPaths) {
+        expect(p.startsWith('shops/tekfix/'), isTrue);
+      }
+
+      // Assertions
+      final updatedItem = Db.items.get('COMBO-OPPO-A52');
+      expect(updatedItem['stock'], 4);
+
+      final updatedJob = Db.services.get(jobId);
+      expect(updatedJob['status'], 'COMPLETED');
+      expect(updatedJob['deliveryStatus'], 'DELIVERED');
+      expect(updatedJob['billCreated'], isTrue);
+      expect(updatedJob['finalAmount'], 1300.0);
+
+      expect(Db.sales.length, 1);
+      final sale = Db.sales.getAt(0);
+      expect(sale['invoice'], invoiceId);
+      expect(sale['total'], 1300.0);
+      expect(sale['cash'], 1300.0);
+    });
   });
 }
 

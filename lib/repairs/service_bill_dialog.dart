@@ -996,15 +996,24 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
         Navigator.of(context).pop(localBill);
       }
     } on FirebaseException catch (fe) {
-      final errorMsg = 'Firestore [${fe.code}]: ${fe.message ?? 'Access denied'}\n'
-          'Collections: shops/$_shopId/{service_jobs, sales_invoices, inventory, inventory_logs, accounting_cash_bank, daily_registers}';
+      final errorMsg = 'Firestore [${fe.code}]: ${fe.message ?? 'Missing or insufficient permissions.'}\n\n'
+          'Atomic Transaction Collections Checked:\n'
+          ' • shops/$_shopId/service_jobs\n'
+          ' • shops/$_shopId/sales_invoices\n'
+          ' • shops/$_shopId/inventory\n'
+          ' • shops/$_shopId/inventory_logs\n'
+          ' • shops/$_shopId/accounting_cash_bank\n'
+          ' • shops/$_shopId/daily_registers\n\n'
+          'Cart items, amount, and payment method have been preserved so you can retry without re-entering.\n\n'
+          'Fix: Deploy the latest rules with:\n'
+          'firebase deploy --only firestore:rules';
       debugPrint('ServiceBillDialog: $errorMsg');
       if (mounted) {
         setState(() {
           _isSubmitting = false;
-          _errorMessage = 'Firestore Error (${fe.code}): ${fe.message}';
+          _errorMessage = 'Firestore Error (${fe.code}): ${fe.message ?? 'Permission Denied'}';
         });
-        await _showErrorDetailsDialog(context, 'Firestore Permission / Billing Error', errorMsg);
+        await _showErrorDetailsDialog(context, 'Firestore Security Permission Denied', errorMsg);
       }
     } on TimeoutException catch (te) {
       final errorMsg = '${te.message ?? 'Connection timed out'}\nCheck your internet connectivity or Firestore access.';
