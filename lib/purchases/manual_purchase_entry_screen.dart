@@ -1063,6 +1063,12 @@ class _ManualPurchaseEntryScreenState
       selectedWarranty = ItemWarrantyDuration.noWarranty;
     }
 
+    String? matchedProductId = row?.matchedProductId;
+    dynamic matchedItemKey = row?.itemKey;
+    bool isExistingProduct = row != null && !row.isNewProduct;
+    List<InventorySearchItem> suggestions = [];
+    bool showSuggestions = false;
+
     // Auto-fill from catalog if matching existing product
     if (!isEditing && Db.items.isOpen) {
       final searchKey = (prefillName ?? '').trim().toLowerCase();
@@ -1092,6 +1098,9 @@ class _ManualPurchaseEntryScreenState
             if (_isGstEnabled && p['gstRate'] != null) {
               taxPct = (p['gstRate'] as num).toDouble();
             }
+            matchedProductId = (p['_id'] ?? k).toString();
+            matchedItemKey = k;
+            isExistingProduct = true;
             if (p['warranty'] != null && ItemWarrantyDuration.options.contains(p['warranty'].toString())) {
               selectedWarranty = p['warranty'].toString();
             }
@@ -1129,7 +1138,140 @@ class _ManualPurchaseEntryScreenState
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _dialogField(nameCtrl, 'Product Name *', TextInputType.text),
+                TextField(
+                  controller: nameCtrl,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  onChanged: (val) {
+                    final q = val.trim();
+                    if (q.length >= 2) {
+                      final matches = SmartInventorySearchEngine.instance.search(q);
+                      setLocal(() {
+                        suggestions = matches.take(5).toList();
+                        showSuggestions = suggestions.isNotEmpty;
+                      });
+                    } else {
+                      setLocal(() {
+                        suggestions = [];
+                        showSuggestions = false;
+                      });
+                    }
+                  },
+                  decoration: InputDecoration(
+                    labelText: 'Product Name *',
+                    labelStyle: const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
+                    hintText: 'Type to search existing items or enter new...',
+                    hintStyle: const TextStyle(color: Colors.white30, fontSize: 12),
+                    prefixIcon: const Icon(Icons.search_rounded, color: DashboardColors.neonBlue, size: 18),
+                    suffixIcon: isExistingProduct
+                        ? const Tooltip(
+                            message: 'Linked to existing inventory',
+                            child: Icon(Icons.link_rounded, color: DashboardColors.neonGreen, size: 18),
+                          )
+                        : null,
+                    isDense: true,
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.04),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: DashboardColors.glassBorder),
+                    ),
+                  ),
+                ),
+                if (showSuggestions && suggestions.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 180),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F1738),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.5)),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 10, offset: const Offset(0, 4)),
+                      ],
+                    ),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: suggestions.length,
+                      separatorBuilder: (_, __) => const Divider(color: Colors.white10, height: 1),
+                      itemBuilder: (ctx3, idx) {
+                        final s = suggestions[idx];
+                        return ListTile(
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
+                          title: Text(
+                            s.name,
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                          subtitle: Text(
+                            'SKU: ${s.sku.isNotEmpty ? s.sku : s.barcode}  |  Stock: ${s.stock}  |  Rate: ₹${s.lastPurchaseRate.toStringAsFixed(0)}',
+                            style: const TextStyle(color: DashboardColors.textMuted, fontSize: 11),
+                          ),
+                          trailing: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: DashboardColors.neonBlue,
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              minimumSize: const Size(0, 26),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                            ),
+                            onPressed: () {
+                              setLocal(() {
+                                nameCtrl.text = s.name;
+                                barcodeCtrl.text = s.sku.isNotEmpty ? s.sku : s.barcode;
+                                if (s.lastPurchaseRate > 0) rateCtrl.text = s.lastPurchaseRate.toStringAsFixed(2);
+                                if (s.sellingPrice > 0) spCtrl.text = s.sellingPrice.toStringAsFixed(0);
+                                if (s.mrp > 0) mrpCtrl.text = s.mrp.toStringAsFixed(0);
+                                if (s.hsn.isNotEmpty) hsnCtrl.text = s.hsn;
+                                if (_isGstEnabled && s.gst > 0) taxPct = s.gst;
+                                if (s.warranty.isNotEmpty && ItemWarrantyDuration.options.contains(s.warranty)) {
+                                  selectedWarranty = s.warranty;
+                                }
+                                matchedProductId = s.productId;
+                                matchedItemKey = s.itemKey;
+                                isExistingProduct = true;
+                                showSuggestions = false;
+                              });
+                            },
+                            child: const Text('Select', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+                if (isExistingProduct) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: DashboardColors.neonGreen.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: DashboardColors.neonGreen.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.check_circle_rounded, color: DashboardColors.neonGreen, size: 15),
+                        const SizedBox(width: 6),
+                        const Expanded(
+                          child: Text(
+                            'Linked to existing inventory (details auto-populated)',
+                            style: TextStyle(color: DashboardColors.neonGreen, fontSize: 11, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        InkWell(
+                          onTap: () {
+                            setLocal(() {
+                              isExistingProduct = false;
+                              matchedProductId = null;
+                              matchedItemKey = null;
+                            });
+                          },
+                          child: const Text('Unlink', style: TextStyle(color: DashboardColors.textMuted, fontSize: 11, decoration: TextDecoration.underline)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 10),
                 _dialogField(
                     barcodeCtrl, 'Barcode / SKU (auto-generated if blank)', TextInputType.text),
@@ -1290,7 +1432,9 @@ class _ManualPurchaseEntryScreenState
                     sellingPrice: sp,
                     hsnCode: hsn,
                     warrantyDuration: selectedWarranty,
-                    isNewProduct: true,
+                    isNewProduct: !isExistingProduct,
+                    matchedProductId: matchedProductId,
+                    itemKey: matchedItemKey,
                     isStagedReady: true,
                     matchStatus: ProductMatchStatus.matched,
                   );
@@ -2370,7 +2514,7 @@ class _ManualPurchaseEntryScreenState
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             icon: const Icon(Icons.add_rounded, size: 16),
-            label: const Text('+ New Item', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+            label: const Text('+ Custom / New Item', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
             onPressed: () => _showSingleStepItemDialog(),
           ),
         ],

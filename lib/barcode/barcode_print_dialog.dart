@@ -138,6 +138,62 @@ class BarcodePrintDialog extends StatefulWidget {
     }
   }
 
+  /// Factory helper for multiple products from inventory (batch print).
+  static Future<void> showForMultipleProducts(
+    BuildContext context,
+    List<Map<String, dynamic>> items, {
+    String title = 'Batch Print Barcode Labels',
+  }) async {
+    final service = BarcodeLabelService.instance;
+    final labelItems = <BarcodeLabelItem>[];
+
+    for (final it in items) {
+      final itemKey = it['itemKey'] ?? it['key'];
+      final name = '${it['name'] ?? ''}';
+      final model = '${it['model'] ?? ''}';
+      final brand = '${it['brand'] ?? ''}';
+      double? sellingPrice = (it['sellingPrice'] as num?)?.toDouble() ??
+          (it['price'] as num?)?.toDouble();
+      double? mrp = (it['mrp'] as num?)?.toDouble();
+      int quantity = (it['stock'] as num?)?.toInt() ?? 1;
+      if (quantity <= 0) quantity = 1;
+
+      String barcode = '${it['barcode'] ?? it['code'] ?? it['sku'] ?? ''}'.trim();
+      if (barcode.isEmpty) {
+        barcode = await service.ensureItemHasBarcode(
+          itemKey,
+          defaultBarcode: null,
+          sellingPrice: sellingPrice,
+          mrp: mrp,
+        );
+      }
+
+      labelItems.add(
+        BarcodeLabelItem(
+          itemKey: itemKey,
+          name: name,
+          model: model,
+          brand: brand,
+          barcode: barcode,
+          sellingPrice: sellingPrice,
+          mrp: mrp,
+          quantity: quantity,
+        ),
+      );
+    }
+
+    if (context.mounted && labelItems.isNotEmpty) {
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => BarcodePrintDialog(
+          initialItems: labelItems,
+          title: title,
+        ),
+      );
+    }
+  }
+
   @override
   State<BarcodePrintDialog> createState() => _BarcodePrintDialogState();
 }

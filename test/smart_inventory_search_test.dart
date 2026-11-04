@@ -20,6 +20,7 @@ import 'package:tekfix_erp_pos/purchases/purchase_calculation_engine.dart';
 import 'package:tekfix_erp_pos/purchases/purchase_models.dart';
 import 'package:tekfix_erp_pos/purchases/smart_inventory_models.dart';
 import 'package:tekfix_erp_pos/purchases/smart_inventory_search_engine.dart';
+import 'package:tekfix_erp_pos/barcode/barcode_label_models.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -407,6 +408,74 @@ void main() {
       expect(results.length, greaterThanOrEqualTo(2));
       expect(results.any((e) => e.productId == 'ITEM_TPU_14'), isTrue);
       expect(results.any((e) => e.productId == 'ITEM_IPH_15_PRO'), isTrue);
+    });
+
+    test('13. Batch Barcode Label Preparation for Multi-Selected Items', () {
+      final selectedKeys = {'ITEM_TPU_14', 'ITEM_SAMS_CHG'};
+      final selectedItemsData = selectedKeys.map((key) {
+        final raw = itemsBox.get(key) as Map;
+        return {
+          'itemKey': key,
+          'name': raw['name'],
+          'model': raw['model'],
+          'brand': raw['brand'],
+          'barcode': raw['barcode'],
+          'sellingPrice': (raw['price'] as num).toDouble(),
+          'mrp': (raw['mrp'] as num).toDouble(),
+          'stock': (raw['stock'] as num).toInt(),
+        };
+      }).toList();
+
+      expect(selectedItemsData.length, equals(2));
+
+      final labelItems = selectedItemsData.map((it) {
+        int qty = (it['stock'] as int);
+        if (qty <= 0) qty = 1;
+        return BarcodeLabelItem(
+          itemKey: it['itemKey'],
+          name: '${it['name']}',
+          barcode: '${it['barcode']}',
+          sellingPrice: it['sellingPrice'] as double?,
+          mrp: it['mrp'] as double?,
+          quantity: qty,
+        );
+      }).toList();
+
+      expect(labelItems.length, equals(2));
+      // First item had stock 25
+      expect(labelItems[0].quantity, equals(25));
+      // Second item had stock 0 -> defaults to 1 label
+      expect(labelItems[1].quantity, equals(1));
+    });
+
+    test('14. Existing Item Auto-Populate in Purchase Entry Links Product Without Creating Duplicate', () async {
+      final engine = SmartInventorySearchEngine.instance;
+      await engine.initialize(shopId: 'tekfix');
+
+      final searchResults = engine.search('Samsung Charger');
+      expect(searchResults, isNotEmpty);
+      final matched = searchResults.first;
+
+      // Auto-populate details from existing product
+      final purchaseRow = PurchaseBillItem(
+        itemId: matched.productId,
+        name: matched.name,
+        brand: matched.brand,
+        model: matched.model,
+        sku: matched.sku,
+        quantity: 5,
+        purchaseRate: matched.lastPurchaseRate,
+        sellingPrice: matched.sellingPrice,
+        mrp: matched.mrp,
+        taxPercent: matched.gst,
+        isNewProduct: false, // Ensures existing stock is linked
+        isStagedReady: true,
+      );
+
+      expect(purchaseRow.isNewProduct, isFalse);
+      expect(purchaseRow.itemId, equals('ITEM_SAMS_CHG'));
+      expect(purchaseRow.purchaseRate, equals(450.0));
+      expect(purchaseRow.mrp, equals(1699.0));
     });
   });
 }

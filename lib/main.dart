@@ -2363,6 +2363,7 @@ class ItemsView extends StatefulWidget {
 class _ItemsViewState extends State<ItemsView> {
   String _q = '';
   late bool _lowOnly = widget.initialLowOnly;
+  final Set<dynamic> _selectedKeys = {};
 
   @override
   Widget build(BuildContext context) {
@@ -2436,6 +2437,100 @@ class _ItemsViewState extends State<ItemsView> {
                   ],
                 ),
               ),
+              // Batch Actions Bar for Barcode Printing
+              if (list.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _selectedKeys.isNotEmpty
+                          ? DashboardColors.neonBlue.withValues(alpha: 0.1)
+                          : Colors.white.withValues(alpha: 0.03),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: _selectedKeys.isNotEmpty
+                            ? DashboardColors.neonBlue.withValues(alpha: 0.4)
+                            : DashboardColors.glassBorder,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Checkbox(
+                          value: _selectedKeys.isEmpty
+                              ? false
+                              : (_selectedKeys.length >= list.length ? true : null),
+                          tristate: true,
+                          activeColor: DashboardColors.neonBlue,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          onChanged: (val) {
+                            setState(() {
+                              if (val == true || (_selectedKeys.isNotEmpty && _selectedKeys.length < list.length)) {
+                                _selectedKeys.addAll(list.map((e) => e.key));
+                              } else {
+                                _selectedKeys.clear();
+                              }
+                            });
+                          },
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _selectedKeys.isEmpty
+                              ? 'Select All (${list.length})'
+                              : '${_selectedKeys.length} / ${list.length} selected',
+                          style: TextStyle(
+                            color: _selectedKeys.isNotEmpty ? Colors.white : _muted(context),
+                            fontWeight: _selectedKeys.isNotEmpty ? FontWeight.bold : FontWeight.normal,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const Spacer(),
+                        if (_selectedKeys.isNotEmpty) ...[
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: DashboardColors.neonGreen,
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            icon: const Icon(Icons.qr_code_2_rounded, size: 16),
+                            label: Text(
+                              'Print Barcodes (${_selectedKeys.length})',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                            onPressed: () {
+                              final selectedItems = list
+                                  .where((e) => _selectedKeys.contains(e.key))
+                                  .map((e) => {
+                                        'itemKey': e.key,
+                                        'name': e.value['name'],
+                                        'model': e.value['model'],
+                                        'brand': e.value['brand'],
+                                        'barcode': e.value['barcode'] ?? e.value['code'] ?? e.value['sku'],
+                                        'sellingPrice': (e.value['sellingPrice'] as num?)?.toDouble() ??
+                                            (e.value['price'] as num?)?.toDouble(),
+                                        'mrp': (e.value['mrp'] as num?)?.toDouble(),
+                                        'stock': (e.value['stock'] as num?)?.toInt() ?? 1,
+                                      })
+                                  .toList();
+                              BarcodePrintDialog.showForMultipleProducts(
+                                context,
+                                selectedItems,
+                                title: 'Batch Barcode Print (${selectedItems.length} Products)',
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 4),
+                          IconButton(
+                            icon: const Icon(Icons.clear, size: 18),
+                            tooltip: 'Clear selection',
+                            onPressed: () => setState(() => _selectedKeys.clear()),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
               Expanded(
                 child: list.isEmpty
                     ? const EmptyState(Icons.inventory_2_outlined,
@@ -2455,6 +2550,20 @@ class _ItemsViewState extends State<ItemsView> {
                             onTap: () => showItemForm(context, e.key, it),
                             child: Row(
                               children: [
+                                Checkbox(
+                                  value: _selectedKeys.contains(e.key),
+                                  activeColor: DashboardColors.neonBlue,
+                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  onChanged: (val) {
+                                    setState(() {
+                                      if (val == true) {
+                                        _selectedKeys.add(e.key);
+                                      } else {
+                                        _selectedKeys.remove(e.key);
+                                      }
+                                    });
+                                  },
+                                ),
                                 CircleAvatar(
                                   backgroundColor: kPrimary.withAlpha(40),
                                   child: Icon(Icons.smartphone_rounded,
