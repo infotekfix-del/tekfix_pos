@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as p;
 import 'windows_update_models.dart';
@@ -33,6 +34,11 @@ class WindowsUpdateService extends ChangeNotifier {
   http.Client? _activeDownloadClient;
   StreamSubscription<List<int>>? _downloadSubscription;
 
+  // Real-time diagnostics & console logs
+  final List<String> _diagnosticLogs = [];
+  String? _lastFetchedRemoteVersion;
+  String _checkStatusSummary = 'Idle';
+
   // Getters
   WindowsUpdateSettings get settings => _settings;
   WindowsUpdateStatus get status => _status;
@@ -43,6 +49,25 @@ class WindowsUpdateService extends ChangeNotifier {
   String? get downloadedInstallerPath => _downloadedInstallerPath;
   bool get isChecking => _isChecking;
   bool get isDownloading => _isDownloading;
+  List<String> get diagnosticLogs => List.unmodifiable(_diagnosticLogs);
+  String? get lastFetchedRemoteVersion => _lastFetchedRemoteVersion;
+  String get checkStatusSummary => _checkStatusSummary;
+
+  void clearLogs() {
+    _diagnosticLogs.clear();
+    notifyListeners();
+  }
+
+  void _log(String message) {
+    final timestamp = DateFormat('HH:mm:ss').format(DateTime.now());
+    final entry = '[$timestamp] $message';
+    _diagnosticLogs.add(entry);
+    if (_diagnosticLogs.length > 150) {
+      _diagnosticLogs.removeAt(0);
+    }
+    debugPrint('WindowsUpdateService: $message');
+    notifyListeners();
+  }
   bool get isUpdateAvailable =>
       _status == WindowsUpdateStatus.updateAvailable ||
       _status == WindowsUpdateStatus.downloading ||
@@ -104,31 +129,34 @@ class WindowsUpdateService extends ChangeNotifier {
     _isChecking = true;
     _errorMessage = null;
     _status = WindowsUpdateStatus.checking;
+    _checkStatusSummary = 'Checking...';
     notifyListeners();
+
+    if (overrideCurrentVersion != null) {
+      _currentVersion = overrideCurrentVersion;
+    } else {
+      try {
+        final info = await PackageInfo.fromPlatform();
+        _currentVersion = info.version;
+      } catch (_) {}
+    }
+
+    _log('Current App Version: $_currentVersion');
 
     final httpClient = client ?? http.Client();
     try {
-      if (overrideCurrentVersion != null) {
-        _currentVersion = overrideCurrentVersion;
-      } else {
-        try {
-          final info = await PackageInfo.fromPlatform();
-          _currentVersion = info.version;
-        } catch (_) {}
-      }
-
       final owner = _settings.githubOwner.trim().isEmpty ? defaultOwner : _settings.githubOwner.trim();
       final repo = _settings.githubRepo.trim().isEmpty ? defaultRepo : _settings.githubRepo.trim();
       final url = Uri.parse('https://api.github.com/repos/$owner/$repo/releases/latest');
 
-      debugPrint('WindowsUpdateService: Querying GitHub releases: $url');
+      _log('Querying GitHub Releases API: $url');
       final response = await httpClient.get(
         url,
         headers: {
           'Accept': 'application/vnd.github.v3+json',
           'User-Agent': 'TekFix-ERP-Updater/1.0',
         },
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 12));
 
       final now = DateTime.now();
       await saveSettings(_settings.copyWith(lastCheckedAt: now));
@@ -137,11 +165,15 @@ class WindowsUpdateService extends ChangeNotifier {
         final data = json.decode(response.body) as Map<String, dynamic>;
         final release = GitHubReleaseInfo.fromJson(data);
         _latestRelease = release;
+        _lastFetchedRemoteVersion = release.tagName;
+
+        _log('Fetched Remote Version: ${release.tagName}');
 
         // Skip prereleases unless specifically configured
         if (release.isPrerelease) {
-          debugPrint('WindowsUpdateService: Latest release is marked prerelease. Skipping.');
+          _log('Latest release is marked prerelease. Skipping.');
           _status = WindowsUpdateStatus.upToDate;
+          _checkStatusSummary = 'Up to date (Prerelease ignored)';
           notifyListeners();
           return null;
         }
@@ -150,12 +182,14 @@ class WindowsUpdateService extends ChangeNotifier {
         final isNewer = release.semVer.isGreaterThan(currentSemVer);
 
         if (isNewer) {
+          _log('Status: Update Available (${release.tagName})');
+          _checkStatusSummary = 'Update Available (${release.tagName})';
           // Check if user postponed this exact version recently (within 24h)
           if (!isManual &&
               _settings.postponedVersion == release.tagName &&
               _settings.lastDismissedAt != null &&
               DateTime.now().difference(_settings.lastDismissedAt!).inHours < 24) {
-            debugPrint('WindowsUpdateService: Update postponed by user for 24h.');
+            _log('Update postponed by user for 24h.');
             _status = WindowsUpdateStatus.idle;
           } else {
             _status = WindowsUpdateStatus.updateAvailable;
@@ -163,38 +197,66 @@ class WindowsUpdateService extends ChangeNotifier {
           notifyListeners();
           return release;
         } else {
+          _log('Status: Up to date');
+          _checkStatusSummary = 'Up to date';
           _status = WindowsUpdateStatus.upToDate;
           notifyListeners();
           return null;
         }
       } else if (response.statusCode == 403) {
-        _errorMessage = 'GitHub API rate limit exceeded. Please check again later.';
+        _lastFetchedRemoteVersion = 'Unknown';
+        _errorMessage = 'GitHub API rate limit exceeded (HTTP 403). Please check again later.';
+        _checkStatusSummary = 'API Error: HTTP 403 Rate Limited';
+        _log('Status: API Error: HTTP 403 (Rate Limited)');
         _status = WindowsUpdateStatus.failed;
         notifyListeners();
         return null;
       } else if (response.statusCode == 404) {
-        _errorMessage = 'No releases found in repository $owner/$repo.';
+        _lastFetchedRemoteVersion = 'None';
+        _errorMessage = 'No releases found on GitHub for repository $owner/$repo (HTTP 404).';
+        _checkStatusSummary = 'API Error: HTTP 404 (No Releases Found)';
+        _log('Status: API Error: HTTP 404 (No Releases Found)');
         _status = WindowsUpdateStatus.upToDate;
         notifyListeners();
         return null;
       } else {
+        _lastFetchedRemoteVersion = 'Error';
         _errorMessage = 'GitHub API returned HTTP ${response.statusCode}: ${response.reasonPhrase}';
+        _checkStatusSummary = 'API Error: HTTP ${response.statusCode}';
+        _log('Status: API Error: HTTP ${response.statusCode}');
         _status = WindowsUpdateStatus.failed;
         notifyListeners();
         return null;
       }
-    } on SocketException {
-      _errorMessage = 'ഇന്റർനെറ്റ് കണക്ഷൻ ലഭ്യമല്ല (No internet connection).';
+    } on SocketException catch (e) {
+      _lastFetchedRemoteVersion = 'Network Error';
+      _errorMessage = 'നെറ്റ്‌വർക്ക് കണക്ഷൻ ലഭ്യമല്ല (SocketException: ${e.message})';
+      _checkStatusSummary = 'Network Error: SocketException';
+      _log('Status: Network Error: SocketException (${e.message})');
+      _status = WindowsUpdateStatus.failed;
+      notifyListeners();
+      return null;
+    } on HandshakeException catch (e) {
+      _lastFetchedRemoteVersion = 'SSL Error';
+      _errorMessage = 'സുരക്ഷിത കണക്ഷൻ പരാജയപ്പെട്ടു (HandshakeException: ${e.message})';
+      _checkStatusSummary = 'Security Error: HandshakeException';
+      _log('Status: Security Error: HandshakeException (${e.message})');
       _status = WindowsUpdateStatus.failed;
       notifyListeners();
       return null;
     } on TimeoutException {
+      _lastFetchedRemoteVersion = 'Timeout';
       _errorMessage = 'കണക്ഷൻ സമയം കഴിഞ്ഞു (Request timed out).';
+      _checkStatusSummary = 'Timeout Error: Request timed out';
+      _log('Status: Timeout Error');
       _status = WindowsUpdateStatus.failed;
       notifyListeners();
       return null;
     } catch (e) {
+      _lastFetchedRemoteVersion = 'Error';
       _errorMessage = 'അപ്ഡേറ്റ് പരിശോധന പരാജയപ്പെട്ടു: $e';
+      _checkStatusSummary = 'Error: $e';
+      _log('Status: Error: $e');
       _status = WindowsUpdateStatus.failed;
       notifyListeners();
       return null;
@@ -451,6 +513,17 @@ class WindowsUpdateService extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final isExe = installerPath.toLowerCase().endsWith('.exe');
+      if (isExe) {
+        _log('Launching Windows Installer (.exe) detached: $installerPath with /SILENT');
+        await Process.start(
+          installerPath,
+          ['/SILENT'],
+          mode: ProcessStartMode.detached,
+        );
+        exit(0);
+      }
+
       final currentExePath = Platform.resolvedExecutable;
       final tempDir = File(installerPath).parent;
       final batchFile = File(p.join(tempDir.path, 'apply_update.bat'));
@@ -461,7 +534,7 @@ class WindowsUpdateService extends ChangeNotifier {
       );
 
       await batchFile.writeAsString(batchContent, flush: true);
-      debugPrint('WindowsUpdateService: Created updater batch at: ${batchFile.path}');
+      _log('Created updater batch at: ${batchFile.path}');
 
       // Spawn detached batch runner
       await Process.start(
@@ -471,7 +544,7 @@ class WindowsUpdateService extends ChangeNotifier {
       );
 
       // Gracefully exit the current Flutter application to release all file locks
-      debugPrint('WindowsUpdateService: Exiting current process for silent update...');
+      _log('Exiting current process for silent update...');
       exit(0);
     } catch (e) {
       _errorMessage = 'ഇൻസ്റ്റാളേഷൻ ആരംഭിക്കാൻ കഴിഞ്ഞില്ല: $e';

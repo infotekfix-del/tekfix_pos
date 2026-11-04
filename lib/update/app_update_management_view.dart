@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'windows_update_models.dart';
 import 'windows_update_service.dart';
@@ -365,7 +366,72 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                         ),
                         onPressed: _winService.isChecking
                             ? null
-                            : () => _winService.checkForUpdates(isManual: true),
+                            : () async {
+                                final res = await _winService.checkForUpdates(isManual: true);
+                                if (!mounted) return;
+                                if (_winService.errorMessage != null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Row(
+                                        children: [
+                                          const Icon(Icons.error_outline_rounded,
+                                              color: Colors.amberAccent),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              'അപ്ഡേറ്റ് പരിശോധന പരാജയപ്പെട്ടു: ${_winService.errorMessage}',
+                                              style: const TextStyle(fontWeight: FontWeight.w600),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      backgroundColor: const Color(0xFF991B1B),
+                                      behavior: SnackBarBehavior.floating,
+                                      duration: const Duration(seconds: 5),
+                                    ),
+                                  );
+                                } else if (res != null && _winService.isUpdateAvailable) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Row(
+                                        children: [
+                                          const Icon(Icons.system_update_rounded,
+                                              color: Colors.greenAccent),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              'പുതിയ പതിപ്പ് (${res.tagName}) ലഭ്യമാണ്! (Update Available)',
+                                              style: const TextStyle(fontWeight: FontWeight.w600),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      backgroundColor: const Color(0xFF1E293B),
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: const Row(
+                                        children: [
+                                          Icon(Icons.check_circle_rounded,
+                                              color: Colors.greenAccent),
+                                          SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              'നിങ്ങൾ ഉപയോഗിക്കുന്നത് ഏറ്റവും പുതിയ പതിപ്പാണ് (App is up to date).',
+                                              style: TextStyle(fontWeight: FontWeight.w600),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      backgroundColor: const Color(0xFF1E293B),
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                }
+                              },
                         icon: _winService.isChecking
                             ? const SizedBox(
                                 width: 16,
@@ -492,6 +558,11 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                   ),
                 ),
               ],
+
+              const SizedBox(height: 20),
+
+              // Real-Time Update Diagnostics & Live Logs
+              _buildDiagnosticsAndLogsCard(isDark),
 
               const SizedBox(height: 20),
 
@@ -989,5 +1060,207 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
               ),
             ),
           );
+  }
+
+  /// Real-time live update diagnostics card with status metrics & console log output.
+  Widget _buildDiagnosticsAndLogsCard(bool isDark) {
+    final logs = _winService.diagnosticLogs;
+    final statusSummary = _winService.checkStatusSummary;
+    final isError = statusSummary.toLowerCase().contains('error') ||
+        statusSummary.toLowerCase().contains('failed');
+    final isAvailable = statusSummary.toLowerCase().contains('available');
+    final isUpToDate = statusSummary.toLowerCase().contains('up to date');
+
+    Color badgeColor = const Color(0xFF64748B);
+    if (isError) badgeColor = const Color(0xFFEF4444);
+    if (isAvailable) badgeColor = const Color(0xFF10B981);
+    if (isUpToDate) badgeColor = const Color(0xFF3B82F6);
+
+    return Card(
+      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.terminal_rounded, color: Color(0xFF3B82F6), size: 22),
+                const SizedBox(width: 10),
+                const Text(
+                  'Real-Time Update Diagnostics & Live Logs',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                if (logs.isNotEmpty) ...[
+                  IconButton(
+                    tooltip: 'Copy Logs',
+                    icon: const Icon(Icons.copy_rounded, size: 18),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: logs.join('\n')));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Logs copied to clipboard'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                  ),
+                  IconButton(
+                    tooltip: 'Clear Logs',
+                    icon: const Icon(Icons.clear_all_rounded, size: 18),
+                    onPressed: () => _winService.clearLogs(),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 14),
+
+            // Live status metrics chips
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                _buildDiagnosticPill(
+                  label: 'Current App Version',
+                  value: 'v${_winService.currentVersion}',
+                  icon: Icons.info_outline_rounded,
+                  color: const Color(0xFF3B82F6),
+                  isDark: isDark,
+                ),
+                _buildDiagnosticPill(
+                  label: 'Fetched Remote Version',
+                  value: _winService.lastFetchedRemoteVersion ??
+                      (_winService.latestRelease != null
+                          ? _winService.latestRelease!.tagName
+                          : 'Not fetched'),
+                  icon: Icons.cloud_download_outlined,
+                  color: const Color(0xFF8B5CF6),
+                  isDark: isDark,
+                ),
+                _buildDiagnosticPill(
+                  label: 'Status',
+                  value: statusSummary,
+                  icon: isError
+                      ? Icons.error_outline_rounded
+                      : (isAvailable
+                          ? Icons.system_update_rounded
+                          : Icons.check_circle_outline_rounded),
+                  color: badgeColor,
+                  isDark: isDark,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 14),
+
+            // Live console output box
+            Container(
+              height: 180,
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0B1120),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFF1E293B)),
+              ),
+              child: logs.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Click "Check for Updates" to trigger live API check and view connection logs.',
+                        style: TextStyle(
+                          color: Colors.white.withAlpha(120),
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    )
+                  : Scrollbar(
+                      child: ListView.builder(
+                        itemCount: logs.length,
+                        itemBuilder: (context, index) {
+                          final log = logs[index];
+                          Color logColor = const Color(0xFFE2E8F0);
+                          if (log.contains('Error') || log.contains('failed')) {
+                            logColor = const Color(0xFFF87171);
+                          } else if (log.contains('Update Available')) {
+                            logColor = const Color(0xFF4ADE80);
+                          } else if (log.contains('Up to date')) {
+                            logColor = const Color(0xFF60A5FA);
+                          } else if (log.contains('Current App Version') ||
+                              log.contains('Fetched Remote Version')) {
+                            logColor = const Color(0xFFFBBF24);
+                          }
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: Text(
+                              log,
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 11.5,
+                                color: logColor,
+                                height: 1.3,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDiagnosticPill({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color color,
+    required bool isDark,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withAlpha(isDark ? 25 : 15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withAlpha(60)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Text(
+            '$label: ',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: isDark ? Colors.white70 : Colors.black87,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
