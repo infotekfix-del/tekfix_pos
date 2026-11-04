@@ -401,7 +401,8 @@ Future<void> _openBoxWithRecovery(String b) async {
     if (Hive.isBoxOpen(b)) return;
     await Hive.openBox(b);
   } catch (e) {
-    debugPrint('[TekFix Startup] Corrupted/unopenable Hive box detected: $b ($e). Recovering...');
+    debugPrint(
+        '[TekFix Startup] Corrupted/unopenable Hive box detected: $b ($e). Recovering...');
     try {
       await Hive.deleteBoxFromDisk(b);
       debugPrint('[TekFix Startup] Cleared corrupted box file from disk: $b');
@@ -443,7 +444,8 @@ Future<void> main() async {
         persistenceEnabled: true,
         cacheSizeBytes: 100 * 1024 * 1024,
       );
-      debugPrint('[TekFix Startup] 2. Firebase initialized with offline persistence');
+      debugPrint(
+          '[TekFix Startup] 2. Firebase initialized with offline persistence');
     } catch (e) {
       debugPrint('[TekFix Startup] 2. Firebase init skipped or failed: $e');
     }
@@ -519,12 +521,16 @@ Future<void> main() async {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(Icons.error_outline_rounded, size: 52, color: Colors.amberAccent),
+                  const Icon(Icons.error_outline_rounded,
+                      size: 52, color: Colors.amberAccent),
                   const SizedBox(height: 12),
                   const Text(
                     'ഒരു തകരാർ സംഭവിച്ചു (An Error Occurred)',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   Expanded(
@@ -538,7 +544,10 @@ Future<void> main() async {
                       child: SingleChildScrollView(
                         child: SelectableText(
                           '${details.exception}\n\n${details.stack}',
-                          style: const TextStyle(color: Colors.white70, fontSize: 11, fontFamily: 'monospace'),
+                          style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11,
+                              fontFamily: 'monospace'),
                         ),
                       ),
                     ),
@@ -1006,67 +1015,81 @@ class NavCategory {
 }
 
 List<NavCategory> _getNavCategories(String shopId) => [
-  NavCategory(
-    title: 'Core POS & Operations',
-    icon: Icons.storefront_rounded,
-    items: [
-      const AppModule('Home', Icons.dashboard_rounded, HomeView()),
-      const AppModule('Sale / POS', Icons.point_of_sale_rounded, SaleView()),
-      AppModule('Daily Sales & EOD', Icons.receipt_long_rounded, DailySalesLedgerView(shopId: shopId)),
-      const AppModule('Items / Stock', Icons.inventory_2_rounded, ItemsView()),
-      const AppModule('Services / Repairs', Icons.build_circle_rounded, ServicesView()),
-      const AppModule('Customer Returns', Icons.assignment_return_rounded, ReturnsDashboardView()),
-      const AppModule('Purchase Bills', Icons.receipt_long_rounded, PurchaseBillsDashboardView()),
-    ],
-  ),
-  NavCategory(
-    title: 'Finance & Accounts',
-    icon: Icons.account_balance_wallet_rounded,
-    items: [
-      AppModule('Expenses', Icons.receipt_long_rounded, ExpenseManagementScreen(shopId: shopId)),
-      const AppModule('Purchase & Expense', Icons.shopping_bag_rounded, PurchaseExpenseView()),
-      const AppModule('Parties', Icons.groups_rounded, PartiesView()),
-      const AppModule('Cash & Bank', Icons.account_balance_rounded, CashBankView()),
-      const AppModule('Reports', Icons.bar_chart_rounded, ReportsView()),
-    ],
-  ),
-  NavCategory(
-    title: 'Staff Management',
-    icon: Icons.people_alt_rounded,
-    items: [
-      const AppModule('Staff & Attendance', Icons.badge_rounded, StaffView()),
-      AppModule('Attendance Approvals', Icons.fact_check_rounded,
-          OwnerAttendanceApprovalsView(shopId: shopId)),
-      AppModule('Attendance Dashboard', Icons.co_present_rounded,
-          OwnerAttendanceDashboard(shopId: shopId)),
-      const AppModule('Staff Live Tracking', Icons.monitor_heart_rounded, StaffTrackingView()),
-      const AppModule('Staff Logins', Icons.manage_accounts_rounded, StaffAccountsView()),
-      AppModule('Staff Orders', Icons.shopping_basket_rounded,
-          OwnerOrdersView(shopId: shopId)),
-    ],
-  ),
-  const NavCategory(
-    title: 'Customer Management',
-    icon: Icons.support_agent_rounded,
-    items: [
-      AppModule('Payment Reminders', Icons.notification_important_rounded,
-          RemindersScreen()),
-      AppModule('After-Sales Follow-ups', Icons.mark_chat_read_rounded,
-          FollowupsScreen()),
-    ],
-  ),
-  const NavCategory(
-    title: 'Settings & System',
-    icon: Icons.settings_suggest_rounded,
-    items: [
-      AppModule('App Updates & Releases', Icons.system_update_rounded,
-          AppUpdateManagementView()),
-      AppModule('Backup & Sync', Icons.cloud_sync_rounded, BackupSyncView()),
-      AppModule('Audit / Change History', Icons.history_rounded, AuditLogView()),
-      AppModule('Settings & Print', Icons.settings_rounded, SettingsView()),
-    ],
-  ),
-];
+      NavCategory(
+        title: 'Core POS & Operations',
+        icon: Icons.storefront_rounded,
+        items: [
+          const AppModule('Home', Icons.dashboard_rounded, HomeView()),
+          const AppModule(
+              'Sale / POS', Icons.point_of_sale_rounded, SaleView()),
+          AppModule('Daily Sales & EOD', Icons.receipt_long_rounded,
+              DailySalesLedgerView(shopId: shopId)),
+          const AppModule(
+              'Items / Stock', Icons.inventory_2_rounded, ItemsView()),
+          const AppModule(
+              'Services / Repairs', Icons.build_circle_rounded, ServicesView()),
+          const AppModule('Customer Returns', Icons.assignment_return_rounded,
+              ReturnsDashboardView()),
+          const AppModule('Purchase Bills', Icons.receipt_long_rounded,
+              PurchaseBillsDashboardView()),
+        ],
+      ),
+      NavCategory(
+        title: 'Finance & Accounts',
+        icon: Icons.account_balance_wallet_rounded,
+        items: [
+          AppModule('Expenses', Icons.receipt_long_rounded,
+              ExpenseManagementScreen(shopId: shopId)),
+          const AppModule('Purchase & Expense', Icons.shopping_bag_rounded,
+              PurchaseExpenseView()),
+          const AppModule('Parties', Icons.groups_rounded, PartiesView()),
+          const AppModule(
+              'Cash & Bank', Icons.account_balance_rounded, CashBankView()),
+          const AppModule('Reports', Icons.bar_chart_rounded, ReportsView()),
+        ],
+      ),
+      NavCategory(
+        title: 'Staff Management',
+        icon: Icons.people_alt_rounded,
+        items: [
+          const AppModule(
+              'Staff & Attendance', Icons.badge_rounded, StaffView()),
+          AppModule('Attendance Approvals', Icons.fact_check_rounded,
+              OwnerAttendanceApprovalsView(shopId: shopId)),
+          AppModule('Attendance Dashboard', Icons.co_present_rounded,
+              OwnerAttendanceDashboard(shopId: shopId)),
+          const AppModule('Staff Live Tracking', Icons.monitor_heart_rounded,
+              StaffTrackingView()),
+          const AppModule('Staff Logins', Icons.manage_accounts_rounded,
+              StaffAccountsView()),
+          AppModule('Staff Orders', Icons.shopping_basket_rounded,
+              OwnerOrdersView(shopId: shopId)),
+        ],
+      ),
+      const NavCategory(
+        title: 'Customer Management',
+        icon: Icons.support_agent_rounded,
+        items: [
+          AppModule('Payment Reminders', Icons.notification_important_rounded,
+              RemindersScreen()),
+          AppModule('After-Sales Follow-ups', Icons.mark_chat_read_rounded,
+              FollowupsScreen()),
+        ],
+      ),
+      const NavCategory(
+        title: 'Settings & System',
+        icon: Icons.settings_suggest_rounded,
+        items: [
+          AppModule('App Updates & Releases', Icons.system_update_rounded,
+              AppUpdateManagementView()),
+          AppModule(
+              'Backup & Sync', Icons.cloud_sync_rounded, BackupSyncView()),
+          AppModule(
+              'Audit / Change History', Icons.history_rounded, AuditLogView()),
+          AppModule('Settings & Print', Icons.settings_rounded, SettingsView()),
+        ],
+      ),
+    ];
 
 class _AppShellPendingBadge extends StatefulWidget {
   final String shopId;
@@ -1090,7 +1113,8 @@ class _AppShellPendingBadgeState extends State<_AppShellPendingBadge> {
   void didUpdateWidget(covariant _AppShellPendingBadge oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.shopId != widget.shopId) {
-      _stream = AttendanceService.instance.streamPendingApprovals(widget.shopId);
+      _stream =
+          AttendanceService.instance.streamPendingApprovals(widget.shopId);
     }
   }
 
@@ -1142,9 +1166,11 @@ class _AppShellOrdersBadgeState extends State<_AppShellOrdersBadge> {
       stream: _stream,
       builder: (context, snap) {
         final orders = snap.data ?? [];
-        final count = orders.where((o) =>
-            o.status == StaffOrderStatus.submitted ||
-            o.status == StaffOrderStatus.pending).length;
+        final count = orders
+            .where((o) =>
+                o.status == StaffOrderStatus.submitted ||
+                o.status == StaffOrderStatus.pending)
+            .length;
         if (count == 0) return const SizedBox.shrink();
         if (widget.iconOnly) {
           return const TekRedSignalBadge(count: 1, pulse: true, size: 8);
@@ -1165,7 +1191,6 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = 0;
 
-
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
@@ -1185,10 +1210,12 @@ class _AppShellState extends State<AppShell> {
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.keyK, control: true): () {
-          TekGlobalSearchDialog.show(context, onNavigate: (idx) => setState(() => _index = idx));
+          TekGlobalSearchDialog.show(context,
+              onNavigate: (idx) => setState(() => _index = idx));
         },
         const SingleActivator(LogicalKeyboardKey.keyK, meta: true): () {
-          TekGlobalSearchDialog.show(context, onNavigate: (idx) => setState(() => _index = idx));
+          TekGlobalSearchDialog.show(context,
+              onNavigate: (idx) => setState(() => _index = idx));
         },
       },
       child: Focus(
@@ -1199,7 +1226,12 @@ class _AppShellState extends State<AppShell> {
   }
 
   Widget _mobileLayout(List<AppModule> mods) {
-    final tabs = [mods[0], mods[1], mods[2], mods[8]]; // Home, Sale, Stock, Staff Tracking
+    final tabs = [
+      mods[0],
+      mods[1],
+      mods[2],
+      mods[8]
+    ]; // Home, Sale, Stock, Staff Tracking
     final more = mods.where((m) => !tabs.contains(m)).toList();
     final idx = _index >= tabs.length ? tabs.length : _index;
 
@@ -1327,7 +1359,8 @@ class _AppShellState extends State<AppShell> {
         final pendingAttendance = attendanceSnap.data?.length ?? 0;
 
         return StreamBuilder<int>(
-          stream: NotificationService.instance.streamUnreadCount(auth.shopId, auth.uid),
+          stream: NotificationService.instance
+              .streamUnreadCount(auth.shopId, auth.uid),
           builder: (context, notifSnap) {
             final unreadNotifs = notifSnap.data ?? 0;
 
@@ -1339,7 +1372,8 @@ class _AppShellState extends State<AppShell> {
                   if (v is! Map) continue;
                   final p = tekM(v);
                   if (tekD(p['balance']) > 0) {
-                    final eval = ReminderService.instance.evaluateCustomerReminder(p);
+                    final eval =
+                        ReminderService.instance.evaluateCustomerReminder(p);
                     if (eval['isDue'] == true) overdueReminders++;
                   }
                 }
@@ -1371,26 +1405,31 @@ class _AppShellState extends State<AppShell> {
                             children: [
                               TekTopBar(
                                 unreadNotificationsCount: unreadNotifs,
-                                userName: auth.name.isNotEmpty ? auth.name : 'Tekfix',
-                                shopName: Db.setting('shop_name', 'TEKFIX DIGITAL'),
+                                userName:
+                                    auth.name.isNotEmpty ? auth.name : 'Tekfix',
+                                shopName:
+                                    Db.setting('shop_name', 'TEKFIX DIGITAL'),
                                 onSearchTap: () => TekGlobalSearchDialog.show(
                                   context,
-                                  onNavigate: (idx) => setState(() => _index = idx),
+                                  onNavigate: (idx) =>
+                                      setState(() => _index = idx),
                                 ),
-                                onNotificationsTap: () => TekNotificationPanel.show(
+                                onNotificationsTap: () =>
+                                    TekNotificationPanel.show(
                                   context,
                                   shopId: auth.shopId,
                                   staffId: auth.uid,
-                                  onNavigateModule: (idx) => setState(() => _index = idx),
+                                  onNavigateModule: (idx) =>
+                                      setState(() => _index = idx),
                                 ),
                                 onProfileTap: () => setState(() => _index = 21),
                                 onSignOut: () => auth.signOut(),
                               ),
-
                               Expanded(
                                 child: ClipRect(
                                   child: KeyedSubtree(
-                                    key: ValueKey('page_${mods[safeIndex].label}'),
+                                    key: ValueKey(
+                                        'page_${mods[safeIndex].label}'),
                                     child: mods[safeIndex].view,
                                   ),
                                 ),
@@ -1671,9 +1710,11 @@ class _SaleViewState extends State<SaleView> {
       }
 
       // Auto-deduct paper sheets if Photostat / Printing services are in cart
-      final sheetsToDeduct = ConsumablesService.calculateTotalSheetsForCart(_cart);
+      final sheetsToDeduct =
+          ConsumablesService.calculateTotalSheetsForCart(_cart);
       if (sheetsToDeduct > 0) {
-        await ConsumablesService.deductPaperSheets(sheetsToDeduct, reason: 'Sale $invoice');
+        await ConsumablesService.deductPaperSheets(sheetsToDeduct,
+            reason: 'Sale $invoice');
       }
       final bill = <String, dynamic>{
         'invoice': invoice,
@@ -2100,8 +2141,8 @@ class _SaleViewState extends State<SaleView> {
                 },
                 icon: const Icon(Icons.nights_stay_rounded, size: 16),
                 label: const Text('End of Day / Register Close',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 13)),
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               ),
             ),
           ],
@@ -2128,7 +2169,8 @@ class _SaleViewState extends State<SaleView> {
                         width: 390,
                         decoration: BoxDecoration(
                             color: _surface(context),
-                            border: Border(left: BorderSide(color: _line(context)))),
+                            border: Border(
+                                left: BorderSide(color: _line(context)))),
                         child: _cartPanel(),
                       ),
                     ],
@@ -2244,7 +2286,8 @@ void showItemForm(BuildContext context,
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('Multi-Unit Consumable (ബണ്ടിൾ / ഷീറ്റ്)'),
-          subtitle: const Text('ഉദാ: 1 ബണ്ടിൾ = 500 ഷീറ്റുകൾ (A4 Paper / Raw Material)'),
+          subtitle: const Text(
+              'ഉദാ: 1 ബണ്ടിൾ = 500 ഷീറ്റുകൾ (A4 Paper / Raw Material)'),
           value: isMultiUnit,
           onChanged: (v) => set(() {
             isMultiUnit = v;
@@ -2259,7 +2302,8 @@ void showItemForm(BuildContext context,
             const SizedBox(width: 8),
             Expanded(child: tf(baseUnit, 'Base Unit (Sheet)')),
             const SizedBox(width: 8),
-            Expanded(child: tf(convFactor, 'Ratio (Sheets/Bundle)', number: true)),
+            Expanded(
+                child: tf(convFactor, 'Ratio (Sheets/Bundle)', number: true)),
           ]),
           const SizedBox(height: 6),
         ],
@@ -2272,14 +2316,23 @@ void showItemForm(BuildContext context,
         ),
         const SizedBox(height: 6),
         Row(children: [
-          Expanded(child: tf(cost, isMultiUnit ? 'യൂണിറ്റ് കോസ്റ്റ് (₹/Sheet)' : 'വാങ്ങിയ വില', number: true)),
+          Expanded(
+              child: tf(cost,
+                  isMultiUnit ? 'യൂണിറ്റ് കോസ്റ്റ് (₹/Sheet)' : 'വാങ്ങിയ വില',
+                  number: true)),
           const SizedBox(width: 10),
           Expanded(child: tf(sell, 'വിൽക്കുന്ന വില', number: true)),
         ]),
         Row(children: [
-          Expanded(child: tf(stock, isMultiUnit ? 'എണ്ണം (Base Sheets)' : 'എണ്ണം (Stock)', number: true)),
+          Expanded(
+              child: tf(
+                  stock, isMultiUnit ? 'എണ്ണം (Base Sheets)' : 'എണ്ണം (Stock)',
+                  number: true)),
           const SizedBox(width: 10),
-          Expanded(child: tf(minStock, isMultiUnit ? 'Low-stock alert (Sheets)' : 'Low-stock alert', number: true)),
+          Expanded(
+              child: tf(minStock,
+                  isMultiUnit ? 'Low-stock alert (Sheets)' : 'Low-stock alert',
+                  number: true)),
         ]),
       ],
     ),
@@ -2305,17 +2358,21 @@ void showItemForm(BuildContext context,
         'warranty': warranty,
         'followUpEnabled': followUpEnabled,
         'stock': st,
-        'minStock': int.tryParse(minStock.text.trim()) ?? (isMultiUnit ? 200 : 3),
+        'minStock':
+            int.tryParse(minStock.text.trim()) ?? (isMultiUnit ? 200 : 3),
         'isMultiUnit': isMultiUnit,
-        'itemType': isMultiUnit ? 'Consumable / Raw Material' : (item?['itemType'] ?? 'Standard'),
+        'itemType': isMultiUnit
+            ? 'Consumable / Raw Material'
+            : (item?['itemType'] ?? 'Standard'),
         if (isMultiUnit)
-          'purchaseUnit': purchaseUnit.text.trim().isNotEmpty ? purchaseUnit.text.trim() : 'Bundle',
+          'purchaseUnit': purchaseUnit.text.trim().isNotEmpty
+              ? purchaseUnit.text.trim()
+              : 'Bundle',
         if (isMultiUnit)
-          'baseUnit': baseUnit.text.trim().isNotEmpty ? baseUnit.text.trim() : 'Sheet',
-        if (isMultiUnit)
-          'conversionFactor': factor > 0 ? factor : 500,
-        if (isMultiUnit)
-          'purchaseRate': (factor > 0 ? factor : 500) * c,
+          'baseUnit':
+              baseUnit.text.trim().isNotEmpty ? baseUnit.text.trim() : 'Sheet',
+        if (isMultiUnit) 'conversionFactor': factor > 0 ? factor : 500,
+        if (isMultiUnit) 'purchaseRate': (factor > 0 ? factor : 500) * c,
       };
       if (item == null) {
         final newKey = await Db.items.add(payload);
@@ -2442,7 +2499,8 @@ class _ItemsViewState extends State<ItemsView> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: _selectedKeys.isNotEmpty
                           ? DashboardColors.neonBlue.withValues(alpha: 0.1)
@@ -2459,13 +2517,18 @@ class _ItemsViewState extends State<ItemsView> {
                         Checkbox(
                           value: _selectedKeys.isEmpty
                               ? false
-                              : (_selectedKeys.length >= list.length ? true : null),
+                              : (_selectedKeys.length >= list.length
+                                  ? true
+                                  : null),
                           tristate: true,
                           activeColor: DashboardColors.neonBlue,
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
                           onChanged: (val) {
                             setState(() {
-                              if (val == true || (_selectedKeys.isNotEmpty && _selectedKeys.length < list.length)) {
+                              if (val == true ||
+                                  (_selectedKeys.isNotEmpty &&
+                                      _selectedKeys.length < list.length)) {
                                 _selectedKeys.addAll(list.map((e) => e.key));
                               } else {
                                 _selectedKeys.clear();
@@ -2479,8 +2542,12 @@ class _ItemsViewState extends State<ItemsView> {
                               ? 'Select All (${list.length})'
                               : '${_selectedKeys.length} / ${list.length} selected',
                           style: TextStyle(
-                            color: _selectedKeys.isNotEmpty ? Colors.white : _muted(context),
-                            fontWeight: _selectedKeys.isNotEmpty ? FontWeight.bold : FontWeight.normal,
+                            color: _selectedKeys.isNotEmpty
+                                ? Colors.white
+                                : _muted(context),
+                            fontWeight: _selectedKeys.isNotEmpty
+                                ? FontWeight.bold
+                                : FontWeight.normal,
                             fontSize: 13,
                           ),
                         ),
@@ -2490,13 +2557,16 @@ class _ItemsViewState extends State<ItemsView> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: DashboardColors.neonGreen,
                               foregroundColor: Colors.black,
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8)),
                             ),
                             icon: const Icon(Icons.qr_code_2_rounded, size: 16),
                             label: Text(
                               'Print Barcodes (${_selectedKeys.length})',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 12),
                             ),
                             onPressed: () {
                               final selectedItems = list
@@ -2506,17 +2576,26 @@ class _ItemsViewState extends State<ItemsView> {
                                         'name': e.value['name'],
                                         'model': e.value['model'],
                                         'brand': e.value['brand'],
-                                        'barcode': e.value['barcode'] ?? e.value['code'] ?? e.value['sku'],
-                                        'sellingPrice': (e.value['sellingPrice'] as num?)?.toDouble() ??
-                                            (e.value['price'] as num?)?.toDouble(),
-                                        'mrp': (e.value['mrp'] as num?)?.toDouble(),
-                                        'stock': (e.value['stock'] as num?)?.toInt() ?? 1,
+                                        'barcode': e.value['barcode'] ??
+                                            e.value['code'] ??
+                                            e.value['sku'],
+                                        'sellingPrice':
+                                            (e.value['sellingPrice'] as num?)
+                                                    ?.toDouble() ??
+                                                (e.value['price'] as num?)
+                                                    ?.toDouble(),
+                                        'mrp': (e.value['mrp'] as num?)
+                                            ?.toDouble(),
+                                        'stock': (e.value['stock'] as num?)
+                                                ?.toInt() ??
+                                            1,
                                       })
                                   .toList();
                               BarcodePrintDialog.showForMultipleProducts(
                                 context,
                                 selectedItems,
-                                title: 'Batch Barcode Print (${selectedItems.length} Products)',
+                                title:
+                                    'Batch Barcode Print (${selectedItems.length} Products)',
                               );
                             },
                           ),
@@ -2524,7 +2603,8 @@ class _ItemsViewState extends State<ItemsView> {
                           IconButton(
                             icon: const Icon(Icons.clear, size: 18),
                             tooltip: 'Clear selection',
-                            onPressed: () => setState(() => _selectedKeys.clear()),
+                            onPressed: () =>
+                                setState(() => _selectedKeys.clear()),
                           ),
                         ],
                       ],
@@ -2553,7 +2633,8 @@ class _ItemsViewState extends State<ItemsView> {
                                 Checkbox(
                                   value: _selectedKeys.contains(e.key),
                                   activeColor: DashboardColors.neonBlue,
-                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  materialTapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
                                   onChanged: (val) {
                                     setState(() {
                                       if (val == true) {
@@ -2613,12 +2694,18 @@ class _ItemsViewState extends State<ItemsView> {
                                   children: [
                                     Pill(
                                       it['isMultiUnit'] == true
-                                          ? ConsumablesService.formatStockDisplay(
+                                          ? ConsumablesService
+                                              .formatStockDisplay(
                                               baseStock: stock,
                                               conversionFactor:
-                                                  (it['conversionFactor'] as num?)?.toInt() ?? 500,
-                                              baseUnit: '${it['baseUnit'] ?? "Sheet"}',
-                                              purchaseUnit: '${it['purchaseUnit'] ?? "Bundle"}',
+                                                  (it['conversionFactor']
+                                                              as num?)
+                                                          ?.toInt() ??
+                                                      500,
+                                              baseUnit:
+                                                  '${it['baseUnit'] ?? "Sheet"}',
+                                              purchaseUnit:
+                                                  '${it['purchaseUnit'] ?? "Bundle"}',
                                             )
                                           : 'Stock $stock',
                                       low ? Colors.red : Colors.green,
@@ -2628,21 +2715,28 @@ class _ItemsViewState extends State<ItemsView> {
                                       children: [
                                         InkWell(
                                           onTap: () {
-                                            BarcodePrintDialog.showForSingleProduct(
+                                            BarcodePrintDialog
+                                                .showForSingleProduct(
                                               context,
                                               itemKey: e.key,
                                               name: '${it['name'] ?? ''}',
                                               existingBarcode:
                                                   '${it['barcode'] ?? it['code'] ?? it['sku'] ?? ''}',
-                                              sellingPrice: (it['sellingPrice'] as num?)?.toDouble() ??
-                                                  (it['price'] as num?)?.toDouble(),
+                                              sellingPrice:
+                                                  (it['sellingPrice'] as num?)
+                                                          ?.toDouble() ??
+                                                      (it['price'] as num?)
+                                                          ?.toDouble(),
                                               initialQuantity: 1,
                                             );
                                           },
                                           child: const Padding(
-                                            padding: EdgeInsets.only(top: 6, right: 6),
+                                            padding: EdgeInsets.only(
+                                                top: 6, right: 6),
                                             child: Icon(Icons.qr_code_2_rounded,
-                                                size: 20, color: DashboardColors.neonBlue),
+                                                size: 20,
+                                                color:
+                                                    DashboardColors.neonBlue),
                                           ),
                                         ),
                                         InkWell(
@@ -2661,7 +2755,8 @@ class _ItemsViewState extends State<ItemsView> {
                                             padding: const EdgeInsets.only(
                                                 top: 6, left: 6),
                                             child: Icon(Icons.delete_outline,
-                                                size: 20, color: _muted(context)),
+                                                size: 20,
+                                                color: _muted(context)),
                                           ),
                                         ),
                                       ],
@@ -2751,8 +2846,9 @@ void showPartyForm(BuildContext context,
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('തുക തരാമെന്ന് പറഞ്ഞ തീയതി (Promised Date)'),
-            subtitle: Text(
-                promisedDate.isNotEmpty ? promisedDate : 'തിരഞ്ഞെടുത്തിട്ടില്ല'),
+            subtitle: Text(promisedDate.isNotEmpty
+                ? promisedDate
+                : 'തിരഞ്ഞെടുത്തിട്ടില്ല'),
             trailing: const Icon(Icons.event),
             onTap: () async {
               final d = await showDatePicker(
@@ -3405,7 +3501,8 @@ class _ExpenseTabState extends State<_ExpenseTab> {
             return _matchesDateFilter(dt);
           }).toList();
 
-          double totalFiltered = filtered.fold(0.0, (a, b) => a + _d(b.value['amount']));
+          double totalFiltered =
+              filtered.fold(0.0, (a, b) => a + _d(b.value['amount']));
 
           return Column(
             children: [
@@ -3416,21 +3513,29 @@ class _ExpenseTabState extends State<_ExpenseTab> {
                   children: [
                     Row(
                       children: [
-                        const Text('Date: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        const Text('Date: ',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 12)),
                         DropdownButton<String>(
                           value: _dateFilter,
                           isDense: true,
                           items: const [
-                            DropdownMenuItem(value: 'All', child: Text('All Time')),
-                            DropdownMenuItem(value: 'Today', child: Text('Today')),
-                            DropdownMenuItem(value: 'This Week', child: Text('This Week')),
-                            DropdownMenuItem(value: 'This Month', child: Text('This Month')),
+                            DropdownMenuItem(
+                                value: 'All', child: Text('All Time')),
+                            DropdownMenuItem(
+                                value: 'Today', child: Text('Today')),
+                            DropdownMenuItem(
+                                value: 'This Week', child: Text('This Week')),
+                            DropdownMenuItem(
+                                value: 'This Month', child: Text('This Month')),
                           ],
                           onChanged: (v) => setState(() => _dateFilter = v!),
                         ),
                         const Spacer(),
                         Text('ആകെ: ${rs(totalFiltered)}',
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.redAccent)),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.redAccent)),
                       ],
                     ),
                     const SizedBox(height: 6),
@@ -3441,7 +3546,8 @@ class _ExpenseTabState extends State<_ExpenseTab> {
                           ChoiceChip(
                             label: const Text('All Categories'),
                             selected: _catFilter == 'All',
-                            onSelected: (_) => setState(() => _catFilter = 'All'),
+                            onSelected: (_) =>
+                                setState(() => _catFilter = 'All'),
                           ),
                           for (final c in expenseCategories) ...[
                             const SizedBox(width: 6),
@@ -3471,10 +3577,12 @@ class _ExpenseTabState extends State<_ExpenseTab> {
                           final mode = '${e['mode'] ?? 'Cash'}';
 
                           Color catColor = Colors.blueGrey;
-                          if (cat == 'Shop Owner Salary') catColor = Colors.purple;
+                          if (cat == 'Shop Owner Salary')
+                            catColor = Colors.purple;
                           if (cat == 'Shop Rent') catColor = Colors.deepOrange;
                           if (cat == 'Staff Salary') catColor = Colors.teal;
-                          if (cat == 'Electricity') catColor = Colors.amber.shade800;
+                          if (cat == 'Electricity')
+                            catColor = Colors.amber.shade800;
 
                           return AppCard(
                             margin: const EdgeInsets.only(bottom: 8),
@@ -3488,7 +3596,8 @@ class _ExpenseTabState extends State<_ExpenseTab> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text('${e['title']}',
                                           style: const TextStyle(
@@ -3499,27 +3608,33 @@ class _ExpenseTabState extends State<_ExpenseTab> {
                                         runSpacing: 2,
                                         children: [
                                           Chip(
-                                            visualDensity: VisualDensity.compact,
+                                            visualDensity:
+                                                VisualDensity.compact,
                                             label: Text(cat,
                                                 style: TextStyle(
                                                     fontSize: 10,
                                                     fontWeight: FontWeight.bold,
                                                     color: catColor)),
-                                            backgroundColor: catColor.withAlpha(25),
+                                            backgroundColor:
+                                                catColor.withAlpha(25),
                                             padding: EdgeInsets.zero,
                                           ),
                                           Chip(
-                                            visualDensity: VisualDensity.compact,
+                                            visualDensity:
+                                                VisualDensity.compact,
                                             label: Text(mode,
                                                 style: const TextStyle(
                                                     fontSize: 10,
-                                                    fontWeight: FontWeight.w600)),
+                                                    fontWeight:
+                                                        FontWeight.w600)),
                                             padding: EdgeInsets.zero,
                                           ),
                                           Padding(
-                                            padding: const EdgeInsets.only(top: 4),
+                                            padding:
+                                                const EdgeInsets.only(top: 4),
                                             child: Text(
-                                              dayFormat.format(_dt(e['createdAt'])),
+                                              dayFormat
+                                                  .format(_dt(e['createdAt'])),
                                               style: TextStyle(
                                                   fontSize: 11,
                                                   color: _muted(context)),
@@ -3581,9 +3696,8 @@ class StaffView extends StatelessWidget {
       [dynamic key, Map<String, dynamic>? staff]) {
     final now = DateTime.now();
     final currentMonthDays = SalaryCalculator.getDaysInMonth(now);
-    final initialDailyRate = staff != null
-        ? SalaryCalculator.getDailyRate(staff, now)
-        : 350.0;
+    final initialDailyRate =
+        staff != null ? SalaryCalculator.getDailyRate(staff, now) : 350.0;
     final initialMonthly = staff != null
         ? ((staff['monthlySalary'] as num?)?.toDouble() ??
             (initialDailyRate * currentMonthDays))
@@ -3607,8 +3721,8 @@ class StaffView extends StatelessWidget {
           tf(name, 'ജീവനക്കാരന്റെ പേര് *'),
           tf(role, 'തസ്തിക (Designation)'),
           tf(phone, 'ഫോൺ നമ്പർ *', phone: true),
-          tf(dailyRateCtrl, 'പ്രതിദിന വേതനം (Daily Rate ₹) *',
-              number: true, onChanged: (v) {
+          tf(dailyRateCtrl, 'പ്രതിദിന വേതനം (Daily Rate ₹) *', number: true,
+              onChanged: (v) {
             final dr = double.tryParse(v.trim()) ?? 0.0;
             if (dr > 0) {
               set(() {
@@ -3634,7 +3748,8 @@ class StaffView extends StatelessWidget {
       onSave: () async {
         if (name.text.trim().isEmpty) return 'പേര് നൽകുക';
         final pText = pin.text.trim();
-        if (pText.length != 4) return '4 അക്ക ലോഗിൻ PIN നൽകുക (Enter 4-digit PIN)';
+        if (pText.length != 4)
+          return '4 അക്ക ലോഗിൻ PIN നൽകുക (Enter 4-digit PIN)';
         final sal = double.tryParse(salary.text.trim());
         if (sal == null || sal < 0) return 'ശരിയായ ശമ്പളം നൽകുക';
         final dRate = double.tryParse(dailyRateCtrl.text.trim()) ??
@@ -3667,16 +3782,19 @@ class StaffView extends StatelessWidget {
               action: 'Staff Updated',
               entity: 'Staff',
               entityId: '$key',
-              newValue: {'name': payload['name'], 'salary': sal, 'dailyRate': dRate});
+              newValue: {
+                'name': payload['name'],
+                'salary': sal,
+                'dailyRate': dRate
+              });
         }
 
         // Sync to Firestore under shops/{shopId}/staff/{id} so staff can log in using PIN
         final shopId = Db.setting('shop_id');
         if (shopId.isNotEmpty) {
           try {
-            final staffDocId = phone.text.trim().isNotEmpty
-                ? phone.text.trim()
-                : '$staffKey';
+            final staffDocId =
+                phone.text.trim().isNotEmpty ? phone.text.trim() : '$staffKey';
             await FirebaseFirestore.instance
                 .collection('shops')
                 .doc(shopId)
@@ -4180,7 +4298,7 @@ class ServicesView extends StatefulWidget {
 }
 
 Future<void> showServiceJobForm(BuildContext context,
-    [dynamic key, Map<String, dynamic>? old]) =>
+        [dynamic key, Map<String, dynamic>? old]) =>
     _ServicesViewState.showJobForm(context, key, old);
 
 class _ServicesViewState extends State<ServicesView> {
@@ -4204,7 +4322,7 @@ class _ServicesViewState extends State<ServicesView> {
   }
 
   Future<void> _jobForm(BuildContext context,
-      [dynamic key, Map<String, dynamic>? old]) =>
+          [dynamic key, Map<String, dynamic>? old]) =>
       showJobForm(context, key, old);
 
   static Future<void> showJobForm(BuildContext context,
@@ -4571,25 +4689,34 @@ class _ServicesViewState extends State<ServicesView> {
                                     FilledButton.icon(
                                         onPressed: () =>
                                             _billNow(context, e.key, j),
-                                        icon: const Icon(Icons.shopping_cart_rounded,
+                                        icon: const Icon(
+                                            Icons.shopping_cart_rounded,
                                             size: 16),
                                         label: const Text('Sale to Customer')),
                                   if (j['billCreated'] == true)
                                     OutlinedButton.icon(
                                         onPressed: () async {
                                           final allSales = entriesOf(Db.sales);
-                                          final match = allSales.where((s) =>
-                                              '${s.value['invoice']}' == '${j['invoice']}' ||
-                                              '${s.value['serviceJobId']}' == '${j['jobId']}').toList();
+                                          final match = allSales
+                                              .where((s) =>
+                                                  '${s.value['invoice']}' ==
+                                                      '${j['invoice']}' ||
+                                                  '${s.value['serviceJobId']}' ==
+                                                      '${j['jobId']}')
+                                              .toList();
                                           if (match.isNotEmpty) {
-                                            await printInvoice(context, match.first.value, a4: true);
+                                            await printInvoice(
+                                                context, match.first.value,
+                                                a4: true);
                                           } else {
-                                            toast(context, 'Invoice #${j['invoice']}');
+                                            toast(context,
+                                                'Invoice #${j['invoice']}');
                                           }
                                         },
                                         icon: const Icon(Icons.receipt_long,
                                             size: 16),
-                                        label: Text('View Invoice${j['invoice'] != null ? " (#${j['invoice']})" : ""}')),
+                                        label: Text(
+                                            'View Invoice${j['invoice'] != null ? " (#${j['invoice']})" : ""}')),
                                   OutlinedButton.icon(
                                       onPressed: () =>
                                           _notify(context, j, 'Service update'),
@@ -5543,8 +5670,7 @@ class _SettingsViewState extends State<SettingsView> {
       _c['shop_latitude']!.text = pos.latitude.toStringAsFixed(6);
       _c['shop_longitude']!.text = pos.longitude.toStringAsFixed(6);
       if (mounted) {
-        toast(
-            context,
+        toast(context,
             'ലൊക്കേഷൻ എടുത്തു (${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)})');
       }
     } catch (e) {
@@ -5633,7 +5759,8 @@ class _SettingsViewState extends State<SettingsView> {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: tf(_c['shop_longitude']!, 'Longitude', number: true),
+                      child:
+                          tf(_c['shop_longitude']!, 'Longitude', number: true),
                     ),
                   ],
                 ),

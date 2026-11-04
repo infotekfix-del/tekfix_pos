@@ -2,11 +2,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tekfix_erp_pos/repairs/service_bill_dialog.dart';
 
 void main() {
-  group('Service Bill Spare Parts Integration Tests (All 8 Test Scenarios)', () {
+  group('Service Bill Spare Parts Integration Tests (All 8 Test Scenarios)',
+      () {
     // -------------------------------------------------------------------------
     // TEST 1: Select an inventory spare with stock 5. Add quantity 2. Stock -> 3.
     // -------------------------------------------------------------------------
-    test('TEST 1: Select an inventory spare with stock 5, add quantity 2 -> stock = 3', () {
+    test(
+        'TEST 1: Select an inventory spare with stock 5, add quantity 2 -> stock = 3',
+        () {
       int stock = 5;
       final part = ServiceSparePartItem(
         itemId: 'inv_101',
@@ -37,7 +40,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 2: Select an item with stock 1. Attempt quantity 2 -> Insufficient stock
     // -------------------------------------------------------------------------
-    test('TEST 2: Select an item with stock 1, attempt quantity 2 -> insufficient stock warning', () {
+    test(
+        'TEST 2: Select an item with stock 1, attempt quantity 2 -> insufficient stock warning',
+        () {
       final part = ServiceSparePartItem(
         itemId: 'inv_102',
         name: 'iPhone X OLED Display',
@@ -62,7 +67,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 3: Add external spare part -> Invoice includes it, inventory untouched
     // -------------------------------------------------------------------------
-    test('TEST 3: Add external spare part -> Invoice includes external spare, inventory unchanged', () {
+    test(
+        'TEST 3: Add external spare part -> Invoice includes external spare, inventory unchanged',
+        () {
       final externalPart = ServiceSparePartItem(
         itemId: null,
         name: 'External Charging IC',
@@ -89,7 +96,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 4: Add two different inventory spare parts -> Both in invoice & deducted
     // -------------------------------------------------------------------------
-    test('TEST 4: Add two different inventory spares -> Both appear in invoice & both deducted', () {
+    test(
+        'TEST 4: Add two different inventory spares -> Both appear in invoice & both deducted',
+        () {
       var stock1 = 10;
       var stock2 = 4;
 
@@ -128,7 +137,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 5: Click Create Bill twice rapidly -> Idempotency prevents duplicate
     // -------------------------------------------------------------------------
-    test('TEST 5: Rapid double-click on Create Bill -> In-flight lock blocks duplicate', () {
+    test(
+        'TEST 5: Rapid double-click on Create Bill -> In-flight lock blocks duplicate',
+        () {
       final inFlightInvoices = <String>{};
       const invoiceId = 'INV-SHAHAL-1001';
 
@@ -144,13 +155,16 @@ void main() {
         inFlightInvoices.add(invoiceId);
         secondAttemptSuccess = true;
       }
-      expect(secondAttemptSuccess, isFalse, reason: 'Duplicate attempt blocked by in-flight lock');
+      expect(secondAttemptSuccess, isFalse,
+          reason: 'Duplicate attempt blocked by in-flight lock');
     });
 
     // -------------------------------------------------------------------------
     // TEST 6: Simulate failure during billing -> Rollback & no partial deduction
     // -------------------------------------------------------------------------
-    test('TEST 6: Transaction failure simulation -> No partial stock deduction or incomplete bill', () {
+    test(
+        'TEST 6: Transaction failure simulation -> No partial stock deduction or incomplete bill',
+        () {
       int initialStockA = 5;
       int initialStockB = 3;
 
@@ -178,7 +192,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 7: Complete a service bill using UPI -> Appears in UPI collection
     // -------------------------------------------------------------------------
-    test('TEST 7: Complete service bill with UPI -> Captured in UPI sales and daily ledger', () {
+    test(
+        'TEST 7: Complete service bill with UPI -> Captured in UPI sales and daily ledger',
+        () {
       const mode = 'UPI';
       const double netPayable = 2150.0;
 
@@ -207,7 +223,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 8: Verify the service invoice layout & numbers
     // -------------------------------------------------------------------------
-    test('TEST 8: Verify service invoice structure, item names, quantities, and final payable in paise', () {
+    test(
+        'TEST 8: Verify service invoice structure, item names, quantities, and final payable in paise',
+        () {
       const double serviceCharge = 500.0;
       const double labour = 150.0;
       const double discount = 50.0;
@@ -231,13 +249,18 @@ void main() {
       );
 
       final allSpares = [invPart, extPart];
-      final sparesTotal = allSpares.fold<double>(0.0, (s, p) => s + p.lineTotal); // 2100.0
+      final sparesTotal =
+          allSpares.fold<double>(0.0, (s, p) => s + p.lineTotal); // 2100.0
       expect(sparesTotal, equals(2100.0));
 
-      final grossTotal = sparesTotal + serviceCharge + labour - discount; // 2100 + 500 + 150 - 50 = 2700
+      final grossTotal = sparesTotal +
+          serviceCharge +
+          labour -
+          discount; // 2100 + 500 + 150 - 50 = 2700
       expect(grossTotal, equals(2700.0));
 
-      final advanceApplied = grossTotal < advanceReceived ? grossTotal : advanceReceived;
+      final advanceApplied =
+          grossTotal < advanceReceived ? grossTotal : advanceReceived;
       expect(advanceApplied, equals(600.0));
 
       final netPayable = grossTotal - advanceApplied; // 2700 - 600 = 2100

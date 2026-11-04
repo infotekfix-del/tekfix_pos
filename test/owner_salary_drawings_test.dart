@@ -65,7 +65,8 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 1: Withdrawal within quota (100% OPEX Salary)
     // -------------------------------------------------------------------------
-    test('1. Withdrawal within ₹20,000 quota is 100% Owner Salary (OPEX)', () async {
+    test('1. Withdrawal within ₹20,000 quota is 100% Owner Salary (OPEX)',
+        () async {
       final initialCash = (Db.bank.get('cash_in_hand') as num).toDouble();
       final initialBank = (Db.bank.get('bank_balance') as num).toDouble();
 
@@ -101,7 +102,8 @@ void main() {
       expect(exp.isOwnerWithdrawal, true);
 
       // Verify Cash debited by ₹5,000 and Bank untouched
-      expect((Db.bank.get('cash_in_hand') as num).toDouble(), initialCash - 5000.0);
+      expect((Db.bank.get('cash_in_hand') as num).toDouble(),
+          initialCash - 5000.0);
       expect((Db.bank.get('bank_balance') as num).toDouble(), initialBank);
 
       // Verify Quota Metrics
@@ -118,7 +120,8 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 2: Withdrawal crossing the threshold midway (Auto-Split)
     // -------------------------------------------------------------------------
-    test('2. Withdrawal crossing ₹20,000 threshold midway splits automatically', () async {
+    test('2. Withdrawal crossing ₹20,000 threshold midway splits automatically',
+        () async {
       final nov12 = DateTime(2026, 11, 12);
 
       // Step 1: Pre-withdraw ₹18,000 (remaining quota becomes ₹2,000)
@@ -187,7 +190,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 3: Pure Excess Drawings after quota full (Non-expense Equity)
     // -------------------------------------------------------------------------
-    test('3. Withdrawal when quota is already full is 100% Owner Drawings (Equity)', () async {
+    test(
+        '3. Withdrawal when quota is already full is 100% Owner Drawings (Equity)',
+        () async {
       final nov15 = DateTime(2026, 11, 15);
 
       // Exhaust full ₹20,000 quota
@@ -233,7 +238,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 4: Bank / UPI Owner Withdrawal
     // -------------------------------------------------------------------------
-    test('4. Bank withdrawal debits bank_balance and leaves cash_in_hand untouched', () async {
+    test(
+        '4. Bank withdrawal debits bank_balance and leaves cash_in_hand untouched',
+        () async {
       final initialCash = (Db.bank.get('cash_in_hand') as num).toDouble();
       final initialBank = (Db.bank.get('bank_balance') as num).toDouble();
 
@@ -251,7 +258,8 @@ void main() {
       expect(item.isCash, false);
 
       // Verify Bank balance decremented by ₹3,000
-      expect((Db.bank.get('bank_balance') as num).toDouble(), initialBank - 3000.0);
+      expect((Db.bank.get('bank_balance') as num).toDouble(),
+          initialBank - 3000.0);
 
       // Verify Cash in hand remains untouched
       expect((Db.bank.get('cash_in_hand') as num).toDouble(), initialCash);
@@ -266,7 +274,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 5: Voiding a withdrawal reverses balances and quota
     // -------------------------------------------------------------------------
-    test('5. Voiding an owner withdrawal restores cash/bank balance and reverses quota', () async {
+    test(
+        '5. Voiding an owner withdrawal restores cash/bank balance and reverses quota',
+        () async {
       final nov20 = DateTime(2026, 11, 20);
 
       final item = await OwnerFinanceService.instance.recordWithdrawal(
@@ -315,7 +325,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 6: EOD Closing Reconciliation with Owner Withdrawals
     // -------------------------------------------------------------------------
-    test('6. EOD Closing reconciles cash salary and cash drawings with zero discrepancy', () {
+    test(
+        '6. EOD Closing reconciles cash salary and cash drawings with zero discrepancy',
+        () {
       final businessDate = DateTime(2026, 11, 25);
 
       final sales = [
@@ -331,7 +343,12 @@ void main() {
           'due': 0.0,
           'status': 'SOLD',
           'items': [
-            {'name': 'Screen Replacement', 'category': 'Repairs', 'qty': 1, 'lineTotal': 10000.0}
+            {
+              'name': 'Screen Replacement',
+              'category': 'Repairs',
+              'qty': 1,
+              'lineTotal': 10000.0
+            }
           ],
         },
       ];
@@ -366,7 +383,8 @@ void main() {
       expect(summary.ownerCashSalaryDrawn, 2000.0);
       expect(summary.ownerCashDrawingsDrawn, 3000.0);
       expect(summary.otherCashExpenses, 200.0); // 2500 - 300 - 2000 = 200
-      expect(summary.totalCashOutflows, 300.0 + 200.0 + 2000.0 + 3000.0); // 5500.0
+      expect(
+          summary.totalCashOutflows, 300.0 + 200.0 + 2000.0 + 3000.0); // 5500.0
       expect(summary.expectedClosingCash, 9500.0);
       expect(summary.physicalCashCount, 9500.0);
       expect(summary.cashDiscrepancy, 0.0); // Exact match!
@@ -376,7 +394,8 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 7: Monthly Quota Rollover
     // -------------------------------------------------------------------------
-    test('7. Monthly quota resets dynamically for the new calendar month', () async {
+    test('7. Monthly quota resets dynamically for the new calendar month',
+        () async {
       // November: Full ₹20,000 drawn
       await OwnerFinanceService.instance.recordWithdrawal(
         shopId: testShopId,
@@ -406,4 +425,3 @@ void main() {
     });
   });
 }
-

@@ -27,8 +27,11 @@ void main() {
     }
   });
 
-  group('Requirement 1 & 2: Multi-Unit Purchase Conversion & Effective Costing', () {
-    test('PurchaseBillItem multi-unit calculation: 3 bundles @ ₹207 = 1500 sheets @ ₹0.414', () {
+  group('Requirement 1 & 2: Multi-Unit Purchase Conversion & Effective Costing',
+      () {
+    test(
+        'PurchaseBillItem multi-unit calculation: 3 bundles @ ₹207 = 1500 sheets @ ₹0.414',
+        () {
       final item = PurchaseBillItem(
         itemName: 'A4 Paper 75 GSM',
         category: 'Consumable / Raw Material',
@@ -47,7 +50,8 @@ void main() {
       expect(item.baseQuantity, equals(1500)); // 3 * 500 = 1500 sheets
 
       // Verify effective cost per base unit
-      expect(item.effectiveUnitCost, closeTo(0.414, 0.001)); // 207 / 500 = 0.414
+      expect(
+          item.effectiveUnitCost, closeTo(0.414, 0.001)); // 207 / 500 = 0.414
     });
 
     test('PurchaseBillItem serialization preserves multi-unit attributes', () {
@@ -79,7 +83,8 @@ void main() {
       expect(restored.effectiveUnitCost, closeTo(0.414, 0.001));
     });
 
-    test('formatStockDisplay displays dual base and purchase units clearly', () {
+    test('formatStockDisplay displays dual base and purchase units clearly',
+        () {
       final display1 = ConsumablesService.formatStockDisplay(
         baseStock: 1500,
         conversionFactor: 500,
@@ -98,7 +103,8 @@ void main() {
     });
   });
 
-  group('Requirement 3: Price Fluctuation & Weighted Average Costing (WAC)', () {
+  group('Requirement 3: Price Fluctuation & Weighted Average Costing (WAC)',
+      () {
     test('Calculates WAC on initial purchase correctly', () {
       // 0 existing stock + 3 bundles (1500 sheets) @ ₹207
       final wac1 = ConsumablesService.calculateWAC(
@@ -112,7 +118,9 @@ void main() {
       expect(wac1, closeTo(0.414, 0.0001));
     });
 
-    test('Calculates WAC on subsequent price fluctuation (₹207 -> ₹220 per bundle)', () {
+    test(
+        'Calculates WAC on subsequent price fluctuation (₹207 -> ₹220 per bundle)',
+        () {
       // Existing: 1000 sheets remaining @ ₹0.414 (Stock value = ₹414)
       // New: 2 bundles (1000 sheets) @ ₹220 per bundle (Purchase value = ₹440)
       // Combined: 2000 sheets, total value = ₹854
@@ -128,7 +136,8 @@ void main() {
       expect(wac2, closeTo(0.427, 0.0001));
     });
 
-    test('Dynamic paper cost feeds into Photostat profit margin calculation', () {
+    test('Dynamic paper cost feeds into Photostat profit margin calculation',
+        () {
       // Single Side: selling price ₹5, paper cost ₹0.414
       final marginSingle = ConsumablesService.calculatePhotostatMargin(
         sellingPrice: 5.0,
@@ -154,7 +163,9 @@ void main() {
       expect(marginUpdated['marginPercent'], closeTo(91.46, 0.1));
     });
 
-    test('PurchaseBillService saves bill, increments stock by 1,500 Sheets, and applies WAC', () async {
+    test(
+        'PurchaseBillService saves bill, increments stock by 1,500 Sheets, and applies WAC',
+        () async {
       // Pre-create item in Db.items with 500 sheets @ ₹0.40
       final itemKey = await Db.items.add({
         'name': 'A4 Paper 75 GSM',
@@ -195,7 +206,8 @@ void main() {
       );
 
       // Verify item updated in Db.items
-      final updatedItem = Map<String, dynamic>.from(Db.items.get(itemKey) as Map);
+      final updatedItem =
+          Map<String, dynamic>.from(Db.items.get(itemKey) as Map);
       // Stock should increment by 1500 sheets: 500 + 1500 = 2000 sheets
       expect(updatedItem['stock'], equals(2000));
 
@@ -209,12 +221,17 @@ void main() {
 
   group('Requirement 4: Photostat Linking & Paper Auto-Deduction', () {
     test('Identifies Photostat & Printing service items accurately', () {
-      expect(ConsumablesService.isPhotostatItem('Photostat - Single Side (₹5)'), isTrue);
-      expect(ConsumablesService.isPhotostatItem('Photostat - Double Side (₹7)'), isTrue);
-      expect(ConsumablesService.isPhotostatItem('Xerox Copy', 'Services'), isTrue);
-      expect(ConsumablesService.isPhotostatItem('Color Print', 'Printing'), isTrue);
+      expect(ConsumablesService.isPhotostatItem('Photostat - Single Side (₹5)'),
+          isTrue);
+      expect(ConsumablesService.isPhotostatItem('Photostat - Double Side (₹7)'),
+          isTrue);
+      expect(
+          ConsumablesService.isPhotostatItem('Xerox Copy', 'Services'), isTrue);
+      expect(ConsumablesService.isPhotostatItem('Color Print', 'Printing'),
+          isTrue);
       expect(ConsumablesService.isPhotostatItem('Single Side Print'), isTrue);
-      expect(ConsumablesService.isPhotostatItem('iPhone 15 Case', 'Cases'), isFalse);
+      expect(ConsumablesService.isPhotostatItem('iPhone 15 Case', 'Cases'),
+          isFalse);
     });
 
     test('Calculates total sheets to deduct from cart items', () {
@@ -241,7 +258,9 @@ void main() {
       expect(totalSheets, equals(15));
     });
 
-    test('deductPaperSheets decrements A4 Paper stock balance in Db.items and logs stockMove', () async {
+    test(
+        'deductPaperSheets decrements A4 Paper stock balance in Db.items and logs stockMove',
+        () async {
       // Setup initial paper stock = 1500 sheets
       await Db.items.clear();
       await Db.stockMoves.clear();
@@ -249,7 +268,8 @@ void main() {
       expect(paperItem['stock'], equals(1500));
 
       // Deduct 260 sheets (e.g. after customer print job)
-      final remaining = await ConsumablesService.deductPaperSheets(260, reason: 'POS Sale #INV-101');
+      final remaining = await ConsumablesService.deductPaperSheets(260,
+          reason: 'POS Sale #INV-101');
       expect(remaining, equals(1240));
 
       final refreshed = ConsumablesService.getA4PaperItem();
@@ -261,7 +281,9 @@ void main() {
       expect(move['delta'], equals(-260));
     });
 
-    test('Detects low-stock warning threshold when paper falls below 200 sheets', () async {
+    test(
+        'Detects low-stock warning threshold when paper falls below 200 sheets',
+        () async {
       await Db.items.clear();
       final paperItem = await ConsumablesService.findOrCreateA4PaperItem();
       final key = paperItem['_key'];

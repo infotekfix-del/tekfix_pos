@@ -13,7 +13,8 @@ import 'smart_inventory_models.dart';
 
 class SmartInventorySearchEngine extends ChangeNotifier {
   SmartInventorySearchEngine._();
-  static final SmartInventorySearchEngine instance = SmartInventorySearchEngine._();
+  static final SmartInventorySearchEngine instance =
+      SmartInventorySearchEngine._();
 
   final Map<String, InventorySearchItem> _itemsById = {};
   List<InventorySearchItem> _cachedList = [];
@@ -25,7 +26,8 @@ class SmartInventorySearchEngine extends ChangeNotifier {
   InventorySyncState _syncState = InventorySyncState.syncing;
   String _currentShopId = '';
   StreamSubscription? _hiveSubscription;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _firestoreSubscription;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+      _firestoreSubscription;
 
   bool get isInitialized => _isInitialized;
   bool get isLoading => _isLoading;
@@ -46,7 +48,10 @@ class SmartInventorySearchEngine extends ChangeNotifier {
         ? shopId.trim()
         : Db.setting('shop_id', 'tekfix');
 
-    if (_isInitialized && !forceRefresh && _currentShopId == targetShopId && _itemsById.isNotEmpty) {
+    if (_isInitialized &&
+        !forceRefresh &&
+        _currentShopId == targetShopId &&
+        _itemsById.isNotEmpty) {
       return;
     }
 
@@ -116,7 +121,8 @@ class SmartInventorySearchEngine extends ChangeNotifier {
   void _setupFirestoreListener(String shopId) {
     if (Firebase.apps.isEmpty) {
       _syncState = InventorySyncState.offline;
-      debugPrint('[SmartInventorySearchEngine] Firebase not initialized; running in offline mode.');
+      debugPrint(
+          '[SmartInventorySearchEngine] Firebase not initialized; running in offline mode.');
       return;
     }
 
@@ -129,13 +135,14 @@ class SmartInventorySearchEngine extends ChangeNotifier {
     try {
       final fs = FirebaseFirestore.instance;
       final user = FirebaseAuth.instance.currentUser;
-      debugPrint('[SmartInventorySearchEngine] Starting snapshot listener for shops/$shopId/inventory (Auth User: ${user?.uid ?? "Anonymous"})');
+      debugPrint(
+          '[SmartInventorySearchEngine] Starting snapshot listener for shops/$shopId/inventory (Auth User: ${user?.uid ?? "Anonymous"})');
 
-      final collectionRef = fs.collection('shops').doc(shopId).collection('inventory');
+      final collectionRef =
+          fs.collection('shops').doc(shopId).collection('inventory');
 
-      _firestoreSubscription = collectionRef
-          .snapshots(includeMetadataChanges: true)
-          .listen(
+      _firestoreSubscription =
+          collectionRef.snapshots(includeMetadataChanges: true).listen(
         (snapshot) {
           final isFromCache = snapshot.metadata.isFromCache;
           final hasPendingWrites = snapshot.metadata.hasPendingWrites;
@@ -175,7 +182,8 @@ class SmartInventorySearchEngine extends ChangeNotifier {
           notifyListeners();
         },
         onError: (error) {
-          debugPrint('[SmartInventorySearchEngine] Firestore snapshot listener error: $error');
+          debugPrint(
+              '[SmartInventorySearchEngine] Firestore snapshot listener error: $error');
           _syncState = InventorySyncState.error;
           _syncErrorMessage = error.toString();
           notifyListeners();
@@ -202,10 +210,13 @@ class SmartInventorySearchEngine extends ChangeNotifier {
       }
 
       final fs = FirebaseFirestore.instance;
-      final shopId = _currentShopId.isNotEmpty ? _currentShopId : Db.setting('shop_id', 'tekfix');
+      final shopId = _currentShopId.isNotEmpty
+          ? _currentShopId
+          : Db.setting('shop_id', 'tekfix');
       final user = FirebaseAuth.instance.currentUser;
 
-      debugPrint('[SmartInventorySearchEngine] Force refreshing server inventory for shops/$shopId/inventory (User: ${user?.uid})');
+      debugPrint(
+          '[SmartInventorySearchEngine] Force refreshing server inventory for shops/$shopId/inventory (User: ${user?.uid})');
 
       final snapshot = await fs
           .collection('shops')
@@ -214,7 +225,8 @@ class SmartInventorySearchEngine extends ChangeNotifier {
           .get(const GetOptions(source: Source.server))
           .timeout(const Duration(seconds: 10));
 
-      debugPrint('[SmartInventorySearchEngine] Server refresh success: ${snapshot.docs.length} products loaded.');
+      debugPrint(
+          '[SmartInventorySearchEngine] Server refresh success: ${snapshot.docs.length} products loaded.');
 
       for (final doc in snapshot.docs) {
         final data = doc.data();
@@ -310,4 +322,3 @@ class _ScoredItem {
   final int score;
   _ScoredItem({required this.item, required this.score});
 }
-

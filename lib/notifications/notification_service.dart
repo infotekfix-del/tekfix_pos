@@ -35,14 +35,16 @@ class NotificationService {
   }
 
   /// Mark all notifications as read
-  Future<void> markAllAsRead(String staffId, List<String> notificationIds) async {
+  Future<void> markAllAsRead(
+      String staffId, List<String> notificationIds) async {
     final ids = _getReadIds(staffId);
     final set = ids.toSet()..addAll(notificationIds);
     await _saveReadIds(staffId, set.toList());
   }
 
   /// Real-time stream of notifications for staff
-  Stream<List<TekNotification>> streamNotifications(String shopId, String staffId) {
+  Stream<List<TekNotification>> streamNotifications(
+      String shopId, String staffId) {
     if (shopId.isEmpty) {
       return Stream.value(_getDefaultAnnouncements(shopId, staffId));
     }
@@ -85,7 +87,8 @@ class NotificationService {
   }
 
   /// Seed initial owner announcement & system alerts if collection is newly created
-  List<TekNotification> _getDefaultAnnouncements(String shopId, String staffId) {
+  List<TekNotification> _getDefaultAnnouncements(
+      String shopId, String staffId) {
     final readIds = _getReadIds(staffId);
     final now = DateTime.now();
 
@@ -95,7 +98,8 @@ class NotificationService {
         shopId: shopId,
         type: NotificationType.announcement,
         title: 'ഷോപ്പ് ഉടമയുടെ അറിയിപ്പ് (Owner Announcement)',
-        message: 'സ്റ്റാഫ് പോർട്ടൽ v1.0.2 അപ്‌ഡേറ്റ് ചെയ്തു. എല്ലാ സർവീസ് ജോലികളുടെയും സ്റ്റാറ്റസ് യഥാസമയം അപ്ഡേറ്റ് ചെയ്യുക. കസ്റ്റമർക്ക് വാട്സാപ്പ് സന്ദേശങ്ങൾ അയക്കുക.',
+        message:
+            'സ്റ്റാഫ് പോർട്ടൽ v1.0.2 അപ്‌ഡേറ്റ് ചെയ്തു. എല്ലാ സർവീസ് ജോലികളുടെയും സ്റ്റാറ്റസ് യഥാസമയം അപ്ഡേറ്റ് ചെയ്യുക. കസ്റ്റമർക്ക് വാട്സാപ്പ് സന്ദേശങ്ങൾ അയക്കുക.',
         priority: NotificationPriority.urgent,
         sender: 'Owner (ഷോപ്പ് ഉടമ)',
         createdAt: now.subtract(const Duration(hours: 1)),
@@ -106,7 +110,8 @@ class NotificationService {
         shopId: shopId,
         type: NotificationType.systemAlert,
         title: 'ഡ്യൂട്ടി & ക്യാഷ് രജിസ്റ്റർ ഓർമ്മപ്പെടുത്തൽ',
-        message: 'ഷിഫ്റ്റ് പൂർത്തിയാക്കുമ്പോൾ ഡ്രോയറിലെ ക്യാഷ് എണ്ണി തിട്ടപ്പെടുത്തി മാത്രമേ ചെക്ക്-ഔട്ട് ചെയ്യാൻ പാടുള്ളൂ.',
+        message:
+            'ഷിഫ്റ്റ് പൂർത്തിയാക്കുമ്പോൾ ഡ്രോയറിലെ ക്യാഷ് എണ്ണി തിട്ടപ്പെടുത്തി മാത്രമേ ചെക്ക്-ഔട്ട് ചെയ്യാൻ പാടുള്ളൂ.',
         priority: NotificationPriority.normal,
         sender: 'TEKFIX Core System',
         createdAt: now.subtract(const Duration(hours: 4)),
@@ -117,7 +122,8 @@ class NotificationService {
         shopId: shopId,
         type: NotificationType.repairUpdate,
         title: 'പുതിയ സർവീസ് ജോലികൾ പരിശോധിക്കുക',
-        message: 'പുതിയ സർവീസ് ടിക്കറ്റുകൾ "Repairs" ടാബിൽ ലഭ്യമാണ്. സ്പെയർ പാർട്സ് ആവശ്യമെങ്കിൽ "Orders" വഴി ഓർഡർ ചെയ്യുക.',
+        message:
+            'പുതിയ സർവീസ് ടിക്കറ്റുകൾ "Repairs" ടാബിൽ ലഭ്യമാണ്. സ്പെയർ പാർട്സ് ആവശ്യമെങ്കിൽ "Orders" വഴി ഓർഡർ ചെയ്യുക.',
         priority: NotificationPriority.info,
         sender: 'Service Desk',
         createdAt: now.subtract(const Duration(days: 1)),

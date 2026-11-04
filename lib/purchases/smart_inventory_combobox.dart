@@ -54,7 +54,8 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
   bool _isSearching = false;
   int _highlightedIndex = -1;
 
-  final SmartInventorySearchEngine _engine = SmartInventorySearchEngine.instance;
+  final SmartInventorySearchEngine _engine =
+      SmartInventorySearchEngine.instance;
 
   @override
   void initState() {
@@ -283,7 +284,10 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx2, setSheetState) {
           final query = _searchCtrl.text;
-          final tokens = InventorySearchItem.normalize(query).split(' ').where((t) => t.isNotEmpty).toList();
+          final tokens = InventorySearchItem.normalize(query)
+              .split(' ')
+              .where((t) => t.isNotEmpty)
+              .toList();
 
           return Padding(
             padding: EdgeInsets.only(
@@ -310,7 +314,8 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                        icon: const Icon(Icons.close_rounded,
+                            color: Colors.white70),
                         onPressed: () => Navigator.pop(ctx),
                       ),
                     ],
@@ -324,14 +329,17 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
                     style: const TextStyle(color: Colors.white, fontSize: 14),
                     decoration: InputDecoration(
                       hintText: widget.placeholder,
-                      hintStyle: const TextStyle(color: DashboardColors.textMuted, fontSize: 13),
-                      prefixIcon: const Icon(Icons.search_rounded, color: DashboardColors.neonBlue, size: 20),
+                      hintStyle: const TextStyle(
+                          color: DashboardColors.textMuted, fontSize: 13),
+                      prefixIcon: const Icon(Icons.search_rounded,
+                          color: DashboardColors.neonBlue, size: 20),
                       suffixIcon: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (_searchCtrl.text.isNotEmpty)
                             IconButton(
-                              icon: const Icon(Icons.clear_rounded, color: Colors.white70, size: 18),
+                              icon: const Icon(Icons.clear_rounded,
+                                  color: Colors.white70, size: 18),
                               onPressed: () {
                                 _searchCtrl.clear();
                                 setSheetState(() {});
@@ -344,7 +352,8 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
                       fillColor: Colors.white.withValues(alpha: 0.05),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: DashboardColors.neonBlue),
+                        borderSide:
+                            const BorderSide(color: DashboardColors.neonBlue),
                       ),
                     ),
                     onChanged: (val) {
@@ -367,7 +376,8 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
                         ? _buildEmptyState(query, inSheet: true)
                         : ListView.separated(
                             itemCount: _searchResults.length,
-                            separatorBuilder: (_, __) => const Divider(color: Colors.white12, height: 1),
+                            separatorBuilder: (_, __) =>
+                                const Divider(color: Colors.white12, height: 1),
                             itemBuilder: (c, idx) {
                               final item = _searchResults[idx];
                               return _buildProductResultTile(item, tokens, () {
@@ -399,14 +409,18 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
 
   Widget _buildDropdownContainer() {
     final query = _searchCtrl.text;
-    final tokens = InventorySearchItem.normalize(query).split(' ').where((t) => t.isNotEmpty).toList();
+    final tokens = InventorySearchItem.normalize(query)
+        .split(' ')
+        .where((t) => t.isNotEmpty)
+        .toList();
 
     return Container(
       constraints: BoxConstraints(maxHeight: widget.dropdownMaxHeight),
       decoration: BoxDecoration(
         color: const Color(0xFF0C1236),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.4), width: 1.2),
+        border: Border.all(
+            color: DashboardColors.neonBlue.withValues(alpha: 0.4), width: 1.2),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.7),
@@ -494,7 +508,9 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
       splashColor: DashboardColors.neonBlue.withValues(alpha: 0.2),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        color: isHighlighted ? DashboardColors.neonBlue.withValues(alpha: 0.12) : Colors.transparent,
+        color: isHighlighted
+            ? DashboardColors.neonBlue.withValues(alpha: 0.12)
+            : Colors.transparent,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -514,8 +530,12 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
                 ),
               ),
               child: Icon(
-                item.trackImei ? Icons.smartphone_rounded : Icons.inventory_2_rounded,
-                color: isOut ? DashboardColors.neonOrange : DashboardColors.neonGreen,
+                item.trackImei
+                    ? Icons.smartphone_rounded
+                    : Icons.inventory_2_rounded,
+                color: isOut
+                    ? DashboardColors.neonOrange
+                    : DashboardColors.neonGreen,
                 size: 20,
               ),
             ),
@@ -550,10 +570,13 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
                     [
                       if (item.brand.isNotEmpty) 'Brand: ${item.brand}',
                       if (item.model.isNotEmpty) 'Model: ${item.model}',
-                      if (item.sku.isNotEmpty) 'SKU: ${item.sku}'
-                      else if (item.barcode.isNotEmpty) 'Barcode: ${item.barcode}',
+                      if (item.sku.isNotEmpty)
+                        'SKU: ${item.sku}'
+                      else if (item.barcode.isNotEmpty)
+                        'Barcode: ${item.barcode}',
                     ].join(' • '),
-                    style: const TextStyle(color: DashboardColors.textMuted, fontSize: 11),
+                    style: const TextStyle(
+                        color: DashboardColors.textMuted, fontSize: 11),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -566,22 +589,29 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
                     children: [
                       // Stock pill
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: isOut
-                              ? DashboardColors.neonOrange.withValues(alpha: 0.15)
-                              : DashboardColors.neonGreen.withValues(alpha: 0.15),
+                              ? DashboardColors.neonOrange
+                                  .withValues(alpha: 0.15)
+                              : DashboardColors.neonGreen
+                                  .withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(4),
                           border: Border.all(
                             color: isOut
-                                ? DashboardColors.neonOrange.withValues(alpha: 0.4)
-                                : DashboardColors.neonGreen.withValues(alpha: 0.4),
+                                ? DashboardColors.neonOrange
+                                    .withValues(alpha: 0.4)
+                                : DashboardColors.neonGreen
+                                    .withValues(alpha: 0.4),
                           ),
                         ),
                         child: Text(
                           isOut ? 'Stock: 0 PCS' : 'Stock: ${item.stock} PCS',
                           style: TextStyle(
-                            color: isOut ? DashboardColors.neonOrange : DashboardColors.neonGreen,
+                            color: isOut
+                                ? DashboardColors.neonOrange
+                                : DashboardColors.neonGreen,
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                           ),
@@ -592,14 +622,16 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
                       if (item.lastPurchaseRate > 0)
                         Text(
                           'Last: ₹${item.lastPurchaseRate.toStringAsFixed(2)}',
-                          style: const TextStyle(color: Colors.white70, fontSize: 11),
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 11),
                         ),
 
                       // GST
                       if (item.gst > 0)
                         Text(
                           'GST: ${item.gst.toStringAsFixed(0)}%',
-                          style: const TextStyle(color: DashboardColors.neonPurple, fontSize: 11),
+                          style: const TextStyle(
+                              color: DashboardColors.neonPurple, fontSize: 11),
                         ),
                     ],
                   ),
@@ -614,7 +646,8 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
               decoration: BoxDecoration(
                 color: DashboardColors.neonBlue.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.35)),
+                border: Border.all(
+                    color: DashboardColors.neonBlue.withValues(alpha: 0.35)),
               ),
               child: const Text(
                 'SELECT',
@@ -642,7 +675,8 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.inventory_2_outlined, color: Colors.white.withValues(alpha: 0.3), size: 36),
+          Icon(Icons.inventory_2_outlined,
+              color: Colors.white.withValues(alpha: 0.3), size: 36),
           const SizedBox(height: 8),
           const Text(
             'No matching items found in inventory.',
@@ -663,13 +697,16 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
   }
 
   Widget _buildPinnedAddButton(String query, VoidCallback onAdd) {
-    final label = query.trim().isNotEmpty ? 'Add as New Item "$query"' : 'Add as New Item';
+    final label = query.trim().isNotEmpty
+        ? 'Add as New Item "$query"'
+        : 'Add as New Item';
 
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF101844),
         border: Border(
-          top: BorderSide(color: DashboardColors.neonBlue.withValues(alpha: 0.25)),
+          top: BorderSide(
+              color: DashboardColors.neonBlue.withValues(alpha: 0.25)),
         ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -682,12 +719,14 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
             color: DashboardColors.neonGreen.withValues(alpha: 0.12),
-            border: Border.all(color: DashboardColors.neonGreen.withValues(alpha: 0.4)),
+            border: Border.all(
+                color: DashboardColors.neonGreen.withValues(alpha: 0.4)),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.add_circle_outline_rounded, color: DashboardColors.neonGreen, size: 18),
+              const Icon(Icons.add_circle_outline_rounded,
+                  color: DashboardColors.neonGreen, size: 18),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
@@ -769,7 +808,10 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
           const Expanded(
             child: Text(
               'Showing saved inventory data. Sync pending.',
-              style: TextStyle(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.w500),
+              style: TextStyle(
+                  color: Colors.amber,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500),
             ),
           ),
           InkWell(
@@ -798,12 +840,16 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded, color: DashboardColors.alertRed, size: 14),
+          const Icon(Icons.error_outline_rounded,
+              color: DashboardColors.alertRed, size: 14),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
               'Sync error: ${_engine.syncErrorMessage ?? "Unable to connect"}',
-              style: const TextStyle(color: DashboardColors.alertRed, fontSize: 11, fontWeight: FontWeight.w500),
+              style: const TextStyle(
+                  color: DashboardColors.alertRed,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -873,7 +919,8 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
         const SnackBar(
           content: Row(
             children: [
-              Icon(Icons.cloud_done_rounded, color: DashboardColors.neonGreen, size: 18),
+              Icon(Icons.cloud_done_rounded,
+                  color: DashboardColors.neonGreen, size: 18),
               SizedBox(width: 8),
               Text('Inventory synced successfully with cloud server!'),
             ],
@@ -889,10 +936,12 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
         SnackBar(
           content: Row(
             children: [
-              const Icon(Icons.error_outline_rounded, color: DashboardColors.alertRed, size: 18),
+              const Icon(Icons.error_outline_rounded,
+                  color: DashboardColors.alertRed, size: 18),
               const SizedBox(width: 8),
               Expanded(
-                child: Text('Sync failed: ${_engine.syncErrorMessage ?? "Network or permission error"}'),
+                child: Text(
+                    'Sync failed: ${_engine.syncErrorMessage ?? "Network or permission error"}'),
               ),
             ],
           ),
@@ -919,19 +968,22 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
             if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
               if (_searchResults.isNotEmpty) {
                 setState(() {
-                  _highlightedIndex = (_highlightedIndex + 1).clamp(0, _searchResults.length - 1);
+                  _highlightedIndex = (_highlightedIndex + 1)
+                      .clamp(0, _searchResults.length - 1);
                 });
                 _updateOverlay();
               }
             } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
               if (_searchResults.isNotEmpty) {
                 setState(() {
-                  _highlightedIndex = (_highlightedIndex - 1).clamp(0, _searchResults.length - 1);
+                  _highlightedIndex = (_highlightedIndex - 1)
+                      .clamp(0, _searchResults.length - 1);
                 });
                 _updateOverlay();
               }
             } else if (event.logicalKey == LogicalKeyboardKey.enter) {
-              if (_highlightedIndex >= 0 && _highlightedIndex < _searchResults.length) {
+              if (_highlightedIndex >= 0 &&
+                  _highlightedIndex < _searchResults.length) {
                 _selectProduct(_searchResults[_highlightedIndex]);
               } else {
                 _handleSubmitted(_searchCtrl.text);
@@ -948,8 +1000,10 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
           style: const TextStyle(color: Colors.white, fontSize: 13),
           decoration: InputDecoration(
             hintText: widget.placeholder,
-            hintStyle: const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
-            prefixIcon: const Icon(Icons.search_rounded, color: DashboardColors.neonBlue, size: 18),
+            hintStyle:
+                const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
+            prefixIcon: const Icon(Icons.search_rounded,
+                color: DashboardColors.neonBlue, size: 18),
             suffixIcon: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -959,12 +1013,14 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
                     child: SizedBox(
                       width: 14,
                       height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 1.5, color: DashboardColors.neonBlue),
+                      child: CircularProgressIndicator(
+                          strokeWidth: 1.5, color: DashboardColors.neonBlue),
                     ),
                   ),
                 if (_searchCtrl.text.isNotEmpty)
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 16),
+                    icon: const Icon(Icons.close_rounded,
+                        color: Colors.white54, size: 16),
                     tooltip: 'Clear',
                     onPressed: () {
                       _searchCtrl.clear();
@@ -973,15 +1029,18 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
                   ),
                 _buildSyncButton(),
                 IconButton(
-                  icon: const Icon(Icons.qr_code_scanner_rounded, color: DashboardColors.neonBlue, size: 18),
+                  icon: const Icon(Icons.qr_code_scanner_rounded,
+                      color: DashboardColors.neonBlue, size: 18),
                   tooltip: 'Scan Barcode',
-                  onPressed: widget.onBarcodeScannerPressed ?? () => _focusNode.requestFocus(),
+                  onPressed: widget.onBarcodeScannerPressed ??
+                      () => _focusNode.requestFocus(),
                 ),
               ],
             ),
             filled: true,
             fillColor: Colors.white.withValues(alpha: 0.04),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: DashboardColors.neonBlue),
@@ -992,7 +1051,8 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: DashboardColors.neonBlue, width: 1.5),
+              borderSide:
+                  const BorderSide(color: DashboardColors.neonBlue, width: 1.5),
             ),
           ),
           textInputAction: TextInputAction.done,
@@ -1002,4 +1062,3 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
     );
   }
 }
-

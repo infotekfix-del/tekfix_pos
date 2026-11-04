@@ -5,7 +5,9 @@ import 'package:tekfix_erp_pos/purchases/purchase_models.dart';
 
 void main() {
   group('PHASE 6: INVOICE INGESTION, EXTRACTION & POPULATION TEST SUITE', () {
-    test('1. Structured Invoice Header Extraction (Invoice #, Date, GSTIN, Vendor)', () {
+    test(
+        '1. Structured Invoice Header Extraction (Invoice #, Date, GSTIN, Vendor)',
+        () {
       const sampleInvoiceText = '''
       TAX INVOICE
       Sold By: SUPREME TELECOM DISTRIBUTORS PVT LTD
@@ -53,12 +55,15 @@ void main() {
       expect(it2.taxPercent, equals(18.0));
     });
 
-    test('2. Multi-Format Date Parser (DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD)', () {
-      const docDmy = 'Invoice: PB-101\nDate: 14/02/2026\nGrand Total: 500.00\nItem: Case 1 500 500';
+    test('2. Multi-Format Date Parser (DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD)',
+        () {
+      const docDmy =
+          'Invoice: PB-101\nDate: 14/02/2026\nGrand Total: 500.00\nItem: Case 1 500 500';
       final p1 = InvoiceParserService.instance.parseInvoiceText(docDmy);
       expect(p1.invoiceDate, equals(DateTime(2026, 2, 14)));
 
-      const docYmd = 'Invoice: PB-102\nDate: 2026-11-05\nGrand Total: 800.00\nItem: Cable 2 400 800';
+      const docYmd =
+          'Invoice: PB-102\nDate: 2026-11-05\nGrand Total: 800.00\nItem: Cable 2 400 800';
       final p2 = InvoiceParserService.instance.parseInvoiceText(docYmd);
       expect(p2.invoiceDate, equals(DateTime(2026, 11, 5)));
     });
@@ -76,7 +81,8 @@ void main() {
       Total: 40989.00
       ''';
 
-      final parsed = InvoiceParserService.instance.parseInvoiceText(invoiceTabular);
+      final parsed =
+          InvoiceParserService.instance.parseInvoiceText(invoiceTabular);
 
       expect(parsed.itemCount, equals(2));
       expect(parsed.items[0].description, contains('OnePlus 12R 256GB'));
@@ -121,7 +127,8 @@ void main() {
       expect(matchedItem.itemId, equals('PROD_SAMSUNG_A35'));
     });
 
-    test('5. Non-Blocking Isolate & Stream Processing on File Parsing', () async {
+    test('5. Non-Blocking Isolate & Stream Processing on File Parsing',
+        () async {
       // Simulate raw invoice bytes (e.g., text or minimal PDF stream)
       final dummyPdfBytes = Uint8List.fromList('''
 %PDF-1.4
@@ -132,7 +139,8 @@ stream
 (Display Screen 1 1500 1500) Tj
 endstream
 %%EOF
-'''.codeUnits);
+'''
+          .codeUnits);
 
       final parsed = await InvoiceParserService.instance.parseInvoiceFile(
         fileBytes: dummyPdfBytes,

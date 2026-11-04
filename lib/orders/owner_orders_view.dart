@@ -31,7 +31,9 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
   }
 
   void _initStream() {
-    final effectiveShopId = widget.shopId.isNotEmpty ? widget.shopId : AuthController.instance.shopId;
+    final effectiveShopId = widget.shopId.isNotEmpty
+        ? widget.shopId
+        : AuthController.instance.shopId;
     _ordersStream = OrderService.instance.streamAllOrders(effectiveShopId);
   }
 
@@ -50,7 +52,8 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
   }
 
   // Owner update order status with instant Firestore sync & audit trail
-  Future<void> _updateStatus(StaffOrder order, StaffOrderStatus newStatus) async {
+  Future<void> _updateStatus(
+      StaffOrder order, StaffOrderStatus newStatus) async {
     final auth = AuthController.instance;
     final ownerName = auth.name.isNotEmpty ? auth.name : 'Owner';
 
@@ -62,7 +65,8 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
         ownerName: ownerName,
       );
       if (mounted) {
-        TekFeedback.showSuccess(context, '${order.orderId} സ്റ്റാറ്റസ് ${newStatus.label} ആക്കി മാറ്റി');
+        TekFeedback.showSuccess(context,
+            '${order.orderId} സ്റ്റാറ്റസ് ${newStatus.label} ആക്കി മാറ്റി');
       }
     } catch (e) {
       if (mounted) {
@@ -73,8 +77,10 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
 
   // Open WhatsApp Settings Modal
   Future<void> _openWhatsAppSettingsDialog() async {
-    final currentConfig = await OrderService.instance.getWhatsAppConfig(widget.shopId);
-    final groupUrlCtrl = TextEditingController(text: currentConfig.groupInvitationUrl);
+    final currentConfig =
+        await OrderService.instance.getWhatsAppConfig(widget.shopId);
+    final groupUrlCtrl =
+        TextEditingController(text: currentConfig.groupInvitationUrl);
     final apiUrlCtrl = TextEditingController(text: currentConfig.apiUrl);
     final apiTokenCtrl = TextEditingController(text: currentConfig.apiToken);
 
@@ -88,82 +94,83 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
     try {
       await showDialog(
         context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.settings_suggest_rounded, color: Color(0xFF25D366)),
-            SizedBox(width: 8),
-            Text('WhatsApp Settings (കോൺഫിഗറേഷൻ)'),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+        builder: (ctx) => AlertDialog(
+          title: const Row(
             children: [
-              const Text(
-                'സ്റ്റാഫ് സമർപ്പിക്കുന്ന ഓർഡറുകൾ അയക്കാനുള്ള കമ്പനി WhatsApp ഗ്രൂപ്പ് ലിങ്ക് ഇവിടെ നൽകുക.',
-                style: TextStyle(fontSize: 12.5),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: groupUrlCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'WhatsApp Group Invite Link *',
-                  hintText: 'https://chat.whatsapp.com/...',
-                  prefixIcon: Icon(Icons.link_rounded),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Cloud Webhook / API Settings (Optional):',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: apiUrlCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'API Webhook URL (Optional)',
-                  hintText: 'https://...',
-                  prefixIcon: Icon(Icons.webhook_rounded),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: apiTokenCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Bearer Token (Optional)',
-                  prefixIcon: Icon(Icons.key_rounded),
-                ),
-              ),
+              Icon(Icons.settings_suggest_rounded, color: Color(0xFF25D366)),
+              SizedBox(width: 8),
+              Text('WhatsApp Settings (കോൺഫിഗറേഷൻ)'),
             ],
           ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'സ്റ്റാഫ് സമർപ്പിക്കുന്ന ഓർഡറുകൾ അയക്കാനുള്ള കമ്പനി WhatsApp ഗ്രൂപ്പ് ലിങ്ക് ഇവിടെ നൽകുക.',
+                  style: TextStyle(fontSize: 12.5),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: groupUrlCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'WhatsApp Group Invite Link *',
+                    hintText: 'https://chat.whatsapp.com/...',
+                    prefixIcon: Icon(Icons.link_rounded),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Cloud Webhook / API Settings (Optional):',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: apiUrlCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'API Webhook URL (Optional)',
+                    hintText: 'https://...',
+                    prefixIcon: Icon(Icons.webhook_rounded),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: apiTokenCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Bearer Token (Optional)',
+                    prefixIcon: Icon(Icons.key_rounded),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('റദ്ദാക്കുക (Cancel)'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final newConfig = WhatsAppGroupConfig(
+                  groupInvitationUrl: groupUrlCtrl.text.trim().isNotEmpty
+                      ? groupUrlCtrl.text.trim()
+                      : currentConfig.groupInvitationUrl,
+                  apiUrl: apiUrlCtrl.text.trim(),
+                  apiToken: apiTokenCtrl.text.trim(),
+                );
+                await OrderService.instance
+                    .saveWhatsAppConfig(widget.shopId, newConfig);
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                  toast(ctx, 'WhatsApp കോൺഫിഗറേഷൻ സേവ് ചെയ്തു');
+                }
+              },
+              child: const Text('സേവ് ചെയ്യുക (Save)'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('റദ്ദാക്കുക (Cancel)'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final newConfig = WhatsAppGroupConfig(
-                groupInvitationUrl: groupUrlCtrl.text.trim().isNotEmpty
-                    ? groupUrlCtrl.text.trim()
-                    : currentConfig.groupInvitationUrl,
-                apiUrl: apiUrlCtrl.text.trim(),
-                apiToken: apiTokenCtrl.text.trim(),
-              );
-              await OrderService.instance.saveWhatsAppConfig(widget.shopId, newConfig);
-              if (ctx.mounted) {
-                Navigator.pop(ctx);
-                toast(ctx, 'WhatsApp കോൺഫിഗറേഷൻ സേവ് ചെയ്തു');
-              }
-            },
-            child: const Text('സേവ് ചെയ്യുക (Save)'),
-          ),
-        ],
-      ),
-    );
+      );
     } finally {
       groupUrlCtrl.dispose();
       apiUrlCtrl.dispose();
@@ -183,7 +190,8 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
             Expanded(
               child: Text(
                 'Order Details: ${order.orderId}',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
             ),
           ],
@@ -208,9 +216,11 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text('Staff: ${order.staffName}',
-                              style: const TextStyle(fontWeight: FontWeight.bold)),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold)),
                           Text('${order.createdDate} ${order.createdTime}',
-                              style: TextStyle(color: Colors.grey.shade700, fontSize: 12)),
+                              style: TextStyle(
+                                  color: Colors.grey.shade700, fontSize: 12)),
                         ],
                       ),
                       const SizedBox(height: 6),
@@ -256,9 +266,12 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                               ? Colors.orange.shade100
                               : kPrimary.withValues(alpha: 0.1),
                           child: Icon(
-                            p.isCustom ? Icons.handyman_outlined : Icons.inventory_2_outlined,
+                            p.isCustom
+                                ? Icons.handyman_outlined
+                                : Icons.inventory_2_outlined,
                             size: 16,
-                            color: p.isCustom ? Colors.orange.shade800 : kPrimary,
+                            color:
+                                p.isCustom ? Colors.orange.shade800 : kPrimary,
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -267,26 +280,34 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(p.name,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13.5)),
                               if (p.model.isNotEmpty || p.variant.isNotEmpty)
                                 Text(
                                   [
                                     if (p.model.isNotEmpty) 'Model: ${p.model}',
-                                    if (p.variant.isNotEmpty) 'Variant: ${p.variant}',
+                                    if (p.variant.isNotEmpty)
+                                      'Variant: ${p.variant}',
                                   ].join(' | '),
-                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade700),
                                 ),
                               if (p.remarks.isNotEmpty)
                                 Text(
                                   'Note: ${p.remarks}',
-                                  style: const TextStyle(fontSize: 11.5, fontStyle: FontStyle.italic),
+                                  style: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontStyle: FontStyle.italic),
                                 ),
                             ],
                           ),
                         ),
                         Text(
                           '${p.quantity} ${p.unit}',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 14),
                         ),
                       ],
                     ),
@@ -295,7 +316,8 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                 if (order.generalRemarks.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   const Text('General Remarks / Note:',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   const SizedBox(height: 4),
                   Container(
                     padding: const EdgeInsets.all(10),
@@ -304,7 +326,8 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: Colors.amber.shade200),
                     ),
-                    child: Text(order.generalRemarks, style: const TextStyle(fontSize: 12.5)),
+                    child: Text(order.generalRemarks,
+                        style: const TextStyle(fontSize: 12.5)),
                   ),
                 ],
                 const SizedBox(height: 14),
@@ -406,7 +429,8 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.error_outline_rounded, color: Colors.red, size: 48),
+                    const Icon(Icons.error_outline_rounded,
+                        color: Colors.red, size: 48),
                     const SizedBox(height: 12),
                     Text('ഓർഡറുകൾ ലോഡ് ചെയ്യുന്നതിൽ പിശക്: ${snapshot.error}',
                         textAlign: TextAlign.center,
@@ -423,29 +447,34 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
           final totalOrdersCount = allOrders.length;
           final pendingCount = allOrders
               .where((o) =>
-                  o.status == StaffOrderStatus.submitted || o.status == StaffOrderStatus.pending)
+                  o.status == StaffOrderStatus.submitted ||
+                  o.status == StaffOrderStatus.pending)
               .length;
           final confirmedCount = allOrders
               .where((o) =>
-                  o.status == StaffOrderStatus.confirmed || o.status == StaffOrderStatus.processing)
+                  o.status == StaffOrderStatus.confirmed ||
+                  o.status == StaffOrderStatus.processing)
               .length;
-          final completedCount =
-              allOrders.where((o) => o.status == StaffOrderStatus.completed).length;
+          final completedCount = allOrders
+              .where((o) => o.status == StaffOrderStatus.completed)
+              .length;
           final totalUnitsCount =
               allOrders.fold<int>(0, (sum, o) => sum + o.totalQuantity);
 
           // Extract distinct staff names for filter dropdown
           final distinctStaff = <String>{'All'};
           for (final o in allOrders) {
-            if (o.staffName.trim().isNotEmpty) distinctStaff.add(o.staffName.trim());
+            if (o.staffName.trim().isNotEmpty)
+              distinctStaff.add(o.staffName.trim());
           }
 
           // Filter by search, status, and staff
           final filtered = allOrders.where((o) {
             final matchesStatus = _selectedStatusFilter == 'All' ||
-                o.status.name.toLowerCase() == _selectedStatusFilter.toLowerCase();
-            final matchesStaff =
-                _selectedStaffFilter == 'All' || o.staffName.trim() == _selectedStaffFilter;
+                o.status.name.toLowerCase() ==
+                    _selectedStatusFilter.toLowerCase();
+            final matchesStaff = _selectedStaffFilter == 'All' ||
+                o.staffName.trim() == _selectedStaffFilter;
 
             final q = _searchQuery.toLowerCase();
             final matchesQuery = q.isEmpty ||
@@ -468,16 +497,32 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                       spacing: 10,
                       runSpacing: 10,
                       children: [
-                        _buildKpiCard('Total Orders', '$totalOrdersCount', Icons.shopping_bag_rounded,
-                            kPrimary, isWide),
-                        _buildKpiCard('Pending Action', '$pendingCount',
-                            Icons.pending_actions_rounded, Colors.orange.shade800, isWide),
-                        _buildKpiCard('In Processing', '$confirmedCount',
-                            Icons.published_with_changes_rounded, Colors.purple.shade700, isWide),
-                        _buildKpiCard('Completed', '$completedCount',
-                            Icons.check_circle_rounded, Colors.teal.shade700, isWide),
-                        _buildKpiCard('Total Units', '$totalUnitsCount',
-                            Icons.inventory_2_rounded, Colors.blueGrey.shade800, isWide),
+                        _buildKpiCard('Total Orders', '$totalOrdersCount',
+                            Icons.shopping_bag_rounded, kPrimary, isWide),
+                        _buildKpiCard(
+                            'Pending Action',
+                            '$pendingCount',
+                            Icons.pending_actions_rounded,
+                            Colors.orange.shade800,
+                            isWide),
+                        _buildKpiCard(
+                            'In Processing',
+                            '$confirmedCount',
+                            Icons.published_with_changes_rounded,
+                            Colors.purple.shade700,
+                            isWide),
+                        _buildKpiCard(
+                            'Completed',
+                            '$completedCount',
+                            Icons.check_circle_rounded,
+                            Colors.teal.shade700,
+                            isWide),
+                        _buildKpiCard(
+                            'Total Units',
+                            '$totalUnitsCount',
+                            Icons.inventory_2_rounded,
+                            Colors.blueGrey.shade800,
+                            isWide),
                       ],
                     );
                   },
@@ -486,12 +531,15 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
 
               // Filter & Search Controls Bar
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                 child: Card(
                   elevation: 0.5,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     child: Wrap(
                       spacing: 12,
                       runSpacing: 8,
@@ -502,13 +550,16 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                           width: 240,
                           child: TextField(
                             controller: _searchCtrl,
-                            onChanged: (val) => setState(() => _searchQuery = val.trim()),
+                            onChanged: (val) =>
+                                setState(() => _searchQuery = val.trim()),
                             decoration: InputDecoration(
                               hintText: 'Search order, staff, product...',
-                              prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                              prefixIcon:
+                                  const Icon(Icons.search_rounded, size: 20),
                               suffixIcon: _searchQuery.isNotEmpty
                                   ? IconButton(
-                                      icon: const Icon(Icons.clear_rounded, size: 18),
+                                      icon: const Icon(Icons.clear_rounded,
+                                          size: 18),
                                       onPressed: () {
                                         _searchCtrl.clear();
                                         setState(() => _searchQuery = '');
@@ -516,9 +567,10 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                                     )
                                   : null,
                               isDense: true,
-                              contentPadding:
-                                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 8),
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8)),
                             ),
                           ),
                         ),
@@ -528,13 +580,15 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                           value: _selectedStatusFilter,
                           underline: const SizedBox.shrink(),
                           items: [
-                            const DropdownMenuItem(value: 'All', child: Text('Status: All')),
+                            const DropdownMenuItem(
+                                value: 'All', child: Text('Status: All')),
                             ...StaffOrderStatus.values.map(
                               (s) => DropdownMenuItem(
                                 value: s.name,
                                 child: Row(
                                   children: [
-                                    CircleAvatar(radius: 4, backgroundColor: s.color),
+                                    CircleAvatar(
+                                        radius: 4, backgroundColor: s.color),
                                     const SizedBox(width: 6),
                                     Text(s.label),
                                   ],
@@ -543,7 +597,8 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                             ),
                           ],
                           onChanged: (v) {
-                            if (v != null) setState(() => _selectedStatusFilter = v);
+                            if (v != null)
+                              setState(() => _selectedStatusFilter = v);
                           },
                         ),
 
@@ -560,23 +615,28 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                               )
                               .toList(),
                           onChanged: (v) {
-                            if (v != null) setState(() => _selectedStaffFilter = v);
+                            if (v != null)
+                              setState(() => _selectedStaffFilter = v);
                           },
                         ),
 
                         // Export CSV Button
                         OutlinedButton.icon(
-                          icon: const Icon(Icons.file_download_outlined, size: 18),
+                          icon: const Icon(Icons.file_download_outlined,
+                              size: 18),
                           label: const Text('Export CSV Report'),
                           onPressed: () {
                             if (filtered.isEmpty) {
-                              toast(context, 'ഡൗൺലോഡ് ചെയ്യാൻ ഓർഡറുകളൊന്നുമില്ല', error: true);
+                              toast(
+                                  context, 'ഡൗൺലോഡ് ചെയ്യാൻ ഓർഡറുകളൊന്നുമില്ല',
+                                  error: true);
                               return;
                             }
-                            final csvContent =
-                                OrderService.instance.exportOrdersToCsv(filtered);
+                            final csvContent = OrderService.instance
+                                .exportOrdersToCsv(filtered);
                             Clipboard.setData(ClipboardData(text: csvContent));
-                            toast(context, 'Orders CSV ക്ലിപ്ബോർഡിലേക്ക് കോപ്പി ചെയ്തു');
+                            toast(context,
+                                'Orders CSV ക്ലിപ്ബോർഡിലേക്ക് കോപ്പി ചെയ്തു');
                           },
                         ),
                       ],
@@ -592,7 +652,8 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.inbox_rounded, size: 48, color: Colors.grey.shade400),
+                            Icon(Icons.inbox_rounded,
+                                size: 48, color: Colors.grey.shade400),
                             const SizedBox(height: 10),
                             const Text(
                               'ഓർഡറുകളൊന്നും കണ്ടെത്തിയില്ല\n(No matching orders)',
@@ -603,13 +664,15 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                         ),
                       )
                     : ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
                         itemCount: filtered.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
                         itemBuilder: (ctx, i) {
                           final o = filtered[i];
-                          final isPending = o.status == StaffOrderStatus.pending ||
-                              o.status == StaffOrderStatus.submitted;
+                          final isPending =
+                              o.status == StaffOrderStatus.pending ||
+                                  o.status == StaffOrderStatus.submitted;
                           return Container(
                             decoration: BoxDecoration(
                               color: TekColors.cardBg,
@@ -623,7 +686,8 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                               boxShadow: isPending
                                   ? [
                                       BoxShadow(
-                                        color: TekColors.warning.withValues(alpha: 0.08),
+                                        color: TekColors.warning
+                                            .withValues(alpha: 0.08),
                                         blurRadius: 12,
                                         offset: const Offset(0, 3),
                                       ),
@@ -639,14 +703,16 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                                     children: [
                                       CircleAvatar(
                                         radius: 18,
-                                        backgroundColor: o.status.color.withValues(alpha: 0.12),
+                                        backgroundColor: o.status.color
+                                            .withValues(alpha: 0.12),
                                         child: Icon(Icons.receipt_rounded,
                                             color: o.status.color, size: 20),
                                       ),
                                       const SizedBox(width: 10),
                                       Expanded(
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Row(
                                               children: [
@@ -684,10 +750,13 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                                         padding: const EdgeInsets.symmetric(
                                             horizontal: 10, vertical: 2),
                                         decoration: BoxDecoration(
-                                          color: o.status.color.withValues(alpha: 0.1),
-                                          borderRadius: BorderRadius.circular(8),
+                                          color: o.status.color
+                                              .withValues(alpha: 0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
                                           border: Border.all(
-                                              color: o.status.color.withValues(alpha: 0.3)),
+                                              color: o.status.color
+                                                  .withValues(alpha: 0.3)),
                                         ),
                                         child: DropdownButton<StaffOrderStatus>(
                                           value: o.status,
@@ -701,7 +770,8 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                                                     '${s.label} (${s.labelMl})',
                                                     style: TextStyle(
                                                       fontSize: 12,
-                                                      fontWeight: FontWeight.bold,
+                                                      fontWeight:
+                                                          FontWeight.bold,
                                                       color: s.color,
                                                     ),
                                                   ),
@@ -709,7 +779,8 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                                               )
                                               .toList(),
                                           onChanged: (newSt) {
-                                            if (newSt != null && newSt != o.status) {
+                                            if (newSt != null &&
+                                                newSt != o.status) {
                                               _updateStatus(o, newSt);
                                             }
                                           },
@@ -738,9 +809,12 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                                         if (o.products.length > 4)
                                           Chip(
                                             materialTapTargetSize:
-                                                MaterialTapTargetSize.shrinkWrap,
-                                            visualDensity: VisualDensity.compact,
-                                            backgroundColor: kPrimary.withValues(alpha: 0.1),
+                                                MaterialTapTargetSize
+                                                    .shrinkWrap,
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                            backgroundColor:
+                                                kPrimary.withValues(alpha: 0.1),
                                             label: Text(
                                               '+${o.products.length - 4} more',
                                               style: const TextStyle(
@@ -766,7 +840,8 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                                     mainAxisAlignment: MainAxisAlignment.end,
                                     children: [
                                       TextButton.icon(
-                                        icon: const Icon(Icons.copy_rounded, size: 16),
+                                        icon: const Icon(Icons.copy_rounded,
+                                            size: 16),
                                         label: const Text('Copy Message',
                                             style: TextStyle(fontSize: 12)),
                                         onPressed: () async {
@@ -781,7 +856,9 @@ class _OwnerOrdersViewState extends State<OwnerOrdersView> {
                                       ),
                                       const SizedBox(width: 8),
                                       FilledButton.tonalIcon(
-                                        icon: const Icon(Icons.visibility_rounded, size: 16),
+                                        icon: const Icon(
+                                            Icons.visibility_rounded,
+                                            size: 16),
                                         label: const Text('View Full Details',
                                             style: TextStyle(fontSize: 12)),
                                         onPressed: () => _showOrderDetails(o),

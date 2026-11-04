@@ -49,7 +49,8 @@ class _TekNotificationPanelState extends State<TekNotificationPanel> {
   @override
   void initState() {
     super.initState();
-    _notificationsStream = NotificationService.instance.streamNotifications(widget.shopId, widget.staffId);
+    _notificationsStream = NotificationService.instance
+        .streamNotifications(widget.shopId, widget.staffId);
   }
 
   @override
@@ -62,7 +63,8 @@ class _TekNotificationPanelState extends State<TekNotificationPanel> {
       margin: const EdgeInsets.only(left: 40),
       decoration: BoxDecoration(
         color: TekColors.sidebarBg,
-        border: const Border(left: BorderSide(color: TekColors.border, width: 1.5)),
+        border:
+            const Border(left: BorderSide(color: TekColors.border, width: 1.5)),
         boxShadow: TekColors.floatingNavShadow,
       ),
       child: Material(
@@ -100,7 +102,10 @@ class _TekNotificationPanelState extends State<TekNotificationPanel> {
                                   gradient: TekColors.cyanBlueGradient,
                                   borderRadius: BorderRadius.circular(10),
                                 ),
-                                child: const Icon(Icons.notifications_active_rounded, color: Colors.white, size: 18),
+                                child: const Icon(
+                                    Icons.notifications_active_rounded,
+                                    color: Colors.white,
+                                    size: 18),
                               ),
                               const SizedBox(width: 12),
                               const Text(
@@ -109,13 +114,15 @@ class _TekNotificationPanelState extends State<TekNotificationPanel> {
                                   color: TekColors.textPrimary,
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
-                                  fontFamilyFallback: TekTypography.malayalamFallback,
+                                  fontFamilyFallback:
+                                      TekTypography.malayalamFallback,
                                 ),
                               ),
                             ],
                           ),
                           IconButton(
-                            icon: const Icon(Icons.close_rounded, color: TekColors.textSecondary, size: 20),
+                            icon: const Icon(Icons.close_rounded,
+                                color: TekColors.textSecondary, size: 20),
                             onPressed: () => Navigator.pop(context),
                           ),
                         ],
@@ -127,41 +134,55 @@ class _TekNotificationPanelState extends State<TekNotificationPanel> {
                           ChoiceChip(
                             label: Text('All (${allNotifications.length})'),
                             selected: !_onlyUnread,
-                            selectedColor: TekColors.primaryBlue.withValues(alpha: 0.25),
+                            selectedColor:
+                                TekColors.primaryBlue.withValues(alpha: 0.25),
                             labelStyle: TextStyle(
-                              color: !_onlyUnread ? TekColors.electricCyan : TekColors.textSecondary,
+                              color: !_onlyUnread
+                                  ? TekColors.electricCyan
+                                  : TekColors.textSecondary,
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
                             side: BorderSide(
-                              color: !_onlyUnread ? TekColors.primaryBlue : TekColors.border,
+                              color: !_onlyUnread
+                                  ? TekColors.primaryBlue
+                                  : TekColors.border,
                             ),
                             backgroundColor: TekColors.sidebarBg,
-                            onSelected: (val) => setState(() => _onlyUnread = false),
+                            onSelected: (val) =>
+                                setState(() => _onlyUnread = false),
                           ),
                           const SizedBox(width: 8),
                           ChoiceChip(
                             label: Text('Unread ($unreadCount)'),
                             selected: _onlyUnread,
-                            selectedColor: TekColors.error.withValues(alpha: 0.2),
+                            selectedColor:
+                                TekColors.error.withValues(alpha: 0.2),
                             labelStyle: TextStyle(
-                              color: _onlyUnread ? TekColors.error : TekColors.textSecondary,
+                              color: _onlyUnread
+                                  ? TekColors.error
+                                  : TekColors.textSecondary,
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
                             side: BorderSide(
-                              color: _onlyUnread ? TekColors.error : TekColors.border,
+                              color: _onlyUnread
+                                  ? TekColors.error
+                                  : TekColors.border,
                             ),
                             backgroundColor: TekColors.sidebarBg,
-                            onSelected: (val) => setState(() => _onlyUnread = true),
+                            onSelected: (val) =>
+                                setState(() => _onlyUnread = true),
                           ),
                           const Spacer(),
                           if (unreadCount > 0)
                             TextButton.icon(
                               style: TextButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
                               ),
-                              icon: const Icon(Icons.done_all_rounded, size: 16, color: TekColors.electricCyan),
+                              icon: const Icon(Icons.done_all_rounded,
+                                  size: 16, color: TekColors.electricCyan),
                               label: const Text(
                                 'Mark All Read',
                                 style: TextStyle(
@@ -171,8 +192,10 @@ class _TekNotificationPanelState extends State<TekNotificationPanel> {
                                 ),
                               ),
                               onPressed: () {
-                                final ids = allNotifications.map((n) => n.id).toList();
-                                NotificationService.instance.markAllAsRead(widget.staffId, ids);
+                                final ids =
+                                    allNotifications.map((n) => n.id).toList();
+                                NotificationService.instance
+                                    .markAllAsRead(widget.staffId, ids);
                               },
                             ),
                         ],
@@ -193,7 +216,8 @@ class _TekNotificationPanelState extends State<TekNotificationPanel> {
                                     ? Icons.mark_email_read_rounded
                                     : Icons.notifications_none_rounded,
                                 size: 48,
-                                color: TekColors.textMuted.withValues(alpha: 0.6),
+                                color:
+                                    TekColors.textMuted.withValues(alpha: 0.6),
                               ),
                               const SizedBox(height: 12),
                               Text(
@@ -205,7 +229,8 @@ class _TekNotificationPanelState extends State<TekNotificationPanel> {
                                   color: TekColors.textSecondary,
                                   fontSize: 13,
                                   height: 1.4,
-                                  fontFamilyFallback: TekTypography.malayalamFallback,
+                                  fontFamilyFallback:
+                                      TekTypography.malayalamFallback,
                                 ),
                               ),
                             ],
@@ -215,7 +240,8 @@ class _TekNotificationPanelState extends State<TekNotificationPanel> {
                           cacheExtent: 300,
                           padding: const EdgeInsets.all(14),
                           itemCount: displayList.length,
-                          separatorBuilder: (ctx, i) => const SizedBox(height: 10),
+                          separatorBuilder: (ctx, i) =>
+                              const SizedBox(height: 10),
                           itemBuilder: (ctx, idx) {
                             final item = displayList[idx];
                             return _buildNotificationCard(item);
@@ -254,7 +280,9 @@ class _TekNotificationPanelState extends State<TekNotificationPanel> {
         color: n.isRead ? TekColors.cardBg : TekColors.elevatedSurface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: n.isRead ? TekColors.border : TekColors.primaryBlue.withValues(alpha: 0.5),
+          color: n.isRead
+              ? TekColors.border
+              : TekColors.primaryBlue.withValues(alpha: 0.5),
           width: n.isRead ? 1.0 : 1.4,
         ),
       ),
@@ -292,9 +320,11 @@ class _TekNotificationPanelState extends State<TekNotificationPanel> {
                             n.title,
                             style: TextStyle(
                               color: TekColors.textPrimary,
-                              fontWeight: n.isRead ? FontWeight.w600 : FontWeight.bold,
+                              fontWeight:
+                                  n.isRead ? FontWeight.w600 : FontWeight.bold,
                               fontSize: 13.5,
-                              fontFamilyFallback: TekTypography.malayalamFallback,
+                              fontFamilyFallback:
+                                  TekTypography.malayalamFallback,
                             ),
                           ),
                           const SizedBox(height: 3),
@@ -343,13 +373,19 @@ class _TekNotificationPanelState extends State<TekNotificationPanel> {
     final action = n.metadata['action']?.toString() ?? '';
     final title = n.title.toLowerCase();
 
-    if (action == 'staff_orders' || title.contains('ഓർഡർ') || title.contains('order')) {
+    if (action == 'staff_orders' ||
+        title.contains('ഓർഡർ') ||
+        title.contains('order')) {
       widget.onNavigateModule?.call(13); // OwnerOrdersView
     } else if (title.contains('അറ്റൻഡൻസ്') || title.contains('attendance')) {
       widget.onNavigateModule?.call(9); // OwnerAttendanceApprovalsView
-    } else if (title.contains('റിപ്പയർ') || title.contains('repair') || title.contains('service')) {
+    } else if (title.contains('റിപ്പയർ') ||
+        title.contains('repair') ||
+        title.contains('service')) {
       widget.onNavigateModule?.call(3); // ServicesView
-    } else if (title.contains('ബാക്കി') || title.contains('reminder') || title.contains('payment')) {
+    } else if (title.contains('ബാക്കി') ||
+        title.contains('reminder') ||
+        title.contains('payment')) {
       widget.onNavigateModule?.call(14); // RemindersScreen
     }
   }

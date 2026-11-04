@@ -103,7 +103,9 @@ class _TekKpiCardState extends State<TekKpiCard> {
                         Icon(
                           Icons.arrow_outward_rounded,
                           size: 16,
-                          color: _isHovered ? widget.accentColor : TekColors.textMuted,
+                          color: _isHovered
+                              ? widget.accentColor
+                              : TekColors.textMuted,
                         ),
                     ],
                   ),
@@ -124,7 +126,8 @@ class _TekKpiCardState extends State<TekKpiCard> {
                         shadows: _isHovered
                             ? [
                                 Shadow(
-                                  color: widget.accentColor.withValues(alpha: 0.4),
+                                  color:
+                                      widget.accentColor.withValues(alpha: 0.4),
                                   blurRadius: 8,
                                 )
                               ]

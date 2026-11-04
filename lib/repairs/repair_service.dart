@@ -46,7 +46,8 @@ class RepairService {
 
       return list;
     }).handleError((e) {
-      debugPrint('Firestore streamRepairs error: $e. Falling back to local cache.');
+      debugPrint(
+          'Firestore streamRepairs error: $e. Falling back to local cache.');
       return _getLocalRepairs();
     });
   }
@@ -202,8 +203,11 @@ class RepairService {
           'shopId': shopId,
           'type': 'repair_update',
           'title': 'Repair #$jobId: $newStatus',
-          'message': '$staffName updated #$jobId (${currentData['brandModel'] ?? 'Device'}) status to "$newStatus". Notes: ${notes.isEmpty ? 'None' : notes}',
-          'priority': (newStatus == 'Ready' || newStatus == 'Waiting for Parts') ? 'urgent' : 'normal',
+          'message':
+              '$staffName updated #$jobId (${currentData['brandModel'] ?? 'Device'}) status to "$newStatus". Notes: ${notes.isEmpty ? 'None' : notes}',
+          'priority': (newStatus == 'Ready' || newStatus == 'Waiting for Parts')
+              ? 'urgent'
+              : 'normal',
           'sender': staffName.isNotEmpty ? staffName : 'Staff',
           'staffId': staffId,
           'jobId': jobId,
@@ -233,7 +237,8 @@ class RepairService {
           'timestamp': FieldValue.serverTimestamp(),
         });
       } catch (e) {
-        debugPrint('Firestore repair sync error: $e. SyncEngine will push on reconnect.');
+        debugPrint(
+            'Firestore repair sync error: $e. SyncEngine will push on reconnect.');
       }
     }
   }

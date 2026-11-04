@@ -26,8 +26,7 @@ class AuthController extends ChangeNotifier {
   StreamSubscription<User?>? _sub;
 
   bool get isStaffLoggedIn => Db.setting('staff_logged_in') == 'true';
-  bool get signedIn =>
-      (_user != null && _shopId.isNotEmpty) || isStaffLoggedIn;
+  bool get signedIn => (_user != null && _shopId.isNotEmpty) || isStaffLoggedIn;
   bool get isOwner => signedIn && !isStaffLoggedIn && _role == Role.owner;
   bool get loading => _loading;
   Role get role => isStaffLoggedIn ? Role.staff : _role;
@@ -266,7 +265,8 @@ class AuthController extends ChangeNotifier {
     }
   }
 
-  Future<void> setStaffActive(String staffUid, bool active, {String? email}) async {
+  Future<void> setStaffActive(String staffUid, bool active,
+      {String? email}) async {
     await FirebaseFirestore.instance
         .doc('shops/$_shopId/users/$staffUid')
         .update({'active': active, 'approved': active});

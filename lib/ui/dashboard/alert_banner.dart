@@ -85,7 +85,8 @@ class TekAlertBanner extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
                             decoration: BoxDecoration(
                               color: Colors.black.withValues(alpha: 0.3),
                               borderRadius: BorderRadius.circular(10),
@@ -117,7 +118,8 @@ class TekAlertBanner extends StatelessWidget {
 
                 // Review Button
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),

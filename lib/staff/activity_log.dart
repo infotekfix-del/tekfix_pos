@@ -16,25 +16,39 @@ class ActivityType {
 
   static Color color(String t) {
     switch (t) {
-      case createdBill: return const Color(0xFF166534);
-      case editedStock: return const Color(0xFF1D4ED8);
-      case deletedEntry: return const Color(0xFFB91C1C);
-      case voidedBill: return const Color(0xFF9A3412);
-      case collectedPayment: return const Color(0xFF0F766E);
-      case paidOut: return const Color(0xFF6D28D9);
-      default: return const Color(0xFF374151);
+      case createdBill:
+        return const Color(0xFF166534);
+      case editedStock:
+        return const Color(0xFF1D4ED8);
+      case deletedEntry:
+        return const Color(0xFFB91C1C);
+      case voidedBill:
+        return const Color(0xFF9A3412);
+      case collectedPayment:
+        return const Color(0xFF0F766E);
+      case paidOut:
+        return const Color(0xFF6D28D9);
+      default:
+        return const Color(0xFF374151);
     }
   }
 
   static IconData icon(String t) {
     switch (t) {
-      case createdBill: return Icons.receipt_long_rounded;
-      case editedStock: return Icons.inventory_2_rounded;
-      case deletedEntry: return Icons.delete_forever_rounded;
-      case voidedBill: return Icons.report_gmailerrorred_rounded;
-      case collectedPayment: return Icons.payments_rounded;
-      case paidOut: return Icons.north_east_rounded;
-      default: return Icons.history_rounded;
+      case createdBill:
+        return Icons.receipt_long_rounded;
+      case editedStock:
+        return Icons.inventory_2_rounded;
+      case deletedEntry:
+        return Icons.delete_forever_rounded;
+      case voidedBill:
+        return Icons.report_gmailerrorred_rounded;
+      case collectedPayment:
+        return Icons.payments_rounded;
+      case paidOut:
+        return Icons.north_east_rounded;
+      default:
+        return Icons.history_rounded;
     }
   }
 }
@@ -46,7 +60,8 @@ class ActivityLog {
     final a = AuthController.instance;
     return {
       'staffId': a.uid,
-      'staffName': a.name.isNotEmpty ? a.name : Db.setting('active_user', 'Admin'),
+      'staffName':
+          a.name.isNotEmpty ? a.name : Db.setting('active_user', 'Admin'),
       'device': DeviceInfo.platform,
       'counter': DeviceInfo.counterName,
     };
@@ -54,19 +69,27 @@ class ActivityLog {
 
   static String typeOf(String action) {
     final l = action.toLowerCase();
-    if (l.contains('return') || l.contains('cancel') || l.contains('void')) return ActivityType.voidedBill;
+    if (l.contains('return') || l.contains('cancel') || l.contains('void'))
+      return ActivityType.voidedBill;
     if (l.contains('deleted')) return ActivityType.deletedEntry;
-    if (l == 'sale created' || l == 'service billed') return ActivityType.createdBill;
+    if (l == 'sale created' || l == 'service billed')
+      return ActivityType.createdBill;
     if (l == 'customer payment') return ActivityType.collectedPayment;
-    if (l == 'supplier payment' || l == 'salary paid') return ActivityType.paidOut;
-    if (l.contains('stock') || l.startsWith('product')) return ActivityType.editedStock;
+    if (l == 'supplier payment' || l == 'salary paid')
+      return ActivityType.paidOut;
+    if (l.contains('stock') || l.startsWith('product'))
+      return ActivityType.editedStock;
     return ActivityType.other;
   }
 
   static String _clip(dynamic v, [int max = 1500]) {
     if (v == null) return '';
     String s;
-    try { s = jsonEncode(v); } catch (_) { s = '$v'; }
+    try {
+      s = jsonEncode(v);
+    } catch (_) {
+      s = '$v';
+    }
     return s.length <= max ? s : '${s.substring(0, max)}…';
   }
 
@@ -113,8 +136,10 @@ class ActivityLog {
       'device': s['device'],
       'deviceId': DeviceInfo.id,
       'counter': s['counter'],
-      'details': '$action • $entity${entityId.isEmpty ? '' : ' $entityId'}${reason.isEmpty ? '' : ' • $reason'}',
-      'warn': type == ActivityType.voidedBill || type == ActivityType.deletedEntry,
+      'details':
+          '$action • $entity${entityId.isEmpty ? '' : ' $entityId'}${reason.isEmpty ? '' : ' • $reason'}',
+      'warn':
+          type == ActivityType.voidedBill || type == ActivityType.deletedEntry,
       if (amount != null) 'amount': amount,
     };
     await Db.audit.add(row);

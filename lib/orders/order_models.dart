@@ -26,10 +26,12 @@ enum StaffOrderStatus {
 
 enum WhatsAppDeliveryStatus {
   orderSaved('Order Saved', 'ഡാറ്റാബേസിൽ സേവ് ചെയ്തു', Color(0xFF0F766E)),
-  waitingDelivery('Waiting for Delivery', 'ഡെലിവറി കാത്തിരിക്കുന്നു', Color(0xFFD97706)),
+  waitingDelivery(
+      'Waiting for Delivery', 'ഡെലിവറി കാത്തിരിക്കുന്നു', Color(0xFFD97706)),
   sentSuccessfully('Sent Successfully', 'വിജയകരമായി അയച്ചു', Color(0xFF16A34A)),
   deliveryFailed('Delivery Failed', 'പരാജയപ്പെട്ടു', Color(0xFFDC2626)),
-  manualActionRequired('Manual Share Required', 'ഗ്രൂപ്പിലേക്ക് അയക്കുക', Color(0xFF25D366));
+  manualActionRequired(
+      'Manual Share Required', 'ഗ്രൂപ്പിലേക്ക് അയക്കുക', Color(0xFF25D366));
 
   final String label;
   final String labelMl;
@@ -149,14 +151,18 @@ class StaffOrder {
       'staffName': staffName,
       'createdDate': createdDate,
       'createdTime': createdTime,
-      'createdAt': useServerTimestamp ? FieldValue.serverTimestamp() : Timestamp.fromDate(createdAt),
+      'createdAt': useServerTimestamp
+          ? FieldValue.serverTimestamp()
+          : Timestamp.fromDate(createdAt),
       'products': products.map((p) => p.toMap()).toList(),
       'totalTypes': totalTypes,
       'totalQuantity': totalQuantity,
       'generalRemarks': generalRemarks,
       'status': status.name,
       'whatsappDeliveryStatus': whatsappDeliveryStatus.name,
-      'updatedAt': useServerTimestamp ? FieldValue.serverTimestamp() : Timestamp.fromDate(updatedAt ?? createdAt),
+      'updatedAt': useServerTimestamp
+          ? FieldValue.serverTimestamp()
+          : Timestamp.fromDate(updatedAt ?? createdAt),
     };
     if (whatsappMessageId != null) m['whatsappMessageId'] = whatsappMessageId;
     if (updatedBy != null) m['updatedBy'] = updatedBy;
@@ -165,7 +171,10 @@ class StaffOrder {
 
   factory StaffOrder.fromMap(String id, Map<String, dynamic> m) {
     final rawProducts = (m['products'] as List?) ?? [];
-    final parsedProducts = rawProducts.map((p) => StaffOrderProduct.fromMap(Map<String, dynamic>.from(p as Map))).toList();
+    final parsedProducts = rawProducts
+        .map((p) =>
+            StaffOrderProduct.fromMap(Map<String, dynamic>.from(p as Map)))
+        .toList();
 
     DateTime parseTime(dynamic val) {
       if (val is Timestamp) return val.toDate();
@@ -173,8 +182,10 @@ class StaffOrder {
       return DateTime.now();
     }
 
-    final totalTypes = (m['totalTypes'] as num?)?.toInt() ?? parsedProducts.length;
-    final totalQuantity = (m['totalQuantity'] as num?)?.toInt() ?? parsedProducts.fold<int>(0, (acc, item) => acc + item.quantity);
+    final totalTypes =
+        (m['totalTypes'] as num?)?.toInt() ?? parsedProducts.length;
+    final totalQuantity = (m['totalQuantity'] as num?)?.toInt() ??
+        parsedProducts.fold<int>(0, (acc, item) => acc + item.quantity);
 
     return StaffOrder(
       orderId: id,
@@ -189,7 +200,8 @@ class StaffOrder {
       totalQuantity: totalQuantity,
       generalRemarks: '${m['generalRemarks'] ?? ''}',
       status: StaffOrderStatus.fromString(m['status'] as String?),
-      whatsappDeliveryStatus: WhatsAppDeliveryStatus.fromString(m['whatsappDeliveryStatus'] as String?),
+      whatsappDeliveryStatus: WhatsAppDeliveryStatus.fromString(
+          m['whatsappDeliveryStatus'] as String?),
       whatsappMessageId: m['whatsappMessageId'] as String?,
       updatedAt: m['updatedAt'] != null ? parseTime(m['updatedAt']) : null,
       updatedBy: m['updatedBy'] as String?,
@@ -205,14 +217,16 @@ class WhatsAppGroupConfig {
   final bool manualFallbackEnabled;
 
   const WhatsAppGroupConfig({
-    this.groupInvitationUrl = 'https://chat.whatsapp.com/GD5fTnnLRk9I0mPXdJ80n0?s=cl&p=a&mlu=4&ilr=4',
+    this.groupInvitationUrl =
+        'https://chat.whatsapp.com/GD5fTnnLRk9I0mPXdJ80n0?s=cl&p=a&mlu=4&ilr=4',
     this.apiUrl = '',
     this.apiToken = '',
     this.phoneNumberId = '',
     this.manualFallbackEnabled = true,
   });
 
-  bool get isApiConfigured => apiUrl.trim().isNotEmpty && apiToken.trim().isNotEmpty;
+  bool get isApiConfigured =>
+      apiUrl.trim().isNotEmpty && apiToken.trim().isNotEmpty;
 
   Map<String, dynamic> toMap() => {
         'groupInvitationUrl': groupInvitationUrl,
@@ -225,7 +239,8 @@ class WhatsAppGroupConfig {
 
   factory WhatsAppGroupConfig.fromMap(Map<String, dynamic> m) {
     return WhatsAppGroupConfig(
-      groupInvitationUrl: '${m['groupInvitationUrl'] ?? 'https://chat.whatsapp.com/GD5fTnnLRk9I0mPXdJ80n0?s=cl&p=a&mlu=4&ilr=4'}',
+      groupInvitationUrl:
+          '${m['groupInvitationUrl'] ?? 'https://chat.whatsapp.com/GD5fTnnLRk9I0mPXdJ80n0?s=cl&p=a&mlu=4&ilr=4'}',
       apiUrl: '${m['apiUrl'] ?? ''}',
       apiToken: '${m['apiToken'] ?? ''}',
       phoneNumberId: '${m['phoneNumberId'] ?? ''}',

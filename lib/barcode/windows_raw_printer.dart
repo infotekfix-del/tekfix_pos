@@ -106,7 +106,8 @@ class WindowsRawPrinter {
         final err = GetLastError();
         return PrintJobResult(
           success: false,
-          message: 'Failed to connect to printer "$printerName". (Error code $err)',
+          message:
+              'Failed to connect to printer "$printerName". (Error code $err)',
           error: 'OpenPrinter error $err',
         );
       }
@@ -174,7 +175,8 @@ class WindowsRawPrinter {
             }
 
             final written = pBytesWritten.value;
-            debugPrint('WindowsRawPrinter: Wrote $written bytes to "$printerName"');
+            debugPrint(
+                'WindowsRawPrinter: Wrote $written bytes to "$printerName"');
           } finally {
             free(pBytes);
             free(pBytesWritten);
@@ -219,9 +221,11 @@ class WindowsRawPrinter {
   }
 
   /// Sends a single test label (38x25mm or 50x25mm) to verify alignment.
-  Future<PrintJobResult> testPrint(String printerName, {PrinterConfig config = const PrinterConfig()}) async {
+  Future<PrintJobResult> testPrint(String printerName,
+      {PrinterConfig config = const PrinterConfig()}) async {
     final testItem = BarcodeLabelItem(
-      name: 'TEST PRODUCT ${config.widthMm.toStringAsFixed(0)}X${config.heightMm.toStringAsFixed(0)}MM',
+      name:
+          'TEST PRODUCT ${config.widthMm.toStringAsFixed(0)}X${config.heightMm.toStringAsFixed(0)}MM',
       barcode: 'TF999888',
       itemCode: 'TEST-001',
       sellingPrice: 499.0,
@@ -243,4 +247,3 @@ class WindowsRawPrinter {
     );
   }
 }
-

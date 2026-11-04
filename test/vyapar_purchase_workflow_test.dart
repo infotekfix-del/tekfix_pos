@@ -32,7 +32,9 @@ void main() {
       } catch (_) {}
     });
 
-    test('1. Item defaults: GST is 0%, Warranty is No Warranty, Barcode auto-generates', () async {
+    test(
+        '1. Item defaults: GST is 0%, Warranty is No Warranty, Barcode auto-generates',
+        () async {
       final item = PurchaseBillItem(
         id: 'ROW_TEST_1',
         name: 'Samsung Type-C OTG',
@@ -51,14 +53,20 @@ void main() {
       expect(item.isStagedReady, isTrue);
     });
 
-    test('2. Single-step confirm & save persists to Db.items, moves stock, and resets draft state', () async {
+    test(
+        '2. Single-step confirm & save persists to Db.items, moves stock, and resets draft state',
+        () async {
       // 1. Create a draft first to simulate in-progress typing
       await ManualPurchaseDraftService.instance.save(
         ManualPurchaseDraft(
           vendorName: 'Vyapar Mobile Hub',
           vendorInvoiceNumber: 'VPH-1001',
           itemMaps: [
-            {'name': 'OnePlus Warp Charger 65W', 'quantity': 4, 'purchaseRate': 1200.0}
+            {
+              'name': 'OnePlus Warp Charger 65W',
+              'quantity': 4,
+              'purchaseRate': 1200.0
+            }
           ],
         ),
       );
@@ -138,7 +146,9 @@ void main() {
       expect(metrics['totalPurchaseValue'], greaterThanOrEqualTo(4800.0));
     });
 
-    test('3. Edit Bill modifies items, warranty and recalculates without secondary popups', () async {
+    test(
+        '3. Edit Bill modifies items, warranty and recalculates without secondary popups',
+        () async {
       final vendorKey = await Db.parties.add({
         'name': 'Display World India',
         'phone': '9847333222',
@@ -157,7 +167,8 @@ void main() {
         isStagedReady: true,
       );
 
-      final originalBill = await PurchaseBillService.instance.confirmPurchaseBill(
+      final originalBill =
+          await PurchaseBillService.instance.confirmPurchaseBill(
         billNumber: 'PB-2026-VYP02',
         vendorInvoiceNumber: 'DWI-550',
         vendorKey: vendorKey,
@@ -177,7 +188,8 @@ void main() {
         isStagedReady: true,
       );
 
-      final updatedBill = await PurchaseBillService.instance.updateConfirmedPurchaseBill(
+      final updatedBill =
+          await PurchaseBillService.instance.updateConfirmedPurchaseBill(
         originalBill: originalBill,
         vendorInvoiceNumber: 'DWI-550-CORRECTED',
         vendorKey: vendorKey,

@@ -33,7 +33,9 @@ class OrderService {
       return 'TF-$dateStr-$seqFormatted';
     } catch (e) {
       // High-entropy timestamp fallback
-      final timeSuffix = (DateTime.now().millisecondsSinceEpoch % 10000).toString().padLeft(4, '0');
+      final timeSuffix = (DateTime.now().millisecondsSinceEpoch % 10000)
+          .toString()
+          .padLeft(4, '0');
       return 'TF-$dateStr-$timeSuffix';
     }
   }
@@ -61,7 +63,8 @@ class OrderService {
           'orderId': order.orderId,
           'totalTypes': order.totalTypes,
           'totalQuantity': order.totalQuantity,
-          'items': order.products.map((p) => '${p.name} (${p.quantity})').toList(),
+          'items':
+              order.products.map((p) => '${p.name} (${p.quantity})').toList(),
         },
         reason: order.generalRemarks,
       );
@@ -77,7 +80,8 @@ class OrderService {
         'shopId': shopId,
         'type': 'systemAlert',
         'title': 'പുതിയ സ്റ്റാഫ് ഓർഡർ (${order.orderId})',
-        'message': '${order.staffName} ${order.totalTypes} ഇനം സാധനങ്ങൾ ഓർഡർ ചെയ്തു (${order.totalQuantity} എണ്ണം).',
+        'message':
+            '${order.staffName} ${order.totalTypes} ഇനം സാധനങ്ങൾ ഓർഡർ ചെയ്തു (${order.totalQuantity} എണ്ണം).',
         'priority': 'urgent',
         'sender': order.staffName,
         'createdAt': FieldValue.serverTimestamp(),
@@ -131,11 +135,8 @@ class OrderService {
     required StaffOrderStatus newStatus,
     required String ownerName,
   }) async {
-    final orderRef = _db
-        .collection('shops')
-        .doc(shopId)
-        .collection('orders')
-        .doc(orderId);
+    final orderRef =
+        _db.collection('shops').doc(shopId).collection('orders').doc(orderId);
 
     await orderRef.update({
       'status': newStatus.name,
@@ -163,7 +164,8 @@ class OrderService {
         'shopId': shopId,
         'type': 'systemAlert',
         'title': 'ഓർഡർ സ്റ്റാറ്റസ് മാറ്റി (${newStatus.label})',
-        'message': 'ഓർഡർ $orderId ഉടമ $ownerName അപ്ഡേറ്റ് ചെയ്തു: ${newStatus.label}.',
+        'message':
+            'ഓർഡർ $orderId ഉടമ $ownerName അപ്ഡേറ്റ് ചെയ്തു: ${newStatus.label}.',
         'priority': 'normal',
         'sender': ownerName,
         'createdAt': FieldValue.serverTimestamp(),
@@ -182,11 +184,8 @@ class OrderService {
     required WhatsAppDeliveryStatus status,
     String? messageId,
   }) async {
-    final orderRef = _db
-        .collection('shops')
-        .doc(shopId)
-        .collection('orders')
-        .doc(orderId);
+    final orderRef =
+        _db.collection('shops').doc(shopId).collection('orders').doc(orderId);
 
     final updates = <String, dynamic>{
       'whatsappDeliveryStatus': status.name,
@@ -232,7 +231,8 @@ class OrderService {
     sb.writeln('$divider\n');
     sb.writeln('📊 ORDER SUMMARY\n');
     sb.writeln('Total Product Types: ${order.totalTypes}');
-    final unitLabel = order.products.isNotEmpty ? order.products.first.unit : 'Pcs';
+    final unitLabel =
+        order.products.isNotEmpty ? order.products.first.unit : 'Pcs';
     sb.writeln('Total Quantity: ${order.totalQuantity} $unitLabel\n');
 
     if (order.generalRemarks.trim().isNotEmpty) {
@@ -276,7 +276,8 @@ class OrderService {
   }
 
   /// Saves WhatsApp configuration
-  Future<void> saveWhatsAppConfig(String shopId, WhatsAppGroupConfig config) async {
+  Future<void> saveWhatsAppConfig(
+      String shopId, WhatsAppGroupConfig config) async {
     await _db
         .collection('shops')
         .doc(shopId)
@@ -288,7 +289,8 @@ class OrderService {
   /// Exports orders to clean RFC-4180 CSV string
   String exportOrdersToCsv(List<StaffOrder> orders) {
     final sb = StringBuffer();
-    sb.writeln('Order ID,Date,Time,Staff Name,Total Types,Total Quantity,Status,WhatsApp Status,Products Summary,General Remarks');
+    sb.writeln(
+        'Order ID,Date,Time,Staff Name,Total Types,Total Quantity,Status,WhatsApp Status,Products Summary,General Remarks');
 
     for (final o in orders) {
       final productsSummary = o.products

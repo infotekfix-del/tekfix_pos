@@ -3,7 +3,9 @@ import 'package:tekfix_erp_pos/staff/salary_calculator.dart';
 
 void main() {
   group('Dynamic Monthly Salary Calculation Based on Days in Month', () {
-    test('1. Accurately determines days in month for 28, 29, 30, and 31 day months', () {
+    test(
+        '1. Accurately determines days in month for 28, 29, 30, and 31 day months',
+        () {
       // 28 days: Feb 2023 (non-leap)
       expect(SalaryCalculator.getDaysInMonth(DateTime(2023, 2, 1)), 28);
 
@@ -14,7 +16,8 @@ void main() {
       expect(SalaryCalculator.getDaysInMonth(DateTime(2026, 4, 15)), 30);
       expect(SalaryCalculator.getDaysInMonth(DateTime(2026, 6, 1)), 30);
       expect(SalaryCalculator.getDaysInMonth(DateTime(2026, 9, 30)), 30);
-      expect(SalaryCalculator.getDaysInMonth(DateTime(2026, 11, 2)), 30); // November current month
+      expect(SalaryCalculator.getDaysInMonth(DateTime(2026, 11, 2)),
+          30); // November current month
 
       // 31 days: January, March, May, July, August, October, December
       expect(SalaryCalculator.getDaysInMonth(DateTime(2026, 1, 10)), 31);
@@ -26,7 +29,8 @@ void main() {
       expect(SalaryCalculator.getDaysInMonth(DateTime(2026, 12, 25)), 31);
     });
 
-    test('2. Dynamic Monthly Total: daily_rate * total_days_in_current_month', () {
+    test('2. Dynamic Monthly Total: daily_rate * total_days_in_current_month',
+        () {
       const dailyRate = 350.0;
 
       // 30-day month (e.g. November 2026) -> 30 * 350 = 10,500
@@ -64,7 +68,9 @@ void main() {
       expect(leapFebSalary, 10150.0);
     });
 
-    test('3. Real-time Date Sync: automatically recalculates expected monthly total when month changes', () {
+    test(
+        '3. Real-time Date Sync: automatically recalculates expected monthly total when month changes',
+        () {
       final staff = {
         'name': 'Rahul Nair',
         'dailyRate': 350.0,
@@ -94,7 +100,9 @@ void main() {
       expect(decExpected, 10850.0);
     });
 
-    test('4. Earned Salary calculation based on days worked (present days and half days)', () {
+    test(
+        '4. Earned Salary calculation based on days worked (present days and half days)',
+        () {
       const dailyRate = 350.0;
 
       // Worked 20 full days:
@@ -148,4 +156,3 @@ void main() {
     });
   });
 }
-

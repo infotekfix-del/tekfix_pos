@@ -98,7 +98,8 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
 
       if (doc.exists && doc.data() != null) {
         final data = doc.data()!;
-        _versionController.text = (data['latest_version'] ?? '1.0.13').toString();
+        _versionController.text =
+            (data['latest_version'] ?? '1.0.13').toString();
         _buildNumberController.text =
             (data['latest_build_number'] ?? '13').toString();
         _apkUrlController.text = (data['apk_url'] ?? '').toString();
@@ -200,9 +201,11 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+      backgroundColor:
+          isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('ആപ്പ് അപ്ഡേറ്റ് മാനേജ്‌മെന്റ് (App Updates & Releases)'),
+        title: const Text(
+            'ആപ്പ് അപ്ഡേറ്റ് മാനേജ്‌മെന്റ് (App Updates & Releases)'),
         backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
         elevation: 0,
         bottom: TabBar(
@@ -348,18 +351,22 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                   side: BorderSide(
-                    color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                    color: isDark
+                        ? const Color(0xFF334155)
+                        : const Color(0xFFE2E8F0),
                   ),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                   child: Row(
                     children: [
                       // Check for updates button
                       FilledButton.icon(
                         style: FilledButton.styleFrom(
                           backgroundColor: const Color(0xFF3B82F6),
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -367,20 +374,23 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                         onPressed: _winService.isChecking
                             ? null
                             : () async {
-                                final res = await _winService.checkForUpdates(isManual: true);
+                                final res = await _winService.checkForUpdates(
+                                    isManual: true);
                                 if (!mounted) return;
                                 if (_winService.errorMessage != null) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Row(
                                         children: [
-                                          const Icon(Icons.error_outline_rounded,
+                                          const Icon(
+                                              Icons.error_outline_rounded,
                                               color: Colors.amberAccent),
                                           const SizedBox(width: 10),
                                           Expanded(
                                             child: Text(
                                               'അപ്ഡേറ്റ് പരിശോധന പരാജയപ്പെട്ടു: ${_winService.errorMessage}',
-                                              style: const TextStyle(fontWeight: FontWeight.w600),
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.w600),
                                             ),
                                           ),
                                         ],
@@ -390,18 +400,21 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                                       duration: const Duration(seconds: 5),
                                     ),
                                   );
-                                } else if (res != null && _winService.isUpdateAvailable) {
+                                } else if (res != null &&
+                                    _winService.isUpdateAvailable) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Row(
                                         children: [
-                                          const Icon(Icons.system_update_rounded,
+                                          const Icon(
+                                              Icons.system_update_rounded,
                                               color: Colors.greenAccent),
                                           const SizedBox(width: 10),
                                           Expanded(
                                             child: Text(
                                               'പുതിയ പതിപ്പ് (${res.tagName}) ലഭ്യമാണ്! (Update Available)',
-                                              style: const TextStyle(fontWeight: FontWeight.w600),
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.w600),
                                             ),
                                           ),
                                         ],
@@ -421,7 +434,8 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                                           Expanded(
                                             child: Text(
                                               'നിങ്ങൾ ഉപയോഗിക്കുന്നത് ഏറ്റവും പുതിയ പതിപ്പാണ് (App is up to date).',
-                                              style: TextStyle(fontWeight: FontWeight.w600),
+                                              style: TextStyle(
+                                                  fontWeight: FontWeight.w600),
                                             ),
                                           ),
                                         ],
@@ -443,7 +457,9 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                               )
                             : const Icon(Icons.sync_rounded, size: 18),
                         label: Text(
-                          _winService.isChecking ? 'Checking...' : 'Check for Updates',
+                          _winService.isChecking
+                              ? 'Checking...'
+                              : 'Check for Updates',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -455,7 +471,8 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                         FilledButton.icon(
                           style: FilledButton.styleFrom(
                             backgroundColor: const Color(0xFF6366F1),
-                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 18, vertical: 14),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
@@ -486,7 +503,8 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                         FilledButton.icon(
                           style: FilledButton.styleFrom(
                             backgroundColor: const Color(0xFF10B981),
-                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 18, vertical: 14),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
@@ -533,7 +551,8 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                   decoration: BoxDecoration(
                     color: const Color(0xFFEF4444).withAlpha(20),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFEF4444).withAlpha(80)),
+                    border: Border.all(
+                        color: const Color(0xFFEF4444).withAlpha(80)),
                   ),
                   child: Row(
                     children: [
@@ -573,7 +592,9 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                     side: BorderSide(
-                      color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                      color: isDark
+                          ? const Color(0xFF334155)
+                          : const Color(0xFFE2E8F0),
                     ),
                   ),
                   child: Padding(
@@ -609,7 +630,9 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                           style: TextStyle(
                             fontSize: 13.5,
                             height: 1.5,
-                            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                            color: isDark
+                                ? const Color(0xFFCBD5E1)
+                                : const Color(0xFF334155),
                           ),
                         ),
                         if (release.windowsInstallerAsset != null) ...[
@@ -617,7 +640,9 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                              color: isDark
+                                  ? const Color(0xFF0F172A)
+                                  : const Color(0xFFF1F5F9),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Row(
@@ -645,7 +670,9 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                   side: BorderSide(
-                    color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                    color: isDark
+                        ? const Color(0xFF334155)
+                        : const Color(0xFFE2E8F0),
                   ),
                 ),
                 child: Padding(
@@ -655,7 +682,8 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                     children: [
                       const Row(
                         children: [
-                          Icon(Icons.tune_rounded, color: Color(0xFF10B981), size: 20),
+                          Icon(Icons.tune_rounded,
+                              color: Color(0xFF10B981), size: 20),
                           SizedBox(width: 10),
                           Text(
                             'അപ്ഡേറ്റ് ക്രമീകരണങ്ങൾ (Automatic Update Settings)',
@@ -679,7 +707,8 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                         value: _winService.settings.autoCheckUpdates,
                         onChanged: (val) {
                           _winService.saveSettings(
-                            _winService.settings.copyWith(autoCheckUpdates: val),
+                            _winService.settings
+                                .copyWith(autoCheckUpdates: val),
                           );
                         },
                       ),
@@ -713,7 +742,8 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                         value: _winService.settings.showReleaseNotifications,
                         onChanged: (val) {
                           _winService.saveSettings(
-                            _winService.settings.copyWith(showReleaseNotifications: val),
+                            _winService.settings
+                                .copyWith(showReleaseNotifications: val),
                           );
                         },
                       ),
@@ -756,7 +786,8 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                           FilledButton.icon(
                             style: FilledButton.styleFrom(
                               backgroundColor: const Color(0xFF10B981),
-                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 18, vertical: 14),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
                               ),
@@ -818,8 +849,10 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
               child: LinearProgressIndicator(
                 value: prog.progress > 0 ? prog.progress : null,
                 minHeight: 10,
-                backgroundColor: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
+                backgroundColor:
+                    isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                valueColor:
+                    const AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
               ),
             ),
             const SizedBox(height: 10),
@@ -843,7 +876,8 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                 ),
                 TextButton(
                   onPressed: () => _winService.cancelDownload(),
-                  child: const Text('Cancel Download', style: TextStyle(color: Colors.red)),
+                  child: const Text('Cancel Download',
+                      style: TextStyle(color: Colors.red)),
                 ),
               ],
             ),
@@ -949,7 +983,9 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                         color: isDark ? const Color(0xFF1E293B) : Colors.white,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                          color: isDark
+                              ? const Color(0xFF334155)
+                              : const Color(0xFFE2E8F0),
                         ),
                       ),
                       child: Column(
@@ -957,7 +993,8 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                         children: [
                           const Row(
                             children: [
-                              Icon(Icons.cloud_upload_rounded, color: Color(0xFF2563EB)),
+                              Icon(Icons.cloud_upload_rounded,
+                                  color: Color(0xFF2563EB)),
                               SizedBox(width: 10),
                               Text(
                                 'Android APK & Firestore Config (Mobile Staff Portal)',
@@ -1024,7 +1061,8 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                           const SizedBox(height: 16),
                           SwitchListTile(
                             contentPadding: EdgeInsets.zero,
-                            title: const Text('Mandatory Update for Mobile Staff'),
+                            title:
+                                const Text('Mandatory Update for Mobile Staff'),
                             subtitle: const Text(
                               'Staff cannot use the app without updating',
                               style: TextStyle(fontSize: 12),
@@ -1044,7 +1082,9 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                               ),
-                              onPressed: _firestoreLoading ? null : _publishFirestoreUpdate,
+                              onPressed: _firestoreLoading
+                                  ? null
+                                  : _publishFirestoreUpdate,
                               icon: const Icon(Icons.publish_rounded, size: 18),
                               label: const Text(
                                 'Publish to Firestore',
@@ -1091,7 +1131,8 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
           children: [
             Row(
               children: [
-                const Icon(Icons.terminal_rounded, color: Color(0xFF3B82F6), size: 22),
+                const Icon(Icons.terminal_rounded,
+                    color: Color(0xFF3B82F6), size: 22),
                 const SizedBox(width: 10),
                 const Text(
                   'Real-Time Update Diagnostics & Live Logs',

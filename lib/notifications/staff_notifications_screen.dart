@@ -19,11 +19,13 @@ class StaffNotificationsScreen extends StatefulWidget {
   });
 
   @override
-  State<StaffNotificationsScreen> createState() => _StaffNotificationsScreenState();
+  State<StaffNotificationsScreen> createState() =>
+      _StaffNotificationsScreenState();
 }
 
 class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
-  String _selectedCategory = 'All'; // 'All', 'Announcements', 'Repairs', 'System'
+  String _selectedCategory =
+      'All'; // 'All', 'Announcements', 'Repairs', 'System'
 
   final List<String> _categories = [
     'All',
@@ -41,13 +43,15 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
   }
 
   void _initStream() {
-    _notificationsStream = NotificationService.instance.streamNotifications(widget.shopId, widget.staffId);
+    _notificationsStream = NotificationService.instance
+        .streamNotifications(widget.shopId, widget.staffId);
   }
 
   @override
   void didUpdateWidget(StaffNotificationsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.shopId != widget.shopId || oldWidget.staffId != widget.staffId) {
+    if (oldWidget.shopId != widget.shopId ||
+        oldWidget.staffId != widget.staffId) {
       _initStream();
     }
   }
@@ -91,11 +95,15 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
               children: [
                 Text(
                   'From: ${notif.sender}',
-                  style: const TextStyle(color: TekColors.secondary, fontSize: 12, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      color: TekColors.secondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold),
                 ),
                 Text(
                   notif.timeFormatted,
-                  style: const TextStyle(color: TekColors.textMuted, fontSize: 11),
+                  style:
+                      const TextStyle(color: TekColors.textMuted, fontSize: 11),
                 ),
               ],
             ),
@@ -120,16 +128,19 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
             if (notif.isUrgent) ...[
               const SizedBox(height: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: TekColors.error.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: TekColors.error.withValues(alpha: 0.4)),
+                  border:
+                      Border.all(color: TekColors.error.withValues(alpha: 0.4)),
                 ),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.warning_amber_rounded, size: 16, color: TekColors.error),
+                    Icon(Icons.warning_amber_rounded,
+                        size: 16, color: TekColors.error),
                     SizedBox(width: 6),
                     Text(
                       'URGENT PRIORITY (അടിയന്തിര ശ്രദ്ധയ്ക്ക്)',
@@ -147,7 +158,8 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
           ],
         ),
         actions: [
-          if (notif.type == NotificationType.repairUpdate && widget.onNavigateTab != null)
+          if (notif.type == NotificationType.repairUpdate &&
+              widget.onNavigateTab != null)
             TextButton(
               onPressed: () {
                 Navigator.pop(ctx);
@@ -180,7 +192,8 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
               borderRadius: BorderRadius.circular(20),
               side: const BorderSide(color: TekColors.border),
             ),
-            icon: const Icon(Icons.campaign_rounded, size: 38, color: TekColors.secondary),
+            icon: const Icon(Icons.campaign_rounded,
+                size: 38, color: TekColors.secondary),
             title: const Text(
               'New Announcement (അറിയിപ്പ് അയക്കുക)',
               style: TextStyle(
@@ -219,7 +232,8 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
                     onChanged: (v) => setD(() => isUrgent = v ?? false),
                     title: const Text(
                       'Mark as Urgent (അടിയന്തിരം)',
-                      style: TextStyle(color: TekColors.textPrimary, fontSize: 13),
+                      style:
+                          TextStyle(color: TekColors.textPrimary, fontSize: 13),
                     ),
                   ),
                 ],
@@ -228,18 +242,25 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel', style: TextStyle(color: TekColors.textSecondary)),
+                child: const Text('Cancel',
+                    style: TextStyle(color: TekColors.textSecondary)),
               ),
               FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: TekColors.primary),
+                style:
+                    FilledButton.styleFrom(backgroundColor: TekColors.primary),
                 onPressed: () async {
-                  if (titleCtrl.text.trim().isEmpty || msgCtrl.text.trim().isEmpty) return;
+                  if (titleCtrl.text.trim().isEmpty ||
+                      msgCtrl.text.trim().isEmpty) return;
                   await NotificationService.instance.sendAnnouncement(
                     shopId: widget.shopId,
                     title: titleCtrl.text.trim(),
                     message: msgCtrl.text.trim(),
-                    priority: isUrgent ? NotificationPriority.urgent : NotificationPriority.normal,
-                    sender: widget.staffName.isNotEmpty ? widget.staffName : 'Staff Member',
+                    priority: isUrgent
+                        ? NotificationPriority.urgent
+                        : NotificationPriority.normal,
+                    sender: widget.staffName.isNotEmpty
+                        ? widget.staffName
+                        : 'Staff Member',
                     staffId: widget.staffId,
                   );
                   if (ctx.mounted) Navigator.pop(ctx);
@@ -321,7 +342,8 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
         actions: [
           IconButton(
             tooltip: 'Post Announcement',
-            icon: const Icon(Icons.add_comment_rounded, color: TekColors.secondary, size: 21),
+            icon: const Icon(Icons.add_comment_rounded,
+                color: TekColors.secondary, size: 21),
             onPressed: _showNewAnnouncementDialog,
           ),
           const SizedBox(width: 6),
@@ -343,7 +365,8 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
               return n.type == NotificationType.repairUpdate;
             }
             if (_selectedCategory == 'System') {
-              return n.type == NotificationType.systemAlert || n.type == NotificationType.attendance;
+              return n.type == NotificationType.systemAlert ||
+                  n.type == NotificationType.attendance;
             }
             return true;
           }).toList();
@@ -357,7 +380,8 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: unreadNotifs.isNotEmpty
                             ? TekColors.primary.withValues(alpha: 0.18)
@@ -375,7 +399,9 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
                           Icon(
                             Icons.mark_email_unread_rounded,
                             size: 14,
-                            color: unreadNotifs.isNotEmpty ? TekColors.secondary : TekColors.textMuted,
+                            color: unreadNotifs.isNotEmpty
+                                ? TekColors.secondary
+                                : TekColors.textMuted,
                           ),
                           const SizedBox(width: 6),
                           Text(
@@ -385,14 +411,16 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
                             style: TextStyle(
                               fontSize: 11.5,
                               fontWeight: FontWeight.bold,
-                              color: unreadNotifs.isNotEmpty ? TekColors.secondary : TekColors.textSecondary,
-                              fontFamilyFallback: TekTypography.malayalamFallback,
+                              color: unreadNotifs.isNotEmpty
+                                  ? TekColors.secondary
+                                  : TekColors.textSecondary,
+                              fontFamilyFallback:
+                                  TekTypography.malayalamFallback,
                             ),
                           ),
                         ],
                       ),
                     ),
-
                     if (unreadNotifs.isNotEmpty)
                       GestureDetector(
                         onTap: () {
@@ -404,11 +432,15 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
                         },
                         child: const Row(
                           children: [
-                            Icon(Icons.done_all_rounded, size: 16, color: TekColors.secondary),
+                            Icon(Icons.done_all_rounded,
+                                size: 16, color: TekColors.secondary),
                             SizedBox(width: 4),
                             Text(
                               'Mark all as read',
-                              style: TextStyle(fontSize: 11, color: TekColors.secondary, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: TekColors.secondary,
+                                  fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
@@ -433,8 +465,11 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
                         cat,
                         style: TextStyle(
                           fontSize: 12,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                          color: isSelected ? Colors.white : TekColors.textSecondary,
+                          fontWeight:
+                              isSelected ? FontWeight.bold : FontWeight.w500,
+                          color: isSelected
+                              ? Colors.white
+                              : TekColors.textSecondary,
                         ),
                       ),
                       selected: isSelected,
@@ -443,7 +478,8 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                         side: BorderSide(
-                          color: isSelected ? TekColors.primary : TekColors.border,
+                          color:
+                              isSelected ? TekColors.primary : TekColors.border,
                         ),
                       ),
                       onSelected: (val) {
@@ -461,9 +497,11 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
 
               // Notification List
               Expanded(
-                child: snapshot.connectionState == ConnectionState.waiting && allNotifs.isEmpty
+                child: snapshot.connectionState == ConnectionState.waiting &&
+                        allNotifs.isEmpty
                     ? const Center(
-                        child: CircularProgressIndicator(color: TekColors.primary),
+                        child:
+                            CircularProgressIndicator(color: TekColors.primary),
                       )
                     : filtered.isEmpty
                         ? _buildEmptyState()
@@ -472,7 +510,8 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
                             padding: const EdgeInsets.fromLTRB(16, 6, 16, 85),
                             physics: const BouncingScrollPhysics(),
                             itemCount: filtered.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 10),
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 10),
                             itemBuilder: (context, index) {
                               final notif = filtered[index];
                               return _buildNotificationCard(notif);
@@ -542,7 +581,8 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
                           if (notif.isUrgent) ...[
                             const SizedBox(width: 6),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 5, vertical: 1),
                               decoration: BoxDecoration(
                                 color: TekColors.error.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(4),
@@ -565,7 +605,8 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
                         children: [
                           Text(
                             notif.timeFormatted,
-                            style: const TextStyle(fontSize: 10.5, color: TekColors.textMuted),
+                            style: const TextStyle(
+                                fontSize: 10.5, color: TekColors.textMuted),
                           ),
                           if (!notif.isRead) ...[
                             const SizedBox(width: 6),
@@ -592,7 +633,8 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 13.5,
-                      fontWeight: !notif.isRead ? FontWeight.bold : FontWeight.w600,
+                      fontWeight:
+                          !notif.isRead ? FontWeight.bold : FontWeight.w600,
                       color: TekColors.textPrimary,
                       fontFamilyFallback: TekTypography.malayalamFallback,
                     ),
@@ -607,7 +649,9 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 12,
-                      color: !notif.isRead ? TekColors.textPrimary.withValues(alpha: 0.85) : TekColors.textSecondary,
+                      color: !notif.isRead
+                          ? TekColors.textPrimary.withValues(alpha: 0.85)
+                          : TekColors.textSecondary,
                       height: 1.35,
                       fontFamilyFallback: TekTypography.malayalamFallback,
                     ),
@@ -633,7 +677,8 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
               shape: BoxShape.circle,
               border: Border.all(color: TekColors.border),
             ),
-            child: const Icon(Icons.notifications_off_rounded, size: 44, color: TekColors.textMuted),
+            child: const Icon(Icons.notifications_off_rounded,
+                size: 44, color: TekColors.textMuted),
           ),
           const SizedBox(height: 14),
           const Text(

@@ -34,7 +34,8 @@ class ReturnService {
   // WARRANTY CALCULATION HELPERS
   // ---------------------------------------------------------------------------
 
-  DateTime? calculateWarrantyExpiry(DateTime purchaseDate, String warrantyPeriod) {
+  DateTime? calculateWarrantyExpiry(
+      DateTime purchaseDate, String warrantyPeriod) {
     final wp = warrantyPeriod.trim().toLowerCase();
     if (wp.isEmpty || wp == 'no warranty' || wp == '0' || wp == 'none') {
       return null;
@@ -44,14 +45,17 @@ class ReturnService {
     final count = numMatch != null ? int.tryParse(numMatch.group(0)!) ?? 1 : 1;
 
     if (wp.contains('year') || wp.contains('yr')) {
-      return DateTime(purchaseDate.year + count, purchaseDate.month, purchaseDate.day);
+      return DateTime(
+          purchaseDate.year + count, purchaseDate.month, purchaseDate.day);
     } else if (wp.contains('month') || wp.contains('mo')) {
-      return DateTime(purchaseDate.year, purchaseDate.month + count, purchaseDate.day);
+      return DateTime(
+          purchaseDate.year, purchaseDate.month + count, purchaseDate.day);
     } else if (wp.contains('day')) {
       return purchaseDate.add(Duration(days: count));
     } else {
       // Default fallback: assume months if number only
-      return DateTime(purchaseDate.year, purchaseDate.month + count, purchaseDate.day);
+      return DateTime(
+          purchaseDate.year, purchaseDate.month + count, purchaseDate.day);
     }
   }
 
@@ -219,7 +223,8 @@ class ReturnService {
         final pItemName = pv['itemName']?.toString() ?? '';
 
         if ((itemKey != null && pItemKey == itemKey) ||
-            (itemName.isNotEmpty && pItemName.toLowerCase() == itemName.toLowerCase())) {
+            (itemName.isNotEmpty &&
+                pItemName.toLowerCase() == itemName.toLowerCase())) {
           final supKey = pv['supplierKey'];
           final supName = pv['supplierName']?.toString() ?? '';
           String? supPhone;
@@ -256,7 +261,9 @@ class ReturnService {
       if (v is! Map) continue;
       final inv = v['originalInvoiceNumber']?.toString();
       final sn = v['serialNumber']?.toString();
-      if (invoiceNumber != null && invoiceNumber.isNotEmpty && inv == invoiceNumber) {
+      if (invoiceNumber != null &&
+          invoiceNumber.isNotEmpty &&
+          inv == invoiceNumber) {
         if (serialNumber != null && serialNumber.isNotEmpty) {
           if (sn == serialNumber) count++;
         } else {
@@ -287,7 +294,9 @@ class ReturnService {
       final invoice = sale['invoice']?.toString() ?? 'INV-$saleKey';
       final customerName = sale['customerName']?.toString() ?? 'Customer';
       final customerKey = sale['partyKey'];
-      final createdAt = DateTime.tryParse(sale['createdAt']?.toString() ?? '') ?? DateTime.now();
+      final createdAt =
+          DateTime.tryParse(sale['createdAt']?.toString() ?? '') ??
+              DateTime.now();
       final items = sale['items'];
 
       if (items is List) {
@@ -296,13 +305,15 @@ class ReturnService {
           final productName = it['name']?.toString() ?? 'Unknown Product';
           final brand = it['brand']?.toString() ?? '';
           final model = it['model']?.toString() ?? '';
-          final serial = it['imei']?.toString() ?? it['serial']?.toString() ?? '';
+          final serial =
+              it['imei']?.toString() ?? it['serial']?.toString() ?? '';
           final price = (it['price'] as num?)?.toDouble() ?? 0.0;
           final cost = (it['cost'] as num?)?.toDouble() ?? 0.0;
           final qty = (it['qty'] as num?)?.toInt() ?? 1;
           final warrantyStr = it['warranty']?.toString() ?? '1 Year';
           final itemKey = it['key'] ?? it['itemKey'];
-          final itemId = it['itemId']?.toString() ?? it['_id']?.toString() ?? '$itemKey';
+          final itemId =
+              it['itemId']?.toString() ?? it['_id']?.toString() ?? '$itemKey';
 
           final expiryDate = calculateWarrantyExpiry(createdAt, warrantyStr);
           final warrantyStatus = calculateWarrantyStatus(
@@ -423,7 +434,8 @@ class ReturnService {
         id: 'EVT-${now.millisecondsSinceEpoch}-2',
         timestamp: now.add(const Duration(milliseconds: 10)),
         title: 'Warranty Status Evaluated',
-        description: 'Customer Warranty: $customerWarrantyStatus (Period: $customerWarrantyPeriod)',
+        description:
+            'Customer Warranty: $customerWarrantyStatus (Period: $customerWarrantyPeriod)',
         actorId: actorId,
         actorName: actorName,
         actorRole: actorRole,
@@ -554,7 +566,8 @@ class ReturnService {
       id: 'EVT-${now.millisecondsSinceEpoch}',
       timestamp: now,
       title: 'Warranty Decision: $newWarrantyStatus',
-      description: 'Warranty status updated by $actorName ($actorRole). Reason: $reasonNotes',
+      description:
+          'Warranty status updated by $actorName ($actorRole). Reason: $reasonNotes',
       actorId: actorId,
       actorName: actorName,
       actorRole: actorRole,
@@ -567,9 +580,10 @@ class ReturnService {
       warrantyInspectionNotes: reasonNotes,
       warrantyVerifiedById: actorId,
       warrantyVerifiedByName: actorName,
-      customerReturnStatus: newWarrantyStatus == CustomerWarrantyStatus.claimRejected
-          ? CustomerReturnStatus.claimRejected
-          : CustomerReturnStatus.warrantyVerified,
+      customerReturnStatus:
+          newWarrantyStatus == CustomerWarrantyStatus.claimRejected
+              ? CustomerReturnStatus.claimRejected
+              : CustomerReturnStatus.warrantyVerified,
       timeline: updatedTimeline,
       updatedAt: now,
     );
@@ -615,7 +629,8 @@ class ReturnService {
       handoverProofUrl: handoverProofUrl,
     );
 
-    final history = List<VendorStatusHistoryItem>.from(current.vendorStatusHistory);
+    final history =
+        List<VendorStatusHistoryItem>.from(current.vendorStatusHistory);
     history.add(VendorStatusHistoryItem(
       previousStatus: current.vendorStatus,
       newStatus: VendorStatus.handedOverToVendor,
@@ -631,7 +646,8 @@ class ReturnService {
       id: 'EVT-${now.millisecondsSinceEpoch}',
       timestamp: now,
       title: 'Handed Over to Vendor',
-      description: 'Handed over to "$vendorName" at "$vendorServiceCentre". Ref: $vhoRef, Vendor Docket: $vendorReferenceNumber',
+      description:
+          'Handed over to "$vendorName" at "$vendorServiceCentre". Ref: $vhoRef, Vendor Docket: $vendorReferenceNumber',
       actorId: actorId,
       actorName: actorName,
       actorRole: actorRole,
@@ -680,7 +696,8 @@ class ReturnService {
       vendorReceivedNotes: notes,
     );
 
-    final history = List<VendorStatusHistoryItem>.from(current.vendorStatusHistory);
+    final history =
+        List<VendorStatusHistoryItem>.from(current.vendorStatusHistory);
     history.add(VendorStatusHistoryItem(
       previousStatus: current.vendorStatus,
       newStatus: VendorStatus.receivedByVendor,
@@ -734,14 +751,16 @@ class ReturnService {
     if (current == null) throw Exception('Return record not found');
 
     final now = DateTime.now();
-    final history = List<VendorStatusHistoryItem>.from(current.vendorStatusHistory);
+    final history =
+        List<VendorStatusHistoryItem>.from(current.vendorStatusHistory);
     history.add(VendorStatusHistoryItem(
       previousStatus: current.vendorStatus,
       newStatus: newStatus,
       timestamp: now,
       updatedById: actorId,
       updatedByName: actorName,
-      vendorReferenceNumber: vendorReferenceNumber ?? current.originalVendorReference,
+      vendorReferenceNumber:
+          vendorReferenceNumber ?? current.originalVendorReference,
       notes: notes,
       attachments: attachments,
     ));
@@ -830,7 +849,8 @@ class ReturnService {
       newVendorStatus = VendorStatus.returnedUnrepaired;
     }
 
-    final history = List<VendorStatusHistoryItem>.from(current.vendorStatusHistory);
+    final history =
+        List<VendorStatusHistoryItem>.from(current.vendorStatusHistory);
     history.add(VendorStatusHistoryItem(
       previousStatus: current.vendorStatus,
       newStatus: newVendorStatus,
@@ -838,7 +858,10 @@ class ReturnService {
       updatedById: actorId,
       updatedByName: actorName,
       vendorReferenceNumber: current.originalVendorReference,
-      notes: vendorNotes ?? repairDetails ?? claimRejectionReason ?? 'Resolution recorded',
+      notes: vendorNotes ??
+          repairDetails ??
+          claimRejectionReason ??
+          'Resolution recorded',
     ));
 
     final updatedTimeline = List<ReturnTimelineEvent>.from(current.timeline);
@@ -846,7 +869,8 @@ class ReturnService {
     String timelineDesc = '';
     if (isReplacement) {
       timelineTitle = 'Vendor Replacement: $replacementProduct';
-      timelineDesc = 'Replacement unit approved/received with New Serial: ${replacementSerialNumber ?? "N/A"}.';
+      timelineDesc =
+          'Replacement unit approved/received with New Serial: ${replacementSerialNumber ?? "N/A"}.';
     } else if (decision == VendorResolutionType.repaired) {
       timelineDesc = 'Product repaired by vendor. $repairDetails';
     } else if (decision == VendorResolutionType.claimRejected) {
@@ -905,7 +929,8 @@ class ReturnService {
       id: 'EVT-${now.millisecondsSinceEpoch}-1',
       timestamp: now,
       title: 'Received at Shop',
-      description: 'Product received back at shop from vendor. Inspection: "$inspectionNotes"',
+      description:
+          'Product received back at shop from vendor. Inspection: "$inspectionNotes"',
       actorId: actorId,
       actorName: actorName,
       actorRole: actorRole,
@@ -918,7 +943,8 @@ class ReturnService {
         id: 'EVT-${now.millisecondsSinceEpoch}-2',
         timestamp: now.add(const Duration(milliseconds: 10)),
         title: 'Ready for Customer',
-        description: 'Quality check passed. Ready for customer pickup / dispatch.',
+        description:
+            'Quality check passed. Ready for customer pickup / dispatch.',
         actorId: actorId,
         actorName: actorName,
         actorRole: actorRole,
@@ -983,7 +1009,8 @@ class ReturnService {
       id: 'EVT-${now.millisecondsSinceEpoch}',
       timestamp: now,
       title: 'Returned to Customer',
-      description: 'Product handed over to customer. Confirmation: "$customerConfirmation"',
+      description:
+          'Product handed over to customer. Confirmation: "$customerConfirmation"',
       actorId: actorId,
       actorName: actorName,
       actorRole: actorRole,
@@ -1040,13 +1067,16 @@ class ReturnService {
     int completedReturns = 0;
 
     for (final r in returns) {
-      if (r.isCompleted || r.customerReturnStatus == CustomerReturnStatus.completed || r.customerReturnStatus == CustomerReturnStatus.returnedToCustomer) {
+      if (r.isCompleted ||
+          r.customerReturnStatus == CustomerReturnStatus.completed ||
+          r.customerReturnStatus == CustomerReturnStatus.returnedToCustomer) {
         completedReturns++;
       }
 
       if (r.customerReturnStatus == CustomerReturnStatus.registered ||
           r.customerReturnStatus == CustomerReturnStatus.underInspection ||
-          r.customerWarrantyStatus == CustomerWarrantyStatus.underWarrantyInspection) {
+          r.customerWarrantyStatus ==
+              CustomerWarrantyStatus.underWarrantyInspection) {
         pendingInspection++;
       }
 
@@ -1067,7 +1097,8 @@ class ReturnService {
         replacementAwaited++;
       }
 
-      if (r.isFollowUpOverdue(threshold) || r.vendorStatus == VendorStatus.vendorFollowUpRequired) {
+      if (r.isFollowUpOverdue(threshold) ||
+          r.vendorStatus == VendorStatus.vendorFollowUpRequired) {
         vendorFollowUpRequired++;
       }
 
@@ -1122,37 +1153,50 @@ class ReturnService {
             r.originalInvoiceNumber.toLowerCase().contains(q) ||
             (r.originalVendorName?.toLowerCase().contains(q) ?? false) ||
             (r.originalVendorReference?.toLowerCase().contains(q) ?? false) ||
-            (r.handoverRecord?.handoverReference.toLowerCase().contains(q) ?? false);
+            (r.handoverRecord?.handoverReference.toLowerCase().contains(q) ??
+                false);
         if (!matches) return false;
       }
 
       // 2. Vendor Filter
-      if (vendorFilter != null && vendorFilter.isNotEmpty && vendorFilter != 'All Vendors') {
-        if (r.originalVendorName != vendorFilter && r.handoverRecord?.vendorName != vendorFilter) {
+      if (vendorFilter != null &&
+          vendorFilter.isNotEmpty &&
+          vendorFilter != 'All Vendors') {
+        if (r.originalVendorName != vendorFilter &&
+            r.handoverRecord?.vendorName != vendorFilter) {
           return false;
         }
       }
 
       // 3. Return Status Filter
-      if (returnStatusFilter != null && returnStatusFilter.isNotEmpty && returnStatusFilter != 'All Statuses') {
+      if (returnStatusFilter != null &&
+          returnStatusFilter.isNotEmpty &&
+          returnStatusFilter != 'All Statuses') {
         if (r.customerReturnStatus != returnStatusFilter) return false;
       }
 
       // 4. Vendor Status Filter
-      if (vendorStatusFilter != null && vendorStatusFilter.isNotEmpty && vendorStatusFilter != 'All Vendor Statuses') {
+      if (vendorStatusFilter != null &&
+          vendorStatusFilter.isNotEmpty &&
+          vendorStatusFilter != 'All Vendor Statuses') {
         if (r.vendorStatus != vendorStatusFilter) return false;
       }
 
       // 5. Staff Filter
-      if (staffFilter != null && staffFilter.isNotEmpty && staffFilter != 'All Staff') {
-        if (r.assignedStaffName != staffFilter && r.warrantyVerifiedByName != staffFilter) {
+      if (staffFilter != null &&
+          staffFilter.isNotEmpty &&
+          staffFilter != 'All Staff') {
+        if (r.assignedStaffName != staffFilter &&
+            r.warrantyVerifiedByName != staffFilter) {
           return false;
         }
       }
 
       // 6. Date Range Filter
       if (startDate != null && r.createdAt.isBefore(startDate)) return false;
-      if (endDate != null && r.createdAt.isAfter(endDate.add(const Duration(days: 1)))) return false;
+      if (endDate != null &&
+          r.createdAt.isAfter(endDate.add(const Duration(days: 1))))
+        return false;
 
       // 7. Card KPI Filter
       if (cardFilterCategory != null && cardFilterCategory.isNotEmpty) {
@@ -1172,13 +1216,17 @@ class ReturnService {
             return r.vendorStatus == VendorStatus.replacementApproved ||
                 r.vendorStatus == VendorStatus.replacementDispatched;
           case 'Vendor Follow-up Required':
-            return r.isFollowUpOverdue(threshold) || r.vendorStatus == VendorStatus.vendorFollowUpRequired;
+            return r.isFollowUpOverdue(threshold) ||
+                r.vendorStatus == VendorStatus.vendorFollowUpRequired;
           case 'Received from Vendor':
-            return r.customerReturnStatus == CustomerReturnStatus.receivedAtShop;
+            return r.customerReturnStatus ==
+                CustomerReturnStatus.receivedAtShop;
           case 'Ready for Customer':
             return r.isReadyForCustomer && !r.isCompleted;
           case 'Completed Returns':
-            return r.isCompleted || r.customerReturnStatus == CustomerReturnStatus.returnedToCustomer;
+            return r.isCompleted ||
+                r.customerReturnStatus ==
+                    CustomerReturnStatus.returnedToCustomer;
           default:
             break;
         }

@@ -76,7 +76,8 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
         final allReturns = ReturnService.instance.getAllReturns();
         final vendorsSet = <String>{'All Vendors'};
         for (final r in allReturns) {
-          if (r.originalVendorName != null && r.originalVendorName!.isNotEmpty) {
+          if (r.originalVendorName != null &&
+              r.originalVendorName!.isNotEmpty) {
             vendorsSet.add(r.originalVendorName!);
           }
           if (r.handoverRecord?.vendorName.isNotEmpty == true) {
@@ -152,7 +153,8 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
               gradient: DashboardColors.activePillGradient,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.assignment_return_rounded, color: Colors.white, size: 22),
+            child: const Icon(Icons.assignment_return_rounded,
+                color: Colors.white, size: 22),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -182,14 +184,17 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: DashboardColors.neonOrange,
                 side: const BorderSide(color: DashboardColors.neonOrange),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               ),
               onPressed: () => _showFollowupSettingsDialog(thresholdDays),
               icon: const Icon(Icons.settings_suggest_rounded, size: 18),
               label: Text(
                 'Follow-up: ${thresholdDays}d',
-                style: DashboardTypography.inter(fontSize: 12, fontWeight: FontWeight.bold),
+                style: DashboardTypography.inter(
+                    fontSize: 12, fontWeight: FontWeight.bold),
               ),
             ),
             const SizedBox(width: 12),
@@ -197,14 +202,16 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
           FilledButton.icon(
             style: FilledButton.styleFrom(
               backgroundColor: DashboardColors.primaryBlue,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
               elevation: 4,
             ),
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const CustomerReturnsScreen()),
+                MaterialPageRoute(
+                    builder: (_) => const CustomerReturnsScreen()),
               );
             },
             icon: const Icon(Icons.add_rounded, size: 20),
@@ -227,16 +234,66 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
 
   Widget _buildKpiCardsGrid(Map<String, int> metrics) {
     final kpis = [
-      ('Total Customer Returns', metrics['Total Customer Returns'] ?? 0, Icons.assignment_return_rounded, DashboardColors.neonBlue),
-      ('Pending Inspection', metrics['Pending Inspection'] ?? 0, Icons.search_rounded, DashboardColors.neonOrange),
-      ('Handed Over to Vendors', metrics['Handed Over to Vendors'] ?? 0, Icons.local_shipping_rounded, const Color(0xFF38BDF8)),
-      ('Awaiting Vendor Confirmation', metrics['Awaiting Vendor Confirmation'] ?? 0, Icons.pending_actions_rounded, const Color(0xFF06B6D4)),
-      ('Under Repair at Vendor', metrics['Under Repair at Vendor'] ?? 0, Icons.build_circle_rounded, const Color(0xFFEAB308)),
-      ('Replacement Awaited', metrics['Replacement Awaited'] ?? 0, Icons.published_with_changes_rounded, DashboardColors.neonPurple),
-      ('Vendor Follow-up Required', metrics['Vendor Follow-up Required'] ?? 0, Icons.warning_amber_rounded, DashboardColors.neonPink),
-      ('Received from Vendor', metrics['Received from Vendor'] ?? 0, Icons.store_rounded, const Color(0xFF14B8A6)),
-      ('Ready for Customer', metrics['Ready for Customer'] ?? 0, Icons.task_alt_rounded, DashboardColors.neonGreen),
-      ('Completed Returns', metrics['Completed Returns'] ?? 0, Icons.check_circle_rounded, const Color(0xFF22C55E)),
+      (
+        'Total Customer Returns',
+        metrics['Total Customer Returns'] ?? 0,
+        Icons.assignment_return_rounded,
+        DashboardColors.neonBlue
+      ),
+      (
+        'Pending Inspection',
+        metrics['Pending Inspection'] ?? 0,
+        Icons.search_rounded,
+        DashboardColors.neonOrange
+      ),
+      (
+        'Handed Over to Vendors',
+        metrics['Handed Over to Vendors'] ?? 0,
+        Icons.local_shipping_rounded,
+        const Color(0xFF38BDF8)
+      ),
+      (
+        'Awaiting Vendor Confirmation',
+        metrics['Awaiting Vendor Confirmation'] ?? 0,
+        Icons.pending_actions_rounded,
+        const Color(0xFF06B6D4)
+      ),
+      (
+        'Under Repair at Vendor',
+        metrics['Under Repair at Vendor'] ?? 0,
+        Icons.build_circle_rounded,
+        const Color(0xFFEAB308)
+      ),
+      (
+        'Replacement Awaited',
+        metrics['Replacement Awaited'] ?? 0,
+        Icons.published_with_changes_rounded,
+        DashboardColors.neonPurple
+      ),
+      (
+        'Vendor Follow-up Required',
+        metrics['Vendor Follow-up Required'] ?? 0,
+        Icons.warning_amber_rounded,
+        DashboardColors.neonPink
+      ),
+      (
+        'Received from Vendor',
+        metrics['Received from Vendor'] ?? 0,
+        Icons.store_rounded,
+        const Color(0xFF14B8A6)
+      ),
+      (
+        'Ready for Customer',
+        metrics['Ready for Customer'] ?? 0,
+        Icons.task_alt_rounded,
+        DashboardColors.neonGreen
+      ),
+      (
+        'Completed Returns',
+        metrics['Completed Returns'] ?? 0,
+        Icons.check_circle_rounded,
+        const Color(0xFF22C55E)
+      ),
     ];
 
     return LayoutBuilder(
@@ -268,12 +325,14 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
               borderRadius: BorderRadius.circular(16),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: DashboardColors.glassCard(
                   radius: 16,
                   borderColor: isSelected ? color : null,
                   borderWidth: isSelected ? 2 : 1,
-                  glow: isSelected || (title == 'Vendor Follow-up Required' && value > 0),
+                  glow: isSelected ||
+                      (title == 'Vendor Follow-up Required' && value > 0),
                   glowColor: color,
                 ),
                 child: Column(
@@ -290,8 +349,12 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
                             overflow: TextOverflow.ellipsis,
                             style: DashboardTypography.inter(
                               fontSize: 11,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                              color: isSelected ? color : DashboardColors.textLight,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.w500,
+                              color: isSelected
+                                  ? color
+                                  : DashboardColors.textLight,
                             ),
                           ),
                         ),
@@ -311,14 +374,18 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
                         if (isSelected) ...[
                           const SizedBox(width: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color: color.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
                               'Filtered',
-                              style: DashboardTypography.inter(fontSize: 9, fontWeight: FontWeight.bold, color: color),
+                              style: DashboardTypography.inter(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: color),
                             ),
                           ),
                         ],
@@ -358,14 +425,19 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
                   ),
                   child: TextField(
                     controller: _searchCtrl,
-                    style: DashboardTypography.inter(color: Colors.white, fontSize: 13.5),
+                    style: DashboardTypography.inter(
+                        color: Colors.white, fontSize: 13.5),
                     decoration: InputDecoration(
-                      hintText: 'Search by Return ID, Customer, Phone, Product, IMEI, Invoice, Vendor...',
-                      hintStyle: DashboardTypography.inter(color: DashboardColors.textMuted, fontSize: 12),
-                      prefixIcon: const Icon(Icons.search_rounded, color: DashboardColors.neonBlue, size: 18),
+                      hintText:
+                          'Search by Return ID, Customer, Phone, Product, IMEI, Invoice, Vendor...',
+                      hintStyle: DashboardTypography.inter(
+                          color: DashboardColors.textMuted, fontSize: 12),
+                      prefixIcon: const Icon(Icons.search_rounded,
+                          color: DashboardColors.neonBlue, size: 18),
                       suffixIcon: _searchCtrl.text.isNotEmpty
                           ? IconButton(
-                              icon: const Icon(Icons.clear_rounded, color: DashboardColors.textMuted, size: 16),
+                              icon: const Icon(Icons.clear_rounded,
+                                  color: DashboardColors.textMuted, size: 16),
                               onPressed: () {
                                 _searchCtrl.clear();
                                 setState(() => _searchQuery = '');
@@ -373,7 +445,8 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
                             )
                           : null,
                       border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
                     ),
                     onChanged: (val) => setState(() => _searchQuery = val),
                   ),
@@ -388,7 +461,8 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
                 child: _buildFilterDropdown(
                   value: _selectedVendor,
                   items: vendors,
-                  onChanged: (val) => setState(() => _selectedVendor = val ?? 'All Vendors'),
+                  onChanged: (val) =>
+                      setState(() => _selectedVendor = val ?? 'All Vendors'),
                 ),
               ),
 
@@ -400,7 +474,8 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
                 child: _buildFilterDropdown(
                   value: _selectedReturnStatus,
                   items: ['All Statuses', ...CustomerReturnStatus.all],
-                  onChanged: (val) => setState(() => _selectedReturnStatus = val ?? 'All Statuses'),
+                  onChanged: (val) => setState(
+                      () => _selectedReturnStatus = val ?? 'All Statuses'),
                 ),
               ),
 
@@ -412,7 +487,8 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
                 child: _buildFilterDropdown(
                   value: _selectedVendorStatus,
                   items: ['All Vendor Statuses', ...VendorStatus.all],
-                  onChanged: (val) => setState(() => _selectedVendorStatus = val ?? 'All Vendor Statuses'),
+                  onChanged: (val) => setState(() =>
+                      _selectedVendorStatus = val ?? 'All Vendor Statuses'),
                 ),
               ),
 
@@ -421,12 +497,18 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
               // Date Range Filter Button
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _startDate != null ? DashboardColors.neonBlue : DashboardColors.textLight,
+                  foregroundColor: _startDate != null
+                      ? DashboardColors.neonBlue
+                      : DashboardColors.textLight,
                   side: BorderSide(
-                    color: _startDate != null ? DashboardColors.neonBlue : const Color(0x33FFFFFF),
+                    color: _startDate != null
+                        ? DashboardColors.neonBlue
+                        : const Color(0x33FFFFFF),
                   ),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 ),
                 onPressed: _pickDateRange,
                 icon: const Icon(Icons.calendar_today_rounded, size: 16),
@@ -469,7 +551,8 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
                 i,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: DashboardTypography.inter(color: Colors.white, fontSize: 12.5),
+                style: DashboardTypography.inter(
+                    color: Colors.white, fontSize: 12.5),
               ),
             );
           }).toList(),
@@ -513,26 +596,37 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
       children: [
         Text(
           'Matching Records: $matchCount',
-          style: DashboardTypography.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.white),
+          style: DashboardTypography.inter(
+              fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.white),
         ),
         const SizedBox(width: 12),
         if (_selectedCardFilter != null)
-          _buildActiveChip('Card: $_selectedCardFilter', () => setState(() => _selectedCardFilter = null)),
+          _buildActiveChip('Card: $_selectedCardFilter',
+              () => setState(() => _selectedCardFilter = null)),
         if (_selectedVendor != 'All Vendors')
-          _buildActiveChip('Vendor: $_selectedVendor', () => setState(() => _selectedVendor = 'All Vendors')),
+          _buildActiveChip('Vendor: $_selectedVendor',
+              () => setState(() => _selectedVendor = 'All Vendors')),
         if (_selectedReturnStatus != 'All Statuses')
-          _buildActiveChip('Status: $_selectedReturnStatus', () => setState(() => _selectedReturnStatus = 'All Statuses')),
+          _buildActiveChip('Status: $_selectedReturnStatus',
+              () => setState(() => _selectedReturnStatus = 'All Statuses')),
         if (_selectedVendorStatus != 'All Vendor Statuses')
-          _buildActiveChip('Vendor Status: $_selectedVendorStatus', () => setState(() => _selectedVendorStatus = 'All Vendor Statuses')),
+          _buildActiveChip(
+              'Vendor Status: $_selectedVendorStatus',
+              () => setState(
+                  () => _selectedVendorStatus = 'All Vendor Statuses')),
         if (_startDate != null)
-          _buildActiveChip('Date: ${_shortDateFormat.format(_startDate!)}', () => setState(() {
-                _startDate = null;
-                _endDate = null;
-              })),
+          _buildActiveChip(
+              'Date: ${_shortDateFormat.format(_startDate!)}',
+              () => setState(() {
+                    _startDate = null;
+                    _endDate = null;
+                  })),
         const Spacer(),
         TextButton(
           onPressed: _resetFilters,
-          child: Text('Reset Filters', style: DashboardTypography.inter(fontSize: 12, color: DashboardColors.neonPink)),
+          child: Text('Reset Filters',
+              style: DashboardTypography.inter(
+                  fontSize: 12, color: DashboardColors.neonPink)),
         ),
       ],
     );
@@ -545,16 +639,20 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
       decoration: BoxDecoration(
         color: DashboardColors.primaryBlue.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: DashboardColors.primaryBlue.withValues(alpha: 0.5)),
+        border: Border.all(
+            color: DashboardColors.primaryBlue.withValues(alpha: 0.5)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label, style: DashboardTypography.inter(fontSize: 11, color: Colors.white)),
+          Text(label,
+              style:
+                  DashboardTypography.inter(fontSize: 11, color: Colors.white)),
           const SizedBox(width: 4),
           InkWell(
             onTap: onRemove,
-            child: const Icon(Icons.close_rounded, size: 14, color: Colors.white70),
+            child: const Icon(Icons.close_rounded,
+                size: 14, color: Colors.white70),
           ),
         ],
       ),
@@ -573,16 +671,21 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
         decoration: DashboardColors.glassCard(),
         child: Column(
           children: [
-            const Icon(Icons.inbox_rounded, size: 54, color: DashboardColors.textMuted),
+            const Icon(Icons.inbox_rounded,
+                size: 54, color: DashboardColors.textMuted),
             const SizedBox(height: 16),
             Text(
               'No Return Records Found',
-              style: DashboardTypography.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+              style: DashboardTypography.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white),
             ),
             const SizedBox(height: 6),
             Text(
               'No customer returns match the current search filters or database is empty.',
-              style: DashboardTypography.inter(fontSize: 13, color: DashboardColors.textMuted),
+              style: DashboardTypography.inter(
+                  fontSize: 13, color: DashboardColors.textMuted),
             ),
           ],
         ),
@@ -605,17 +708,22 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
               DataColumn(label: Text('RETURN ID', style: _tableHeaderStyle)),
               DataColumn(label: Text('CUSTOMER', style: _tableHeaderStyle)),
               DataColumn(label: Text('PRODUCT', style: _tableHeaderStyle)),
-              DataColumn(label: Text('INVOICE / DATE', style: _tableHeaderStyle)),
-              DataColumn(label: Text('RETURN STATUS', style: _tableHeaderStyle)),
+              DataColumn(
+                  label: Text('INVOICE / DATE', style: _tableHeaderStyle)),
+              DataColumn(
+                  label: Text('RETURN STATUS', style: _tableHeaderStyle)),
               DataColumn(label: Text('WARRANTY', style: _tableHeaderStyle)),
-              DataColumn(label: Text('VENDOR STATUS', style: _tableHeaderStyle)),
+              DataColumn(
+                  label: Text('VENDOR STATUS', style: _tableHeaderStyle)),
               DataColumn(label: Text('DAYS PENDING', style: _tableHeaderStyle)),
               DataColumn(label: Text('ACTION', style: _tableHeaderStyle)),
             ],
             rows: returns.map((r) {
               final isOverdue = r.isFollowUpOverdue(thresholdDays);
-              final retColor = CustomerReturnStatus.getColor(r.customerReturnStatus);
-              final warColor = CustomerWarrantyStatus.getColor(r.customerWarrantyStatus);
+              final retColor =
+                  CustomerReturnStatus.getColor(r.customerReturnStatus);
+              final warColor =
+                  CustomerWarrantyStatus.getColor(r.customerWarrantyStatus);
               final venColor = VendorStatus.getColor(r.vendorStatus);
 
               return DataRow(
@@ -629,14 +737,18 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
                   // Return ID
                   DataCell(
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         gradient: DashboardColors.activePillGradient,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         r.returnId,
-                        style: DashboardTypography.poppins(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                        style: DashboardTypography.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white),
                       ),
                     ),
                   ),
@@ -647,8 +759,15 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(r.customerName, style: DashboardTypography.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
-                        Text(r.customerPhone, style: DashboardTypography.inter(fontSize: 11, color: DashboardColors.textMuted)),
+                        Text(r.customerName,
+                            style: DashboardTypography.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white)),
+                        Text(r.customerPhone,
+                            style: DashboardTypography.inter(
+                                fontSize: 11,
+                                color: DashboardColors.textMuted)),
                       ],
                     ),
                   ),
@@ -659,8 +778,17 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(r.productName, maxLines: 1, overflow: TextOverflow.ellipsis, style: DashboardTypography.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
-                        Text('IMEI: ${r.serialNumber?.isNotEmpty == true ? r.serialNumber : "N/A"}', style: DashboardTypography.inter(fontSize: 11, color: DashboardColors.neonBlue)),
+                        Text(r.productName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: DashboardTypography.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white)),
+                        Text(
+                            'IMEI: ${r.serialNumber?.isNotEmpty == true ? r.serialNumber : "N/A"}',
+                            style: DashboardTypography.inter(
+                                fontSize: 11, color: DashboardColors.neonBlue)),
                       ],
                     ),
                   ),
@@ -671,8 +799,13 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(r.originalInvoiceNumber, style: DashboardTypography.inter(fontSize: 12, color: Colors.white)),
-                        Text(_shortDateFormat.format(r.createdAt), style: DashboardTypography.inter(fontSize: 11, color: DashboardColors.textMuted)),
+                        Text(r.originalInvoiceNumber,
+                            style: DashboardTypography.inter(
+                                fontSize: 12, color: Colors.white)),
+                        Text(_shortDateFormat.format(r.createdAt),
+                            style: DashboardTypography.inter(
+                                fontSize: 11,
+                                color: DashboardColors.textMuted)),
                       ],
                     ),
                   ),
@@ -696,19 +829,27 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
                   DataCell(
                     r.isPendingWithVendor
                         ? Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: isOverdue ? DashboardColors.neonPink.withValues(alpha: 0.2) : const Color(0x1AFFFFFF),
+                              color: isOverdue
+                                  ? DashboardColors.neonPink
+                                      .withValues(alpha: 0.2)
+                                  : const Color(0x1AFFFFFF),
                               borderRadius: BorderRadius.circular(6),
                               border: Border.all(
-                                color: isOverdue ? DashboardColors.neonPink : const Color(0x33FFFFFF),
+                                color: isOverdue
+                                    ? DashboardColors.neonPink
+                                    : const Color(0x33FFFFFF),
                               ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 if (isOverdue) ...[
-                                  const Icon(Icons.warning_amber_rounded, size: 12, color: DashboardColors.neonPink),
+                                  const Icon(Icons.warning_amber_rounded,
+                                      size: 12,
+                                      color: DashboardColors.neonPink),
                                   const SizedBox(width: 4),
                                 ],
                                 Text(
@@ -716,13 +857,17 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
                                   style: DashboardTypography.inter(
                                     fontSize: 11,
                                     fontWeight: FontWeight.bold,
-                                    color: isOverdue ? DashboardColors.neonPink : Colors.white70,
+                                    color: isOverdue
+                                        ? DashboardColors.neonPink
+                                        : Colors.white70,
                                   ),
                                 ),
                               ],
                             ),
                           )
-                        : Text('—', style: DashboardTypography.inter(color: DashboardColors.textMuted)),
+                        : Text('—',
+                            style: DashboardTypography.inter(
+                                color: DashboardColors.textMuted)),
                   ),
 
                   // Action
@@ -730,18 +875,23 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
                     FilledButton(
                       style: FilledButton.styleFrom(
                         backgroundColor: DashboardColors.primaryBlue,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
                       ),
                       onPressed: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => ReturnDetailsScreen(returnKey: r.key),
+                            builder: (_) =>
+                                ReturnDetailsScreen(returnKey: r.key),
                           ),
                         );
                       },
-                      child: Text('View Case', style: DashboardTypography.inter(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                      child: Text('View Case',
+                          style: DashboardTypography.inter(
+                              fontSize: 11.5, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -794,14 +944,19 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setD) => AlertDialog(
           backgroundColor: const Color(0xFF0F172A),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Row(
             children: [
-              const Icon(Icons.settings_suggest_rounded, color: DashboardColors.neonOrange),
+              const Icon(Icons.settings_suggest_rounded,
+                  color: DashboardColors.neonOrange),
               const SizedBox(width: 10),
               Text(
                 'Vendor Follow-up Alert Settings',
-                style: DashboardTypography.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                style: DashboardTypography.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white),
               ),
             ],
           ),
@@ -811,12 +966,18 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
             children: [
               Text(
                 'Configure the reminder threshold in days. If a product remains pending with a vendor longer than this duration, an automated "Vendor Follow-up Required" alert is triggered.',
-                style: DashboardTypography.inter(fontSize: 12, color: DashboardColors.textMuted, height: 1.4),
+                style: DashboardTypography.inter(
+                    fontSize: 12,
+                    color: DashboardColors.textMuted,
+                    height: 1.4),
               ),
               const SizedBox(height: 18),
               Text(
                 'Overdue Threshold (Days)',
-                style: DashboardTypography.inter(fontSize: 12, fontWeight: FontWeight.w600, color: DashboardColors.textLight),
+                style: DashboardTypography.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: DashboardColors.textLight),
               ),
               const SizedBox(height: 6),
               TextField(
@@ -826,8 +987,10 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: const Color(0x26000000),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10)),
                   suffixText: 'Days',
                   suffixStyle: const TextStyle(color: Colors.white70),
                 ),
@@ -837,29 +1000,41 @@ class _ReturnsDashboardViewState extends State<ReturnsDashboardView> {
           actions: [
             TextButton(
               onPressed: saving ? null : () => Navigator.pop(ctx),
-              child: Text('Cancel', style: DashboardTypography.inter(color: Colors.white70)),
+              child: Text('Cancel',
+                  style: DashboardTypography.inter(color: Colors.white70)),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: DashboardColors.neonOrange),
+              style: FilledButton.styleFrom(
+                  backgroundColor: DashboardColors.neonOrange),
               onPressed: saving
                   ? null
                   : () async {
                       final val = int.tryParse(daysCtrl.text.trim());
                       if (val == null || val <= 0) {
-                        toast(context, 'Please enter a valid number of days (e.g. 7)', error: true);
+                        toast(context,
+                            'Please enter a valid number of days (e.g. 7)',
+                            error: true);
                         return;
                       }
 
                       setD(() => saving = true);
-                      await ReturnService.instance.setFollowupThresholdDays(val);
+                      await ReturnService.instance
+                          .setFollowupThresholdDays(val);
                       if (ctx.mounted) Navigator.pop(ctx);
                       if (mounted) {
-                        toast(context, 'Vendor Follow-up threshold updated to $val days');
+                        toast(context,
+                            'Vendor Follow-up threshold updated to $val days');
                       }
                     },
               child: saving
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : Text('Save Setting', style: DashboardTypography.inter(fontWeight: FontWeight.bold)),
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2))
+                  : Text('Save Setting',
+                      style: DashboardTypography.inter(
+                          fontWeight: FontWeight.bold)),
             ),
           ],
         ),

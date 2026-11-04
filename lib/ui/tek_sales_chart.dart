@@ -47,7 +47,8 @@ class _TekSalesChartState extends State<TekSalesChart> {
       if (dailyTotals.containsKey(saleDate)) {
         dailyTotals[saleDate] = (dailyTotals[saleDate] ?? 0) + total;
         currentPeriodTotal += total;
-      } else if (saleDate.isAfter(prevStart) && (saleDate.isBefore(prevEnd) || saleDate == prevEnd)) {
+      } else if (saleDate.isAfter(prevStart) &&
+          (saleDate.isBefore(prevEnd) || saleDate == prevEnd)) {
         previousPeriodTotal += total;
       }
     }
@@ -63,7 +64,9 @@ class _TekSalesChartState extends State<TekSalesChart> {
     // Percentage change
     double percentChange = 0;
     if (previousPeriodTotal > 0) {
-      percentChange = ((currentPeriodTotal - previousPeriodTotal) / previousPeriodTotal) * 100;
+      percentChange =
+          ((currentPeriodTotal - previousPeriodTotal) / previousPeriodTotal) *
+              100;
     }
 
     return Container(
@@ -88,7 +91,8 @@ class _TekSalesChartState extends State<TekSalesChart> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        const Icon(Icons.insights_rounded, color: TekColors.electricCyan, size: 18),
+                        const Icon(Icons.insights_rounded,
+                            color: TekColors.electricCyan, size: 18),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Column(
@@ -121,51 +125,58 @@ class _TekSalesChartState extends State<TekSalesChart> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Text(
-                        rs(currentPeriodTotal),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      if (previousPeriodTotal > 0)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: (percentChange >= 0 ? TekColors.success : TekColors.error)
-                                .withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(6),
+                    Row(
+                      children: [
+                        Text(
+                          rs(currentPeriodTotal),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                percentChange >= 0
-                                    ? Icons.arrow_upward_rounded
-                                    : Icons.arrow_downward_rounded,
-                                size: 11,
-                                color: percentChange >= 0 ? TekColors.success : TekColors.error,
-                              ),
-                              const SizedBox(width: 2),
-                              Text(
-                                '${percentChange.abs().toStringAsFixed(1)}%',
-                                style: TextStyle(
-                                  color: percentChange >= 0 ? TekColors.success : TekColors.error,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
+                        ),
+                        const SizedBox(width: 10),
+                        if (previousPeriodTotal > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: (percentChange >= 0
+                                      ? TekColors.success
+                                      : TekColors.error)
+                                  .withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  percentChange >= 0
+                                      ? Icons.arrow_upward_rounded
+                                      : Icons.arrow_downward_rounded,
+                                  size: 11,
+                                  color: percentChange >= 0
+                                      ? TekColors.success
+                                      : TekColors.error,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 2),
+                                Text(
+                                  '${percentChange.abs().toStringAsFixed(1)}%',
+                                  style: TextStyle(
+                                    color: percentChange >= 0
+                                        ? TekColors.success
+                                        : TekColors.error,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
 
               // Period Selector Tabs
@@ -261,7 +272,9 @@ class _TekSalesChartState extends State<TekSalesChart> {
                 child: Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    gradient: isLast ? TekColors.cyanBlueGradient : TekColors.primaryGradient,
+                    gradient: isLast
+                        ? TekColors.cyanBlueGradient
+                        : TekColors.primaryGradient,
                     borderRadius: BorderRadius.circular(5),
                     boxShadow: isLast ? TekColors.primaryGlow : null,
                   ),

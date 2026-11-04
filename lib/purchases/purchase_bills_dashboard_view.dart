@@ -166,8 +166,8 @@ class _PurchaseBillsDashboardViewState
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: amountCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
                         labelText: 'Advance Amount (₹) *',
@@ -346,7 +346,8 @@ class _PurchaseBillsDashboardViewState
 
         final totalPages = (filteredBills.length / _pageSize).ceil();
         final startIndex = _currentPage * _pageSize;
-        final endIndex = (startIndex + _pageSize).clamp(0, filteredBills.length);
+        final endIndex =
+            (startIndex + _pageSize).clamp(0, filteredBills.length);
         final pageBills = startIndex < filteredBills.length
             ? filteredBills.sublist(startIndex, endIndex)
             : <PurchaseBill>[];
@@ -384,7 +385,8 @@ class _PurchaseBillsDashboardViewState
                 const SizedBox(height: 16),
 
                 // 5. PAGINATION (for bills)
-                if (_vendorSubTab == 0 && totalPages > 1) _buildPagination(totalPages),
+                if (_vendorSubTab == 0 && totalPages > 1)
+                  _buildPagination(totalPages),
                 const SizedBox(height: 40),
               ],
             ),
@@ -442,131 +444,126 @@ class _PurchaseBillsDashboardViewState
       runSpacing: 10,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-            // Advance Payment Button
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: DashboardColors.neonGreen,
-                side: const BorderSide(color: DashboardColors.neonGreen),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              icon: const Icon(Icons.outbox_rounded, size: 18),
-              label: const Text('Record Advance Payment',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-              onPressed: _showRecordAdvancePaymentDialog,
-            ),
-            const SizedBox(width: 12),
+        // Advance Payment Button
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: DashboardColors.neonGreen,
+            side: const BorderSide(color: DashboardColors.neonGreen),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          icon: const Icon(Icons.outbox_rounded, size: 18),
+          label: const Text('Record Advance Payment',
+              style: TextStyle(fontWeight: FontWeight.w600)),
+          onPressed: _showRecordAdvancePaymentDialog,
+        ),
+        const SizedBox(width: 12),
 
-            // Vendor Ledgers Button
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: DashboardColors.neonPurple,
-                side: const BorderSide(color: DashboardColors.neonPurple),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              icon: const Icon(Icons.menu_book_rounded, size: 18),
-              label: const Text('Vendor Ledgers',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const VendorLedgerScreen()),
-                );
-              },
-            ),
-            const SizedBox(width: 12),
+        // Vendor Ledgers Button
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: DashboardColors.neonPurple,
+            side: const BorderSide(color: DashboardColors.neonPurple),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          icon: const Icon(Icons.menu_book_rounded, size: 18),
+          label: const Text('Vendor Ledgers',
+              style: TextStyle(fontWeight: FontWeight.w600)),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const VendorLedgerScreen()),
+            );
+          },
+        ),
+        const SizedBox(width: 12),
 
-            // Resume Draft Button (if draft exists)
-            if (ManualPurchaseDraftService.instance.hasDraft()) ...[
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: DashboardColors.neonOrange,
-                  side: const BorderSide(color: DashboardColors.neonOrange),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-                icon: const Icon(Icons.restore_rounded, size: 18),
-                label: const Text('Resume Draft',
-                    style: TextStyle(fontWeight: FontWeight.w600)),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const ManualPurchaseEntryScreen()),
-                  );
-                },
-              ),
-              const SizedBox(width: 12),
-            ],
-
-            // Choice A: [ Upload / Capture Bill ]
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: DashboardColors.neonBlue,
-                side: const BorderSide(color: DashboardColors.neonBlue, width: 1.5),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              icon: const Icon(Icons.document_scanner_rounded, size: 18),
-              label: Text(
-                'Upload / Capture Bill',
-                style: DashboardTypography.poppins(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w700,
-                  color: DashboardColors.neonBlue,
-                ),
-              ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const PurchaseBillUploadScreen(),
-                  ),
-                );
-              },
+        // Resume Draft Button (if draft exists)
+        if (ManualPurchaseDraftService.instance.hasDraft()) ...[
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: DashboardColors.neonOrange,
+              side: const BorderSide(color: DashboardColors.neonOrange),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
-            const SizedBox(width: 12),
+            icon: const Icon(Icons.restore_rounded, size: 18),
+            label: const Text('Resume Draft',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const ManualPurchaseEntryScreen()),
+              );
+            },
+          ),
+          const SizedBox(width: 12),
+        ],
 
-            // Choice B: [ Manual Purchase Entry ]
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: DashboardColors.neonGreen,
-                foregroundColor: Colors.black,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                elevation: 4,
-                shadowColor: DashboardColors.neonGreen.withValues(alpha: 0.4),
-              ),
-              icon: const Icon(Icons.edit_note_rounded,
-                  color: Colors.black, size: 20),
-              label: Text(
-                'Manual Purchase Entry',
-                style: DashboardTypography.poppins(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.black,
-                ),
-              ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const ManualPurchaseEntryScreen(),
-                  ),
-                );
-              },
+        // Choice A: [ Upload / Capture Bill ]
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: DashboardColors.neonBlue,
+            side: const BorderSide(color: DashboardColors.neonBlue, width: 1.5),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          icon: const Icon(Icons.document_scanner_rounded, size: 18),
+          label: Text(
+            'Upload / Capture Bill',
+            style: DashboardTypography.poppins(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              color: DashboardColors.neonBlue,
             ),
+          ),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const PurchaseBillUploadScreen(),
+              ),
+            );
+          },
+        ),
+        const SizedBox(width: 12),
+
+        // Choice B: [ Manual Purchase Entry ]
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: DashboardColors.neonGreen,
+            foregroundColor: Colors.black,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            elevation: 4,
+            shadowColor: DashboardColors.neonGreen.withValues(alpha: 0.4),
+          ),
+          icon: const Icon(Icons.edit_note_rounded,
+              color: Colors.black, size: 20),
+          label: Text(
+            'Manual Purchase Entry',
+            style: DashboardTypography.poppins(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w800,
+              color: Colors.black,
+            ),
+          ),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const ManualPurchaseEntryScreen(),
+              ),
+            );
+          },
+        ),
       ],
     );
 
@@ -631,7 +628,8 @@ class _PurchaseBillsDashboardViewState
               const SizedBox(width: 12),
               _buildMetricCard(
                 title: 'Total Value',
-                value: '₹${(m['totalPurchaseValue'] ?? 0.0).toStringAsFixed(0)}',
+                value:
+                    '₹${(m['totalPurchaseValue'] ?? 0.0).toStringAsFixed(0)}',
                 subtitle: 'Gross purchases',
                 icon: Icons.currency_rupee_rounded,
                 color: DashboardColors.neonGreen,
@@ -665,7 +663,9 @@ class _PurchaseBillsDashboardViewState
                 width: safeWidth,
                 isSelected: _statusFilter == BillPaymentStatus.paid,
                 onTap: () => setState(() {
-                  _statusFilter = _statusFilter == BillPaymentStatus.paid ? 'All' : BillPaymentStatus.paid;
+                  _statusFilter = _statusFilter == BillPaymentStatus.paid
+                      ? 'All'
+                      : BillPaymentStatus.paid;
                   _currentPage = 0;
                 }),
               ),
@@ -679,7 +679,10 @@ class _PurchaseBillsDashboardViewState
                 width: safeWidth,
                 isSelected: _statusFilter == BillPaymentStatus.partiallyPaid,
                 onTap: () => setState(() {
-                  _statusFilter = _statusFilter == BillPaymentStatus.partiallyPaid ? 'All' : BillPaymentStatus.partiallyPaid;
+                  _statusFilter =
+                      _statusFilter == BillPaymentStatus.partiallyPaid
+                          ? 'All'
+                          : BillPaymentStatus.partiallyPaid;
                   _currentPage = 0;
                 }),
               ),
@@ -693,7 +696,9 @@ class _PurchaseBillsDashboardViewState
                 width: safeWidth,
                 isSelected: _statusFilter == BillPaymentStatus.unpaid,
                 onTap: () => setState(() {
-                  _statusFilter = _statusFilter == BillPaymentStatus.unpaid ? 'All' : BillPaymentStatus.unpaid;
+                  _statusFilter = _statusFilter == BillPaymentStatus.unpaid
+                      ? 'All'
+                      : BillPaymentStatus.unpaid;
                   _currentPage = 0;
                 }),
               ),
@@ -707,7 +712,8 @@ class _PurchaseBillsDashboardViewState
                 width: safeWidth,
                 isSelected: _dateRangePreset == 'Today',
                 onTap: () => setState(() {
-                  _dateRangePreset = _dateRangePreset == 'Today' ? 'All Time' : 'Today';
+                  _dateRangePreset =
+                      _dateRangePreset == 'Today' ? 'All Time' : 'Today';
                   _applyDatePreset(_dateRangePreset);
                   _currentPage = 0;
                 }),
@@ -715,14 +721,17 @@ class _PurchaseBillsDashboardViewState
               const SizedBox(width: 12),
               _buildMetricCard(
                 title: 'This Month',
-                value: '₹${(m['purchasesThisMonth'] ?? 0.0).toStringAsFixed(0)}',
+                value:
+                    '₹${(m['purchasesThisMonth'] ?? 0.0).toStringAsFixed(0)}',
                 subtitle: 'Current month total',
                 icon: Icons.calendar_month_rounded,
                 color: DashboardColors.neonPink,
                 width: safeWidth,
                 isSelected: _dateRangePreset == 'This Month',
                 onTap: () => setState(() {
-                  _dateRangePreset = _dateRangePreset == 'This Month' ? 'All Time' : 'This Month';
+                  _dateRangePreset = _dateRangePreset == 'This Month'
+                      ? 'All Time'
+                      : 'This Month';
                   _applyDatePreset(_dateRangePreset);
                   _currentPage = 0;
                 }),
@@ -760,47 +769,47 @@ class _PurchaseBillsDashboardViewState
             width: isSelected ? 2 : 1,
           ),
         ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: DashboardColors.textMuted,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600)),
-              ),
-              const SizedBox(width: 4),
-              Icon(icon, color: color, size: 16),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: DashboardTypography.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: color,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: DashboardColors.textMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(width: 4),
+                Icon(icon, color: color, size: 16),
+              ],
             ),
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            subtitle,
-            style: const TextStyle(
-                color: DashboardColors.textDarkMuted, fontSize: 10),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: DashboardTypography.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                  color: DashboardColors.textDarkMuted, fontSize: 10),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   // ---------------------------------------------------------------------------
   // 3. Filter Bar
@@ -906,7 +915,8 @@ class _PurchaseBillsDashboardViewState
               BillPaymentStatus.unpaid,
               BillPaymentStatus.draft,
             ].map<DropdownMenuItem<String>>((s) {
-              return DropdownMenuItem<String>(value: s, child: Text('Status: $s'));
+              return DropdownMenuItem<String>(
+                  value: s, child: Text('Status: $s'));
             }).toList(),
             onChanged: (val) {
               if (val != null) {
@@ -1128,8 +1138,8 @@ class _PurchaseBillsDashboardViewState
                   // Full Ledger button
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: DashboardColors.neonPurple
-                          .withValues(alpha: 0.15),
+                      backgroundColor:
+                          DashboardColors.neonPurple.withValues(alpha: 0.15),
                       foregroundColor: DashboardColors.neonPurple,
                       side: const BorderSide(color: DashboardColors.neonPurple),
                       padding: const EdgeInsets.symmetric(
@@ -1227,11 +1237,8 @@ class _PurchaseBillsDashboardViewState
             spacing: 12,
             runSpacing: 10,
             children: [
-              _buildVendorKpiPill(
-                  'Total Bills',
-                  '$billsCount',
-                  Icons.receipt_rounded,
-                  DashboardColors.neonBlue),
+              _buildVendorKpiPill('Total Bills', '$billsCount',
+                  Icons.receipt_rounded, DashboardColors.neonBlue),
               _buildVendorKpiPill(
                   'Purchases',
                   '₹${NumberFormat('#,##0.00').format(totalPurchases)}',
@@ -1424,8 +1431,8 @@ class _PurchaseBillsDashboardViewState
                   icon: const Icon(Icons.add_rounded,
                       size: 16, color: Colors.black),
                   label: const Text('Record Payment',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 12)),
+                      style:
+                          TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
                   onPressed: () => _showRecordAdvancePaymentDialog(
                       preselectedVendorKey: _selectedVendorKey),
                 ),
@@ -1496,8 +1503,7 @@ class _PurchaseBillsDashboardViewState
                             color: DashboardColors.neonBlue,
                             fontSize: 12.5,
                             fontWeight: FontWeight.w600))),
-                    DataCell(Text(
-                        p.billNumber.isNotEmpty ? p.billNumber : '—',
+                    DataCell(Text(p.billNumber.isNotEmpty ? p.billNumber : '—',
                         style: const TextStyle(
                             color: Colors.white70, fontSize: 12))),
                     DataCell(Container(
@@ -1562,8 +1568,8 @@ class _PurchaseBillsDashboardViewState
               const SizedBox(height: 6),
               const Text(
                   'Upload a new purchase bill or adjust search/filter settings',
-                  style:
-                      TextStyle(color: DashboardColors.textMuted, fontSize: 13)),
+                  style: TextStyle(
+                      color: DashboardColors.textMuted, fontSize: 13)),
               const SizedBox(height: 18),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1789,8 +1795,7 @@ class _PurchaseBillsDashboardViewState
                                 : DashboardColors.neonBlue,
                           )
                         : const Text('-',
-                            style:
-                                TextStyle(color: DashboardColors.textMuted)),
+                            style: TextStyle(color: DashboardColors.textMuted)),
                   ),
                   DataCell(
                     Row(
@@ -1933,7 +1938,8 @@ class _PurchaseBillsDashboardViewState
                     ),
                     Text(
                       DateFormat('dd MMM yyyy').format(b.purchaseDate),
-                      style: const TextStyle(color: DashboardColors.textLight, fontSize: 12),
+                      style: const TextStyle(
+                          color: DashboardColors.textLight, fontSize: 12),
                     ),
                   ],
                 ),
@@ -1944,25 +1950,44 @@ class _PurchaseBillsDashboardViewState
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Grand Total', style: TextStyle(color: DashboardColors.textMuted, fontSize: 11)),
-                        Text('₹${b.grandTotal.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                        const Text('Grand Total',
+                            style: TextStyle(
+                                color: DashboardColors.textMuted,
+                                fontSize: 11)),
+                        Text('₹${b.grandTotal.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14)),
                       ],
                     ),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        const Text('Paid', style: TextStyle(color: DashboardColors.textMuted, fontSize: 11)),
-                        Text('₹${b.paidAmount.toStringAsFixed(2)}', style: const TextStyle(color: DashboardColors.neonGreen, fontWeight: FontWeight.bold, fontSize: 14)),
+                        const Text('Paid',
+                            style: TextStyle(
+                                color: DashboardColors.textMuted,
+                                fontSize: 11)),
+                        Text('₹${b.paidAmount.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                                color: DashboardColors.neonGreen,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14)),
                       ],
                     ),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        const Text('Balance Due', style: TextStyle(color: DashboardColors.textMuted, fontSize: 11)),
+                        const Text('Balance Due',
+                            style: TextStyle(
+                                color: DashboardColors.textMuted,
+                                fontSize: 11)),
                         Text(
                           '₹${b.balanceDue.toStringAsFixed(2)}',
                           style: TextStyle(
-                            color: b.balanceDue > 0 ? DashboardColors.alertOrange : DashboardColors.neonGreen,
+                            color: b.balanceDue > 0
+                                ? DashboardColors.alertOrange
+                                : DashboardColors.neonGreen,
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
                           ),
@@ -1978,18 +2003,24 @@ class _PurchaseBillsDashboardViewState
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: DashboardColors.neonOrange,
-                        side: const BorderSide(color: DashboardColors.neonOrange),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        side:
+                            const BorderSide(color: DashboardColors.neonOrange),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
                         minimumSize: const Size(0, 30),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                       icon: const Icon(Icons.edit_note_rounded, size: 16),
-                      label: const Text('Edit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      label: const Text('Edit',
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.bold)),
                       onPressed: () async {
                         await Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => ManualPurchaseEntryScreen(editBill: b),
+                            builder: (_) =>
+                                ManualPurchaseEntryScreen(editBill: b),
                           ),
                         );
                         if (mounted) setState(() {});
@@ -2000,12 +2031,16 @@ class _PurchaseBillsDashboardViewState
                       style: OutlinedButton.styleFrom(
                         foregroundColor: DashboardColors.neonBlue,
                         side: const BorderSide(color: DashboardColors.neonBlue),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
                         minimumSize: const Size(0, 30),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                       icon: const Icon(Icons.visibility_rounded, size: 16),
-                      label: const Text('Details', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      label: const Text('Details',
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.bold)),
                       onPressed: () {
                         Navigator.push(
                           context,
@@ -2035,14 +2070,14 @@ class _PurchaseBillsDashboardViewState
       children: [
         Text(
           'Page ${_currentPage + 1} of $totalPages',
-          style: const TextStyle(color: DashboardColors.textMuted, fontSize: 13),
+          style:
+              const TextStyle(color: DashboardColors.textMuted, fontSize: 13),
         ),
         const SizedBox(width: 14),
         IconButton(
           icon: const Icon(Icons.chevron_left_rounded, color: Colors.white),
-          onPressed: _currentPage > 0
-              ? () => setState(() => _currentPage--)
-              : null,
+          onPressed:
+              _currentPage > 0 ? () => setState(() => _currentPage--) : null,
         ),
         IconButton(
           icon: const Icon(Icons.chevron_right_rounded, color: Colors.white),
@@ -2095,16 +2130,19 @@ class _PurchaseBillsDashboardViewState
       ),
       child: Text(
         status.toUpperCase(),
-        style: TextStyle(color: text, fontWeight: FontWeight.bold, fontSize: 11),
+        style:
+            TextStyle(color: text, fontWeight: FontWeight.bold, fontSize: 11),
       ),
     );
   }
 
   Widget _buildSourceChip(String source) {
     final isManual = source == EntrySource.manual;
-    final color = isManual ? DashboardColors.neonGreen : DashboardColors.neonPurple;
+    final color =
+        isManual ? DashboardColors.neonGreen : DashboardColors.neonPurple;
     final label = isManual ? 'Manual' : 'Auto';
-    final icon = isManual ? Icons.edit_note_rounded : Icons.document_scanner_rounded;
+    final icon =
+        isManual ? Icons.edit_note_rounded : Icons.document_scanner_rounded;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(

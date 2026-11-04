@@ -35,7 +35,8 @@ class BarcodePrintDialog extends StatefulWidget {
 
       if (it.itemKey != null && Db.items.containsKey(it.itemKey)) {
         final rec = tekM(Db.items.get(it.itemKey));
-        barcode = '${rec['barcode'] ?? rec['code'] ?? rec['sku'] ?? barcode}'.trim();
+        barcode =
+            '${rec['barcode'] ?? rec['code'] ?? rec['sku'] ?? barcode}'.trim();
         sellingPrice = (rec['sellingPrice'] as num?)?.toDouble() ??
             (rec['price'] as num?)?.toDouble();
         mrp = (rec['mrp'] as num?)?.toDouble();
@@ -158,7 +159,8 @@ class BarcodePrintDialog extends StatefulWidget {
       int quantity = (it['stock'] as num?)?.toInt() ?? 1;
       if (quantity <= 0) quantity = 1;
 
-      String barcode = '${it['barcode'] ?? it['code'] ?? it['sku'] ?? ''}'.trim();
+      String barcode =
+          '${it['barcode'] ?? it['code'] ?? it['sku'] ?? ''}'.trim();
       if (barcode.isEmpty) {
         barcode = await service.ensureItemHasBarcode(
           itemKey,
@@ -288,7 +290,8 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
       final res = await _service.calibratePrinter();
       if (mounted) {
         if (res.success) {
-          TekFeedback.success('TVS LP 46 Lite Gap Sensor calibrated successfully (GAPDETECT).');
+          TekFeedback.success(
+              'TVS LP 46 Lite Gap Sensor calibrated successfully (GAPDETECT).');
         } else {
           TekFeedback.error(res.message);
         }
@@ -315,7 +318,8 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
       );
       if (mounted) {
         if (res.success) {
-          TekFeedback.success('Test label printed successfully on ${_service.config.profile.shortName} sticker.');
+          TekFeedback.success(
+              'Test label printed successfully on ${_service.config.profile.shortName} sticker.');
         } else {
           TekFeedback.error(res.message);
         }
@@ -333,7 +337,8 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
       final res = await _service.printBorderTest();
       if (mounted) {
         if (res.success) {
-          TekFeedback.success('Border Test sent to printer. Verify even border on all 4 sides.');
+          TekFeedback.success(
+              'Border Test sent to printer. Verify even border on all 4 sides.');
         } else {
           TekFeedback.error(res.message);
         }
@@ -531,7 +536,9 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
 
                   // Connection status text
                   Text(
-                    isPrinterConnected ? 'Printer Connected:' : 'Target Printer:',
+                    isPrinterConnected
+                        ? 'Printer Connected:'
+                        : 'Target Printer:',
                     style: TextStyle(
                       color: isPrinterConnected
                           ? DashboardColors.neonGreen
@@ -549,7 +556,8 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                             activePrinterName.isNotEmpty
                                 ? activePrinterName
                                 : 'No printers detected. Click refresh to scan.',
-                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                            style: const TextStyle(
+                                color: Colors.white70, fontSize: 12),
                           )
                         : DropdownButtonHideUnderline(
                             child: DropdownButton<String>(
@@ -658,9 +666,8 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                         : const Icon(Icons.tune_rounded, size: 14),
                     label: const Text('Calibrate Gap',
                         style: TextStyle(fontSize: 12)),
-                    onPressed: _isCalibrating || _isPrinting
-                        ? null
-                        : _handleCalibrate,
+                    onPressed:
+                        _isCalibrating || _isPrinting ? null : _handleCalibrate,
                   ),
                 ],
               ),
@@ -723,20 +730,21 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.03),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0x1AFFFFFF)),
+                              border:
+                                  Border.all(color: const Color(0x1AFFFFFF)),
                             ),
                             child: ListView.separated(
                               padding: const EdgeInsets.all(8),
                               itemCount: _items.length,
-                              separatorBuilder: (_, __) =>
-                                  const Divider(color: Color(0x12FFFFFF), height: 12),
+                              separatorBuilder: (_, __) => const Divider(
+                                  color: Color(0x12FFFFFF), height: 12),
                               itemBuilder: (ctx, idx) {
                                 final it = _items[idx];
                                 final isSelected = _selectedPreviewIndex == idx;
 
                                 return InkWell(
-                                  onTap: () =>
-                                      setState(() => _selectedPreviewIndex = idx),
+                                  onTap: () => setState(
+                                      () => _selectedPreviewIndex = idx),
                                   borderRadius: BorderRadius.circular(8),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
@@ -759,7 +767,8 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                                         // Radio indicator
                                         Icon(
                                           isSelected
-                                              ? Icons.radio_button_checked_rounded
+                                              ? Icons
+                                                  .radio_button_checked_rounded
                                               : Icons.radio_button_off_rounded,
                                           size: 16,
                                           color: isSelected
@@ -799,15 +808,17 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                                                     const SizedBox(width: 8),
                                                   ],
                                                   Container(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                            horizontal: 6,
-                                                            vertical: 1.5),
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        horizontal: 6,
+                                                        vertical: 1.5),
                                                     decoration: BoxDecoration(
                                                       color: Colors.white
-                                                          .withValues(alpha: 0.08),
+                                                          .withValues(
+                                                              alpha: 0.08),
                                                       borderRadius:
-                                                          BorderRadius.circular(4),
+                                                          BorderRadius.circular(
+                                                              4),
                                                     ),
                                                     child: Text(
                                                       it.barcode,
@@ -856,15 +867,18 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                                             children: [
                                               IconButton(
                                                 padding: EdgeInsets.zero,
-                                                constraints: const BoxConstraints(
-                                                    minWidth: 26, minHeight: 26),
+                                                constraints:
+                                                    const BoxConstraints(
+                                                        minWidth: 26,
+                                                        minHeight: 26),
                                                 icon: const Icon(
                                                     Icons.remove_rounded,
                                                     size: 15,
                                                     color: Colors.white70),
                                                 onPressed: () {
                                                   if (it.quantity > 0) {
-                                                    setState(() => it.quantity--);
+                                                    setState(
+                                                        () => it.quantity--);
                                                   }
                                                 },
                                               ),
@@ -882,8 +896,10 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                                               ),
                                               IconButton(
                                                 padding: EdgeInsets.zero,
-                                                constraints: const BoxConstraints(
-                                                    minWidth: 26, minHeight: 26),
+                                                constraints:
+                                                    const BoxConstraints(
+                                                        minWidth: 26,
+                                                        minHeight: 26),
                                                 icon: const Icon(
                                                     Icons.add_rounded,
                                                     size: 15,
@@ -935,11 +951,14 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                               ),
                               const SizedBox(width: 8),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 1),
                                 decoration: BoxDecoration(
                                   color: Colors.white.withValues(alpha: 0.08),
                                   borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.5)),
+                                  border: Border.all(
+                                      color: DashboardColors.neonBlue
+                                          .withValues(alpha: 0.5)),
                                 ),
                                 child: DropdownButtonHideUnderline(
                                   child: DropdownButton<LabelPreset>(
@@ -951,7 +970,9 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,
                                     ),
-                                    icon: const Icon(Icons.arrow_drop_down, color: DashboardColors.neonBlue, size: 16),
+                                    icon: const Icon(Icons.arrow_drop_down,
+                                        color: DashboardColors.neonBlue,
+                                        size: 16),
                                     items: LabelPreset.values.map((prof) {
                                       return DropdownMenuItem<LabelPreset>(
                                         value: prof,
@@ -976,16 +997,20 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                                   child: TextField(
                                     controller: _customWidthController,
                                     keyboardType: TextInputType.number,
-                                    style: const TextStyle(color: Colors.white, fontSize: 11),
+                                    style: const TextStyle(
+                                        color: Colors.white, fontSize: 11),
                                     decoration: const InputDecoration(
                                       labelText: 'Width (mm)',
-                                      labelStyle: TextStyle(color: DashboardColors.textMuted, fontSize: 10),
+                                      labelStyle: TextStyle(
+                                          color: DashboardColors.textMuted,
+                                          fontSize: 10),
                                       isDense: true,
                                     ),
                                     onChanged: (val) {
                                       final w = double.tryParse(val);
                                       if (w != null && w > 10) {
-                                        _service.setPreset(LabelPreset.custom, customWidth: w);
+                                        _service.setPreset(LabelPreset.custom,
+                                            customWidth: w);
                                       }
                                     },
                                   ),
@@ -995,16 +1020,20 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                                   child: TextField(
                                     controller: _customHeightController,
                                     keyboardType: TextInputType.number,
-                                    style: const TextStyle(color: Colors.white, fontSize: 11),
+                                    style: const TextStyle(
+                                        color: Colors.white, fontSize: 11),
                                     decoration: const InputDecoration(
                                       labelText: 'Height (mm)',
-                                      labelStyle: TextStyle(color: DashboardColors.textMuted, fontSize: 10),
+                                      labelStyle: TextStyle(
+                                          color: DashboardColors.textMuted,
+                                          fontSize: 10),
                                       isDense: true,
                                     ),
                                     onChanged: (val) {
                                       final h = double.tryParse(val);
                                       if (h != null && h > 10) {
-                                        _service.setPreset(LabelPreset.custom, customHeight: h);
+                                        _service.setPreset(LabelPreset.custom,
+                                            customHeight: h);
                                       }
                                     },
                                   ),
@@ -1018,20 +1047,23 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                           Center(
                             child: Builder(
                               builder: (context) {
-                                final is38x25 = _service.config.preset == LabelPreset.preset38x25;
+                                final is38x25 = _service.config.preset ==
+                                    LabelPreset.preset38x25;
                                 final previewWidth = is38x25 ? 240.0 : 280.0;
                                 final previewHeight = is38x25 ? 158.0 : 140.0;
 
                                 return Container(
                                   width: previewWidth,
                                   height: previewHeight,
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 8),
                                   decoration: BoxDecoration(
                                     color: Colors.white,
                                     borderRadius: BorderRadius.circular(4),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.4),
+                                        color:
+                                            Colors.black.withValues(alpha: 0.4),
                                         blurRadius: 12,
                                         offset: const Offset(0, 4),
                                       ),
@@ -1039,12 +1071,15 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                                   ),
                                   child: previewItem != null
                                       ? Column(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          crossAxisAlignment: CrossAxisAlignment.center,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
                                           children: [
                                             // 1. Store Name Header (small, centered)
                                             Text(
-                                              _service.config.storeName.toUpperCase(),
+                                              _service.config.storeName
+                                                  .toUpperCase(),
                                               maxLines: 1,
                                               style: const TextStyle(
                                                 color: Colors.black,
@@ -1056,7 +1091,8 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
 
                                             // 2. Product Name (Max 2 Lines, centered)
                                             Text(
-                                              previewItem.name.replaceAll(RegExp(r'\s+'), ' '),
+                                              previewItem.name.replaceAll(
+                                                  RegExp(r'\s+'), ' '),
                                               maxLines: 2,
                                               overflow: TextOverflow.ellipsis,
                                               textAlign: TextAlign.center,
@@ -1088,7 +1124,8 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                                             ),
 
                                             // 5. Footer: MRP at bottom
-                                            if (_showPrice && previewItem.hasValidPrice) ...[
+                                            if (_showPrice &&
+                                                previewItem.hasValidPrice) ...[
                                               Text(
                                                 'MRP: ₹${previewItem.effectivePrice!.toStringAsFixed(previewItem.effectivePrice!.truncateToDouble() == previewItem.effectivePrice! ? 0 : 2)}',
                                                 maxLines: 1,
@@ -1115,7 +1152,8 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                                       : const Center(
                                           child: Text(
                                             'No Item Selected',
-                                            style: TextStyle(color: Colors.black54),
+                                            style: TextStyle(
+                                                color: Colors.black54),
                                           ),
                                         ),
                                 );
@@ -1124,23 +1162,31 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                           ),
 
                           // Validation warning if price is missing/0
-                          if (previewItem != null && _showPrice && !previewItem.hasValidPrice) ...[
+                          if (previewItem != null &&
+                              _showPrice &&
+                              !previewItem.hasValidPrice) ...[
                             const SizedBox(height: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
                               decoration: BoxDecoration(
                                 color: Colors.orange.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
+                                border: Border.all(
+                                    color:
+                                        Colors.orange.withValues(alpha: 0.4)),
                               ),
                               child: const Row(
                                 children: [
-                                  Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 16),
+                                  Icon(Icons.warning_amber_rounded,
+                                      color: Colors.orangeAccent, size: 16),
                                   SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
                                       'MRP is missing or ₹0. Price will not be printed on sticker.',
-                                      style: TextStyle(color: Colors.orangeAccent, fontSize: 11),
+                                      style: TextStyle(
+                                          color: Colors.orangeAccent,
+                                          fontSize: 11),
                                     ),
                                   ),
                                 ],
@@ -1156,7 +1202,8 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.04),
                               borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: const Color(0x1AFFFFFF)),
+                              border:
+                                  Border.all(color: const Color(0x1AFFFFFF)),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1169,38 +1216,52 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                                     dense: true,
                                     title: const Text(
                                       'Print MRP',
-                                      style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                                      style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600),
                                     ),
                                     subtitle: const Text(
                                       'Prints "MRP: Rs..." on sticker footer',
-                                      style: TextStyle(color: DashboardColors.textMuted, fontSize: 10),
+                                      style: TextStyle(
+                                          color: DashboardColors.textMuted,
+                                          fontSize: 10),
                                     ),
-                                    activeTrackColor: DashboardColors.neonGreen.withAlpha(128),
+                                    activeTrackColor: DashboardColors.neonGreen
+                                        .withAlpha(128),
                                     activeThumbColor: DashboardColors.neonGreen,
                                     value: _showPrice,
-                                    onChanged: (v) => setState(() => _showPrice = v),
+                                    onChanged: (v) =>
+                                        setState(() => _showPrice = v),
                                   ),
                                 ),
-                                const Divider(color: Color(0x1AFFFFFF), height: 12),
+                                const Divider(
+                                    color: Color(0x1AFFFFFF), height: 12),
 
                                 // DENSITY Setting (1-15, default 8)
                                 Row(
                                   children: [
                                     Text(
                                       'Density: ${_service.config.darkness}',
-                                      style: const TextStyle(color: Colors.white70, fontSize: 11),
+                                      style: const TextStyle(
+                                          color: Colors.white70, fontSize: 11),
                                     ),
                                     Expanded(
                                       child: SliderTheme(
                                         data: SliderTheme.of(context).copyWith(
-                                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
+                                          thumbShape:
+                                              const RoundSliderThumbShape(
+                                                  enabledThumbRadius: 6),
+                                          overlayShape:
+                                              const RoundSliderOverlayShape(
+                                                  overlayRadius: 10),
                                         ),
                                         child: Slider(
                                           min: 1,
                                           max: 15,
                                           divisions: 14,
-                                          value: _service.config.darkness.toDouble(),
+                                          value: _service.config.darkness
+                                              .toDouble(),
                                           activeColor: DashboardColors.neonBlue,
                                           onChanged: (val) {
                                             _service.setDarkness(val.round());
@@ -1213,30 +1274,46 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
 
                                 // X Offset Setting
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
                                       'X Offset: ${_service.config.xOffsetMm.toStringAsFixed(1)} mm',
-                                      style: const TextStyle(color: Colors.white70, fontSize: 11),
+                                      style: const TextStyle(
+                                          color: Colors.white70, fontSize: 11),
                                     ),
                                     Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         IconButton(
-                                          icon: const Icon(Icons.remove_circle_outline, size: 16, color: DashboardColors.neonBlue),
+                                          icon: const Icon(
+                                              Icons.remove_circle_outline,
+                                              size: 16,
+                                              color: DashboardColors.neonBlue),
                                           padding: EdgeInsets.zero,
                                           constraints: const BoxConstraints(),
                                           onPressed: () {
-                                            _service.setOffset(xOffsetMm: (_service.config.xOffsetMm - 0.5).clamp(-10.0, 10.0));
+                                            _service.setOffset(
+                                                xOffsetMm:
+                                                    (_service.config.xOffsetMm -
+                                                            0.5)
+                                                        .clamp(-10.0, 10.0));
                                           },
                                         ),
                                         const SizedBox(width: 8),
                                         IconButton(
-                                          icon: const Icon(Icons.add_circle_outline, size: 16, color: DashboardColors.neonBlue),
+                                          icon: const Icon(
+                                              Icons.add_circle_outline,
+                                              size: 16,
+                                              color: DashboardColors.neonBlue),
                                           padding: EdgeInsets.zero,
                                           constraints: const BoxConstraints(),
                                           onPressed: () {
-                                            _service.setOffset(xOffsetMm: (_service.config.xOffsetMm + 0.5).clamp(-10.0, 10.0));
+                                            _service.setOffset(
+                                                xOffsetMm:
+                                                    (_service.config.xOffsetMm +
+                                                            0.5)
+                                                        .clamp(-10.0, 10.0));
                                           },
                                         ),
                                       ],
@@ -1246,30 +1323,46 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                                 const SizedBox(height: 6),
                                 // Y Offset Setting
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
                                       'Y Offset: ${_service.config.yOffsetMm.toStringAsFixed(1)} mm',
-                                      style: const TextStyle(color: Colors.white70, fontSize: 11),
+                                      style: const TextStyle(
+                                          color: Colors.white70, fontSize: 11),
                                     ),
                                     Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         IconButton(
-                                          icon: const Icon(Icons.remove_circle_outline, size: 16, color: DashboardColors.neonBlue),
+                                          icon: const Icon(
+                                              Icons.remove_circle_outline,
+                                              size: 16,
+                                              color: DashboardColors.neonBlue),
                                           padding: EdgeInsets.zero,
                                           constraints: const BoxConstraints(),
                                           onPressed: () {
-                                            _service.setOffset(yOffsetMm: (_service.config.yOffsetMm - 0.5).clamp(-10.0, 10.0));
+                                            _service.setOffset(
+                                                yOffsetMm:
+                                                    (_service.config.yOffsetMm -
+                                                            0.5)
+                                                        .clamp(-10.0, 10.0));
                                           },
                                         ),
                                         const SizedBox(width: 8),
                                         IconButton(
-                                          icon: const Icon(Icons.add_circle_outline, size: 16, color: DashboardColors.neonBlue),
+                                          icon: const Icon(
+                                              Icons.add_circle_outline,
+                                              size: 16,
+                                              color: DashboardColors.neonBlue),
                                           padding: EdgeInsets.zero,
                                           constraints: const BoxConstraints(),
                                           onPressed: () {
-                                            _service.setOffset(yOffsetMm: (_service.config.yOffsetMm + 0.5).clamp(-10.0, 10.0));
+                                            _service.setOffset(
+                                                yOffsetMm:
+                                                    (_service.config.yOffsetMm +
+                                                            0.5)
+                                                        .clamp(-10.0, 10.0));
                                           },
                                         ),
                                       ],
@@ -1326,27 +1419,31 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: DashboardColors.neonPurple,
-                        side: const BorderSide(color: DashboardColors.neonPurple),
+                        side:
+                            const BorderSide(color: DashboardColors.neonPurple),
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 8),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8)),
                       ),
                       icon: const Icon(Icons.crop_square_rounded, size: 15),
-                      label: const Text('Print Border Test', style: TextStyle(fontSize: 12)),
+                      label: const Text('Print Border Test',
+                          style: TextStyle(fontSize: 12)),
                       onPressed: _isPrinting ? null : _handleBorderTest,
                     ),
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: DashboardColors.neonOrange,
-                        side: const BorderSide(color: DashboardColors.neonOrange),
+                        side:
+                            const BorderSide(color: DashboardColors.neonOrange),
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 8),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8)),
                       ),
                       icon: const Icon(Icons.print_outlined, size: 15),
-                      label: const Text('Test Print (1 Label)', style: TextStyle(fontSize: 12)),
+                      label: const Text('Test Print (1 Label)',
+                          style: TextStyle(fontSize: 12)),
                       onPressed: _isPrinting ? null : _handleTestPrint,
                     ),
                     OutlinedButton.icon(
@@ -1359,7 +1456,8 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                             borderRadius: BorderRadius.circular(8)),
                       ),
                       icon: const Icon(Icons.refresh_rounded, size: 15),
-                      label: const Text('Reset', style: TextStyle(fontSize: 12)),
+                      label:
+                          const Text('Reset', style: TextStyle(fontSize: 12)),
                       onPressed: () {
                         setState(() {
                           _items = widget.initialItems

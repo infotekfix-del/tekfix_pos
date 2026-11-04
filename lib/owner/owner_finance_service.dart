@@ -47,7 +47,8 @@ class OwnerFinanceService {
           await Db.settings.put('owner_salary_settings', settings.toMap());
         }
       } catch (e) {
-        debugPrint('[OwnerFinanceService] Failed fetching remote owner salary settings: $e');
+        debugPrint(
+            '[OwnerFinanceService] Failed fetching remote owner salary settings: $e');
       }
     }
 
@@ -74,8 +75,9 @@ class OwnerFinanceService {
         changedByName: staffName,
         changedAt: DateTime.now(),
       );
-      final updatedHistory = List<OwnerSalaryRateHistoryItem>.from(current.rateHistory)
-        ..add(historyItem);
+      final updatedHistory =
+          List<OwnerSalaryRateHistoryItem>.from(current.rateHistory)
+            ..add(historyItem);
       toSave = newSettings.copyWith(rateHistory: updatedHistory);
     }
 
@@ -98,7 +100,8 @@ class OwnerFinanceService {
             .add({
           'action': 'OWNER_SALARY_SETTINGS_UPDATED',
           'category': 'OWNER_SALARY',
-          'details': 'Updated monthly owner salary limit to ₹${toSave.monthlySalaryLimit}',
+          'details':
+              'Updated monthly owner salary limit to ₹${toSave.monthlySalaryLimit}',
           'staffId': staffId,
           'staffName': staffName,
           'timestamp': FieldValue.serverTimestamp(),
@@ -119,9 +122,12 @@ class OwnerFinanceService {
     bool includeVoided = false,
   }) async {
     final sId = shopId ?? Db.setting('shop_id', 'tekfix');
-    final startOfMonth = DateTime(targetMonth.year, targetMonth.month, 1, 0, 0, 0);
-    final daysInMonth = DateTime(targetMonth.year, targetMonth.month + 1, 0).day;
-    final endOfMonth = DateTime(targetMonth.year, targetMonth.month, daysInMonth, 23, 59, 59, 999);
+    final startOfMonth =
+        DateTime(targetMonth.year, targetMonth.month, 1, 0, 0, 0);
+    final daysInMonth =
+        DateTime(targetMonth.year, targetMonth.month + 1, 0).day;
+    final endOfMonth = DateTime(
+        targetMonth.year, targetMonth.month, daysInMonth, 23, 59, 59, 999);
 
     final Map<String, OwnerWithdrawalItem> map = {};
 
@@ -131,8 +137,10 @@ class OwnerFinanceService {
       if (keyStr.startsWith('owner_wth_')) {
         final raw = Db.settings.get(keyStr);
         if (raw is Map) {
-          final item = OwnerWithdrawalItem.fromMap(Map<String, dynamic>.from(raw), keyStr);
-          if (!item.date.isBefore(startOfMonth) && !item.date.isAfter(endOfMonth)) {
+          final item = OwnerWithdrawalItem.fromMap(
+              Map<String, dynamic>.from(raw), keyStr);
+          if (!item.date.isBefore(startOfMonth) &&
+              !item.date.isAfter(endOfMonth)) {
             if (includeVoided || !item.isVoided) {
               map[item.id] = item;
             }
@@ -148,7 +156,8 @@ class OwnerFinanceService {
             .collection('shops')
             .doc(sId)
             .collection('owner_withdrawals')
-            .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
+            .where('date',
+                isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
             .where('date', isLessThanOrEqualTo: Timestamp.fromDate(endOfMonth))
             .get();
 
@@ -174,7 +183,8 @@ class OwnerFinanceService {
     bool includeVoided = false,
   }) async {
     final dKey = toDateKey(date);
-    final monthList = await getWithdrawalsForMonth(date, shopId: shopId, includeVoided: includeVoided);
+    final monthList = await getWithdrawalsForMonth(date,
+        shopId: shopId, includeVoided: includeVoided);
     return monthList.where((w) => w.dateKey == dKey).toList();
   }
 
@@ -186,7 +196,8 @@ class OwnerFinanceService {
     final sId = shopId ?? Db.setting('shop_id', 'tekfix');
     final target = forDate ?? DateTime.now();
     final settings = await getSettings(shopId: sId);
-    final withdrawals = await getWithdrawalsForMonth(target, shopId: sId, includeVoided: false);
+    final withdrawals =
+        await getWithdrawalsForMonth(target, shopId: sId, includeVoided: false);
 
     double usedSalary = 0.0;
     double excessDrawings = 0.0;
@@ -224,13 +235,15 @@ class OwnerFinanceService {
     String notes = '',
   }) async {
     if (amount <= 0) {
-      throw ArgumentError('ശരിയായ തുക നൽകുക (Valid positive withdrawal amount is required)');
+      throw ArgumentError(
+          'ശരിയായ തുക നൽകുക (Valid positive withdrawal amount is required)');
     }
 
     final sId = shopId.isNotEmpty ? shopId : Db.setting('shop_id', 'tekfix');
     final txDate = date ?? DateTime.now();
     final dateKey = toDateKey(txDate);
-    final normalizedMode = paymentMode.toUpperCase() == 'BANK' ? 'BANK' : 'CASH';
+    final normalizedMode =
+        paymentMode.toUpperCase() == 'BANK' ? 'BANK' : 'CASH';
 
     // 1. DYNAMIC AUTO-CLASSIFICATION & AUTO-SPLIT LOGIC
     final metrics = await getQuotaMetrics(shopId: sId, forDate: txDate);
@@ -257,7 +270,8 @@ class OwnerFinanceService {
     final int salaryPaise = (salaryPortion * 100).round();
     final int drawingsPaise = (drawingsPortion * 100).round();
 
-    final withdrawalId = 'OWN_WTH_${txDate.millisecondsSinceEpoch}_${_uuid.v4().substring(0, 5)}';
+    final withdrawalId =
+        'OWN_WTH_${txDate.millisecondsSinceEpoch}_${_uuid.v4().substring(0, 5)}';
     final expenseId = salaryPortion > 0 ? 'EXP_OWN_SAL_$withdrawalId' : null;
     final ledgerTxId = 'CB_OWN_WTH_$withdrawalId';
 
@@ -370,7 +384,8 @@ class OwnerFinanceService {
         batch.set(auditRef, {
           'action': 'OWNER_WITHDRAWAL_RECORDED',
           'category': 'OWNER_WITHDRAWAL',
-          'details': 'Withdrew ₹$amount ($normalizedMode): ₹$salaryPortion Salary + ₹$drawingsPortion Drawings',
+          'details':
+              'Withdrew ₹$amount ($normalizedMode): ₹$salaryPortion Salary + ₹$drawingsPortion Drawings',
           'withdrawalId': withdrawalId,
           'totalAmount': amount,
           'salaryPortion': salaryPortion,
@@ -389,7 +404,8 @@ class OwnerFinanceService {
     }
 
     // 4. UPDATE LOCAL HIVE STATE & SINGLE LEDGER DEBIT
-    await Db.settings.put('owner_wth_$withdrawalId', withdrawalItem.toMap(forFirestore: false));
+    await Db.settings.put(
+        'owner_wth_$withdrawalId', withdrawalItem.toMap(forFirestore: false));
 
     if (expenseMap != null && expenseId != null) {
       await Db.expenses.put(expenseId, {
@@ -434,7 +450,8 @@ class OwnerFinanceService {
     OwnerWithdrawalItem? existing;
     final local = Db.settings.get('owner_wth_$withdrawalId');
     if (local is Map) {
-      existing = OwnerWithdrawalItem.fromMap(Map<String, dynamic>.from(local), withdrawalId);
+      existing = OwnerWithdrawalItem.fromMap(
+          Map<String, dynamic>.from(local), withdrawalId);
     } else if (sId.isNotEmpty && Firebase.apps.isNotEmpty) {
       try {
         final doc = await FirebaseFirestore.instance
@@ -518,7 +535,8 @@ class OwnerFinanceService {
           'createdByUid': voidedByUid,
           'createdByName': voidedByName,
           'createdAt': FieldValue.serverTimestamp(),
-          'description': 'Reversal: Owner Withdrawal $withdrawalId ($voidReason)',
+          'description':
+              'Reversal: Owner Withdrawal $withdrawalId ($voidReason)',
         });
 
         await batch.commit();
@@ -528,9 +546,11 @@ class OwnerFinanceService {
     }
 
     // 2. Update Local Hive & Restore Cash/Bank Balance
-    await Db.settings.put('owner_wth_$withdrawalId', updated.toMap(forFirestore: false));
+    await Db.settings
+        .put('owner_wth_$withdrawalId', updated.toMap(forFirestore: false));
 
-    if (existing.expenseId != null && Db.expenses.containsKey(existing.expenseId)) {
+    if (existing.expenseId != null &&
+        Db.expenses.containsKey(existing.expenseId)) {
       final exp = tekM(Db.expenses.get(existing.expenseId));
       exp['isVoided'] = true;
       exp['voidedAt'] = voidedAt.toIso8601String();
@@ -561,7 +581,8 @@ class OwnerFinanceService {
     DateTime targetDate, {
     String? shopId,
   }) async {
-    final list = await getWithdrawalsForDate(targetDate, shopId: shopId, includeVoided: false);
+    final list = await getWithdrawalsForDate(targetDate,
+        shopId: shopId, includeVoided: false);
 
     double cashSal = 0.0;
     double bankSal = 0.0;
@@ -586,4 +607,3 @@ class OwnerFinanceService {
     );
   }
 }
-

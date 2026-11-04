@@ -36,7 +36,8 @@ void main() {
     }
   });
 
-  group('TEKFIX CUSTOMER RETURN, WARRANTY & VENDOR TRACKING MODULE TEST SUITE', () {
+  group('TEKFIX CUSTOMER RETURN, WARRANTY & VENDOR TRACKING MODULE TEST SUITE',
+      () {
     test('1. Customer Search by Phone & Data Normalization', () async {
       final partiesBox = Hive.box(boxParties);
       final salesBox = Hive.box(boxSales);
@@ -77,7 +78,8 @@ void main() {
       expect(results1.isNotEmpty, isTrue);
       expect(results1.first['name'], equals('Rahul Sharma'));
 
-      final results2 = ReturnService.instance.searchCustomers('+91 98765 43210');
+      final results2 =
+          ReturnService.instance.searchCustomers('+91 98765 43210');
       expect(results2.isNotEmpty, isTrue);
       expect(results2.first['phone'], equals('9876543210'));
 
@@ -85,7 +87,9 @@ void main() {
       expect(resultsPartial.isNotEmpty, isTrue);
     });
 
-    test('2. Retrieve Purchased Products & Original Vendor Without Modifying Sales', () async {
+    test(
+        '2. Retrieve Purchased Products & Original Vendor Without Modifying Sales',
+        () async {
       final salesBox = Hive.box(boxSales);
       final purchasesBox = Hive.box(boxPurchases);
       final partiesBox = Hive.box(boxParties);
@@ -130,7 +134,8 @@ void main() {
         'total': 19999.0,
       });
 
-      final products = ReturnService.instance.getPurchasedProductsByPhone('9447123456');
+      final products =
+          ReturnService.instance.getPurchasedProductsByPhone('9447123456');
       expect(products.length, equals(1));
 
       final prod = products.first;
@@ -146,7 +151,9 @@ void main() {
       expect((rawSale['items'] as List).length, equals(1));
     });
 
-    test('3. Accurate Customer Warranty Calculation & Independence from Vendor Warranty', () {
+    test(
+        '3. Accurate Customer Warranty Calculation & Independence from Vendor Warranty',
+        () {
       final now = DateTime.now();
 
       // Case A: Active 1 Year warranty purchased 2 months ago
@@ -181,7 +188,8 @@ void main() {
         '1 Year',
         hasInvoice: false,
       );
-      expect(statusMissingInv, equals(CustomerWarrantyStatus.verificationRequired));
+      expect(statusMissingInv,
+          equals(CustomerWarrantyStatus.verificationRequired));
     });
 
     test('4. End-to-End Workflow: Stages A through L', () async {
@@ -219,10 +227,13 @@ void main() {
       );
 
       expect(returnCase.returnId, startsWith('RET-'));
-      expect(returnCase.customerReturnStatus, equals(CustomerReturnStatus.registered));
+      expect(returnCase.customerReturnStatus,
+          equals(CustomerReturnStatus.registered));
       expect(returnCase.vendorStatus, equals(VendorStatus.notHandedOver));
-      expect(returnCase.timeline.length, equals(2)); // Return Received + Warranty Evaluated
-      expect(returnCase.timeline.first.title, equals('Customer Return Received'));
+      expect(returnCase.timeline.length,
+          equals(2)); // Return Received + Warranty Evaluated
+      expect(
+          returnCase.timeline.first.title, equals('Customer Return Received'));
 
       // Stage F: Hand Over to Vendor (Generates VHO-YYYY-0001)
       final handedOverCase = await ReturnService.instance.handoverToVendor(
@@ -237,15 +248,19 @@ void main() {
         handoverNotes: 'Dispatched via courier for display replacement',
       );
 
-      expect(handedOverCase.vendorStatus, equals(VendorStatus.handedOverToVendor));
-      expect(handedOverCase.customerReturnStatus, equals(CustomerReturnStatus.handedOverToVendor));
+      expect(
+          handedOverCase.vendorStatus, equals(VendorStatus.handedOverToVendor));
+      expect(handedOverCase.customerReturnStatus,
+          equals(CustomerReturnStatus.handedOverToVendor));
       expect(handedOverCase.handoverRecord, isNotNull);
-      expect(handedOverCase.handoverRecord!.handoverReference, startsWith('VHO-'));
+      expect(
+          handedOverCase.handoverRecord!.handoverReference, startsWith('VHO-'));
       expect(handedOverCase.handoverRecord!.isReceivedByVendor, isFalse);
       expect(handedOverCase.vendorStatusHistory.length, equals(1));
 
       // Stage G: Confirm Vendor Receipt
-      final receivedByVendorCase = await ReturnService.instance.confirmVendorReceipt(
+      final receivedByVendorCase =
+          await ReturnService.instance.confirmVendorReceipt(
         returnKey: returnCase.key,
         actorId: 'staff_101',
         actorName: 'Akhil (Staff)',
@@ -253,7 +268,8 @@ void main() {
         notes: 'Vendor docket acknowledged by service center',
       );
 
-      expect(receivedByVendorCase.vendorStatus, equals(VendorStatus.receivedByVendor));
+      expect(receivedByVendorCase.vendorStatus,
+          equals(VendorStatus.receivedByVendor));
       expect(receivedByVendorCase.handoverRecord!.isReceivedByVendor, isTrue);
 
       // Stage H: Vendor Status Tracking (Under Inspection -> Waiting for Parts -> Under Repair)
@@ -284,7 +300,8 @@ void main() {
         notes: 'Parts arrived, replacement in progress',
       );
 
-      expect(repairStatusCase.vendorStatus, equals(VendorStatus.underRepairAtVendor));
+      expect(repairStatusCase.vendorStatus,
+          equals(VendorStatus.underRepairAtVendor));
       expect(repairStatusCase.vendorStatusHistory.length, equals(5));
 
       // Stage I: Vendor Repair & Replacement Resolution
@@ -294,7 +311,8 @@ void main() {
         actorId: 'owner_1',
         actorName: 'Owner',
         actorRole: 'Owner',
-        repairDetails: 'Original display panel replaced under warranty. Tested OK.',
+        repairDetails:
+            'Original display panel replaced under warranty. Tested OK.',
         vendorCharges: 0.0,
         vendorCreditRefund: 0.0,
         vendorNotes: 'Zero charges under brand warranty claim',
@@ -302,7 +320,8 @@ void main() {
 
       expect(resolvedCase.vendorStatus, equals(VendorStatus.repairedByVendor));
       expect(resolvedCase.vendorResolution, isNotNull);
-      expect(resolvedCase.vendorResolution!.decision, equals(VendorResolutionType.repaired));
+      expect(resolvedCase.vendorResolution!.decision,
+          equals(VendorResolutionType.repaired));
 
       // Stage J: Receive Product at Shop ("RECEIVE FROM VENDOR")
       final receivedAtShopCase = await ReturnService.instance.receiveAtShop(
@@ -310,11 +329,13 @@ void main() {
         actorId: 'staff_101',
         actorName: 'Akhil (Staff)',
         actorRole: 'Staff',
-        inspectionNotes: 'Product verified at shop counter. Screen working perfectly.',
+        inspectionNotes:
+            'Product verified at shop counter. Screen working perfectly.',
         isReadyForCustomer: true,
       );
 
-      expect(receivedAtShopCase.customerReturnStatus, equals(CustomerReturnStatus.readyForCustomer));
+      expect(receivedAtShopCase.customerReturnStatus,
+          equals(CustomerReturnStatus.readyForCustomer));
       expect(receivedAtShopCase.isReadyForCustomer, isTrue);
       expect(receivedAtShopCase.shopReceiptDate, isNotNull);
 
@@ -324,14 +345,17 @@ void main() {
         actorId: 'staff_101',
         actorName: 'Akhil (Staff)',
         actorRole: 'Staff',
-        customerConfirmation: 'Customer inspected phone and signed delivery receipt',
+        customerConfirmation:
+            'Customer inspected phone and signed delivery receipt',
         deliveryNotes: 'Delivered in full working condition with bill copy',
       );
 
-      expect(deliveredCase.customerReturnStatus, equals(CustomerReturnStatus.returnedToCustomer));
+      expect(deliveredCase.customerReturnStatus,
+          equals(CustomerReturnStatus.returnedToCustomer));
       expect(deliveredCase.isCompleted, isTrue);
       expect(deliveredCase.customerDeliveryRecord, isNotNull);
-      expect(deliveredCase.customerDeliveryRecord!.customerConfirmation, contains('signed delivery receipt'));
+      expect(deliveredCase.customerDeliveryRecord!.customerConfirmation,
+          contains('signed delivery receipt'));
 
       // Stage L: Complete Chronological Timeline Verification
       expect(deliveredCase.timeline.length, greaterThanOrEqualTo(8));
@@ -390,7 +414,8 @@ void main() {
 
       expect(replCase.vendorStatus, equals(VendorStatus.replacementApproved));
       expect(replCase.vendorResolution!.isReplacement, isTrue);
-      expect(replCase.vendorResolution!.replacementSerialNumber, equals('R-BUDS-NEW-999'));
+      expect(replCase.vendorResolution!.replacementSerialNumber,
+          equals('R-BUDS-NEW-999'));
 
       // Original serial is strictly preserved in return case!
       expect(replCase.serialNumber, equals('R-BUDS-ORIG-001'));
@@ -438,7 +463,8 @@ void main() {
       // Pending with vendor
       expect(reloaded.isPendingWithVendor, isTrue);
       // Evaluates follow-up logic correctly
-      expect(reloaded.isFollowUpOverdue(0), isTrue); // If threshold 0, immediately overdue
+      expect(reloaded.isFollowUpOverdue(0),
+          isTrue); // If threshold 0, immediately overdue
     });
 
     test('7. Owner Dashboard Metrics & Multi-Field Search/Filter', () async {
@@ -482,17 +508,23 @@ void main() {
       expect(metrics['Handed Over to Vendors'], equals(1));
 
       // Search by Customer Phone
-      final matchedByPhone = ReturnService.instance.searchAndFilter(query: '9446001122');
+      final matchedByPhone =
+          ReturnService.instance.searchAndFilter(query: '9446001122');
       expect(matchedByPhone.isNotEmpty, isTrue);
       expect(matchedByPhone.first.customerName, equals('Manoj Pillai'));
 
       // Search by Product Name
-      final matchedByProd = ReturnService.instance.searchAndFilter(query: 'Galaxy A14');
+      final matchedByProd =
+          ReturnService.instance.searchAndFilter(query: 'Galaxy A14');
       expect(matchedByProd.isNotEmpty, isTrue);
 
       // Filter by Card Category
-      final handedOverList = ReturnService.instance.searchAndFilter(cardFilterCategory: 'Handed Over to Vendors');
-      expect(handedOverList.every((r) => r.vendorStatus == VendorStatus.handedOverToVendor), isTrue);
+      final handedOverList = ReturnService.instance
+          .searchAndFilter(cardFilterCategory: 'Handed Over to Vendors');
+      expect(
+          handedOverList
+              .every((r) => r.vendorStatus == VendorStatus.handedOverToVendor),
+          isTrue);
     });
 
     test('8. Owner vs Staff Permissions & Warranty Override', () async {
@@ -513,21 +545,25 @@ void main() {
         actorRole: 'Staff',
       );
 
-      expect(ret.customerWarrantyStatus, equals(CustomerWarrantyStatus.expired));
+      expect(
+          ret.customerWarrantyStatus, equals(CustomerWarrantyStatus.expired));
 
       // Owner overrides warranty as goodwill approval
       final overridden = await ReturnService.instance.verifyWarranty(
         returnKey: ret.key,
         newWarrantyStatus: CustomerWarrantyStatus.active,
-        reasonNotes: 'Owner approved warranty repair as customer goodwill concession',
+        reasonNotes:
+            'Owner approved warranty repair as customer goodwill concession',
         actorId: 'owner_main',
         actorName: 'Shop Owner',
         actorRole: 'Owner',
       );
 
-      expect(overridden.customerWarrantyStatus, equals(CustomerWarrantyStatus.active));
+      expect(overridden.customerWarrantyStatus,
+          equals(CustomerWarrantyStatus.active));
       expect(overridden.warrantyVerifiedByName, equals('Shop Owner'));
-      expect(overridden.warrantyInspectionNotes, contains('goodwill concession'));
+      expect(
+          overridden.warrantyInspectionNotes, contains('goodwill concession'));
     });
   });
 }

@@ -60,9 +60,12 @@ class RepairJob {
     return bal < 0 ? 0.0 : bal;
   }
 
-  bool get isActive =>
-      const ['Received', 'Diagnosing', 'In Progress', 'Waiting for Parts']
-          .contains(status);
+  bool get isActive => const [
+        'Received',
+        'Diagnosing',
+        'In Progress',
+        'Waiting for Parts'
+      ].contains(status);
 
   bool get isReady => status == 'Ready';
   bool get isDelivered => status == 'Delivered';
@@ -86,7 +89,9 @@ class RepairJob {
     try {
       final dt = DateTime.parse(expectedDelivery);
       final today = DateTime.now();
-      return dt.year == today.year && dt.month == today.month && dt.day == today.day;
+      return dt.year == today.year &&
+          dt.month == today.month &&
+          dt.day == today.day;
     } catch (_) {
       return false;
     }
@@ -121,7 +126,8 @@ class RepairJob {
     List<Map<String, dynamic>> parseHistory(dynamic v) {
       if (v is List) {
         return v
-            .map((e) => e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{})
+            .map((e) =>
+                e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{})
             .toList();
       }
       return [];
@@ -178,8 +184,10 @@ class RepairJob {
       'notes': notes,
       'billCreated': billCreated,
       'invoice': invoice,
-      'createdAt': createdAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
-      'updatedAt': updatedAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
+      'createdAt':
+          createdAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
+      'updatedAt':
+          updatedAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
       'statusHistory': statusHistory,
       'parts': parts,
     };

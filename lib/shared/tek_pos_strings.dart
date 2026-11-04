@@ -22,7 +22,8 @@ class TekStrings {
   static const btnCheckInNow = 'ചെക്ക്-ഇൻ ചെയ്യുക (Check In Now)';
 
   // Attendance Badges
-  static const badgePendingApproval = 'അറ്റൻഡൻസ് രേഖപ്പെടുത്തി (Pending Owner Approval)';
+  static const badgePendingApproval =
+      'അറ്റൻഡൻസ് രേഖപ്പെടുത്തി (Pending Owner Approval)';
   static const badgeApproved = '✔ അറ്റൻഡൻസ് അംഗീകരിച്ചു (Approved)';
   static const badgeRejected = '✖ അറ്റൻഡൻസ് നിരസിച്ചു (Rejected)';
   static const badgeAdjusted = '✎ സമയം തിരുത്തി (Adjusted)';
@@ -37,16 +38,20 @@ class TekStrings {
   static const onTimeArrival = 'കൃത്യസമയത്ത് (On Time)';
 
   // Cash Register & Shift End
-  static const cashRegisterTitle = 'ഷിഫ്റ്റ്-എൻഡ് ക്യാഷ് രജിസ്റ്റർ (Shift-End Cash Register)';
+  static const cashRegisterTitle =
+      'ഷിഫ്റ്റ്-എൻഡ് ക്യാഷ് രജിസ്റ്റർ (Shift-End Cash Register)';
   static const cashRegisterDesc =
       'ഡ്യൂട്ടി അവസാനിപ്പിക്കുന്നതിന് മുമ്പ് ഡ്രോയറിലുള്ള തുക എണ്ണി തിട്ടപ്പെടുത്തുക.';
   static const labelShiftSales = 'ഷിഫ്റ്റിലെ ആകെ വിൽപ്പന (Shift Sales Total)';
-  static const labelExpectedCash = 'പ്രതീക്ഷിക്കുന്ന ക്യാഷ് (Expected Cash in Drawer)';
+  static const labelExpectedCash =
+      'പ്രതീക്ഷിക്കുന്ന ക്യാഷ് (Expected Cash in Drawer)';
   static const labelClosingCash = 'ഡ്രോയറിലുള്ള ക്യാഷ് (Counted Closing Cash)';
   static const labelDifference = 'വ്യത്യാസം (Difference)';
-  static const labelMismatch = '⚠ തുകയിൽ വ്യത്യാസമുണ്ട് (Cash Mismatch Detected)';
+  static const labelMismatch =
+      '⚠ തുകയിൽ വ്യത്യാസമുണ്ട് (Cash Mismatch Detected)';
   static const labelMatched = '✔ തുക കൃത്യമാണ് (Cash Matched)';
-  static const btnConfirmCheckOut = 'ചെക്ക്-ഔട്ട് സ്ഥിരീകരിക്കുക (Confirm Check-Out)';
+  static const btnConfirmCheckOut =
+      'ചെക്ക്-ഔട്ട് സ്ഥിരീകരിക്കുക (Confirm Check-Out)';
 
   // Pricing & Price Floor
   static const errPriceBelowFloor =
@@ -56,11 +61,14 @@ class TekStrings {
   static const pinApprovalTitle = 'ഉടമസ്ഥന്റെ പിൻ നൽകുക (Owner PIN Approval)';
   static const pinApprovalSub =
       'ഫ്ലോർ വിലയേക്കാൾ കുറഞ്ഞ നിരക്കിൽ വിൽക്കാൻ ഉടമസ്ഥന്റെ 4-അക്ക പിൻ നൽകുക.';
-  static const errInvalidPin = 'തെറ്റായ പിൻ (Invalid PIN. Attempts remaining: {left})';
-  static const errPinLocked = '3 തവണ തെറ്റായ പിൻ നൽകി. 15 മിനിറ്റ് കാത്തിരിക്കുക (PIN Locked)';
+  static const errInvalidPin =
+      'തെറ്റായ പിൻ (Invalid PIN. Attempts remaining: {left})';
+  static const errPinLocked =
+      '3 തവണ തെറ്റായ പിൻ നൽകി. 15 മിനിറ്റ് കാത്തിരിക്കുക (PIN Locked)';
 
   // Catalog & Cart
-  static const searchItems = 'സാധനങ്ങൾ തിരയുക (Search by Name, Barcode, SKU)...';
+  static const searchItems =
+      'സാധനങ്ങൾ തിരയുക (Search by Name, Barcode, SKU)...';
   static const inStock = 'സ്റ്റോക്കുണ്ട് (In Stock)';
   static const lowStock = 'കുറഞ്ഞ സ്റ്റോക്ക് (Low Stock)';
   static const outOfStock = 'സ്റ്റോക്കില്ല (Out of Stock)';
@@ -70,7 +78,8 @@ class TekStrings {
   static const subtotal = 'ഉപതുക (Subtotal)';
   static const discount = 'ഡിസ്കൗണ്ട് (Discount)';
   static const grandTotal = 'ആകെ തുക (Grand Total)';
-  static const customerDetails = 'കസ്റ്റമർ വിവരങ്ങൾ (Customer Details - Optional)';
+  static const customerDetails =
+      'കസ്റ്റമർ വിവരങ്ങൾ (Customer Details - Optional)';
   static const customerName = 'പേര് (Customer Name)';
   static const customerPhone = 'ഫോൺ നമ്പർ (Phone Number)';
 
@@ -82,8 +91,10 @@ class TekStrings {
   static const paySplit = 'സ്പ്ലിറ്റ് (Split Payment)';
   static const cashReceived = 'ലഭിച്ച തുക (Cash Received)';
   static const changeDue = 'തിരികെ നൽകേണ്ട തുക (Change Due)';
-  static const upiScanPrompt = 'ക്യു.ആർ കോഡ് സ്കാൻ ചെയ്ത് പണമടയ്ക്കുക (Scan & Pay)';
-  static const btnPaymentReceived = 'പണം ലഭിച്ചു എന്ന് സ്ഥിരീകരിക്കുക (Payment Received)';
+  static const upiScanPrompt =
+      'ക്യു.ആർ കോഡ് സ്കാൻ ചെയ്ത് പണമടയ്ക്കുക (Scan & Pay)';
+  static const btnPaymentReceived =
+      'പണം ലഭിച്ചു എന്ന് സ്ഥിരീകരിക്കുക (Payment Received)';
   static const btnCompleteSale = 'വിൽപ്പന പൂർത്തിയാക്കുക (Complete Sale)';
 
   // Receipt & Print
@@ -98,15 +109,20 @@ class TekStrings {
   static const pendingApprovalsCount = '{count} അംഗീകാരം കാത്തിരിക്കുന്നു';
   static const btnApproveAll = 'എല്ലാം അംഗീകരിക്കുക (Approve All Pending)';
   static const btnApprove = 'മാറ്റങ്ങൾ വരുത്താതെ അംഗീകരിക്കുക (Approve)';
-  static const btnAdjustOrReject = 'സമയം തിരുത്തുകയോ നിരസിക്കുകയോ ചെയ്യുക (Adjust / Reject)';
+  static const btnAdjustOrReject =
+      'സമയം തിരുത്തുകയോ നിരസിക്കുകയോ ചെയ്യുക (Adjust / Reject)';
   static const adjustDialogTitle = 'സമയം തിരുത്തുക (Adjust Attendance Times)';
   static const rejectDialogTitle = 'അറ്റൻഡൻസ് നിരസിക്കുക (Reject Attendance)';
-  static const labelAdjustReason = 'തിരുത്തലിനുള്ള കാരണം (Reason for Adjustment - Required)';
-  static const labelRejectReason = 'നിരസിക്കാനുള്ള കാരണം (Reason for Rejection - Required)';
+  static const labelAdjustReason =
+      'തിരുത്തലിനുള്ള കാരണം (Reason for Adjustment - Required)';
+  static const labelRejectReason =
+      'നിരസിക്കാനുള്ള കാരണം (Reason for Rejection - Required)';
   static const labelOriginalTime = 'യഥാർത്ഥ സമയം (Original Time)';
   static const labelAdjustedTime = 'പുതിയ സമയം (Adjusted Time)';
-  static const revokeAccessPrompt = 'സ്റ്റാഫിന്റെ സെയിൽസ് ആക്സസ് ഇപ്പോൾ തന്നെ ബ്ലോക്ക് ചെയ്യണോ? (Revoke POS Access)';
-  static const pendingMoreThan24h = '⚠ 24 മണിക്കൂറിലധികം ബാക്കി (Pending > 24h)';
+  static const revokeAccessPrompt =
+      'സ്റ്റാഫിന്റെ സെയിൽസ് ആക്സസ് ഇപ്പോൾ തന്നെ ബ്ലോക്ക് ചെയ്യണോ? (Revoke POS Access)';
+  static const pendingMoreThan24h =
+      '⚠ 24 മണിക്കൂറിലധികം ബാക്കി (Pending > 24h)';
 
   // Payroll
   static const payrollPendingWarning =

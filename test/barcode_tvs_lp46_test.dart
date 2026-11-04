@@ -50,7 +50,8 @@ void main() {
       expect(code1 != code2, isTrue);
     });
 
-    test('3. Compact Label Content & PDF Generation for TVS LP 46 Lite', () async {
+    test('3. Compact Label Content & PDF Generation for TVS LP 46 Lite',
+        () async {
       final service = BarcodeLabelService.instance;
 
       final items = [
@@ -75,7 +76,8 @@ void main() {
       expect(pdfBytes.length, greaterThan(1000));
     });
 
-    test('4. Quantity Defaulting: If 10 pieces purchased, generates 10 labels', () async {
+    test('4. Quantity Defaulting: If 10 pieces purchased, generates 10 labels',
+        () async {
       final service = BarcodeLabelService.instance;
 
       // 10 units purchased
@@ -124,7 +126,9 @@ void main() {
       expect(pdfBytes.isNotEmpty, isTrue);
     });
 
-    test('6. Permanent DB Storage: Barcode persists to Db.items & matches POS scanner', () async {
+    test(
+        '6. Permanent DB Storage: Barcode persists to Db.items & matches POS scanner',
+        () async {
       final service = BarcodeLabelService.instance;
       final itemsBox = Hive.box(boxItems);
 
@@ -151,13 +155,17 @@ void main() {
       expect(stored['code'], equals(assignedBarcode));
 
       // 4. Verify POS scanner matches PosItem
-      final posItem = PosItem.fromMap('$itemKey', Map<String, dynamic>.from(stored));
+      final posItem =
+          PosItem.fromMap('$itemKey', Map<String, dynamic>.from(stored));
       expect(posItem.barcode, equals(assignedBarcode));
-      expect(posItem.barcode.toLowerCase().contains(assignedBarcode.toLowerCase()), isTrue);
+      expect(
+          posItem.barcode.toLowerCase().contains(assignedBarcode.toLowerCase()),
+          isTrue);
       expect(posItem.sellingPrice, equals(899.0));
     });
 
-    test('7. TSPL2 Command Generation for Direct Thermal TVS LP 46 Lite Output', () {
+    test('7. TSPL2 Command Generation for Direct Thermal TVS LP 46 Lite Output',
+        () {
       final service = BarcodeLabelService.instance;
 
       final items = [

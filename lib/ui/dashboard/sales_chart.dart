@@ -18,7 +18,8 @@ class TekSalesOverviewChart extends StatefulWidget {
 }
 
 class _TekSalesOverviewChartState extends State<TekSalesOverviewChart> {
-  String _selectedPeriod = 'This Week'; // 'This Week', 'This Month', 'Last 7 Days'
+  String _selectedPeriod =
+      'This Week'; // 'This Week', 'This Month', 'Last 7 Days'
 
   @override
   Widget build(BuildContext context) {
@@ -112,7 +113,8 @@ class _TekSalesOverviewChartState extends State<TekSalesOverviewChart> {
                         Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: DashboardColors.neonBlue.withValues(alpha: 0.15),
+                            color: DashboardColors.neonBlue
+                                .withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Icon(
@@ -172,7 +174,8 @@ class _TekSalesOverviewChartState extends State<TekSalesOverviewChart> {
 
               // "This Month" / Period Selector Dropdown
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: const Color(0x261E293B),
                   borderRadius: BorderRadius.circular(12),
@@ -239,8 +242,10 @@ class _TekSalesOverviewChartState extends State<TekSalesOverviewChart> {
                   ),
                 ),
                 titlesData: FlTitlesData(
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false)),
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
@@ -273,18 +278,25 @@ class _TekSalesOverviewChartState extends State<TekSalesOverviewChart> {
                       interval: 1,
                       getTitlesWidget: (value, meta) {
                         final idx = value.toInt();
-                        if (idx < 0 || idx >= days.length) return const SizedBox.shrink();
+                        if (idx < 0 || idx >= days.length)
+                          return const SizedBox.shrink();
                         final d = days[idx];
-                        final dayName = DateFormat('E').format(d); // Mon, Tue...
-                        final isToday = d.year == today.year && d.month == today.month && d.day == today.day;
+                        final dayName =
+                            DateFormat('E').format(d); // Mon, Tue...
+                        final isToday = d.year == today.year &&
+                            d.month == today.month &&
+                            d.day == today.day;
                         return Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(
                             dayName,
                             style: DashboardTypography.inter(
                               fontSize: 11,
-                              fontWeight: isToday ? FontWeight.w700 : FontWeight.w500,
-                              color: isToday ? DashboardColors.neonBlue : DashboardColors.textMuted,
+                              fontWeight:
+                                  isToday ? FontWeight.w700 : FontWeight.w500,
+                              color: isToday
+                                  ? DashboardColors.neonBlue
+                                  : DashboardColors.textMuted,
                             ),
                           ),
                         );

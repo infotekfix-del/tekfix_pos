@@ -111,8 +111,7 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
           .fetchVendorBalancePaise(b.vendorKey);
       _vendorPrevBalance = balPaise / 100.0;
     } else {
-      final nextNum =
-          await PurchaseBillService.instance.generateBillNumber();
+      final nextNum = await PurchaseBillService.instance.generateBillNumber();
       if (mounted) {
         setState(() {
           _billNumberCtrl.text = nextNum;
@@ -151,13 +150,12 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
     }
   }
 
-  double get _subtotal => _items.fold(
-      0.0, (sum, it) => sum + (it.quantity * it.purchaseRate));
+  double get _subtotal =>
+      _items.fold(0.0, (sum, it) => sum + (it.quantity * it.purchaseRate));
 
   int get _totalQuantity => _items.fold(0, (sum, it) => sum + it.quantity);
 
-  double get _totalDiscount =>
-      _items.fold(0.0, (sum, it) => sum + it.discount);
+  double get _totalDiscount => _items.fold(0.0, (sum, it) => sum + it.discount);
 
   double get _totalTax => _items.fold(0.0, (sum, it) => sum + it.taxAmount);
 
@@ -179,8 +177,7 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
   double get _grandTotal =>
       (_rawGrandTotal + _roundOff).clamp(0.0, double.infinity);
 
-  double get _enteredPaidAmount =>
-      double.tryParse(_paidAmountCtrl.text) ?? 0.0;
+  double get _enteredPaidAmount => double.tryParse(_paidAmountCtrl.text) ?? 0.0;
 
   double get _safePaidAmount => _enteredPaidAmount.clamp(0.0, _grandTotal);
 
@@ -250,7 +247,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
 
           if (mounted) {
             setState(() {
-              if (parsed.invoiceNumber != null && parsed.invoiceNumber!.isNotEmpty) {
+              if (parsed.invoiceNumber != null &&
+                  parsed.invoiceNumber!.isNotEmpty) {
                 _vendorInvoiceCtrl.text = parsed.invoiceNumber!;
               }
               if (parsed.invoiceDate != null) {
@@ -267,22 +265,36 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
               final vendors = PurchaseBillService.instance.getVendors();
               Map<String, dynamic>? matchedVendor;
               if (parsed.vendorGst != null && parsed.vendorGst!.isNotEmpty) {
-                matchedVendor = vendors.cast<Map<String, dynamic>?>().firstWhere(
-                  (v) => v?['gst']?.toString().toUpperCase() == parsed.vendorGst!.toUpperCase(),
-                  orElse: () => null,
-                );
+                matchedVendor =
+                    vendors.cast<Map<String, dynamic>?>().firstWhere(
+                          (v) =>
+                              v?['gst']?.toString().toUpperCase() ==
+                              parsed.vendorGst!.toUpperCase(),
+                          orElse: () => null,
+                        );
               }
-              if (matchedVendor == null && parsed.vendorName != null && parsed.vendorName!.isNotEmpty) {
+              if (matchedVendor == null &&
+                  parsed.vendorName != null &&
+                  parsed.vendorName!.isNotEmpty) {
                 final target = parsed.vendorName!.toLowerCase();
-                matchedVendor = vendors.cast<Map<String, dynamic>?>().firstWhere(
-                  (v) => (v?['name']?.toString().toLowerCase().contains(target) ?? false) ||
-                         target.contains(v?['name']?.toString().toLowerCase() ?? '---'),
-                  orElse: () => null,
-                );
+                matchedVendor = vendors
+                    .cast<Map<String, dynamic>?>()
+                    .firstWhere(
+                      (v) =>
+                          (v?['name']
+                                  ?.toString()
+                                  .toLowerCase()
+                                  .contains(target) ??
+                              false) ||
+                          target.contains(
+                              v?['name']?.toString().toLowerCase() ?? '---'),
+                      orElse: () => null,
+                    );
               }
               if (matchedVendor != null) {
                 final key = matchedVendor['key'];
-                final balPaise = await PurchaseBillService.instance.fetchVendorBalancePaise(key);
+                final balPaise = await PurchaseBillService.instance
+                    .fetchVendorBalancePaise(key);
                 setState(() {
                   _selectedVendorKey = key;
                   _selectedVendorName = matchedVendor!['name'];
@@ -292,12 +304,16 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                   _vendorPrevBalance = balPaise / 100.0;
                   _detectGstType();
                 });
-              } else if (parsed.vendorName != null && parsed.vendorName!.isNotEmpty) {
+              } else if (parsed.vendorName != null &&
+                  parsed.vendorName!.isNotEmpty) {
                 setState(() {
                   _selectedVendorName = parsed.vendorName!;
-                  if (parsed.vendorPhone != null) _selectedVendorPhone = parsed.vendorPhone!;
-                  if (parsed.vendorGst != null) _selectedVendorGst = parsed.vendorGst!;
-                  if (parsed.vendorAddress != null) _selectedVendorAddress = parsed.vendorAddress!;
+                  if (parsed.vendorPhone != null)
+                    _selectedVendorPhone = parsed.vendorPhone!;
+                  if (parsed.vendorGst != null)
+                    _selectedVendorGst = parsed.vendorGst!;
+                  if (parsed.vendorAddress != null)
+                    _selectedVendorAddress = parsed.vendorAddress!;
                   _detectGstType();
                 });
               }
@@ -307,7 +323,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
             if (parsed.hasItems) {
               final newItems = <PurchaseBillItem>[];
               for (final pItem in parsed.items) {
-                final match = await PurchaseBillService.instance.matchProductInFirestore(
+                final match =
+                    await PurchaseBillService.instance.matchProductInFirestore(
                   barcode: pItem.skuOrHsn,
                   sku: pItem.skuOrHsn,
                   name: pItem.description,
@@ -325,50 +342,65 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
 
                 if (match != null) {
                   final data = match['data'] as Map?;
-                  final matchedName = match['name']?.toString() ?? pItem.description;
+                  final matchedName =
+                      match['name']?.toString() ?? pItem.description;
                   final category = data?['category']?.toString() ?? '';
                   final brand = data?['brand']?.toString() ?? '';
                   final model = data?['model']?.toString() ?? '';
                   final sku = data?['sku']?.toString() ?? pItem.skuOrHsn ?? '';
-                  final sellingPrice = (data?['sellingPrice'] as num?)?.toDouble() ??
-                      ((data?['sellingPricePaise'] as num?) != null
-                          ? (data?['sellingPricePaise'] as num).toDouble() / 100.0
-                          : 0.0);
+                  final sellingPrice =
+                      (data?['sellingPrice'] as num?)?.toDouble() ??
+                          ((data?['sellingPricePaise'] as num?) != null
+                              ? (data?['sellingPricePaise'] as num).toDouble() /
+                                  100.0
+                              : 0.0);
                   final requiresImei = data?['imeiRequired'] == true || isPhone;
-                  final status = match['status']?.toString() ?? ProductMatchStatus.matched;
+                  final status =
+                      match['status']?.toString() ?? ProductMatchStatus.matched;
                   final notes = match['notes']?.toString();
                   final isAnomaly = status == ProductMatchStatus.reviewRequired;
 
-                  newItems.add(pItem.toPurchaseBillItem(
-                    matchedProductId: match['id']?.toString(),
-                    itemKey: match['itemKey'] ?? match['id'],
-                    matchedProductName: matchedName,
-                    isNew: false,
-                  ).copyWith(
-                    category: category,
-                    brand: brand,
-                    model: model,
-                    sku: sku,
-                    sellingPrice: sellingPrice,
-                    mrp: (data?['mrp'] as num?)?.toDouble() ?? (sellingPrice > 0 ? sellingPrice : pItem.unitPrice * 1.25),
-                    hsnCode: pItem.skuOrHsn,
-                    imeiRequired: requiresImei,
-                    isStagedReady: !isAnomaly,
-                    matchStatusOverride: status,
-                    matchNotes: notes ?? (isAnomaly ? 'Rate or model anomaly detected' : 'Matched to $matchedName'),
-                    extractionConfidence: 0.95,
-                  ));
+                  newItems.add(pItem
+                      .toPurchaseBillItem(
+                        matchedProductId: match['id']?.toString(),
+                        itemKey: match['itemKey'] ?? match['id'],
+                        matchedProductName: matchedName,
+                        isNew: false,
+                      )
+                      .copyWith(
+                        category: category,
+                        brand: brand,
+                        model: model,
+                        sku: sku,
+                        sellingPrice: sellingPrice,
+                        mrp: (data?['mrp'] as num?)?.toDouble() ??
+                            (sellingPrice > 0
+                                ? sellingPrice
+                                : pItem.unitPrice * 1.25),
+                        hsnCode: pItem.skuOrHsn,
+                        imeiRequired: requiresImei,
+                        isStagedReady: !isAnomaly,
+                        matchStatusOverride: status,
+                        matchNotes: notes ??
+                            (isAnomaly
+                                ? 'Rate or model anomaly detected'
+                                : 'Matched to $matchedName'),
+                        extractionConfidence: 0.95,
+                      ));
                 } else {
-                  newItems.add(pItem.toPurchaseBillItem(
-                    isNew: true,
-                  ).copyWith(
-                    hsnCode: pItem.skuOrHsn,
-                    imeiRequired: isPhone,
-                    isStagedReady: false,
-                    matchStatusOverride: ProductMatchStatus.quickRegister,
-                    matchNotes: 'New Item: Not found in inventory (+ Quick Register)',
-                    extractionConfidence: 0.85,
-                  ));
+                  newItems.add(pItem
+                      .toPurchaseBillItem(
+                        isNew: true,
+                      )
+                      .copyWith(
+                        hsnCode: pItem.skuOrHsn,
+                        imeiRequired: isPhone,
+                        isStagedReady: false,
+                        matchStatusOverride: ProductMatchStatus.quickRegister,
+                        matchNotes:
+                            'New Item: Not found in inventory (+ Quick Register)',
+                        extractionConfidence: 0.85,
+                      ));
                 }
               }
 
@@ -381,10 +413,12 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                 _flowState = PurchaseBillFlowState.reviewRequired;
               });
 
-              TekFeedback.success('Extracted ${parsed.itemCount} items from invoice!');
+              TekFeedback.success(
+                  'Extracted ${parsed.itemCount} items from invoice!');
             } else {
               setState(() {
-                _extractionStatusBanner = 'Bill attached (${file.name}). Review items and proceed.';
+                _extractionStatusBanner =
+                    'Bill attached (${file.name}). Review items and proceed.';
                 _showExtractionBanner = true;
                 _flowState = PurchaseBillFlowState.reviewRequired;
               });
@@ -401,7 +435,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
       if (mounted) {
         setState(() {
           _isUploadingFile = false;
-          if (_flowState == PurchaseBillFlowState.uploading || _flowState == PurchaseBillFlowState.parsing) {
+          if (_flowState == PurchaseBillFlowState.uploading ||
+              _flowState == PurchaseBillFlowState.parsing) {
             _flowState = PurchaseBillFlowState.reviewRequired;
           }
         });
@@ -483,8 +518,9 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                     controller: nameCtrl,
                     label: 'Vendor / Company Name *',
                     icon: Icons.business_rounded,
-                    validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Enter vendor name' : null,
+                    validator: (v) => v == null || v.trim().isEmpty
+                        ? 'Enter vendor name'
+                        : null,
                   ),
                   const SizedBox(height: 12),
                   _buildDialogTextField(
@@ -492,8 +528,9 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                     label: 'Phone Number *',
                     icon: Icons.phone_rounded,
                     keyboardType: TextInputType.phone,
-                    validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Enter phone number' : null,
+                    validator: (v) => v == null || v.trim().isEmpty
+                        ? 'Enter phone number'
+                        : null,
                   ),
                   const SizedBox(height: 12),
                   _buildDialogTextField(
@@ -558,7 +595,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
               }
             },
             child: const Text('Save & Select Vendor',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -691,10 +729,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                         fontSize: 12),
                                   ),
                                   trailing: Column(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.center,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.end,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
                                       Text(
                                         '₹${(it['cost'] as double).toStringAsFixed(2)}',
@@ -765,8 +801,7 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
         ),
         title: Row(
           children: [
-            const Icon(Icons.add_box_rounded,
-                color: DashboardColors.neonBlue),
+            const Icon(Icons.add_box_rounded, color: DashboardColors.neonBlue),
             const SizedBox(width: 10),
             Text('Create New Product',
                 style: DashboardTypography.poppins(
@@ -785,8 +820,9 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                     controller: nameCtrl,
                     label: 'Product / Item Name *',
                     icon: Icons.shopping_bag_rounded,
-                    validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Enter item name' : null,
+                    validator: (v) => v == null || v.trim().isEmpty
+                        ? 'Enter item name'
+                        : null,
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -838,10 +874,9 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                           icon: Icons.currency_rupee_rounded,
                           keyboardType: const TextInputType.numberWithOptions(
                               decimal: true),
-                          validator: (v) =>
-                              double.tryParse(v ?? '') == null
-                                  ? 'Enter valid rate'
-                                  : null,
+                          validator: (v) => double.tryParse(v ?? '') == null
+                              ? 'Enter valid rate'
+                              : null,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -852,10 +887,9 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                           icon: Icons.sell_rounded,
                           keyboardType: const TextInputType.numberWithOptions(
                               decimal: true),
-                          validator: (v) =>
-                              double.tryParse(v ?? '') == null
-                                  ? 'Enter valid price'
-                                  : null,
+                          validator: (v) => double.tryParse(v ?? '') == null
+                              ? 'Enter valid price'
+                              : null,
                         ),
                       ),
                     ],
@@ -922,7 +956,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
               );
             },
             child: const Text('Create & Add to Bill',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -945,9 +980,12 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
     );
     final hsnCtrl = TextEditingController(text: item.hsnCode ?? '');
     final barcodeCtrl = TextEditingController(
-      text: item.sku.isNotEmpty ? item.sku : BarcodeLabelService.instance.generateUniqueBarcode(),
+      text: item.sku.isNotEmpty
+          ? item.sku
+          : BarcodeLabelService.instance.generateUniqueBarcode(),
     );
-    final purchaseRateCtrl = TextEditingController(text: item.purchaseRate.toStringAsFixed(2));
+    final purchaseRateCtrl =
+        TextEditingController(text: item.purchaseRate.toStringAsFixed(2));
     final sellingPriceCtrl = TextEditingController(
       text: item.sellingPrice > 0
           ? item.sellingPrice.toStringAsFixed(2)
@@ -960,7 +998,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
               ? (item.sellingPrice * 1.1).toStringAsFixed(2)
               : (item.purchaseRate * 1.35).toStringAsFixed(2)),
     );
-    final customDaysCtrl = TextEditingController(text: (item.customWarrantyDays ?? '').toString());
+    final customDaysCtrl =
+        TextEditingController(text: (item.customWarrantyDays ?? '').toString());
     final imeiInputCtrl = TextEditingController();
 
     double selectedGstRate = item.taxPercent > 0 ? item.taxPercent : 18.0;
@@ -972,10 +1011,12 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
         item.name.toLowerCase().contains('smartphone');
 
     final enteredImeis = List<String>.from(item.serialNumbers);
-    String selectedWarranty = item.warrantyDuration.isNotEmpty && item.warrantyDuration != ItemWarrantyDuration.noWarranty
+    String selectedWarranty = item.warrantyDuration.isNotEmpty &&
+            item.warrantyDuration != ItemWarrantyDuration.noWarranty
         ? item.warrantyDuration
         : ItemWarrantyDuration.months12;
-    bool hasWarranty = item.hasWarranty || selectedWarranty != ItemWarrantyDuration.noWarranty;
+    bool hasWarranty =
+        item.hasWarranty || selectedWarranty != ItemWarrantyDuration.noWarranty;
     int qty = item.quantity > 0 ? item.quantity : 1;
 
     final drawerFormKey = GlobalKey<FormState>();
@@ -1006,10 +1047,12 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                 )
               : null;
 
-          final curPurchaseRate = double.tryParse(purchaseRateCtrl.text) ?? item.purchaseRate;
+          final curPurchaseRate =
+              double.tryParse(purchaseRateCtrl.text) ?? item.purchaseRate;
           final curSellingPrice = double.tryParse(sellingPriceCtrl.text) ?? 0.0;
           final curMargin = curSellingPrice - curPurchaseRate;
-          final curMarginPercent = curSellingPrice > 0 ? ((curMargin / curSellingPrice) * 100) : 0.0;
+          final curMarginPercent =
+              curSellingPrice > 0 ? ((curMargin / curSellingPrice) * 100) : 0.0;
 
           final screenWidth = MediaQuery.of(context).size.width;
           final drawerWidth = screenWidth > 680 ? 620.0 : screenWidth;
@@ -1030,11 +1073,13 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                     children: [
                       // Drawer Header
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 16),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.03),
                           border: const Border(
-                            bottom: BorderSide(color: DashboardColors.glassBorder),
+                            bottom:
+                                BorderSide(color: DashboardColors.glassBorder),
                           ),
                         ),
                         child: Row(
@@ -1042,10 +1087,12 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: DashboardColors.neonGreen.withValues(alpha: 0.15),
+                                color: DashboardColors.neonGreen
+                                    .withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Icon(Icons.app_registration_rounded, color: DashboardColors.neonGreen, size: 22),
+                              child: const Icon(Icons.app_registration_rounded,
+                                  color: DashboardColors.neonGreen, size: 22),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -1056,25 +1103,36 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                     children: [
                                       Text(
                                         'Quick Register Product',
-                                        style: DashboardTypography.poppins(fontSize: 17, fontWeight: FontWeight.w700),
+                                        style: DashboardTypography.poppins(
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.w700),
                                       ),
                                       const SizedBox(width: 8),
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 6, vertical: 2),
                                         decoration: BoxDecoration(
-                                          color: DashboardColors.alertOrange.withValues(alpha: 0.2),
-                                          borderRadius: BorderRadius.circular(4),
+                                          color: DashboardColors.alertOrange
+                                              .withValues(alpha: 0.2),
+                                          borderRadius:
+                                              BorderRadius.circular(4),
                                         ),
                                         child: Text(
                                           'Row ${itemIndex + 1}',
-                                          style: const TextStyle(color: DashboardColors.alertOrange, fontSize: 11, fontWeight: FontWeight.bold),
+                                          style: const TextStyle(
+                                              color:
+                                                  DashboardColors.alertOrange,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold),
                                         ),
                                       ),
                                     ],
                                   ),
                                   Text(
                                     item.name,
-                                    style: const TextStyle(fontSize: 12, color: DashboardColors.textMuted),
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        color: DashboardColors.textMuted),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -1082,7 +1140,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                               ),
                             ),
                             IconButton(
-                              icon: const Icon(Icons.close_rounded, color: DashboardColors.textLight),
+                              icon: const Icon(Icons.close_rounded,
+                                  color: DashboardColors.textLight),
                               onPressed: () => Navigator.pop(ctx),
                             ),
                           ],
@@ -1103,7 +1162,10 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                   controller: nameCtrl,
                                   label: 'Product Name *',
                                   icon: Icons.shopping_bag_rounded,
-                                  validator: (v) => v == null || v.trim().isEmpty ? 'Enter product name' : null,
+                                  validator: (v) =>
+                                      v == null || v.trim().isEmpty
+                                          ? 'Enter product name'
+                                          : null,
                                 ),
                                 const SizedBox(height: 14),
 
@@ -1116,11 +1178,18 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                         label: 'Category',
                                         icon: Icons.category_rounded,
                                         onChanged: (cat) {
-                                          final isMob = cat.toLowerCase().contains('mobile') ||
-                                              cat.toLowerCase().contains('phone') ||
-                                              cat.toLowerCase().contains('serial');
+                                          final isMob = cat
+                                                  .toLowerCase()
+                                                  .contains('mobile') ||
+                                              cat
+                                                  .toLowerCase()
+                                                  .contains('phone') ||
+                                              cat
+                                                  .toLowerCase()
+                                                  .contains('serial');
                                           if (isMob && !imeiRequired) {
-                                            setDrawerState(() => imeiRequired = true);
+                                            setDrawerState(
+                                                () => imeiRequired = true);
                                           }
                                         },
                                       ),
@@ -1151,10 +1220,12 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                   decoration: BoxDecoration(
                                     color: Colors.white.withValues(alpha: 0.04),
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: DashboardColors.glassBorder),
+                                    border: Border.all(
+                                        color: DashboardColors.glassBorder),
                                   ),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Row(
                                         children: [
@@ -1162,14 +1233,20 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                             child: _buildDialogTextField(
                                               controller: purchaseRateCtrl,
                                               label: 'Purchase Rate (₹) *',
-                                              icon: Icons.currency_rupee_rounded,
-                                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                              icon:
+                                                  Icons.currency_rupee_rounded,
+                                              keyboardType: const TextInputType
+                                                  .numberWithOptions(
+                                                  decimal: true),
                                               validator: (v) {
-                                                final val = double.tryParse(v ?? '');
-                                                if (val == null || val <= 0) return 'Enter rate > 0';
+                                                final val =
+                                                    double.tryParse(v ?? '');
+                                                if (val == null || val <= 0)
+                                                  return 'Enter rate > 0';
                                                 return null;
                                               },
-                                              onChanged: (_) => setDrawerState(() {}),
+                                              onChanged: (_) =>
+                                                  setDrawerState(() {}),
                                             ),
                                           ),
                                           const SizedBox(width: 10),
@@ -1178,13 +1255,18 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                               controller: sellingPriceCtrl,
                                               label: 'Selling Price (₹) *',
                                               icon: Icons.sell_rounded,
-                                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                              keyboardType: const TextInputType
+                                                  .numberWithOptions(
+                                                  decimal: true),
                                               validator: (v) {
-                                                final p = double.tryParse(v ?? '');
-                                                if (p == null || p <= 0) return 'Enter price > 0';
+                                                final p =
+                                                    double.tryParse(v ?? '');
+                                                if (p == null || p <= 0)
+                                                  return 'Enter price > 0';
                                                 return null;
                                               },
-                                              onChanged: (_) => setDrawerState(() {}),
+                                              onChanged: (_) =>
+                                                  setDrawerState(() {}),
                                             ),
                                           ),
                                           const SizedBox(width: 10),
@@ -1193,27 +1275,39 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                               controller: mrpCtrl,
                                               label: 'MRP (₹) *',
                                               icon: Icons.price_check_rounded,
-                                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                              keyboardType: const TextInputType
+                                                  .numberWithOptions(
+                                                  decimal: true),
                                               validator: (v) {
-                                                final m = double.tryParse(v ?? '');
-                                                if (m == null || m <= 0) return 'Enter MRP';
-                                                final s = double.tryParse(sellingPriceCtrl.text) ?? 0.0;
-                                                if (m < s) return 'MRP >= Selling';
+                                                final m =
+                                                    double.tryParse(v ?? '');
+                                                if (m == null || m <= 0)
+                                                  return 'Enter MRP';
+                                                final s = double.tryParse(
+                                                        sellingPriceCtrl
+                                                            .text) ??
+                                                    0.0;
+                                                if (m < s)
+                                                  return 'MRP >= Selling';
                                                 return null;
                                               },
-                                              onChanged: (_) => setDrawerState(() {}),
+                                              onChanged: (_) =>
+                                                  setDrawerState(() {}),
                                             ),
                                           ),
                                         ],
                                       ),
                                       const SizedBox(height: 8),
                                       Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
                                         children: [
                                           Text(
                                             'Gross Margin: ₹${curMargin.toStringAsFixed(2)} (${curMarginPercent.toStringAsFixed(1)}%)',
                                             style: TextStyle(
-                                              color: curMargin >= 0 ? DashboardColors.neonGreen : DashboardColors.alertOrange,
+                                              color: curMargin >= 0
+                                                  ? DashboardColors.neonGreen
+                                                  : DashboardColors.alertOrange,
                                               fontSize: 12,
                                               fontWeight: FontWeight.bold,
                                             ),
@@ -1221,7 +1315,10 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                           Text(
                                             'Selling Price must be <= MRP',
                                             style: TextStyle(
-                                              color: curSellingPrice <= (double.tryParse(mrpCtrl.text) ?? curSellingPrice)
+                                              color: curSellingPrice <=
+                                                      (double.tryParse(
+                                                              mrpCtrl.text) ??
+                                                          curSellingPrice)
                                                   ? DashboardColors.textMuted
                                                   : DashboardColors.alertOrange,
                                               fontSize: 11,
@@ -1241,29 +1338,49 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                     Expanded(
                                       flex: 3,
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           const Text(
                                             'GST Rate Presets (%)',
-                                            style: TextStyle(color: DashboardColors.textLight, fontSize: 12, fontWeight: FontWeight.w600),
+                                            style: TextStyle(
+                                                color:
+                                                    DashboardColors.textLight,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600),
                                           ),
                                           const SizedBox(height: 6),
                                           Wrap(
                                             spacing: 6,
-                                            children: [0.0, 5.0, 12.0, 18.0, 28.0].map((rate) {
-                                              final isSel = selectedGstRate == rate;
+                                            children: [
+                                              0.0,
+                                              5.0,
+                                              12.0,
+                                              18.0,
+                                              28.0
+                                            ].map((rate) {
+                                              final isSel =
+                                                  selectedGstRate == rate;
                                               return ChoiceChip(
                                                 label: Text('${rate.toInt()}%'),
                                                 selected: isSel,
-                                                selectedColor: DashboardColors.neonPurple,
-                                                backgroundColor: Colors.white.withValues(alpha: 0.05),
+                                                selectedColor:
+                                                    DashboardColors.neonPurple,
+                                                backgroundColor: Colors.white
+                                                    .withValues(alpha: 0.05),
                                                 labelStyle: TextStyle(
-                                                  color: isSel ? Colors.white : Colors.white70,
-                                                  fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                                                  color: isSel
+                                                      ? Colors.white
+                                                      : Colors.white70,
+                                                  fontWeight: isSel
+                                                      ? FontWeight.bold
+                                                      : FontWeight.normal,
                                                   fontSize: 12,
                                                 ),
                                                 onSelected: (val) {
-                                                  if (val) setDrawerState(() => selectedGstRate = rate);
+                                                  if (val)
+                                                    setDrawerState(() =>
+                                                        selectedGstRate = rate);
                                                 },
                                               );
                                             }).toList(),
@@ -1292,9 +1409,13 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                     Expanded(
                                       child: _buildDialogTextField(
                                         controller: barcodeCtrl,
-                                        label: 'Barcode / SKU * (TVS LP46 38x25mm Label Ready)',
+                                        label:
+                                            'Barcode / SKU * (TVS LP46 38x25mm Label Ready)',
                                         icon: Icons.qr_code_rounded,
-                                        validator: (v) => v == null || v.trim().isEmpty ? 'Enter or generate barcode' : null,
+                                        validator: (v) =>
+                                            v == null || v.trim().isEmpty
+                                                ? 'Enter or generate barcode'
+                                                : null,
                                       ),
                                     ),
                                     const SizedBox(width: 10),
@@ -1302,15 +1423,25 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                       padding: const EdgeInsets.only(top: 4),
                                       child: ElevatedButton.icon(
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: DashboardColors.neonBlue,
+                                          backgroundColor:
+                                              DashboardColors.neonBlue,
                                           foregroundColor: Colors.black,
-                                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 14, vertical: 14),
+                                          shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(10)),
                                         ),
-                                        icon: const Icon(Icons.auto_fix_high_rounded, size: 16),
-                                        label: const Text('Generate', style: TextStyle(fontWeight: FontWeight.bold)),
+                                        icon: const Icon(
+                                            Icons.auto_fix_high_rounded,
+                                            size: 16),
+                                        label: const Text('Generate',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.bold)),
                                         onPressed: () {
-                                          final gen = BarcodeLabelService.instance.generateUniqueBarcode();
+                                          final gen = BarcodeLabelService
+                                              .instance
+                                              .generateUniqueBarcode();
                                           barcodeCtrl.text = gen;
                                           setDrawerState(() {});
                                         },
@@ -1325,46 +1456,61 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                   padding: const EdgeInsets.all(14),
                                   decoration: BoxDecoration(
                                     color: imeiRequired
-                                        ? DashboardColors.neonBlue.withValues(alpha: 0.08)
+                                        ? DashboardColors.neonBlue
+                                            .withValues(alpha: 0.08)
                                         : Colors.white.withValues(alpha: 0.03),
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
                                       color: imeiRequired
-                                          ? DashboardColors.neonBlue.withValues(alpha: 0.4)
+                                          ? DashboardColors.neonBlue
+                                              .withValues(alpha: 0.4)
                                           : const Color(0x1AFFFFFF),
                                     ),
                                   ),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Row(
                                         children: [
                                           Icon(
                                             Icons.qr_code_scanner_rounded,
-                                            color: imeiRequired ? DashboardColors.neonBlue : DashboardColors.textMuted,
+                                            color: imeiRequired
+                                                ? DashboardColors.neonBlue
+                                                : DashboardColors.textMuted,
                                             size: 20,
                                           ),
                                           const SizedBox(width: 10),
                                           Expanded(
                                             child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
                                               children: [
                                                 const Text(
                                                   'IMEI / Serial Number Tracking',
-                                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                                  style: TextStyle(
+                                                      color: Colors.white,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 13),
                                                 ),
                                                 Text(
                                                   'Requires exactly $qty unique IMEIs for $qty purchased units',
-                                                  style: const TextStyle(color: DashboardColors.textMuted, fontSize: 11),
+                                                  style: const TextStyle(
+                                                      color: DashboardColors
+                                                          .textMuted,
+                                                      fontSize: 11),
                                                 ),
                                               ],
                                             ),
                                           ),
                                           Switch(
                                             value: imeiRequired,
-                                            activeColor: DashboardColors.neonBlue,
+                                            activeColor:
+                                                DashboardColors.neonBlue,
                                             onChanged: (val) {
-                                              setDrawerState(() => imeiRequired = val);
+                                              setDrawerState(
+                                                  () => imeiRequired = val);
                                             },
                                           ),
                                         ],
@@ -1376,28 +1522,49 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                             Expanded(
                                               child: TextFormField(
                                                 controller: imeiInputCtrl,
-                                                style: const TextStyle(color: Colors.white, fontSize: 13),
+                                                style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 13),
                                                 decoration: InputDecoration(
-                                                  hintText: 'Enter IMEI / Serial (e.g. 864501047123456)',
-                                                  hintStyle: const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
+                                                  hintText:
+                                                      'Enter IMEI / Serial (e.g. 864501047123456)',
+                                                  hintStyle: const TextStyle(
+                                                      color: DashboardColors
+                                                          .textMuted,
+                                                      fontSize: 12),
                                                   filled: true,
-                                                  fillColor: Colors.white.withValues(alpha: 0.05),
-                                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                                  fillColor: Colors.white
+                                                      .withValues(alpha: 0.05),
+                                                  contentPadding:
+                                                      const EdgeInsets
+                                                          .symmetric(
+                                                          horizontal: 12,
+                                                          vertical: 10),
                                                   border: OutlineInputBorder(
-                                                    borderRadius: BorderRadius.circular(8),
-                                                    borderSide: const BorderSide(color: DashboardColors.glassBorder),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            8),
+                                                    borderSide: const BorderSide(
+                                                        color: DashboardColors
+                                                            .glassBorder),
                                                   ),
                                                 ),
                                                 onFieldSubmitted: (val) {
-                                                  final trimmed = val.trim().toUpperCase();
-                                                  if (trimmed.isNotEmpty && !enteredImeis.contains(trimmed)) {
-                                                    if (enteredImeis.length < qty) {
+                                                  final trimmed =
+                                                      val.trim().toUpperCase();
+                                                  if (trimmed.isNotEmpty &&
+                                                      !enteredImeis
+                                                          .contains(trimmed)) {
+                                                    if (enteredImeis.length <
+                                                        qty) {
                                                       setDrawerState(() {
-                                                        enteredImeis.add(trimmed);
+                                                        enteredImeis
+                                                            .add(trimmed);
                                                         imeiInputCtrl.clear();
                                                       });
                                                     } else {
-                                                      TekFeedback.error('Already entered $qty IMEIs for $qty items');
+                                                      TekFeedback.error(
+                                                          'Already entered $qty IMEIs for $qty items');
                                                     }
                                                   }
                                                 },
@@ -1406,22 +1573,41 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                             const SizedBox(width: 8),
                                             ElevatedButton.icon(
                                               style: ElevatedButton.styleFrom(
-                                                backgroundColor: DashboardColors.neonGreen,
+                                                backgroundColor:
+                                                    DashboardColors.neonGreen,
                                                 foregroundColor: Colors.black,
-                                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 14,
+                                                        vertical: 12),
+                                                shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            8)),
                                               ),
-                                              icon: const Icon(Icons.add_rounded, size: 16),
-                                              label: const Text('Add', style: TextStyle(fontWeight: FontWeight.bold)),
+                                              icon: const Icon(
+                                                  Icons.add_rounded,
+                                                  size: 16),
+                                              label: const Text('Add',
+                                                  style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold)),
                                               onPressed: () {
-                                                final trimmed = imeiInputCtrl.text.trim().toUpperCase();
+                                                final trimmed = imeiInputCtrl
+                                                    .text
+                                                    .trim()
+                                                    .toUpperCase();
                                                 if (trimmed.isEmpty) return;
-                                                if (enteredImeis.contains(trimmed)) {
-                                                  TekFeedback.error('IMEI "$trimmed" is already in the list');
+                                                if (enteredImeis
+                                                    .contains(trimmed)) {
+                                                  TekFeedback.error(
+                                                      'IMEI "$trimmed" is already in the list');
                                                   return;
                                                 }
-                                                if (enteredImeis.length >= qty) {
-                                                  TekFeedback.error('Cannot add more than $qty IMEIs');
+                                                if (enteredImeis.length >=
+                                                    qty) {
+                                                  TekFeedback.error(
+                                                      'Cannot add more than $qty IMEIs');
                                                   return;
                                                 }
                                                 setDrawerState(() {
@@ -1433,50 +1619,88 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                             const SizedBox(width: 8),
                                             OutlinedButton.icon(
                                               style: OutlinedButton.styleFrom(
-                                                foregroundColor: DashboardColors.neonBlue,
-                                                side: const BorderSide(color: DashboardColors.neonBlue),
-                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                foregroundColor:
+                                                    DashboardColors.neonBlue,
+                                                side: const BorderSide(
+                                                    color: DashboardColors
+                                                        .neonBlue),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 10,
+                                                        vertical: 12),
+                                                shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            8)),
                                               ),
-                                              icon: const Icon(Icons.paste_rounded, size: 16),
+                                              icon: const Icon(
+                                                  Icons.paste_rounded,
+                                                  size: 16),
                                               label: const Text('Paste List'),
                                               onPressed: () async {
-                                                final bulkCtrl = TextEditingController();
-                                                final res = await showDialog<String>(
+                                                final bulkCtrl =
+                                                    TextEditingController();
+                                                final res =
+                                                    await showDialog<String>(
                                                   context: context,
-                                                  builder: (bCtx) => AlertDialog(
-                                                    backgroundColor: const Color(0xFF101846),
-                                                    title: const Text('Paste Multiple IMEIs', style: TextStyle(color: Colors.white)),
+                                                  builder: (bCtx) =>
+                                                      AlertDialog(
+                                                    backgroundColor:
+                                                        const Color(0xFF101846),
+                                                    title: const Text(
+                                                        'Paste Multiple IMEIs',
+                                                        style: TextStyle(
+                                                            color:
+                                                                Colors.white)),
                                                     content: TextField(
                                                       controller: bulkCtrl,
                                                       maxLines: 6,
-                                                      style: const TextStyle(color: Colors.white),
-                                                      decoration: const InputDecoration(
-                                                        hintText: 'Paste IMEIs separated by commas, spaces, or newlines...',
-                                                        hintStyle: TextStyle(color: DashboardColors.textMuted),
+                                                      style: const TextStyle(
+                                                          color: Colors.white),
+                                                      decoration:
+                                                          const InputDecoration(
+                                                        hintText:
+                                                            'Paste IMEIs separated by commas, spaces, or newlines...',
+                                                        hintStyle: TextStyle(
+                                                            color:
+                                                                DashboardColors
+                                                                    .textMuted),
                                                       ),
                                                     ),
                                                     actions: [
                                                       TextButton(
-                                                        onPressed: () => Navigator.pop(bCtx),
-                                                        child: const Text('Cancel'),
+                                                        onPressed: () =>
+                                                            Navigator.pop(bCtx),
+                                                        child: const Text(
+                                                            'Cancel'),
                                                       ),
                                                       ElevatedButton(
-                                                        onPressed: () => Navigator.pop(bCtx, bulkCtrl.text),
-                                                        child: const Text('Add All'),
+                                                        onPressed: () =>
+                                                            Navigator.pop(bCtx,
+                                                                bulkCtrl.text),
+                                                        child: const Text(
+                                                            'Add All'),
                                                       ),
                                                     ],
                                                   ),
                                                 );
 
-                                                if (res != null && res.trim().isNotEmpty) {
+                                                if (res != null &&
+                                                    res.trim().isNotEmpty) {
                                                   final tokens = res
-                                                      .split(RegExp(r'[\r\n,\s]+'))
-                                                      .map((e) => e.trim().toUpperCase())
-                                                      .where((e) => e.isNotEmpty);
+                                                      .split(
+                                                          RegExp(r'[\r\n,\s]+'))
+                                                      .map((e) => e
+                                                          .trim()
+                                                          .toUpperCase())
+                                                      .where(
+                                                          (e) => e.isNotEmpty);
                                                   setDrawerState(() {
                                                     for (final t in tokens) {
-                                                      if (!enteredImeis.contains(t) && enteredImeis.length < qty) {
+                                                      if (!enteredImeis
+                                                              .contains(t) &&
+                                                          enteredImeis.length <
+                                                              qty) {
                                                         enteredImeis.add(t);
                                                       }
                                                     }
@@ -1488,22 +1712,30 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                         ),
                                         const SizedBox(height: 10),
                                         Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
                                           children: [
                                             Text(
                                               'Entered IMEIs (${enteredImeis.length} of $qty required):',
                                               style: TextStyle(
-                                                color: enteredImeis.length == qty
+                                                color: enteredImeis.length ==
+                                                        qty
                                                     ? DashboardColors.neonGreen
-                                                    : DashboardColors.alertOrange,
+                                                    : DashboardColors
+                                                        .alertOrange,
                                                 fontSize: 12,
                                                 fontWeight: FontWeight.bold,
                                               ),
                                             ),
                                             if (enteredImeis.isNotEmpty)
                                               TextButton(
-                                                onPressed: () => setDrawerState(() => enteredImeis.clear()),
-                                                child: const Text('Clear All', style: TextStyle(color: DashboardColors.alertOrange, fontSize: 11)),
+                                                onPressed: () => setDrawerState(
+                                                    () => enteredImeis.clear()),
+                                                child: const Text('Clear All',
+                                                    style: TextStyle(
+                                                        color: DashboardColors
+                                                            .alertOrange,
+                                                        fontSize: 11)),
                                               ),
                                           ],
                                         ),
@@ -1514,10 +1746,22 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                             runSpacing: 6,
                                             children: enteredImeis.map((imei) {
                                               return Chip(
-                                                label: Text(imei, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
-                                                backgroundColor: DashboardColors.neonBlue.withValues(alpha: 0.15),
-                                                deleteIcon: const Icon(Icons.close, size: 14, color: Colors.white70),
-                                                onDeleted: () => setDrawerState(() => enteredImeis.remove(imei)),
+                                                label: Text(imei,
+                                                    style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.w600)),
+                                                backgroundColor: DashboardColors
+                                                    .neonBlue
+                                                    .withValues(alpha: 0.15),
+                                                deleteIcon: const Icon(
+                                                    Icons.close,
+                                                    size: 14,
+                                                    color: Colors.white70),
+                                                onDeleted: () => setDrawerState(
+                                                    () => enteredImeis
+                                                        .remove(imei)),
                                               );
                                             }).toList(),
                                           ),
@@ -1529,7 +1773,10 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                 const SizedBox(height: 16),
 
                                 // Supplier Warranty Duration Selection
-                                Text('Supplier Warranty Duration', style: DashboardTypography.poppins(fontSize: 14, fontWeight: FontWeight.bold)),
+                                Text('Supplier Warranty Duration',
+                                    style: DashboardTypography.poppins(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold)),
                                 const SizedBox(height: 8),
                                 Wrap(
                                   spacing: 8,
@@ -1544,27 +1791,36 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                   ].map((dur) {
                                     final isSel = selectedWarranty == dur;
                                     return ChoiceChip(
-                                      label: Text(dur == ItemWarrantyDuration.noWarranty ? '0 Months (No Warranty)' : dur),
+                                      label: Text(
+                                          dur == ItemWarrantyDuration.noWarranty
+                                              ? '0 Months (No Warranty)'
+                                              : dur),
                                       selected: isSel,
                                       selectedColor: DashboardColors.neonBlue,
-                                      backgroundColor: Colors.white.withValues(alpha: 0.05),
+                                      backgroundColor:
+                                          Colors.white.withValues(alpha: 0.05),
                                       labelStyle: TextStyle(
-                                        color: isSel ? Colors.black : Colors.white,
-                                        fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                                        color:
+                                            isSel ? Colors.black : Colors.white,
+                                        fontWeight: isSel
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
                                         fontSize: 12,
                                       ),
                                       onSelected: (sel) {
                                         if (sel) {
                                           setDrawerState(() {
                                             selectedWarranty = dur;
-                                            hasWarranty = dur != ItemWarrantyDuration.noWarranty;
+                                            hasWarranty = dur !=
+                                                ItemWarrantyDuration.noWarranty;
                                           });
                                         }
                                       },
                                     );
                                   }).toList(),
                                 ),
-                                if (selectedWarranty == ItemWarrantyDuration.custom) ...[
+                                if (selectedWarranty ==
+                                    ItemWarrantyDuration.custom) ...[
                                   const SizedBox(height: 10),
                                   _buildDialogTextField(
                                     controller: customDaysCtrl,
@@ -1577,19 +1833,28 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                 if (hasWarranty && expiry != null) ...[
                                   const SizedBox(height: 10),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 8),
                                     decoration: BoxDecoration(
-                                      color: DashboardColors.neonGreen.withValues(alpha: 0.12),
+                                      color: DashboardColors.neonGreen
+                                          .withValues(alpha: 0.12),
                                       borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: DashboardColors.neonGreen.withValues(alpha: 0.3)),
+                                      border: Border.all(
+                                          color: DashboardColors.neonGreen
+                                              .withValues(alpha: 0.3)),
                                     ),
                                     child: Row(
                                       children: [
-                                        const Icon(Icons.verified_rounded, size: 16, color: DashboardColors.neonGreen),
+                                        const Icon(Icons.verified_rounded,
+                                            size: 16,
+                                            color: DashboardColors.neonGreen),
                                         const SizedBox(width: 8),
                                         Text(
                                           'Auto Expiry: ${DateFormat("dd MMM yyyy").format(expiry)} (from ${DateFormat("dd-MM-yyyy").format(_purchaseDate)})',
-                                          style: const TextStyle(color: DashboardColors.neonGreen, fontSize: 12, fontWeight: FontWeight.w600),
+                                          style: const TextStyle(
+                                              color: DashboardColors.neonGreen,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600),
                                         ),
                                       ],
                                     ),
@@ -1603,7 +1868,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
 
                       // Drawer Footer Actions
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 14),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.03),
                           border: const Border(
@@ -1615,23 +1881,33 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                           children: [
                             TextButton(
                               onPressed: () => Navigator.pop(ctx),
-                              child: const Text('Cancel', style: TextStyle(color: DashboardColors.textMuted)),
+                              child: const Text('Cancel',
+                                  style: TextStyle(
+                                      color: DashboardColors.textMuted)),
                             ),
                             const SizedBox(width: 12),
                             ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: DashboardColors.neonGreen,
                                 foregroundColor: Colors.black,
-                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 20, vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10)),
                               ),
-                              icon: const Icon(Icons.check_circle_rounded, size: 18),
-                              label: const Text('Save & Mark Matched', style: TextStyle(fontWeight: FontWeight.bold)),
+                              icon: const Icon(Icons.check_circle_rounded,
+                                  size: 18),
+                              label: const Text('Save & Mark Matched',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.bold)),
                               onPressed: () {
-                                if (drawerFormKey.currentState?.validate() != true) return;
+                                if (drawerFormKey.currentState?.validate() !=
+                                    true) return;
 
-                                if (imeiRequired && enteredImeis.length != qty) {
-                                  TekFeedback.error('Please enter exactly $qty IMEIs (currently entered ${enteredImeis.length})');
+                                if (imeiRequired &&
+                                    enteredImeis.length != qty) {
+                                  TekFeedback.error(
+                                      'Please enter exactly $qty IMEIs (currently entered ${enteredImeis.length})');
                                   return;
                                 }
 
@@ -1640,21 +1916,30 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                   for (final k in Db.items.keys) {
                                     final raw = Db.items.get(k);
                                     if (raw is Map) {
-                                      final b = raw['barcode']?.toString().trim();
+                                      final b =
+                                          raw['barcode']?.toString().trim();
                                       final s = raw['sku']?.toString().trim();
                                       final c = raw['code']?.toString().trim();
-                                      if ((b == enteredBarcode || s == enteredBarcode || c == enteredBarcode) &&
+                                      if ((b == enteredBarcode ||
+                                              s == enteredBarcode ||
+                                              c == enteredBarcode) &&
                                           raw['_id'] != item.matchedProductId) {
-                                        TekFeedback.error('Barcode/SKU "$enteredBarcode" already belongs to "${raw['name']}". Please generate or use a unique barcode.');
+                                        TekFeedback.error(
+                                            'Barcode/SKU "$enteredBarcode" already belongs to "${raw['name']}". Please generate or use a unique barcode.');
                                         return;
                                       }
                                     }
                                   }
                                 }
 
-                                final rate = double.tryParse(purchaseRateCtrl.text) ?? item.purchaseRate;
-                                final sPrice = double.tryParse(sellingPriceCtrl.text) ?? 0.0;
-                                final mrpVal = double.tryParse(mrpCtrl.text) ?? (sPrice > 0 ? sPrice : rate);
+                                final rate =
+                                    double.tryParse(purchaseRateCtrl.text) ??
+                                        item.purchaseRate;
+                                final sPrice =
+                                    double.tryParse(sellingPriceCtrl.text) ??
+                                        0.0;
+                                final mrpVal = double.tryParse(mrpCtrl.text) ??
+                                    (sPrice > 0 ? sPrice : rate);
 
                                 final updated = item.copyWith(
                                   name: nameCtrl.text.trim(),
@@ -1669,13 +1954,16 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                   taxPercent: selectedGstRate,
                                   imeiRequired: imeiRequired,
                                   serialNumbers: enteredImeis,
-                                  imeiOrSerial: enteredImeis.isNotEmpty ? enteredImeis.first : null,
+                                  imeiOrSerial: enteredImeis.isNotEmpty
+                                      ? enteredImeis.first
+                                      : null,
                                   warrantyAvailable: hasWarranty,
                                   warrantyDuration: selectedWarranty,
                                   warrantyExpiryDate: expiry,
                                   isNewProduct: true,
                                   isStagedReady: true,
-                                  matchStatusOverride: ProductMatchStatus.matched,
+                                  matchStatusOverride:
+                                      ProductMatchStatus.matched,
                                   matchNotes: 'Registered via Quick Register',
                                   matchedProductName: nameCtrl.text.trim(),
                                 );
@@ -1685,7 +1973,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                 });
 
                                 Navigator.pop(ctx);
-                                TekFeedback.success('Product "${nameCtrl.text}" saved and marked ready!');
+                                TekFeedback.success(
+                                    'Product "${nameCtrl.text}" saved and marked ready!');
                               },
                             ),
                           ],
@@ -1726,7 +2015,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                 color: DashboardColors.alertOrange.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.warning_amber_rounded, color: DashboardColors.alertOrange, size: 22),
+              child: const Icon(Icons.warning_amber_rounded,
+                  color: DashboardColors.alertOrange, size: 22),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1735,11 +2025,13 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                 children: [
                   Text(
                     'Review Required: Product Anomaly',
-                    style: DashboardTypography.poppins(fontSize: 16, fontWeight: FontWeight.w700),
+                    style: DashboardTypography.poppins(
+                        fontSize: 16, fontWeight: FontWeight.w700),
                   ),
                   Text(
                     'Row #${itemIndex + 1}: ${item.itemName}',
-                    style: const TextStyle(fontSize: 12, color: DashboardColors.textMuted),
+                    style: const TextStyle(
+                        fontSize: 12, color: DashboardColors.textMuted),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
@@ -1758,28 +2050,40 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                 decoration: BoxDecoration(
                   color: DashboardColors.alertOrange.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: DashboardColors.alertOrange.withValues(alpha: 0.4)),
+                  border: Border.all(
+                      color:
+                          DashboardColors.alertOrange.withValues(alpha: 0.4)),
                 ),
                 child: Text(
-                  item.matchNotes ?? 'Rate or catalog anomaly detected. Please verify before continuing.',
+                  item.matchNotes ??
+                      'Rate or catalog anomaly detected. Please verify before continuing.',
                   style: const TextStyle(color: Colors.white, fontSize: 13),
                 ),
               ),
               const SizedBox(height: 16),
               const Text(
                 'How would you like to resolve this?',
-                style: TextStyle(color: DashboardColors.textLight, fontWeight: FontWeight.w600, fontSize: 13),
+                style: TextStyle(
+                    color: DashboardColors.textLight,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13),
               ),
               const SizedBox(height: 12),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.check_circle_outline_rounded, color: DashboardColors.neonGreen),
-                title: const Text('Accept & Override Anomaly', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                leading: const Icon(Icons.check_circle_outline_rounded,
+                    color: DashboardColors.neonGreen),
+                title: const Text('Accept & Override Anomaly',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold)),
                 subtitle: Text(
                   item.matchedProductName != null
                       ? 'Keep matched to "${item.matchedProductName}" and proceed with invoice rate (₹${item.purchaseRate.toStringAsFixed(2)})'
                       : 'Proceed with current item details',
-                  style: const TextStyle(color: DashboardColors.textMuted, fontSize: 11),
+                  style: const TextStyle(
+                      color: DashboardColors.textMuted, fontSize: 11),
                 ),
                 onTap: () {
                   setState(() {
@@ -1795,9 +2099,17 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
               const Divider(color: Color(0x22FFFFFF)),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.app_registration_rounded, color: DashboardColors.neonBlue),
-                title: const Text('Register as Separate / New Product', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                subtitle: const Text('Open Quick Register drawer to stage this as a distinct inventory SKU', style: TextStyle(color: DashboardColors.textMuted, fontSize: 11)),
+                leading: const Icon(Icons.app_registration_rounded,
+                    color: DashboardColors.neonBlue),
+                title: const Text('Register as Separate / New Product',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold)),
+                subtitle: const Text(
+                    'Open Quick Register drawer to stage this as a distinct inventory SKU',
+                    style: TextStyle(
+                        color: DashboardColors.textMuted, fontSize: 11)),
                 onTap: () {
                   Navigator.pop(ctx);
                   _showInlineProductRegistrationDialog(itemIndex);
@@ -1806,9 +2118,17 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
               const Divider(color: Color(0x22FFFFFF)),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.link_rounded, color: DashboardColors.neonOrange),
-                title: const Text('Link to a Different Existing Product', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                subtitle: const Text('Search inventory to link this row with another item', style: TextStyle(color: DashboardColors.textMuted, fontSize: 11)),
+                leading: const Icon(Icons.link_rounded,
+                    color: DashboardColors.neonOrange),
+                title: const Text('Link to a Different Existing Product',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold)),
+                subtitle: const Text(
+                    'Search inventory to link this row with another item',
+                    style: TextStyle(
+                        color: DashboardColors.textMuted, fontSize: 11)),
                 onTap: () {
                   Navigator.pop(ctx);
                   _showAddExistingItemDialog();
@@ -1820,7 +2140,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close', style: TextStyle(color: DashboardColors.textMuted)),
+            child: const Text('Close',
+                style: TextStyle(color: DashboardColors.textMuted)),
           ),
         ],
       ),
@@ -1831,7 +2152,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
   // Serialized Stock, Dual-IMEI & Supplier Warranty Dialog (PHASE 3)
   // ---------------------------------------------------------------------------
 
-  Widget _buildLuhnBadge(String status, {String labelPrefix = '', bool compact = false}) {
+  Widget _buildLuhnBadge(String status,
+      {String labelPrefix = '', bool compact = false}) {
     Color bg;
     Color border;
     Color fg;
@@ -1865,7 +2187,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
     }
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 8, vertical: compact ? 2 : 4),
+      padding: EdgeInsets.symmetric(
+          horizontal: compact ? 6 : 8, vertical: compact ? 2 : 4),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(4),
@@ -1876,7 +2199,11 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
         children: [
           Icon(icon, size: compact ? 10 : 12, color: fg),
           const SizedBox(width: 4),
-          Text('$labelPrefix$text', style: TextStyle(color: fg, fontSize: compact ? 10 : 11, fontWeight: FontWeight.bold)),
+          Text('$labelPrefix$text',
+              style: TextStyle(
+                  color: fg,
+                  fontSize: compact ? 10 : 11,
+                  fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -1924,7 +2251,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
           final existing = ImeiValidator.extractImeisFromUnit(u);
           for (final n in newImeis) {
             if (existing.contains(n)) {
-              TekFeedback.error('IMEI "$n" is already entered in Row #${i + 1} (${_items[i].itemName})');
+              TekFeedback.error(
+                  'IMEI "$n" is already entered in Row #${i + 1} (${_items[i].itemName})');
               return;
             }
           }
@@ -1934,14 +2262,18 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
 
     // Check against Firestore stock_units in stock
     try {
-      final inStockDup = await PurchaseBillService.instance.checkDuplicateImeisInStock(newImeis);
+      final inStockDup = await PurchaseBillService.instance
+          .checkDuplicateImeisInStock(newImeis);
       if (inStockDup.isNotEmpty) {
-        TekFeedback.error('Warning: IMEI "${inStockDup.first}" is already IN_STOCK in inventory!');
+        TekFeedback.error(
+            'Warning: IMEI "${inStockDup.first}" is already IN_STOCK in inventory!');
         return;
       }
     } catch (_) {}
 
-    final formatted = isDualImei ? ImeiValidator.formatDualImei(im1, im2.isNotEmpty ? im2 : null) : im1;
+    final formatted = isDualImei
+        ? ImeiValidator.formatDualImei(im1, im2.isNotEmpty ? im2 : null)
+        : im1;
 
     setDialogState(() {
       enteredUnits.add(formatted);
@@ -1966,7 +2298,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
           borderRadius: BorderRadius.circular(16),
           side: const BorderSide(color: DashboardColors.glassBorderHover),
         ),
-        title: const Text('Bulk Paste IMEIs / Serials', style: TextStyle(color: Colors.white)),
+        title: const Text('Bulk Paste IMEIs / Serials',
+            style: TextStyle(color: Colors.white)),
         content: SizedBox(
           width: 480,
           child: Column(
@@ -1977,7 +2310,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                 isDualImei
                     ? 'Paste one unit per line. For Dual-SIM, separate IMEI 1 and IMEI 2 with a comma, slash, or tab.'
                     : 'Paste IMEIs separated by newlines, commas, or spaces.',
-                style: const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
+                style: const TextStyle(
+                    color: DashboardColors.textMuted, fontSize: 12),
               ),
               const SizedBox(height: 10),
               TextField(
@@ -1985,7 +2319,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                 maxLines: 8,
                 style: const TextStyle(color: Colors.white, fontSize: 13),
                 decoration: const InputDecoration(
-                  hintText: '864501047123456\n864501047123458, 864501047123459\n...',
+                  hintText:
+                      '864501047123456\n864501047123458, 864501047123459\n...',
                   hintStyle: TextStyle(color: DashboardColors.textMuted),
                   filled: true,
                   fillColor: Color(0x1AFFFFFF),
@@ -1997,7 +2332,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(bCtx),
-            child: const Text('Cancel', style: TextStyle(color: DashboardColors.textMuted)),
+            child: const Text('Cancel',
+                style: TextStyle(color: DashboardColors.textMuted)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -2005,14 +2341,18 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
               foregroundColor: Colors.black,
             ),
             onPressed: () => Navigator.pop(bCtx, bulkCtrl.text),
-            child: const Text('Add All Units', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('Add All Units',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
 
     if (res != null && res.trim().isNotEmpty) {
-      final lines = res.split(RegExp(r'[\r\n]+')).map((e) => e.trim()).where((e) => e.isNotEmpty);
+      final lines = res
+          .split(RegExp(r'[\r\n]+'))
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty);
       setDialogState(() {
         for (final line in lines) {
           if (enteredUnits.length >= qty) break;
@@ -2038,7 +2378,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
 
     final imei1Ctrl = TextEditingController();
     final imei2Ctrl = TextEditingController();
-    final customDaysCtrl = TextEditingController(text: (item.customWarrantyDays ?? '').toString());
+    final customDaysCtrl =
+        TextEditingController(text: (item.customWarrantyDays ?? '').toString());
 
     final enteredUnits = List<String>.from(item.serialNumbers);
 
@@ -2046,10 +2387,12 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
       isDualImei = true;
     }
 
-    String selectedWarranty = item.warrantyDuration.isNotEmpty && item.warrantyDuration != ItemWarrantyDuration.noWarranty
+    String selectedWarranty = item.warrantyDuration.isNotEmpty &&
+            item.warrantyDuration != ItemWarrantyDuration.noWarranty
         ? item.warrantyDuration
         : ItemWarrantyDuration.months12;
-    bool hasWarranty = item.hasWarranty || selectedWarranty != ItemWarrantyDuration.noWarranty;
+    bool hasWarranty =
+        item.hasWarranty || selectedWarranty != ItemWarrantyDuration.noWarranty;
     int qty = item.quantity > 0 ? item.quantity : 1;
 
     showDialog(
@@ -2085,7 +2428,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                     color: DashboardColors.neonBlue.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.qr_code_scanner_rounded, color: DashboardColors.neonBlue, size: 22),
+                  child: const Icon(Icons.qr_code_scanner_rounded,
+                      color: DashboardColors.neonBlue, size: 22),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -2094,11 +2438,13 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                     children: [
                       Text(
                         'Serialized Stock & Supplier Warranty',
-                        style: DashboardTypography.poppins(fontSize: 16, fontWeight: FontWeight.w700),
+                        style: DashboardTypography.poppins(
+                            fontSize: 16, fontWeight: FontWeight.w700),
                       ),
                       Text(
                         'Row #${itemIndex + 1}: ${item.itemName} (Requires $qty unique units)',
-                        style: const TextStyle(fontSize: 12, color: DashboardColors.textMuted),
+                        style: const TextStyle(
+                            fontSize: 12, color: DashboardColors.textMuted),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
@@ -2128,11 +2474,16 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                             children: [
                               const Row(
                                 children: [
-                                  Icon(Icons.inventory_2_rounded, size: 18, color: DashboardColors.neonBlue),
+                                  Icon(Icons.inventory_2_rounded,
+                                      size: 18,
+                                      color: DashboardColors.neonBlue),
                                   SizedBox(width: 8),
                                   Text(
                                     'Enable Serial / IMEI Tracking',
-                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13),
                                   ),
                                 ],
                               ),
@@ -2152,11 +2503,15 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                               children: [
                                 const Row(
                                   children: [
-                                    Icon(Icons.sim_card_rounded, size: 18, color: DashboardColors.neonPurple),
+                                    Icon(Icons.sim_card_rounded,
+                                        size: 18,
+                                        color: DashboardColors.neonPurple),
                                     SizedBox(width: 8),
                                     Text(
                                       'Dual-SIM Device (IMEI 1 & IMEI 2)',
-                                      style: TextStyle(color: Colors.white70, fontSize: 12.5),
+                                      style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 12.5),
                                     ),
                                   ],
                                 ),
@@ -2180,9 +2535,12 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: DashboardColors.neonBlue.withValues(alpha: 0.05),
+                          color:
+                              DashboardColors.neonBlue.withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.3)),
+                          border: Border.all(
+                              color: DashboardColors.neonBlue
+                                  .withValues(alpha: 0.3)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2192,18 +2550,29 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                 Expanded(
                                   child: TextFormField(
                                     controller: imei1Ctrl,
-                                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                                    style: const TextStyle(
+                                        color: Colors.white, fontSize: 13),
                                     decoration: InputDecoration(
-                                      labelText: isDualImei ? 'Primary IMEI (IMEI 1) *' : 'IMEI / Serial Number *',
-                                      labelStyle: const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
+                                      labelText: isDualImei
+                                          ? 'Primary IMEI (IMEI 1) *'
+                                          : 'IMEI / Serial Number *',
+                                      labelStyle: const TextStyle(
+                                          color: DashboardColors.textMuted,
+                                          fontSize: 12),
                                       hintText: 'e.g. 864501047123456',
-                                      hintStyle: const TextStyle(color: DashboardColors.textMuted, fontSize: 11),
+                                      hintStyle: const TextStyle(
+                                          color: DashboardColors.textMuted,
+                                          fontSize: 11),
                                       filled: true,
-                                      fillColor: Colors.white.withValues(alpha: 0.05),
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                      fillColor:
+                                          Colors.white.withValues(alpha: 0.05),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 10),
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(color: DashboardColors.glassBorder),
+                                        borderSide: const BorderSide(
+                                            color: DashboardColors.glassBorder),
                                       ),
                                     ),
                                     onChanged: (_) => setDialogState(() {}),
@@ -2225,18 +2594,30 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                   Expanded(
                                     child: TextFormField(
                                       controller: imei2Ctrl,
-                                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                                      style: const TextStyle(
+                                          color: Colors.white, fontSize: 13),
                                       decoration: InputDecoration(
-                                        labelText: 'Secondary IMEI (IMEI 2) [Optional]',
-                                        labelStyle: const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
+                                        labelText:
+                                            'Secondary IMEI (IMEI 2) [Optional]',
+                                        labelStyle: const TextStyle(
+                                            color: DashboardColors.textMuted,
+                                            fontSize: 12),
                                         hintText: 'e.g. 864501047123457',
-                                        hintStyle: const TextStyle(color: DashboardColors.textMuted, fontSize: 11),
+                                        hintStyle: const TextStyle(
+                                            color: DashboardColors.textMuted,
+                                            fontSize: 11),
                                         filled: true,
-                                        fillColor: Colors.white.withValues(alpha: 0.05),
-                                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                        fillColor: Colors.white
+                                            .withValues(alpha: 0.05),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 10),
                                         border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                          borderSide: const BorderSide(color: DashboardColors.glassBorder),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          borderSide: const BorderSide(
+                                              color:
+                                                  DashboardColors.glassBorder),
                                         ),
                                       ),
                                       onChanged: (_) => setDialogState(() {}),
@@ -2264,10 +2645,14 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    if (imei1Text.isNotEmpty) _buildLuhnBadge(imei1Status, labelPrefix: isDualImei ? 'IMEI 1: ' : ''),
+                                    if (imei1Text.isNotEmpty)
+                                      _buildLuhnBadge(imei1Status,
+                                          labelPrefix:
+                                              isDualImei ? 'IMEI 1: ' : ''),
                                     if (isDualImei && imei2Text.isNotEmpty) ...[
                                       const SizedBox(width: 8),
-                                      _buildLuhnBadge(imei2Status, labelPrefix: 'IMEI 2: '),
+                                      _buildLuhnBadge(imei2Status,
+                                          labelPrefix: 'IMEI 2: '),
                                     ],
                                   ],
                                 ),
@@ -2275,27 +2660,47 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                   children: [
                                     OutlinedButton.icon(
                                       style: OutlinedButton.styleFrom(
-                                        foregroundColor: DashboardColors.neonBlue,
-                                        side: const BorderSide(color: DashboardColors.neonBlue),
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        foregroundColor:
+                                            DashboardColors.neonBlue,
+                                        side: const BorderSide(
+                                            color: DashboardColors.neonBlue),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 10, vertical: 8),
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(8)),
                                       ),
-                                      icon: const Icon(Icons.paste_rounded, size: 14),
-                                      label: const Text('Bulk Paste', style: TextStyle(fontSize: 12)),
+                                      icon: const Icon(Icons.paste_rounded,
+                                          size: 14),
+                                      label: const Text('Bulk Paste',
+                                          style: TextStyle(fontSize: 12)),
                                       onPressed: () async {
-                                        await _handleBulkImeiPaste(setDialogState, enteredUnits, qty, isDualImei, itemIndex);
+                                        await _handleBulkImeiPaste(
+                                            setDialogState,
+                                            enteredUnits,
+                                            qty,
+                                            isDualImei,
+                                            itemIndex);
                                       },
                                     ),
                                     const SizedBox(width: 8),
                                     ElevatedButton.icon(
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: DashboardColors.neonGreen,
+                                        backgroundColor:
+                                            DashboardColors.neonGreen,
                                         foregroundColor: Colors.black,
-                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 14, vertical: 8),
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(8)),
                                       ),
-                                      icon: const Icon(Icons.add_rounded, size: 16),
-                                      label: const Text('Add Unit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                      icon: const Icon(Icons.add_rounded,
+                                          size: 16),
+                                      label: const Text('Add Unit',
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12)),
                                       onPressed: () async {
                                         await _addSerializedUnit(
                                           setDialogState,
@@ -2324,15 +2729,21 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                           Text(
                             'Entered Units: ${enteredUnits.length} of $qty required',
                             style: TextStyle(
-                              color: enteredUnits.length == qty ? DashboardColors.neonGreen : DashboardColors.alertOrange,
+                              color: enteredUnits.length == qty
+                                  ? DashboardColors.neonGreen
+                                  : DashboardColors.alertOrange,
                               fontWeight: FontWeight.bold,
                               fontSize: 13,
                             ),
                           ),
                           if (enteredUnits.isNotEmpty)
                             TextButton(
-                              onPressed: () => setDialogState(() => enteredUnits.clear()),
-                              child: const Text('Clear All', style: TextStyle(color: DashboardColors.alertOrange, fontSize: 11)),
+                              onPressed: () =>
+                                  setDialogState(() => enteredUnits.clear()),
+                              child: const Text('Clear All',
+                                  style: TextStyle(
+                                      color: DashboardColors.alertOrange,
+                                      fontSize: 11)),
                             ),
                         ],
                       ),
@@ -2346,8 +2757,11 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                             border: Border.all(color: const Color(0x1AFFFFFF)),
                           ),
                           child: const Center(
-                            child: Text('No IMEIs entered yet. Enter above or use Bulk Paste.',
-                                style: TextStyle(color: DashboardColors.textMuted, fontSize: 12)),
+                            child: Text(
+                                'No IMEIs entered yet. Enter above or use Bulk Paste.',
+                                style: TextStyle(
+                                    color: DashboardColors.textMuted,
+                                    fontSize: 12)),
                           ),
                         )
                       else
@@ -2357,15 +2771,18 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.03),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: DashboardColors.glassBorder),
+                            border:
+                                Border.all(color: DashboardColors.glassBorder),
                           ),
                           child: ListView.separated(
                             shrinkWrap: true,
                             itemCount: enteredUnits.length,
-                            separatorBuilder: (_, __) => const Divider(color: Color(0x1AFFFFFF), height: 8),
+                            separatorBuilder: (_, __) => const Divider(
+                                color: Color(0x1AFFFFFF), height: 8),
                             itemBuilder: (context, uIdx) {
                               final u = enteredUnits[uIdx];
-                              final imeis = ImeiValidator.extractImeisFromUnit(u);
+                              final imeis =
+                                  ImeiValidator.extractImeisFromUnit(u);
                               return Row(
                                 children: [
                                   Container(
@@ -2373,30 +2790,44 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                     height: 24,
                                     alignment: Alignment.center,
                                     decoration: BoxDecoration(
-                                      color: DashboardColors.neonBlue.withValues(alpha: 0.15),
+                                      color: DashboardColors.neonBlue
+                                          .withValues(alpha: 0.15),
                                       shape: BoxShape.circle,
                                     ),
                                     child: Text('${uIdx + 1}',
-                                        style: const TextStyle(color: DashboardColors.neonBlue, fontSize: 11, fontWeight: FontWeight.bold)),
+                                        style: const TextStyle(
+                                            color: DashboardColors.neonBlue,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold)),
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: Wrap(
                                       spacing: 8,
                                       runSpacing: 4,
-                                      crossAxisAlignment: WrapCrossAlignment.center,
+                                      crossAxisAlignment:
+                                          WrapCrossAlignment.center,
                                       children: [
-                                        Text(u, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                                        Text(u,
+                                            style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600)),
                                         ...imeis.map((im) {
-                                          final cat = ImeiValidator.categorizeIdentifier(im);
-                                          return _buildLuhnBadge(cat, compact: true);
+                                          final cat = ImeiValidator
+                                              .categorizeIdentifier(im);
+                                          return _buildLuhnBadge(cat,
+                                              compact: true);
                                         }),
                                       ],
                                     ),
                                   ),
                                   IconButton(
-                                    icon: const Icon(Icons.close_rounded, size: 16, color: DashboardColors.alertOrange),
-                                    onPressed: () => setDialogState(() => enteredUnits.removeAt(uIdx)),
+                                    icon: const Icon(Icons.close_rounded,
+                                        size: 16,
+                                        color: DashboardColors.alertOrange),
+                                    onPressed: () => setDialogState(
+                                        () => enteredUnits.removeAt(uIdx)),
                                     tooltip: 'Remove',
                                   ),
                                 ],
@@ -2408,7 +2839,9 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                     ],
 
                     // Supplier Warranty Duration
-                    Text('Supplier Warranty Duration', style: DashboardTypography.poppins(fontSize: 14, fontWeight: FontWeight.bold)),
+                    Text('Supplier Warranty Duration',
+                        style: DashboardTypography.poppins(
+                            fontSize: 14, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
@@ -2423,20 +2856,24 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                       ].map((dur) {
                         final isSel = selectedWarranty == dur;
                         return ChoiceChip(
-                          label: Text(dur == ItemWarrantyDuration.noWarranty ? '0 Months (No Warranty)' : dur),
+                          label: Text(dur == ItemWarrantyDuration.noWarranty
+                              ? '0 Months (No Warranty)'
+                              : dur),
                           selected: isSel,
                           selectedColor: DashboardColors.neonBlue,
                           backgroundColor: Colors.white.withValues(alpha: 0.05),
                           labelStyle: TextStyle(
                             color: isSel ? Colors.black : Colors.white,
-                            fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                            fontWeight:
+                                isSel ? FontWeight.bold : FontWeight.normal,
                             fontSize: 12,
                           ),
                           onSelected: (sel) {
                             if (sel) {
                               setDialogState(() {
                                 selectedWarranty = dur;
-                                hasWarranty = dur != ItemWarrantyDuration.noWarranty;
+                                hasWarranty =
+                                    dur != ItemWarrantyDuration.noWarranty;
                               });
                             }
                           },
@@ -2456,19 +2893,27 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                     if (hasWarranty && expiry != null) ...[
                       const SizedBox(height: 10),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
-                          color: DashboardColors.neonGreen.withValues(alpha: 0.12),
+                          color:
+                              DashboardColors.neonGreen.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: DashboardColors.neonGreen.withValues(alpha: 0.3)),
+                          border: Border.all(
+                              color: DashboardColors.neonGreen
+                                  .withValues(alpha: 0.3)),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.verified_rounded, size: 16, color: DashboardColors.neonGreen),
+                            const Icon(Icons.verified_rounded,
+                                size: 16, color: DashboardColors.neonGreen),
                             const SizedBox(width: 8),
                             Text(
                               'Auto Expiry: ${DateFormat("dd MMM yyyy").format(expiry)} (from ${DateFormat("dd-MM-yyyy").format(_purchaseDate)})',
-                              style: const TextStyle(color: DashboardColors.neonGreen, fontSize: 12, fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                  color: DashboardColors.neonGreen,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600),
                             ),
                           ],
                         ),
@@ -2481,27 +2926,33 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel', style: TextStyle(color: DashboardColors.textMuted)),
+                child: const Text('Cancel',
+                    style: TextStyle(color: DashboardColors.textMuted)),
               ),
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: DashboardColors.neonGreen,
                   foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
                 ),
                 icon: const Icon(Icons.check_circle_rounded, size: 18),
-                label: const Text('Save & Apply', style: TextStyle(fontWeight: FontWeight.bold)),
+                label: const Text('Save & Apply',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
                 onPressed: () {
                   if (imeiRequired && enteredUnits.length != qty) {
-                    TekFeedback.error('Please enter exactly $qty unique IMEIs for $qty units (currently entered ${enteredUnits.length})');
+                    TekFeedback.error(
+                        'Please enter exactly $qty unique IMEIs for $qty units (currently entered ${enteredUnits.length})');
                     return;
                   }
 
                   final updated = item.copyWith(
                     imeiRequired: imeiRequired,
                     serialNumbers: enteredUnits,
-                    imeiOrSerial: enteredUnits.isNotEmpty ? enteredUnits.first : null,
+                    imeiOrSerial:
+                        enteredUnits.isNotEmpty ? enteredUnits.first : null,
                     warrantyAvailable: hasWarranty,
                     warrantyDuration: selectedWarranty,
                     customWarrantyDays: customD,
@@ -2513,7 +2964,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                   });
 
                   Navigator.pop(ctx);
-                  TekFeedback.success('Serial/IMEI settings updated for "${item.itemName}"!');
+                  TekFeedback.success(
+                      'Serial/IMEI settings updated for "${item.itemName}"!');
                 },
               ),
             ],
@@ -2541,44 +2993,50 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
     final existingDbItem = (itemKey != null && Db.items.containsKey(itemKey))
         ? Db.items.get(itemKey)
         : null;
-    final isDbMultiUnit = (existingDbItem is Map && existingDbItem['isMultiUnit'] == true) ||
-        name.toLowerCase().contains('paper') ||
-        name.toLowerCase().contains('a4') ||
-        (category?.toLowerCase().contains('consumable') ?? false);
+    final isDbMultiUnit =
+        (existingDbItem is Map && existingDbItem['isMultiUnit'] == true) ||
+            name.toLowerCase().contains('paper') ||
+            name.toLowerCase().contains('a4') ||
+            (category?.toLowerCase().contains('consumable') ?? false);
 
     bool isMultiUnit = existingItem?.isMultiUnit ?? isDbMultiUnit;
     final purchaseUnitCtrl = TextEditingController(
         text: existingItem?.purchaseUnit ??
-            (existingDbItem is Map ? existingDbItem['purchaseUnit']?.toString() : null) ??
+            (existingDbItem is Map
+                ? existingDbItem['purchaseUnit']?.toString()
+                : null) ??
             'Bundle');
     final baseUnitCtrl = TextEditingController(
         text: existingItem?.baseUnit ??
-            (existingDbItem is Map ? existingDbItem['baseUnit']?.toString() : null) ??
+            (existingDbItem is Map
+                ? existingDbItem['baseUnit']?.toString()
+                : null) ??
             'Sheet');
     final convFactorCtrl = TextEditingController(
         text: (existingItem?.conversionFactor ??
-                (existingDbItem is Map ? existingDbItem['conversionFactor'] : null) ??
+                (existingDbItem is Map
+                    ? existingDbItem['conversionFactor']
+                    : null) ??
                 500)
             .toString());
 
-    final qtyCtrl = TextEditingController(
-        text: (existingItem?.quantity ?? 1).toString());
+    final qtyCtrl =
+        TextEditingController(text: (existingItem?.quantity ?? 1).toString());
     final rateCtrl = TextEditingController(
         text: (existingItem?.purchaseRate ?? defaultRate).toStringAsFixed(2));
     final discountCtrl = TextEditingController(
         text: (existingItem?.discount ?? 0.0).toStringAsFixed(0));
     final taxCtrl = TextEditingController(
         text: (existingItem?.taxPercent ?? 0.0).toStringAsFixed(0));
-    final serialCtrl = TextEditingController(
-        text: existingItem?.imeiOrSerial ?? '');
+    final serialCtrl =
+        TextEditingController(text: existingItem?.imeiOrSerial ?? '');
     final customDaysCtrl = TextEditingController(
         text: (existingItem?.customWarrantyDays ?? '').toString());
 
-    bool warrantyAvailable = existingItem != null
-        ? existingItem.hasWarranty
-        : true;
-    String selectedDuration = existingItem?.warrantyDuration ??
-        ItemWarrantyDuration.months12;
+    bool warrantyAvailable =
+        existingItem != null ? existingItem.hasWarranty : true;
+    String selectedDuration =
+        existingItem?.warrantyDuration ?? ItemWarrantyDuration.months12;
 
     showDialog(
       context: context,
@@ -2604,8 +3062,12 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
           final factor = int.tryParse(convFactorCtrl.text) ?? 500;
           final totalBaseUnits = q * (factor > 0 ? factor : 1);
           final effCostPerBase = factor > 0 ? (r / factor) : r;
-          final pUnit = purchaseUnitCtrl.text.trim().isEmpty ? 'Bundle' : purchaseUnitCtrl.text.trim();
-          final bUnit = baseUnitCtrl.text.trim().isEmpty ? 'Sheet' : baseUnitCtrl.text.trim();
+          final pUnit = purchaseUnitCtrl.text.trim().isEmpty
+              ? 'Bundle'
+              : purchaseUnitCtrl.text.trim();
+          final bUnit = baseUnitCtrl.text.trim().isEmpty
+              ? 'Sheet'
+              : baseUnitCtrl.text.trim();
 
           return AlertDialog(
             backgroundColor: const Color(0xFF101846),
@@ -2651,7 +3113,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                             child: Text(
                               'Category: ${category ?? "General"} | Brand: ${brand ?? "-"} | SKU: ${code ?? "-"}',
                               style: const TextStyle(
-                                  color: DashboardColors.textLight, fontSize: 12),
+                                  color: DashboardColors.textLight,
+                                  fontSize: 12),
                             ),
                           ),
                         ],
@@ -2754,7 +3217,9 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                         Expanded(
                           child: _buildDialogTextField(
                             controller: qtyCtrl,
-                            label: isMultiUnit ? 'Quantity ($pUnit) *' : 'Quantity *',
+                            label: isMultiUnit
+                                ? 'Quantity ($pUnit) *'
+                                : 'Quantity *',
                             icon: Icons.numbers_rounded,
                             keyboardType: TextInputType.number,
                             onChanged: (_) => setDialogState(() {}),
@@ -2782,10 +3247,12 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: DashboardColors.neonBlue.withValues(alpha: 0.12),
+                          color:
+                              DashboardColors.neonBlue.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                              color: DashboardColors.neonBlue.withValues(alpha: 0.4)),
+                              color: DashboardColors.neonBlue
+                                  .withValues(alpha: 0.4)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2881,9 +3348,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                           selected: warrantyAvailable,
                           selectedColor: DashboardColors.neonBlue,
                           labelStyle: TextStyle(
-                            color: warrantyAvailable
-                                ? Colors.black
-                                : Colors.white,
+                            color:
+                                warrantyAvailable ? Colors.black : Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
                           onSelected: (val) {
@@ -2967,8 +3433,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
-                          color: DashboardColors.neonGreen
-                              .withValues(alpha: 0.1),
+                          color:
+                              DashboardColors.neonGreen.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                               color: DashboardColors.neonGreen
@@ -3087,8 +3553,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                     customWarrantyDays: customD,
                     warrantyExpiryDate: warrantyAvailable
                         ? PurchaseBillService.instance
-                            .calculateItemWarrantyExpiry(_purchaseDate,
-                                selectedDuration,
+                            .calculateItemWarrantyExpiry(
+                                _purchaseDate, selectedDuration,
                                 customDays: customD)
                         : null,
                     isMultiUnit: isMultiUnit,
@@ -3098,7 +3564,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                     baseUnit: baseUnitCtrl.text.trim().isNotEmpty
                         ? baseUnitCtrl.text.trim()
                         : 'Sheet',
-                    conversionFactor: int.tryParse(convFactorCtrl.text.trim()) ?? 500,
+                    conversionFactor:
+                        int.tryParse(convFactorCtrl.text.trim()) ?? 500,
                   );
 
                   setState(() {
@@ -3524,8 +3991,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: DashboardColors.neonOrange,
-                        side: const BorderSide(
-                            color: DashboardColors.neonOrange),
+                        side:
+                            const BorderSide(color: DashboardColors.neonOrange),
                         padding: const EdgeInsets.symmetric(
                             horizontal: 20, vertical: 16),
                       ),
@@ -3616,13 +4083,13 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
             ],
           ),
           const SizedBox(height: 16),
-
           if (_attachment == null)
             InkWell(
               onTap: _isUploadingFile ? null : _pickFile,
               borderRadius: BorderRadius.circular(14),
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.03),
                   borderRadius: BorderRadius.circular(14),
@@ -3881,7 +4348,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
               fillColor: Colors.white.withValues(alpha: 0.05),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: DashboardColors.glassBorder),
+                borderSide:
+                    const BorderSide(color: DashboardColors.glassBorder),
               ),
             ),
             items: vendors.map((v) {
@@ -3894,8 +4362,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
               );
             }).toList(),
             onChanged: (key) async {
-              final found = vendors.firstWhere((v) => v['key'] == key,
-                  orElse: () => {});
+              final found =
+                  vendors.firstWhere((v) => v['key'] == key, orElse: () => {});
               if (found.isNotEmpty) {
                 final balPaise = await PurchaseBillService.instance
                     .fetchVendorBalancePaise(key);
@@ -3929,23 +4397,27 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Phone: ${_selectedVendorPhone.isNotEmpty ? _selectedVendorPhone : "N/A"}',
+                        Text(
+                            'Phone: ${_selectedVendorPhone.isNotEmpty ? _selectedVendorPhone : "N/A"}',
                             style: const TextStyle(
-                                color: DashboardColors.textLight, fontSize: 13)),
+                                color: DashboardColors.textLight,
+                                fontSize: 13)),
                         if (_selectedVendorGst.isNotEmpty)
                           Text('GST: $_selectedVendorGst',
                               style: const TextStyle(
-                                  color: DashboardColors.textMuted, fontSize: 12)),
+                                  color: DashboardColors.textMuted,
+                                  fontSize: 12)),
                         if (_selectedVendorAddress.isNotEmpty)
                           Text('Address: $_selectedVendorAddress',
                               style: const TextStyle(
-                                  color: DashboardColors.textMuted, fontSize: 12)),
+                                  color: DashboardColors.textMuted,
+                                  fontSize: 12)),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                       color: _vendorPrevBalance > 0
                           ? DashboardColors.alertOrange.withValues(alpha: 0.15)
@@ -3962,7 +4434,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                       children: [
                         const Text('Previous Outstanding',
                             style: TextStyle(
-                                color: DashboardColors.textMuted, fontSize: 10)),
+                                color: DashboardColors.textMuted,
+                                fontSize: 10)),
                         Text(
                           '₹${_vendorPrevBalance.toStringAsFixed(2)}',
                           style: TextStyle(
@@ -4050,8 +4523,9 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                           const BorderSide(color: DashboardColors.glassBorder),
                     ),
                   ),
-                  validator: (v) =>
-                      v == null || v.trim().isEmpty ? 'Enter bill number' : null,
+                  validator: (v) => v == null || v.trim().isEmpty
+                      ? 'Enter bill number'
+                      : null,
                 ),
               ),
               const SizedBox(width: 16),
@@ -4206,8 +4680,7 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                     ),
                   ),
                   child: Text(
-                    DateFormat('dd-MM-yyyy, hh:mm a')
-                        .format(_uploadTimestamp),
+                    DateFormat('dd-MM-yyyy, hh:mm a').format(_uploadTimestamp),
                     style: const TextStyle(color: DashboardColors.textMuted),
                   ),
                 ),
@@ -4254,7 +4727,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
               fillColor: Colors.white.withValues(alpha: 0.05),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: DashboardColors.glassBorder),
+                borderSide:
+                    const BorderSide(color: DashboardColors.glassBorder),
               ),
             ),
           ),
@@ -4337,7 +4811,6 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
             ],
           ),
           const SizedBox(height: 16),
-
           if (_items.isEmpty)
             Container(
               padding: const EdgeInsets.symmetric(vertical: 40),
@@ -4477,13 +4950,19 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              it.model.isNotEmpty ? it.model : (it.productCode.isNotEmpty ? it.productCode : '-'),
-                              style: const TextStyle(color: Colors.white, fontSize: 12),
+                              it.model.isNotEmpty
+                                  ? it.model
+                                  : (it.productCode.isNotEmpty
+                                      ? it.productCode
+                                      : '-'),
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 12),
                             ),
                             if (it.hsnCode.isNotEmpty)
                               Text('HSN: ${it.hsnCode}',
                                   style: const TextStyle(
-                                      color: DashboardColors.textMuted, fontSize: 10)),
+                                      color: DashboardColors.textMuted,
+                                      fontSize: 10)),
                           ],
                         ),
                       ),
@@ -4492,18 +4971,22 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                           final status = it.matchStatus;
                           if (status == ProductMatchStatus.matched) {
                             return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                color: DashboardColors.neonGreen.withValues(alpha: 0.15),
+                                color: DashboardColors.neonGreen
+                                    .withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(
-                                    color: DashboardColors.neonGreen.withValues(alpha: 0.4)),
+                                    color: DashboardColors.neonGreen
+                                        .withValues(alpha: 0.4)),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   const Icon(Icons.check_circle_rounded,
-                                      size: 12, color: DashboardColors.neonGreen),
+                                      size: 12,
+                                      color: DashboardColors.neonGreen),
                                   const SizedBox(width: 5),
                                   Text(
                                     it.isNewProduct
@@ -4517,21 +5000,27 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                 ],
                               ),
                             );
-                          } else if (status == ProductMatchStatus.quickRegister) {
+                          } else if (status ==
+                              ProductMatchStatus.quickRegister) {
                             return InkWell(
-                              onTap: () => _showInlineProductRegistrationDialog(idx),
+                              onTap: () =>
+                                  _showInlineProductRegistrationDialog(idx),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: DashboardColors.alertOrange.withValues(alpha: 0.2),
+                                  color: DashboardColors.alertOrange
+                                      .withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: DashboardColors.alertOrange),
+                                  border: Border.all(
+                                      color: DashboardColors.alertOrange),
                                 ),
                                 child: const Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(Icons.add_circle_outline_rounded,
-                                        size: 12, color: DashboardColors.alertOrange),
+                                        size: 12,
+                                        color: DashboardColors.alertOrange),
                                     SizedBox(width: 5),
                                     Text(
                                       'New Item: + Quick Register',
@@ -4549,17 +5038,21 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                             return InkWell(
                               onTap: () => _showMatchAnomalyDialog(idx),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: DashboardColors.alertRed.withValues(alpha: 0.2),
+                                  color: DashboardColors.alertRed
+                                      .withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: DashboardColors.alertRed),
+                                  border: Border.all(
+                                      color: DashboardColors.alertRed),
                                 ),
                                 child: const Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(Icons.warning_amber_rounded,
-                                        size: 12, color: DashboardColors.alertRed),
+                                        size: 12,
+                                        color: DashboardColors.alertRed),
                                     SizedBox(width: 5),
                                     Text(
                                       'Review Required: Anomaly',
@@ -4622,7 +5115,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                                           : '+ Track IMEI'),
                                   style: TextStyle(
                                     color: it.imeiRequired
-                                        ? (it.serialNumbers.length == it.quantity
+                                        ? (it.serialNumbers.length ==
+                                                it.quantity
                                             ? DashboardColors.neonGreen
                                             : DashboardColors.alertOrange)
                                         : DashboardColors.textLight,
@@ -4704,25 +5198,29 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                           children: [
                             IconButton(
                               icon: Icon(
-                                it.matchStatus == ProductMatchStatus.reviewRequired
+                                it.matchStatus ==
+                                        ProductMatchStatus.reviewRequired
                                     ? Icons.warning_amber_rounded
                                     : (it.isNewProduct && !it.isStagedReady
                                         ? Icons.app_registration_rounded
                                         : Icons.edit_rounded),
-                                color: it.matchStatus == ProductMatchStatus.reviewRequired
+                                color: it.matchStatus ==
+                                        ProductMatchStatus.reviewRequired
                                     ? DashboardColors.alertRed
                                     : (it.isNewProduct && !it.isStagedReady
                                         ? DashboardColors.alertOrange
                                         : DashboardColors.neonBlue),
                                 size: 18,
                               ),
-                              tooltip: it.matchStatus == ProductMatchStatus.reviewRequired
+                              tooltip: it.matchStatus ==
+                                      ProductMatchStatus.reviewRequired
                                   ? 'Review Anomaly'
                                   : (it.isNewProduct
                                       ? 'Register / Edit Product'
                                       : 'Edit Item'),
                               onPressed: () {
-                                if (it.matchStatus == ProductMatchStatus.reviewRequired) {
+                                if (it.matchStatus ==
+                                    ProductMatchStatus.reviewRequired) {
                                   _showMatchAnomalyDialog(idx);
                                 } else if (it.isNewProduct) {
                                   _showInlineProductRegistrationDialog(idx);
@@ -4813,7 +5311,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                 runSpacing: 8,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.05),
                       borderRadius: BorderRadius.circular(8),
@@ -4823,9 +5322,13 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          _isInterStateGst ? 'Inter-State (IGST)' : 'Intra-State (CGST+SGST)',
+                          _isInterStateGst
+                              ? 'Inter-State (IGST)'
+                              : 'Intra-State (CGST+SGST)',
                           style: TextStyle(
-                            color: _isInterStateGst ? DashboardColors.neonPurple : DashboardColors.neonBlue,
+                            color: _isInterStateGst
+                                ? DashboardColors.neonPurple
+                                : DashboardColors.neonBlue,
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),
@@ -4835,14 +5338,17 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                           value: _isInterStateGst,
                           activeColor: DashboardColors.neonPurple,
                           inactiveThumbColor: DashboardColors.neonBlue,
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          onChanged: (val) => setState(() => _isInterStateGst = val),
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                          onChanged: (val) =>
+                              setState(() => _isInterStateGst = val),
                         ),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.05),
                       borderRadius: BorderRadius.circular(8),
@@ -4853,15 +5359,20 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                       children: [
                         const Text(
                           'Round Off',
-                          style: TextStyle(color: DashboardColors.textLight, fontSize: 12, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                              color: DashboardColors.textLight,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(width: 4),
                         Checkbox(
                           value: _applyRoundOff,
                           activeColor: DashboardColors.neonGreen,
                           checkColor: Colors.black,
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          onChanged: (val) => setState(() => _applyRoundOff = val ?? true),
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                          onChanged: (val) =>
+                              setState(() => _applyRoundOff = val ?? true),
                         ),
                       ],
                     ),
@@ -4871,7 +5382,6 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
             ],
           ),
           const SizedBox(height: 20),
-
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -4881,20 +5391,38 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                   spacing: 16,
                   runSpacing: 16,
                   children: [
-                    _buildCalcCard('Subtotal', '₹${_subtotal.toStringAsFixed(2)}',
-                        Icons.layers_rounded, DashboardColors.textLight),
-                    _buildCalcCard('Total Qty', '$_totalQuantity units',
-                        Icons.format_list_numbered_rounded, DashboardColors.neonBlue),
-                    _buildCalcCard('Total Discount', '- ₹${_totalDiscount.toStringAsFixed(2)}',
-                        Icons.discount_rounded, DashboardColors.alertOrange),
+                    _buildCalcCard(
+                        'Subtotal',
+                        '₹${_subtotal.toStringAsFixed(2)}',
+                        Icons.layers_rounded,
+                        DashboardColors.textLight),
+                    _buildCalcCard(
+                        'Total Qty',
+                        '$_totalQuantity units',
+                        Icons.format_list_numbered_rounded,
+                        DashboardColors.neonBlue),
+                    _buildCalcCard(
+                        'Total Discount',
+                        '- ₹${_totalDiscount.toStringAsFixed(2)}',
+                        Icons.discount_rounded,
+                        DashboardColors.alertOrange),
                     if (!_isInterStateGst) ...[
-                      _buildCalcCard('CGST (50%)', '+ ₹${_cgst.toStringAsFixed(2)}',
-                          Icons.receipt_rounded, DashboardColors.neonBlue),
-                      _buildCalcCard('SGST (50%)', '+ ₹${_sgst.toStringAsFixed(2)}',
-                          Icons.receipt_long_rounded, DashboardColors.neonBlue),
+                      _buildCalcCard(
+                          'CGST (50%)',
+                          '+ ₹${_cgst.toStringAsFixed(2)}',
+                          Icons.receipt_rounded,
+                          DashboardColors.neonBlue),
+                      _buildCalcCard(
+                          'SGST (50%)',
+                          '+ ₹${_sgst.toStringAsFixed(2)}',
+                          Icons.receipt_long_rounded,
+                          DashboardColors.neonBlue),
                     ] else ...[
-                      _buildCalcCard('IGST (100%)', '+ ₹${_igst.toStringAsFixed(2)}',
-                          Icons.receipt_rounded, DashboardColors.neonPurple),
+                      _buildCalcCard(
+                          'IGST (100%)',
+                          '+ ₹${_igst.toStringAsFixed(2)}',
+                          Icons.receipt_rounded,
+                          DashboardColors.neonPurple),
                     ],
                     if (_applyRoundOff && _roundOff.abs() > 0.001)
                       _buildCalcCard(
@@ -5130,8 +5658,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                     TextFormField(
                       controller: _paidAmountCtrl,
                       style: const TextStyle(color: Colors.white),
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       decoration: InputDecoration(
                         labelText: 'Amount Paid (₹) *',
                         labelStyle:
@@ -5153,7 +5681,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                       spacing: 8,
                       children: [
                         ActionChip(
-                          label: Text('Full (₹${_grandTotal.toStringAsFixed(0)})'),
+                          label:
+                              Text('Full (₹${_grandTotal.toStringAsFixed(0)})'),
                           backgroundColor:
                               DashboardColors.neonGreen.withValues(alpha: 0.15),
                           labelStyle: const TextStyle(
@@ -5185,8 +5714,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                         ),
                         ActionChip(
                           label: const Text('Unpaid (₹0)'),
-                          backgroundColor:
-                              DashboardColors.alertOrange.withValues(alpha: 0.15),
+                          backgroundColor: DashboardColors.alertOrange
+                              .withValues(alpha: 0.15),
                           labelStyle: const TextStyle(
                               color: DashboardColors.alertOrange,
                               fontSize: 11,
@@ -5395,7 +5924,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
       ),
       child: Text(
         status.toUpperCase(),
-        style: TextStyle(color: text, fontWeight: FontWeight.bold, fontSize: 12),
+        style:
+            TextStyle(color: text, fontWeight: FontWeight.bold, fontSize: 12),
       ),
     );
   }

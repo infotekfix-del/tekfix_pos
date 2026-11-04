@@ -142,7 +142,9 @@ class ExpenseItem {
       'receiptUrl': receiptUrl,
       'isVoided': isVoided,
       'voidedAt': voidedAt != null
-          ? (forFirestore ? Timestamp.fromDate(voidedAt!) : voidedAt!.toIso8601String())
+          ? (forFirestore
+              ? Timestamp.fromDate(voidedAt!)
+              : voidedAt!.toIso8601String())
           : null,
       'voidedByUid': voidedByUid,
       'voidReason': voidReason,
@@ -170,14 +172,16 @@ class ExpenseItem {
 
     final double amt = (map['amount'] as num?)?.toDouble() ??
         (((map['amountPaise'] as num?)?.toDouble() ?? 0.0) / 100.0);
-    final int paise = (map['amountPaise'] as num?)?.toInt() ?? (amt * 100).round();
+    final int paise =
+        (map['amountPaise'] as num?)?.toInt() ?? (amt * 100).round();
     final resolvedId = docId.isNotEmpty ? docId : (map['id']?.toString() ?? '');
 
     return ExpenseItem(
       id: resolvedId,
       shopId: map['shopId']?.toString() ?? '',
       title: map['title']?.toString() ?? 'Expense',
-      category: map['category']?.toString() ?? ExpenseCategory.miscellaneousOther,
+      category:
+          map['category']?.toString() ?? ExpenseCategory.miscellaneousOther,
       amount: amt,
       amountPaise: paise,
       paymentMode: (map['paymentMode']?.toString() ?? 'CASH').toUpperCase(),
@@ -235,4 +239,3 @@ class ExpenseItem {
     );
   }
 }
-

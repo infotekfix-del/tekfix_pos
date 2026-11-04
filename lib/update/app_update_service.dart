@@ -118,7 +118,8 @@ class AppUpdateService {
           .timeout(const Duration(seconds: 4));
 
       if (!doc.exists || doc.data() == null) {
-        debugPrint('AppUpdateService: No app_config/version document found in Firestore.');
+        debugPrint(
+            'AppUpdateService: No app_config/version document found in Firestore.');
         return null;
       }
 
@@ -157,7 +158,10 @@ class AppUpdateService {
     bool isMandatory = true,
     String? minSupportedVersion,
   }) async {
-    await FirebaseFirestore.instance.collection('app_config').doc('version').set({
+    await FirebaseFirestore.instance
+        .collection('app_config')
+        .doc('version')
+        .set({
       'latest_version': latestVersion,
       'latest_build_number': latestBuildNumber,
       'apk_url': apkUrl,
@@ -176,7 +180,8 @@ class AppUpdateService {
     // Throttle automatic checks so repeated widget mounts do not trigger duplicate queries
     if (autoShowDialog) {
       final now = DateTime.now();
-      if (_lastAutoCheck != null && now.difference(_lastAutoCheck!).inMinutes < 15) {
+      if (_lastAutoCheck != null &&
+          now.difference(_lastAutoCheck!).inMinutes < 15) {
         return;
       }
       _lastAutoCheck = now;
@@ -196,7 +201,8 @@ class AppUpdateService {
           // Desktop users can check for updates manually in Settings > App Updates & Releases.
           final isDesktop = !kIsWeb && !Platform.isAndroid;
           if (isDesktop) {
-            debugPrint('AppUpdateService: Desktop platform detected. Skipping auto-popup.');
+            debugPrint(
+                'AppUpdateService: Desktop platform detected. Skipping auto-popup.');
             return;
           }
 
@@ -210,7 +216,8 @@ class AppUpdateService {
               barrierDismissible: isDesktop || !info.isMandatory,
               builder: (ctx) => AppUpdateDialog(
                 updateInfo: info,
-                currentVersion: '${packageInfo.version}+${packageInfo.buildNumber}',
+                currentVersion:
+                    '${packageInfo.version}+${packageInfo.buildNumber}',
               ),
             );
           } finally {
@@ -300,7 +307,8 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
       final packageInfo = await PackageInfo.fromPlatform();
       final authority = '${packageInfo.packageName}.ota_update_provider';
 
-      debugPrint('AppUpdateService: Starting OTA update download from: $apkUrl');
+      debugPrint(
+          'AppUpdateService: Starting OTA update download from: $apkUrl');
       debugPrint('AppUpdateService: Provider authority: $authority');
 
       _otaSubscription = OtaUpdate()
@@ -354,8 +362,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
             case OtaStatus.CANCELED:
               setState(() {
                 _isDownloading = false;
-                _statusText =
-                    'ഡൗൺലോഡ് റദ്ദാക്കി (Download cancelled)';
+                _statusText = 'ഡൗൺലോഡ് റദ്ദാക്കി (Download cancelled)';
               });
               break;
             case OtaStatus.INTERNAL_ERROR:
@@ -415,8 +422,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
     }
 
     final uri = Uri.parse(rawUrl);
-    debugPrint(
-        'AppUpdateService: Opening browser for download: $rawUrl');
+    debugPrint('AppUpdateService: Opening browser for download: $rawUrl');
 
     try {
       final launched = await launchUrl(
@@ -563,7 +569,8 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
                   constraints: const BoxConstraints(maxHeight: 120),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerHighest.withAlpha(60),
+                    color:
+                        theme.colorScheme.surfaceContainerHighest.withAlpha(60),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: theme.colorScheme.outlineVariant.withAlpha(80),
@@ -625,7 +632,8 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
                     value: _progress > 0 ? _progress / 100 : null,
                     minHeight: 8,
                     backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF2563EB)),
+                    valueColor:
+                        const AlwaysStoppedAnimation<Color>(Color(0xFF2563EB)),
                   ),
                 ),
                 const SizedBox(height: 6),

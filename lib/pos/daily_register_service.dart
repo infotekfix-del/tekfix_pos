@@ -59,9 +59,8 @@ class DailyRegisterService {
     // 1. Load from Hive local storage
     for (final k in Db.sales.keys) {
       final s = tekM(Db.sales.get(k));
-      final inv = s['invoice']?.toString() ??
-          s['invoiceId']?.toString() ??
-          '$k';
+      final inv =
+          s['invoice']?.toString() ?? s['invoiceId']?.toString() ?? '$k';
       if (matchesTargetDate(s['createdAt']) ||
           matchesTargetDate(s['date']) ||
           matchesTargetDate(s['_st'])) {
@@ -240,12 +239,14 @@ class DailyRegisterService {
       for (final rawItem in items) {
         if (rawItem is! Map) continue;
         final it = Map<String, dynamic>.from(rawItem);
-        final name = it['name']?.toString() ?? it['itemName']?.toString() ?? 'Item';
+        final name =
+            it['name']?.toString() ?? it['itemName']?.toString() ?? 'Item';
         final qty = (it['qty'] as num?)?.toInt() ?? 1;
         final price = (it['price'] as num?)?.toDouble() ??
             (it['unitPrice'] as num?)?.toDouble() ??
             0.0;
-        final lineTotal = (it['lineTotal'] as num?)?.toDouble() ?? (price * qty);
+        final lineTotal =
+            (it['lineTotal'] as num?)?.toDouble() ?? (price * qty);
 
         // Normalize Category
         final rawCat = it['category']?.toString() ?? '';
@@ -270,7 +271,8 @@ class DailyRegisterService {
           resolvedCat = 'Gadgets & Accessories';
         }
 
-        categoryMap.putIfAbsent(resolvedCat, () => _CatAccumulator(resolvedCat));
+        categoryMap.putIfAbsent(
+            resolvedCat, () => _CatAccumulator(resolvedCat));
         categoryMap[resolvedCat]!.units += qty;
         categoryMap[resolvedCat]!.total += lineTotal;
 
@@ -300,9 +302,12 @@ class DailyRegisterService {
       );
     });
 
-    final expectedClosingCash =
-        (openingCash + totalCash - calculatedRefunds - totalCashExpenses - ownerCashDrawingsDrawn)
-            .clamp(0.0, double.infinity);
+    final expectedClosingCash = (openingCash +
+            totalCash -
+            calculatedRefunds -
+            totalCashExpenses -
+            ownerCashDrawingsDrawn)
+        .clamp(0.0, double.infinity);
     final discrepancy = physicalCashCount - expectedClosingCash;
 
     return DailyRegisterSummary(
@@ -442,7 +447,8 @@ class DailyRegisterService {
                 pw.Center(
                   child: pw.Text(
                     shopName.toUpperCase(),
-                    style: const pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14),
+                    style: const pw.TextStyle(
+                        fontWeight: pw.FontWeight.bold, fontSize: 14),
                   ),
                 ),
                 if (shopAddress.isNotEmpty)
@@ -455,7 +461,8 @@ class DailyRegisterService {
                   ),
                 if (shopPhone.isNotEmpty)
                   pw.Center(
-                    child: pw.Text('Tel: $shopPhone', style: const pw.TextStyle(fontSize: 9)),
+                    child: pw.Text('Tel: $shopPhone',
+                        style: const pw.TextStyle(fontSize: 9)),
                   ),
                 pw.SizedBox(height: 6),
                 pw.Center(
@@ -467,7 +474,8 @@ class DailyRegisterService {
                 pw.Center(
                   child: pw.Text(
                     'DAILY REGISTER CLOSING REPORT',
-                    style: const pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11),
+                    style: const pw.TextStyle(
+                        fontWeight: pw.FontWeight.bold, fontSize: 11),
                   ),
                 ),
                 pw.Center(
@@ -486,42 +494,65 @@ class DailyRegisterService {
 
                 // Timing & Staff Info
                 _pwLine('Date:', toDisplayDate(summary.date)),
-                _pwLine('Hours:', '${summary.openingTime} - ${summary.closingTime}'),
-                _pwLine('Closed At:', DateFormat('hh:mm a, dd/MM/yy').format(summary.closedAt ?? DateTime.now())),
+                _pwLine('Hours:',
+                    '${summary.openingTime} - ${summary.closingTime}'),
+                _pwLine(
+                    'Closed At:',
+                    DateFormat('hh:mm a, dd/MM/yy')
+                        .format(summary.closedAt ?? DateTime.now())),
                 if (summary.closedByStaffName.isNotEmpty)
                   _pwLine('Closed By:', summary.closedByStaffName),
                 _pwLine('Total Invoices:', '${summary.totalOrdersCount}'),
                 pw.SizedBox(height: 4),
-                pw.Text('--------------------------------', style: const pw.TextStyle(fontSize: 10)),
+                pw.Text('--------------------------------',
+                    style: const pw.TextStyle(fontSize: 10)),
 
                 // Gross Sales & Net
                 pw.SizedBox(height: 4),
-                pw.Text('REVENUE OVERVIEW', style: const pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                pw.Text('REVENUE OVERVIEW',
+                    style: const pw.TextStyle(
+                        fontWeight: pw.FontWeight.bold, fontSize: 10)),
                 pw.SizedBox(height: 2),
-                _pwLine('Gross Sales:', 'Rs. ${summary.grossSales.toStringAsFixed(2)}'),
-                _pwLine('Total Discounts:', '-Rs. ${summary.totalDiscounts.toStringAsFixed(2)}'),
+                _pwLine('Gross Sales:',
+                    'Rs. ${summary.grossSales.toStringAsFixed(2)}'),
+                _pwLine('Total Discounts:',
+                    '-Rs. ${summary.totalDiscounts.toStringAsFixed(2)}'),
                 pw.Divider(thickness: 0.8),
-                _pwLine('NET DAY SALES:', 'Rs. ${summary.netRevenue.toStringAsFixed(2)}', isBold: true),
+                _pwLine('NET DAY SALES:',
+                    'Rs. ${summary.netRevenue.toStringAsFixed(2)}',
+                    isBold: true),
                 pw.Divider(thickness: 0.8),
 
                 // Payment Mode Reconciliation
                 pw.SizedBox(height: 4),
-                pw.Text('PAYMENT RECONCILIATION', style: const pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                pw.Text('PAYMENT RECONCILIATION',
+                    style: const pw.TextStyle(
+                        fontWeight: pw.FontWeight.bold, fontSize: 10)),
                 pw.SizedBox(height: 2),
-                _pwLine('Opening Cash:', 'Rs. ${summary.openingCash.toStringAsFixed(2)}'),
-                _pwLine('Cash Collections:', 'Rs. ${summary.totalCash.toStringAsFixed(2)}'),
+                _pwLine('Opening Cash:',
+                    'Rs. ${summary.openingCash.toStringAsFixed(2)}'),
+                _pwLine('Cash Collections:',
+                    'Rs. ${summary.totalCash.toStringAsFixed(2)}'),
                 if (summary.cashRentPaid > 0)
-                  _pwLine('Daily Rent Paid (Cash):', '-Rs. ${summary.cashRentPaid.toStringAsFixed(2)}'),
+                  _pwLine('Daily Rent Paid (Cash):',
+                      '-Rs. ${summary.cashRentPaid.toStringAsFixed(2)}'),
                 if (summary.ownerSalaryDrawnToday > 0)
-                  _pwLine('Owner Salary Drawn Today:', '-Rs. ${summary.ownerSalaryDrawnToday.toStringAsFixed(2)}'),
+                  _pwLine('Owner Salary Drawn Today:',
+                      '-Rs. ${summary.ownerSalaryDrawnToday.toStringAsFixed(2)}'),
                 if (summary.ownerExcessDrawingsToday > 0)
-                  _pwLine('Owner Excess Drawings Today:', '-Rs. ${summary.ownerExcessDrawingsToday.toStringAsFixed(2)}'),
+                  _pwLine('Owner Excess Drawings Today:',
+                      '-Rs. ${summary.ownerExcessDrawingsToday.toStringAsFixed(2)}'),
                 if (summary.otherCashExpenses > 0)
-                  _pwLine('Other Cash Expenses:', '-Rs. ${summary.otherCashExpenses.toStringAsFixed(2)}'),
+                  _pwLine('Other Cash Expenses:',
+                      '-Rs. ${summary.otherCashExpenses.toStringAsFixed(2)}'),
                 if (summary.refunds > 0)
-                  _pwLine('Refunds / Returns:', '-Rs. ${summary.refunds.toStringAsFixed(2)}'),
-                _pwLine('Expected Closing Cash:', 'Rs. ${summary.expectedClosingCash.toStringAsFixed(2)}', isBold: true),
-                _pwLine('Physical Cash Count:', 'Rs. ${summary.physicalCashCount.toStringAsFixed(2)}'),
+                  _pwLine('Refunds / Returns:',
+                      '-Rs. ${summary.refunds.toStringAsFixed(2)}'),
+                _pwLine('Expected Closing Cash:',
+                    'Rs. ${summary.expectedClosingCash.toStringAsFixed(2)}',
+                    isBold: true),
+                _pwLine('Physical Cash Count:',
+                    'Rs. ${summary.physicalCashCount.toStringAsFixed(2)}'),
                 _pwLine(
                   'Cash Discrepancy:',
                   summary.cashDiscrepancy == 0
@@ -531,19 +562,26 @@ class DailyRegisterService {
                           : '-Rs. ${summary.cashDiscrepancy.abs().toStringAsFixed(2)} (SHORT)'),
                   isBold: summary.cashDiscrepancy != 0,
                 ),
-                _pwLine('UPI / GPay Total:', 'Rs. ${summary.totalUpi.toStringAsFixed(2)}'),
-                _pwLine('Card Total:', 'Rs. ${summary.totalCard.toStringAsFixed(2)}'),
+                _pwLine('UPI / GPay Total:',
+                    'Rs. ${summary.totalUpi.toStringAsFixed(2)}'),
+                _pwLine('Card Total:',
+                    'Rs. ${summary.totalCard.toStringAsFixed(2)}'),
                 if (summary.totalBankExpenses > 0)
-                  _pwLine('Bank Expenses Paid:', '-Rs. ${summary.totalBankExpenses.toStringAsFixed(2)}'),
+                  _pwLine('Bank Expenses Paid:',
+                      '-Rs. ${summary.totalBankExpenses.toStringAsFixed(2)}'),
                 if (summary.totalDue > 0)
-                  _pwLine('Credit / Due Added:', 'Rs. ${summary.totalDue.toStringAsFixed(2)}'),
+                  _pwLine('Credit / Due Added:',
+                      'Rs. ${summary.totalDue.toStringAsFixed(2)}'),
                 pw.SizedBox(height: 4),
-                pw.Text('--------------------------------', style: const pw.TextStyle(fontSize: 10)),
+                pw.Text('--------------------------------',
+                    style: const pw.TextStyle(fontSize: 10)),
 
                 // Category Breakdown
                 if (summary.categoryBreakdown.isNotEmpty) ...[
                   pw.SizedBox(height: 4),
-                  pw.Text('CATEGORY BREAKDOWN', style: const pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                  pw.Text('CATEGORY BREAKDOWN',
+                      style: const pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold, fontSize: 10)),
                   pw.SizedBox(height: 2),
                   ...summary.categoryBreakdown.values.map((c) {
                     return _pwLine(
@@ -552,13 +590,16 @@ class DailyRegisterService {
                     );
                   }),
                   pw.SizedBox(height: 4),
-                  pw.Text('--------------------------------', style: const pw.TextStyle(fontSize: 10)),
+                  pw.Text('--------------------------------',
+                      style: const pw.TextStyle(fontSize: 10)),
                 ],
 
                 // Top Products
                 if (summary.topSellingProducts.isNotEmpty) ...[
                   pw.SizedBox(height: 4),
-                  pw.Text('TOP PRODUCTS SOLD', style: const pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                  pw.Text('TOP PRODUCTS SOLD',
+                      style: const pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold, fontSize: 10)),
                   pw.SizedBox(height: 2),
                   ...summary.topSellingProducts.take(5).map((p) {
                     return _pwLine(
@@ -567,17 +608,21 @@ class DailyRegisterService {
                     );
                   }),
                   pw.SizedBox(height: 4),
-                  pw.Text('--------------------------------', style: const pw.TextStyle(fontSize: 10)),
+                  pw.Text('--------------------------------',
+                      style: const pw.TextStyle(fontSize: 10)),
                 ],
 
                 // Signatures
                 pw.SizedBox(height: 20),
-                pw.Text('Staff Signature:  ___________________', style: const pw.TextStyle(fontSize: 9)),
+                pw.Text('Staff Signature:  ___________________',
+                    style: const pw.TextStyle(fontSize: 9)),
                 pw.SizedBox(height: 14),
-                pw.Text('Owner Signature:  ___________________', style: const pw.TextStyle(fontSize: 9)),
+                pw.Text('Owner Signature:  ___________________',
+                    style: const pw.TextStyle(fontSize: 9)),
                 pw.SizedBox(height: 10),
                 pw.Center(
-                  child: pw.Text('*** REGISTER CLOSED & AUDITED ***', style: const pw.TextStyle(fontSize: 8)),
+                  child: pw.Text('*** REGISTER CLOSED & AUDITED ***',
+                      style: const pw.TextStyle(fontSize: 8)),
                 ),
                 pw.SizedBox(height: 10),
               ],
@@ -640,8 +685,10 @@ ${summary.topSellingProducts.take(5).map((p) => "• ${p.name} (x${p.qty}) - ₹
 _Generated automatically by TekFix POS & Register System_
 ''';
 
-    final clean = (targetPhone ?? Db.setting('owner_phone', '')).replaceAll(RegExp(r'[^0-9]'), '');
-    final phone = clean.isEmpty ? '' : (clean.startsWith('91') ? clean : '91$clean');
+    final clean = (targetPhone ?? Db.setting('owner_phone', ''))
+        .replaceAll(RegExp(r'[^0-9]'), '');
+    final phone =
+        clean.isEmpty ? '' : (clean.startsWith('91') ? clean : '91$clean');
     final uri = Uri.parse(phone.isNotEmpty
         ? 'https://wa.me/$phone?text=${Uri.encodeComponent(text)}'
         : 'https://wa.me/?text=${Uri.encodeComponent(text)}');
@@ -694,4 +741,3 @@ class _ItemAccumulator {
   double total = 0.0;
   _ItemAccumulator(this.name);
 }
-

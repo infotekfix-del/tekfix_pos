@@ -10,7 +10,8 @@ void main() {
     late Directory tempDir;
 
     setUpAll(() async {
-      tempDir = await Directory.systemTemp.createTemp('edit_purchase_test_hive_');
+      tempDir =
+          await Directory.systemTemp.createTemp('edit_purchase_test_hive_');
       Hive.init(tempDir.path);
 
       for (final b in allBoxes) {
@@ -31,7 +32,9 @@ void main() {
       } catch (_) {}
     });
 
-    test('Confirm purchase bill then edit warranty, quantity, and prices with stock reconciliation', () async {
+    test(
+        'Confirm purchase bill then edit warranty, quantity, and prices with stock reconciliation',
+        () async {
       // 1. Create a product in Db.items
       final prodKey = await Db.items.add({
         'name': 'Samsung Galaxy S24 Ultra',
@@ -65,7 +68,8 @@ void main() {
         warrantyDuration: 'No Warranty',
       );
 
-      final confirmedBill = await PurchaseBillService.instance.confirmPurchaseBill(
+      final confirmedBill =
+          await PurchaseBillService.instance.confirmPurchaseBill(
         billNumber: 'PB-2026-TEST01',
         vendorInvoiceNumber: 'INV-SAM-001',
         vendorKey: vendorKey,
@@ -83,7 +87,8 @@ void main() {
       var itemData = Db.items.get(prodKey) as Map;
       expect(itemData['stock'], equals(15));
       expect(itemData['warranty'], equals('No Warranty'));
-      expect(confirmedBill.grandTotal, equals(472000.0)); // 5 * 80000 = 400000 + 18% = 472000
+      expect(confirmedBill.grandTotal,
+          equals(472000.0)); // 5 * 80000 = 400000 + 18% = 472000
       expect(confirmedBill.balanceDue, equals(472000.0));
 
       // Vendor debt should be -472000.0
@@ -102,7 +107,8 @@ void main() {
         lineTotal: 7 * 80000.0 * 1.18,
       );
 
-      final updatedBill = await PurchaseBillService.instance.updateConfirmedPurchaseBill(
+      final updatedBill =
+          await PurchaseBillService.instance.updateConfirmedPurchaseBill(
         originalBill: confirmedBill,
         vendorInvoiceNumber: 'INV-SAM-001-REV1',
         vendorKey: vendorKey,
@@ -143,14 +149,16 @@ void main() {
       expect(partyData['balance'], equals(-660800.0));
 
       // E. Hive persistence:
-      final persistedBill = PurchaseBillService.instance.getPurchaseBill(confirmedBill.billNumber);
+      final persistedBill = PurchaseBillService.instance
+          .getPurchaseBill(confirmedBill.billNumber);
       expect(persistedBill, isNotNull);
       expect(persistedBill!.grandTotal, equals(660800.0));
       expect(persistedBill.items.first.quantity, equals(7));
       expect(persistedBill.items.first.warrantyDuration, equals('12 Months'));
     });
 
-    test('Edit purchase bill with item quantity reduction and item removal', () async {
+    test('Edit purchase bill with item quantity reduction and item removal',
+        () async {
       // 1. Setup item in Db.items with initial stock 20
       final prodKey = await Db.items.add({
         'name': 'Apple AirPods Pro 2',
@@ -191,7 +199,8 @@ void main() {
       expect(item['stock'], equals(30));
 
       // Now edit: reduce quantity from 10 to 4 (diff: -6)
-      final updatedBill = await PurchaseBillService.instance.updateConfirmedPurchaseBill(
+      final updatedBill =
+          await PurchaseBillService.instance.updateConfirmedPurchaseBill(
         originalBill: bill,
         vendorInvoiceNumber: 'INV-APP-099-MOD',
         vendorKey: vendorKey,
@@ -220,4 +229,3 @@ void main() {
     });
   });
 }
-

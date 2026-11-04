@@ -46,7 +46,8 @@ void main() {
       await Db.bank.put('txn_log', <Map<String, dynamic>>[]);
     });
 
-    test('1. Model integrity: amount in INR and integer amountPaise precision', () {
+    test('1. Model integrity: amount in INR and integer amountPaise precision',
+        () {
       final now = DateTime(2026, 11, 2, 10, 30);
       final expense = ExpenseItem(
         id: 'EXP_TEST_001',
@@ -63,7 +64,8 @@ void main() {
 
       expect(expense.amount, 50.0);
       expect(expense.amountPaise, 5000);
-      expect(ExpenseCategory.toMalayalam(expense.category), 'ഭക്ഷണം & ചായ ചിലവുകൾ');
+      expect(ExpenseCategory.toMalayalam(expense.category),
+          'ഭക്ഷണം & ചായ ചിലവുകൾ');
       expect(expense.paymentMode, 'CASH');
 
       final map = expense.toMap();
@@ -80,7 +82,8 @@ void main() {
       expect(deserialized.isVoided, false);
     });
 
-    test('2. Cash expense creation debits cash_in_hand and logs transaction', () async {
+    test('2. Cash expense creation debits cash_in_hand and logs transaction',
+        () async {
       final initialCash = (Db.bank.get('cash_in_hand') as num).toDouble();
       expect(initialCash, 5000.0);
 
@@ -117,10 +120,12 @@ void main() {
       final lastTxn = txnLog.last;
       expect(lastTxn['account'] ?? lastTxn['mode'], 'Cash');
       expect(lastTxn['amount'], -50.0);
-      expect(lastTxn['note'].toString().contains('Packing Covers & Tape'), true);
+      expect(
+          lastTxn['note'].toString().contains('Packing Covers & Tape'), true);
     });
 
-    test('3. Bank expense creation debits bank_balance and logs transaction', () async {
+    test('3. Bank expense creation debits bank_balance and logs transaction',
+        () async {
       final initialBank = (Db.bank.get('bank_balance') as num).toDouble();
       expect(initialBank, 25000.0);
 
@@ -157,7 +162,8 @@ void main() {
       expect(lastTxn['amount'], -100.0);
     });
 
-    test('4. Voiding an expense creates reversal entry and restores balance', () async {
+    test('4. Voiding an expense creates reversal entry and restores balance',
+        () async {
       final cashBefore = (Db.bank.get('cash_in_hand') as num).toDouble();
 
       final expense = ExpenseItem(
@@ -178,7 +184,8 @@ void main() {
       );
 
       // Balance was debited by 75
-      expect((Db.bank.get('cash_in_hand') as num).toDouble(), cashBefore - 75.0);
+      expect(
+          (Db.bank.get('cash_in_hand') as num).toDouble(), cashBefore - 75.0);
 
       // Void the expense
       final voided = await ExpenseService.instance.voidExpense(
@@ -201,10 +208,13 @@ void main() {
       final txnLog = (Db.bank.get('txn_log') as List).cast<Map>();
       final reversalTxn = txnLog.last;
       expect(reversalTxn['amount'], 75.0);
-      expect(reversalTxn['note'].toString().contains('Reversal of Expense'), true);
+      expect(
+          reversalTxn['note'].toString().contains('Reversal of Expense'), true);
     });
 
-    test('5. EOD Closing reconciliation deducts cash expenses and reports bank expenses separately', () {
+    test(
+        '5. EOD Closing reconciliation deducts cash expenses and reports bank expenses separately',
+        () {
       final today = DateTime(2026, 11, 2, 22, 0);
 
       final sales = [
@@ -220,7 +230,12 @@ void main() {
           'due': 0.0,
           'status': 'SOLD',
           'items': [
-            {'name': 'Tempered Glass', 'category': 'Accessories', 'qty': 2, 'lineTotal': 500.0}
+            {
+              'name': 'Tempered Glass',
+              'category': 'Accessories',
+              'qty': 2,
+              'lineTotal': 500.0
+            }
           ],
         },
       ];
@@ -270,7 +285,9 @@ void main() {
       expect(overSummary.cashDiscrepancy, 50.0); // ₹50 overage
     });
 
-    test('6. Expense metrics computation (Today, Month, Cash Today, Bank Today)', () async {
+    test(
+        '6. Expense metrics computation (Today, Month, Cash Today, Bank Today)',
+        () async {
       final today = DateTime.now();
       final yesterday = today.subtract(const Duration(days: 1));
       final lastMonth = DateTime(today.year, today.month - 1, 15);
@@ -342,7 +359,8 @@ void main() {
       await Db.expenses.put(expYest.id, expYest.toMap());
       await Db.expenses.put(expOld.id, expOld.toMap());
 
-      final metrics = await ExpenseService.instance.computeExpenseMetrics(shopId: 'shop_test_expense');
+      final metrics = await ExpenseService.instance
+          .computeExpenseMetrics(shopId: 'shop_test_expense');
 
       // Today: exp1 (40) + exp2 (150) = 190. (expVoid is ignored)
       expect(metrics.totalToday, 190.0);
@@ -350,9 +368,9 @@ void main() {
       expect(metrics.bankToday, 150.0);
 
       // This Month: exp1 (40) + exp2 (150) + expYest (if in same month)
-      final expectedMonth = (yesterday.month == today.month) ? (190.0 + 300.0) : 190.0;
+      final expectedMonth =
+          (yesterday.month == today.month) ? (190.0 + 300.0) : 190.0;
       expect(metrics.totalMonth, expectedMonth);
     });
   });
 }
-

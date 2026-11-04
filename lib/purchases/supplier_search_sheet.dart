@@ -76,19 +76,43 @@ class _SupplierSearchSheetState extends State<SupplierSearchSheet> {
       final code = clean.substring(0, 2);
       // Derive state from GSTIN prefix
       final stateMap = {
-        '01': 'Jammu & Kashmir', '02': 'Himachal Pradesh',
-        '03': 'Punjab', '04': 'Chandigarh', '05': 'Uttarakhand',
-        '06': 'Haryana', '07': 'Delhi', '08': 'Rajasthan',
-        '09': 'Uttar Pradesh', '10': 'Bihar', '11': 'Sikkim',
-        '12': 'Arunachal Pradesh', '13': 'Nagaland', '14': 'Manipur',
-        '15': 'Mizoram', '16': 'Tripura', '17': 'Meghalaya',
-        '18': 'Assam', '19': 'West Bengal', '20': 'Jharkhand',
-        '21': 'Odisha', '22': 'Chhattisgarh', '23': 'Madhya Pradesh',
-        '24': 'Gujarat', '25': 'Daman & Diu', '26': 'Dadra & Nagar Haveli',
-        '27': 'Maharashtra', '28': 'Andhra Pradesh', '29': 'Karnataka',
-        '30': 'Goa', '31': 'Lakshadweep', '32': 'Kerala',
-        '33': 'Tamil Nadu', '34': 'Puducherry', '35': 'Andaman & Nicobar',
-        '36': 'Telangana', '37': 'Andhra Pradesh (New)',
+        '01': 'Jammu & Kashmir',
+        '02': 'Himachal Pradesh',
+        '03': 'Punjab',
+        '04': 'Chandigarh',
+        '05': 'Uttarakhand',
+        '06': 'Haryana',
+        '07': 'Delhi',
+        '08': 'Rajasthan',
+        '09': 'Uttar Pradesh',
+        '10': 'Bihar',
+        '11': 'Sikkim',
+        '12': 'Arunachal Pradesh',
+        '13': 'Nagaland',
+        '14': 'Manipur',
+        '15': 'Mizoram',
+        '16': 'Tripura',
+        '17': 'Meghalaya',
+        '18': 'Assam',
+        '19': 'West Bengal',
+        '20': 'Jharkhand',
+        '21': 'Odisha',
+        '22': 'Chhattisgarh',
+        '23': 'Madhya Pradesh',
+        '24': 'Gujarat',
+        '25': 'Daman & Diu',
+        '26': 'Dadra & Nagar Haveli',
+        '27': 'Maharashtra',
+        '28': 'Andhra Pradesh',
+        '29': 'Karnataka',
+        '30': 'Goa',
+        '31': 'Lakshadweep',
+        '32': 'Kerala',
+        '33': 'Tamil Nadu',
+        '34': 'Puducherry',
+        '35': 'Andaman & Nicobar',
+        '36': 'Telangana',
+        '37': 'Andhra Pradesh (New)',
       };
       setState(() {
         _stateCode = code;
@@ -108,7 +132,8 @@ class _SupplierSearchSheetState extends State<SupplierSearchSheet> {
     // Validate GSTIN if entered
     final gst = _gstCtrl.text.trim().toUpperCase();
     if (gst.isNotEmpty) {
-      final gstRegex = RegExp(r'^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}$');
+      final gstRegex =
+          RegExp(r'^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}$');
       if (!gstRegex.hasMatch(gst)) {
         TekFeedback.error('Invalid GSTIN format. Expected: 22AAAAA0000A1Z5');
         return;
@@ -144,7 +169,8 @@ class _SupplierSearchSheetState extends State<SupplierSearchSheet> {
             color: Color(0xFF0B1030),
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
             border: Border(
-              top: BorderSide(color: DashboardColors.glassBorderHover, width: 1.5),
+              top: BorderSide(
+                  color: DashboardColors.glassBorderHover, width: 1.5),
             ),
           ),
           child: Column(
@@ -164,7 +190,8 @@ class _SupplierSearchSheetState extends State<SupplierSearchSheet> {
 
               // Header
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: Row(
                   children: [
                     const Icon(Icons.business_rounded,
@@ -197,7 +224,10 @@ class _SupplierSearchSheetState extends State<SupplierSearchSheet> {
               ),
 
               const Divider(
-                  height: 1, color: DashboardColors.glassBorder, indent: 16, endIndent: 16),
+                  height: 1,
+                  color: DashboardColors.glassBorder,
+                  indent: 16,
+                  endIndent: 16),
               const SizedBox(height: 8),
 
               if (_showAddForm)
@@ -230,11 +260,13 @@ class _SupplierSearchSheetState extends State<SupplierSearchSheet> {
               fillColor: Colors.white.withValues(alpha: 0.05),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: DashboardColors.glassBorder),
+                borderSide:
+                    const BorderSide(color: DashboardColors.glassBorder),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: DashboardColors.glassBorder),
+                borderSide:
+                    const BorderSide(color: DashboardColors.glassBorder),
               ),
             ),
             onChanged: _filter,
@@ -265,14 +297,14 @@ class _SupplierSearchSheetState extends State<SupplierSearchSheet> {
                   controller: scrollCtrl,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemCount: _filtered.length,
-                  separatorBuilder: (_, __) =>
-                      const Divider(height: 1, color: DashboardColors.glassBorder),
+                  separatorBuilder: (_, __) => const Divider(
+                      height: 1, color: DashboardColors.glassBorder),
                   itemBuilder: (ctx, i) {
                     final v = _filtered[i];
                     final balance = (v['balance'] as num?)?.toDouble() ?? 0.0;
                     return ListTile(
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 8),
                       leading: Container(
                         width: 42,
                         height: 42,
@@ -423,8 +455,8 @@ class _SupplierSearchSheetState extends State<SupplierSearchSheet> {
         labelText: label,
         labelStyle: const TextStyle(color: DashboardColors.textMuted),
         hintText: hint,
-        hintStyle: const TextStyle(
-            color: DashboardColors.textDarkMuted, fontSize: 12),
+        hintStyle:
+            const TextStyle(color: DashboardColors.textDarkMuted, fontSize: 12),
         prefixIcon: Icon(icon, color: DashboardColors.neonBlue, size: 18),
         filled: true,
         fillColor: Colors.white.withValues(alpha: 0.04),
@@ -445,4 +477,3 @@ class _SupplierSearchSheetState extends State<SupplierSearchSheet> {
     );
   }
 }
-

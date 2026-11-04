@@ -60,7 +60,8 @@ class TekNotification {
     }
   }
 
-  factory TekNotification.fromMap(String docId, Map<String, dynamic> map, {bool isRead = false}) {
+  factory TekNotification.fromMap(String docId, Map<String, dynamic> map,
+      {bool isRead = false}) {
     DateTime parseDt(dynamic val) {
       if (val is Timestamp) return val.toDate();
       if (val is DateTime) return val;
@@ -76,7 +77,9 @@ class TekNotification {
       final str = '$val'.toLowerCase();
       if (str.contains('repair') || str.contains('service')) {
         return NotificationType.repairUpdate;
-      } else if (str.contains('announcement') || str.contains('owner') || str.contains('broadcast')) {
+      } else if (str.contains('announcement') ||
+          str.contains('owner') ||
+          str.contains('broadcast')) {
         return NotificationType.announcement;
       } else if (str.contains('attendance')) {
         return NotificationType.attendance;

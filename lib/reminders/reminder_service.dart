@@ -87,8 +87,8 @@ class ReminderService {
   Future<bool> isBatteryOptimizationIgnored() async {
     if (kIsWeb || !Platform.isAndroid) return true;
     try {
-      final res = await _smsChannel
-          .invokeMethod<bool>('isBatteryOptimizationIgnored');
+      final res =
+          await _smsChannel.invokeMethod<bool>('isBatteryOptimizationIgnored');
       return res ?? true;
     } catch (_) {
       return true;
@@ -117,7 +117,8 @@ class ReminderService {
     final hasPerm = await hasSmsPermission();
     if (!hasPerm) {
       await requestSmsPermission();
-      throw Exception('SMS അയക്കാനുള്ള അനുമതി നൽകിയിട്ടില്ല (SEND_SMS required)');
+      throw Exception(
+          'SMS അയക്കാനുള്ള അനുമതി നൽകിയിട്ടില്ല (SEND_SMS required)');
     }
 
     final res = await _smsChannel.invokeMethod<bool>('sendSms', {
@@ -133,8 +134,8 @@ class ReminderService {
     if (p.startsWith('0')) p = p.substring(1);
     if (!p.startsWith('91') && p.length == 10) p = '91$p';
 
-    final uri = Uri.parse(
-        'https://wa.me/$p?text=${Uri.encodeComponent(message)}');
+    final uri =
+        Uri.parse('https://wa.me/$p?text=${Uri.encodeComponent(message)}');
     if (await canLaunchUrl(uri)) {
       return await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
@@ -439,19 +440,21 @@ class ReminderService {
         final item = _m(items[i]);
         final warranty = '${item['warranty'] ?? ''}';
         final hasWarranty = warranty.isNotEmpty && warranty != 'No Warranty';
-        final followUpEnabled =
-            item['followUpEnabled'] == true || hasWarranty;
+        final followUpEnabled = item['followUpEnabled'] == true || hasWarranty;
 
         if (!followUpEnabled) continue;
 
         // Calculate warranty end date if applicable
         DateTime? warrantyEnd;
         if (warranty.contains('1 Year')) {
-          warrantyEnd = DateTime(saleDate.year + 1, saleDate.month, saleDate.day);
+          warrantyEnd =
+              DateTime(saleDate.year + 1, saleDate.month, saleDate.day);
         } else if (warranty.contains('6 Months')) {
-          warrantyEnd = DateTime(saleDate.year, saleDate.month + 6, saleDate.day);
+          warrantyEnd =
+              DateTime(saleDate.year, saleDate.month + 6, saleDate.day);
         } else if (warranty.contains('3 Months')) {
-          warrantyEnd = DateTime(saleDate.year, saleDate.month + 3, saleDate.day);
+          warrantyEnd =
+              DateTime(saleDate.year, saleDate.month + 3, saleDate.day);
         }
 
         // Follow up 1 due: saleDate + followUp1Days
@@ -505,7 +508,9 @@ class ReminderService {
         try {
           await sendFollowUp1(fu);
         } catch (_) {}
-      } else if (!fu['fu2Sent'] && fu['fu2Due'] != null && now.isAfter(fu['fu2Due'])) {
+      } else if (!fu['fu2Sent'] &&
+          fu['fu2Due'] != null &&
+          now.isAfter(fu['fu2Due'])) {
         try {
           await sendFollowUp2(fu);
         } catch (_) {}

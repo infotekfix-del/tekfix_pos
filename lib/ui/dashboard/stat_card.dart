@@ -120,7 +120,8 @@ class _TekStatCardState extends State<TekStatCard> {
                       // % Change pill
                       Flexible(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2.5),
                           decoration: BoxDecoration(
                             color: (widget.isPositive
                                     ? DashboardColors.neonGreen
@@ -226,7 +227,8 @@ class _TekStatCardState extends State<TekStatCard> {
                     child: CustomPaint(
                       painter: _MiniSparklinePainter(
                         color: widget.accentColor,
-                        data: widget.sparklineData ?? [20, 35, 25, 45, 30, 60, 55, 75],
+                        data: widget.sparklineData ??
+                            [20, 35, 25, 45, 30, 60, 55, 75],
                       ),
                     ),
                   ),

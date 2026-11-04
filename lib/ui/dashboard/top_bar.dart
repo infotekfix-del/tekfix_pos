@@ -52,7 +52,8 @@ class TekTopBar extends StatelessWidget {
           if (showMenuButton) ...[
             IconButton(
               tooltip: 'Open Menu',
-              icon: const Icon(Icons.menu_rounded, color: Colors.white, size: 24),
+              icon:
+                  const Icon(Icons.menu_rounded, color: Colors.white, size: 24),
               onPressed: onMenuTap,
             ),
             const SizedBox(width: 8),
@@ -99,7 +100,8 @@ class TekTopBar extends StatelessWidget {
                           ),
                           if (!isCompact)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 3),
                               decoration: BoxDecoration(
                                 color: const Color(0x2EFFFFFF),
                                 borderRadius: BorderRadius.circular(6),
@@ -220,9 +222,11 @@ class TekTopBar extends StatelessWidget {
                 value: 'profile',
                 child: Row(
                   children: [
-                    const Icon(Icons.person_outline_rounded, size: 18, color: Colors.white70),
+                    const Icon(Icons.person_outline_rounded,
+                        size: 18, color: Colors.white70),
                     const SizedBox(width: 10),
-                    Text('Business Profile', style: DashboardTypography.inter(fontSize: 13)),
+                    Text('Business Profile',
+                        style: DashboardTypography.inter(fontSize: 13)),
                   ],
                 ),
               ),
@@ -230,9 +234,12 @@ class TekTopBar extends StatelessWidget {
                 value: 'signout',
                 child: Row(
                   children: [
-                    const Icon(Icons.logout_rounded, size: 18, color: DashboardColors.neonPink),
+                    const Icon(Icons.logout_rounded,
+                        size: 18, color: DashboardColors.neonPink),
                     const SizedBox(width: 10),
-                    Text('Sign Out', style: DashboardTypography.inter(fontSize: 13, color: DashboardColors.neonPink)),
+                    Text('Sign Out',
+                        style: DashboardTypography.inter(
+                            fontSize: 13, color: DashboardColors.neonPink)),
                   ],
                 ),
               ),
@@ -258,7 +265,8 @@ class TekTopBar extends StatelessWidget {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: DashboardColors.neonBlue.withValues(alpha: 0.35),
+                          color:
+                              DashboardColors.neonBlue.withValues(alpha: 0.35),
                           blurRadius: 8,
                         ),
                       ],

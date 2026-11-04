@@ -69,10 +69,14 @@ class _RemindersScreenState extends State<RemindersScreen>
             borderRadius: BorderRadius.circular(20),
             side: const BorderSide(color: TekColors.border),
           ),
-          icon: const Icon(Icons.lock_person_rounded, size: 40, color: TekColors.warning),
+          icon: const Icon(Icons.lock_person_rounded,
+              size: 40, color: TekColors.warning),
           title: Text(
             actionTitle,
-            style: const TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16),
+            style: const TextStyle(
+                color: TekColors.textPrimary,
+                fontWeight: FontWeight.bold,
+                fontSize: 16),
             textAlign: TextAlign.center,
           ),
           content: Column(
@@ -90,11 +94,15 @@ class _RemindersScreenState extends State<RemindersScreen>
                 keyboardType: TextInputType.number,
                 maxLength: 6,
                 autofocus: true,
-                style: const TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.bold, letterSpacing: 4),
+                style: const TextStyle(
+                    color: TekColors.textPrimary,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 4),
                 decoration: InputDecoration(
                   labelText: 'Owner PIN',
                   labelStyle: const TextStyle(color: TekColors.textSecondary),
-                  prefixIcon: const Icon(Icons.key_rounded, color: TekColors.secondary),
+                  prefixIcon:
+                      const Icon(Icons.key_rounded, color: TekColors.secondary),
                   errorText: pinErr,
                 ),
               ),
@@ -103,13 +111,15 @@ class _RemindersScreenState extends State<RemindersScreen>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('റദ്ദാക്കുക (Cancel)', style: TextStyle(color: TekColors.textSecondary)),
+              child: const Text('റദ്ദാക്കുക (Cancel)',
+                  style: TextStyle(color: TekColors.textSecondary)),
             ),
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: TekColors.primary),
               onPressed: () {
                 final correctPin = Db.setting('owner_pin', '1234');
-                if (pinCtrl.text.trim() == correctPin || pinCtrl.text.trim() == '9999') {
+                if (pinCtrl.text.trim() == correctPin ||
+                    pinCtrl.text.trim() == '9999') {
                   Navigator.pop(ctx, true);
                 } else {
                   setD(() => pinErr = 'PIN തെറ്റാണ് (Invalid Owner PIN)');
@@ -163,7 +173,8 @@ class _RemindersScreenState extends State<RemindersScreen>
             decoration: const BoxDecoration(
               color: TekColors.bgCard,
               borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              border: Border(top: BorderSide(color: TekColors.border, width: 1.5)),
+              border:
+                  Border(top: BorderSide(color: TekColors.border, width: 1.5)),
             ),
             child: SingleChildScrollView(
               child: Column(
@@ -194,16 +205,25 @@ class _RemindersScreenState extends State<RemindersScreen>
                         ),
                       ),
                       FilledButton(
-                        style: FilledButton.styleFrom(backgroundColor: TekColors.primary),
+                        style: FilledButton.styleFrom(
+                            backgroundColor: TekColors.primary),
                         onPressed: () async {
-                          await Db.settings.put('reminders_auto_enabled', autoOn.toString());
-                          await Db.settings.put('reminders_interval_days', interval.toString());
-                          await Db.settings.put('reminders_start_days', startDays.toString());
-                          await Db.settings.put('reminders_max_count', maxCount.toString());
-                          await Db.settings.put('reminders_start_hour', startHour.toString());
-                          await Db.settings.put('reminders_end_hour', endHour.toString());
-                          await Db.settings.put('reminders_debug_mode', debugMode.toString());
-                          await Db.settings.put('reminders_msg_template', templateCtrl.text.trim());
+                          await Db.settings
+                              .put('reminders_auto_enabled', autoOn.toString());
+                          await Db.settings.put(
+                              'reminders_interval_days', interval.toString());
+                          await Db.settings.put(
+                              'reminders_start_days', startDays.toString());
+                          await Db.settings
+                              .put('reminders_max_count', maxCount.toString());
+                          await Db.settings.put(
+                              'reminders_start_hour', startHour.toString());
+                          await Db.settings
+                              .put('reminders_end_hour', endHour.toString());
+                          await Db.settings.put(
+                              'reminders_debug_mode', debugMode.toString());
+                          await Db.settings.put('reminders_msg_template',
+                              templateCtrl.text.trim());
                           if (ctx.mounted) Navigator.pop(ctx);
                           if (mounted) setState(() {});
                           if (mounted) toast(context, 'Settings സേവ് ചെയ്തു');
@@ -215,26 +235,46 @@ class _RemindersScreenState extends State<RemindersScreen>
                   const Divider(height: 20, color: TekColors.border),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Auto Reminders (യാന്ത്രിക സന്ദേശം)', style: TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14)),
-                    subtitle: const Text('ബാക്കി തുകയുള്ളവർക്ക് തനിയെ SMS അയക്കുക', style: TextStyle(color: TekColors.textSecondary, fontSize: 12)),
+                    title: const Text('Auto Reminders (യാന്ത്രിക സന്ദേശം)',
+                        style: TextStyle(
+                            color: TekColors.textPrimary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14)),
+                    subtitle: const Text(
+                        'ബാക്കി തുകയുള്ളവർക്ക് തനിയെ SMS അയക്കുക',
+                        style: TextStyle(
+                            color: TekColors.textSecondary, fontSize: 12)),
                     value: autoOn,
                     activeThumbColor: TekColors.primary,
                     onChanged: (v) => set(() => autoOn = v),
                   ),
                   const SizedBox(height: 12),
-                  const Text('സന്ദേശ രൂപം (Message Template)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: TekColors.textPrimary)),
+                  const Text('സന്ദേശ രൂപം (Message Template)',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: TekColors.textPrimary)),
                   const SizedBox(height: 6),
                   TextField(
                     controller: templateCtrl,
                     maxLines: 3,
-                    style: const TextStyle(color: TekColors.textPrimary, fontSize: 13),
+                    style: const TextStyle(
+                        color: TekColors.textPrimary, fontSize: 13),
                     decoration: InputDecoration(
                       filled: true,
                       fillColor: TekColors.bgSecondary,
-                      hintText: 'Variables: {customer_name}, {balance}, {last_sale_date}, {shop_name}, {shop_phone}',
-                      hintStyle: const TextStyle(color: TekColors.textMuted, fontSize: 11),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TekColors.border)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TekColors.border)),
+                      hintText:
+                          'Variables: {customer_name}, {balance}, {last_sale_date}, {shop_name}, {shop_phone}',
+                      hintStyle: const TextStyle(
+                          color: TekColors.textMuted, fontSize: 11),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              const BorderSide(color: TekColors.border)),
+                      enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              const BorderSide(color: TekColors.border)),
                     ),
                   ),
                 ],
@@ -255,11 +295,13 @@ class _RemindersScreenState extends State<RemindersScreen>
     for (final v in Db.sales.values) {
       final s = _m(v);
       if (_isReturned(s)) continue;
-      if ((phone.isNotEmpty && s['customerPhone'] == phone) || s['customerName'] == name) {
+      if ((phone.isNotEmpty && s['customerPhone'] == phone) ||
+          s['customerName'] == name) {
         customerSales.add(s);
       }
     }
-    customerSales.sort((a, b) => ('${b['createdAt']}').compareTo('${a['createdAt']}'));
+    customerSales
+        .sort((a, b) => ('${b['createdAt']}').compareTo('${a['createdAt']}'));
 
     showDialog(
       context: context,
@@ -277,10 +319,15 @@ class _RemindersScreenState extends State<RemindersScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: TekColors.textPrimary)),
+                  Text(name,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: TekColors.textPrimary)),
                   Text(
                     phone.isNotEmpty ? phone : 'ഫോൺ നമ്പർ ഇല്ല',
-                    style: const TextStyle(fontSize: 11.5, color: TekColors.textSecondary),
+                    style: const TextStyle(
+                        fontSize: 11.5, color: TekColors.textSecondary),
                   ),
                 ],
               ),
@@ -290,11 +337,15 @@ class _RemindersScreenState extends State<RemindersScreen>
               decoration: BoxDecoration(
                 color: TekColors.error.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: TekColors.error.withValues(alpha: 0.4)),
+                border:
+                    Border.all(color: TekColors.error.withValues(alpha: 0.4)),
               ),
               child: Text(
                 'Due: ₹${bal.toStringAsFixed(2)}',
-                style: const TextStyle(fontWeight: FontWeight.bold, color: TekColors.error, fontSize: 12),
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: TekColors.error,
+                    fontSize: 12),
               ),
             ),
           ],
@@ -306,7 +357,8 @@ class _RemindersScreenState extends State<RemindersScreen>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
                   color: TekColors.bgSecondary,
                   borderRadius: BorderRadius.circular(10),
@@ -314,12 +366,17 @@ class _RemindersScreenState extends State<RemindersScreen>
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.lock_outline_rounded, size: 15, color: TekColors.warning),
+                    Icon(Icons.lock_outline_rounded,
+                        size: 15, color: TekColors.warning),
                     SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         'റീഡ്-ഒൺലി: ലെഡ്ജറിലോ ബാക്കിയിലോ മാറ്റം വരുത്താൻ ഉടമസ്ഥന്റെ അനുമതി വേണം.',
-                        style: TextStyle(fontSize: 11, color: TekColors.textSecondary, fontFamilyFallback: TekTypography.malayalamFallback),
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: TekColors.textSecondary,
+                            fontFamilyFallback:
+                                TekTypography.malayalamFallback),
                       ),
                     ),
                   ],
@@ -328,26 +385,36 @@ class _RemindersScreenState extends State<RemindersScreen>
               const SizedBox(height: 12),
               const Text(
                 'കഴിഞ്ഞ ബില്ലുകൾ (Past Transactions):',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: TekColors.textPrimary),
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12.5,
+                    color: TekColors.textPrimary),
               ),
               const SizedBox(height: 6),
               customerSales.isEmpty
                   ? const Padding(
                       padding: EdgeInsets.symmetric(vertical: 20),
                       child: Center(
-                        child: Text('പഴയ ഇടപാടുകൾ ലഭ്യമല്ല (No sales history found)', style: TextStyle(color: TekColors.textMuted, fontSize: 12)),
+                        child: Text(
+                            'പഴയ ഇടപാടുകൾ ലഭ്യമല്ല (No sales history found)',
+                            style: TextStyle(
+                                color: TekColors.textMuted, fontSize: 12)),
                       ),
                     )
                   : Flexible(
                       child: ListView.separated(
                         shrinkWrap: true,
-                        itemCount: customerSales.length > 8 ? 8 : customerSales.length,
-                        separatorBuilder: (_, __) => const Divider(height: 8, color: TekColors.border),
+                        itemCount:
+                            customerSales.length > 8 ? 8 : customerSales.length,
+                        separatorBuilder: (_, __) =>
+                            const Divider(height: 8, color: TekColors.border),
                         itemBuilder: (ctx, i) {
                           final s = customerSales[i];
-                          final invId = '${s['invoiceNumber'] ?? s['id'] ?? 'INV'}';
+                          final invId =
+                              '${s['invoiceNumber'] ?? s['id'] ?? 'INV'}';
                           final amt = _d(s['totalAmount'] ?? s['total']);
-                          final dateStr = '${s['createdAt'] ?? ''}'.split('T').first;
+                          final dateStr =
+                              '${s['createdAt'] ?? ''}'.split('T').first;
                           final mode = '${s['paymentMode'] ?? 'Cash'}';
 
                           return ListTile(
@@ -356,14 +423,27 @@ class _RemindersScreenState extends State<RemindersScreen>
                             leading: Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: TekColors.primary.withValues(alpha: 0.15),
+                                color:
+                                    TekColors.primary.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Icon(Icons.point_of_sale_rounded, color: TekColors.secondary, size: 16),
+                              child: const Icon(Icons.point_of_sale_rounded,
+                                  color: TekColors.secondary, size: 16),
                             ),
-                            title: Text(invId, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: TekColors.textPrimary)),
-                            subtitle: Text('$dateStr • $mode', style: const TextStyle(fontSize: 10.5, color: TekColors.textSecondary)),
-                            trailing: Text('₹${amt.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: TekColors.secondary, fontSize: 12.5)),
+                            title: Text(invId,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                    color: TekColors.textPrimary)),
+                            subtitle: Text('$dateStr • $mode',
+                                style: const TextStyle(
+                                    fontSize: 10.5,
+                                    color: TekColors.textSecondary)),
+                            trailing: Text('₹${amt.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: TekColors.secondary,
+                                    fontSize: 12.5)),
                           );
                         },
                       ),
@@ -447,7 +527,8 @@ class _RemindersScreenState extends State<RemindersScreen>
         setState(() {});
       }
     } else {
-      if (mounted) toast(context, 'SMS ആപ്പ് തുറക്കാൻ സാധിച്ചില്ല', error: true);
+      if (mounted)
+        toast(context, 'SMS ആപ്പ് തുറക്കാൻ സാധിച്ചില്ല', error: true);
     }
   }
 
@@ -474,7 +555,8 @@ class _RemindersScreenState extends State<RemindersScreen>
               widget.staffName != null && widget.staffName!.isNotEmpty
                   ? 'Staff: ${widget.staffName} • Read-Only Ledger'
                   : 'Customer outstanding dues & follow-up',
-              style: const TextStyle(fontSize: 11, color: TekColors.textSecondary),
+              style:
+                  const TextStyle(fontSize: 11, color: TekColors.textSecondary),
             ),
           ],
         ),
@@ -484,11 +566,18 @@ class _RemindersScreenState extends State<RemindersScreen>
           indicatorWeight: 3,
           labelColor: TekColors.primary,
           unselectedLabelColor: TekColors.textSecondary,
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+          labelStyle:
+              const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
           tabs: const [
-            Tab(text: 'Due Customers (ബാക്കി)', icon: Icon(Icons.people_alt_rounded, size: 20)),
-            Tab(text: 'Message Logs (ലോഗ്)', icon: Icon(Icons.history_rounded, size: 20)),
-            Tab(text: 'No Phone (നമ്പർ ഇല്ല)', icon: Icon(Icons.phonelink_erase_rounded, size: 20)),
+            Tab(
+                text: 'Due Customers (ബാക്കി)',
+                icon: Icon(Icons.people_alt_rounded, size: 20)),
+            Tab(
+                text: 'Message Logs (ലോഗ്)',
+                icon: Icon(Icons.history_rounded, size: 20)),
+            Tab(
+                text: 'No Phone (നമ്പർ ഇല്ല)',
+                icon: Icon(Icons.phonelink_erase_rounded, size: 20)),
           ],
         ),
         actions: [
@@ -540,8 +629,10 @@ class _RemindersScreenState extends State<RemindersScreen>
 
         // Sort: Overdue first, then by largest balance
         filtered.sort((a, b) {
-          final evalA = ReminderService.instance.evaluateCustomerReminder(a.value);
-          final evalB = ReminderService.instance.evaluateCustomerReminder(b.value);
+          final evalA =
+              ReminderService.instance.evaluateCustomerReminder(a.value);
+          final evalB =
+              ReminderService.instance.evaluateCustomerReminder(b.value);
           final dueA = evalA['isDue'] == true ? 1 : 0;
           final dueB = evalB['isDue'] == true ? 1 : 0;
           if (dueA != dueB) return dueB.compareTo(dueA);
@@ -555,15 +646,19 @@ class _RemindersScreenState extends State<RemindersScreen>
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
               child: TextField(
                 controller: _searchCtrl,
-                style: const TextStyle(color: TekColors.textPrimary, fontSize: 13.5),
+                style: const TextStyle(
+                    color: TekColors.textPrimary, fontSize: 13.5),
                 onChanged: (val) => setState(() => _searchQuery = val.trim()),
                 decoration: InputDecoration(
                   hintText: 'Search customer name or phone...',
-                  hintStyle: const TextStyle(color: TekColors.textMuted, fontSize: 12.5),
-                  prefixIcon: const Icon(Icons.search_rounded, color: TekColors.secondary, size: 20),
+                  hintStyle: const TextStyle(
+                      color: TekColors.textMuted, fontSize: 12.5),
+                  prefixIcon: const Icon(Icons.search_rounded,
+                      color: TekColors.secondary, size: 20),
                   suffixIcon: _searchQuery.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear_rounded, size: 18, color: TekColors.textSecondary),
+                          icon: const Icon(Icons.clear_rounded,
+                              size: 18, color: TekColors.textSecondary),
                           onPressed: () {
                             _searchCtrl.clear();
                             setState(() => _searchQuery = '');
@@ -572,10 +667,18 @@ class _RemindersScreenState extends State<RemindersScreen>
                       : null,
                   filled: true,
                   fillColor: TekColors.bgSecondary,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: TekColors.border)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: TekColors.border)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: TekColors.primary, width: 1.5)),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: TekColors.border)),
+                  enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: TekColors.border)),
+                  focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(
+                          color: TekColors.primary, width: 1.5)),
                 ),
               ),
             ),
@@ -595,7 +698,8 @@ class _RemindersScreenState extends State<RemindersScreen>
                         end: Alignment.bottomRight,
                       ),
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: TekColors.secondary.withValues(alpha: 0.3)),
+                      border: Border.all(
+                          color: TekColors.secondary.withValues(alpha: 0.3)),
                       boxShadow: TekColors.cardShadow,
                     ),
                     child: Row(
@@ -606,7 +710,11 @@ class _RemindersScreenState extends State<RemindersScreen>
                             children: [
                               const Text(
                                 'ആകെ കിട്ടാനുള്ള ബാക്കി (Total Dues):',
-                                style: TextStyle(color: TekColors.textSecondary, fontSize: 12, fontFamilyFallback: TekTypography.malayalamFallback),
+                                style: TextStyle(
+                                    color: TekColors.textSecondary,
+                                    fontSize: 12,
+                                    fontFamilyFallback:
+                                        TekTypography.malayalamFallback),
                               ),
                               const SizedBox(height: 4),
                               Text(
@@ -621,7 +729,8 @@ class _RemindersScreenState extends State<RemindersScreen>
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
                             color: TekColors.warning.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(10),
@@ -629,7 +738,8 @@ class _RemindersScreenState extends State<RemindersScreen>
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.timer_outlined, size: 14, color: TekColors.warning),
+                              const Icon(Icons.timer_outlined,
+                                  size: 14, color: TekColors.warning),
                               const SizedBox(width: 4),
                               Text(
                                 '$overdueCount Overdue',
@@ -655,7 +765,8 @@ class _RemindersScreenState extends State<RemindersScreen>
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.check_circle_outline_rounded, size: 54, color: TekColors.success),
+                            const Icon(Icons.check_circle_outline_rounded,
+                                size: 54, color: TekColors.success),
                             const SizedBox(height: 12),
                             Text(
                               _searchQuery.isNotEmpty
@@ -665,7 +776,8 @@ class _RemindersScreenState extends State<RemindersScreen>
                               style: const TextStyle(
                                 color: TekColors.textSecondary,
                                 fontWeight: FontWeight.bold,
-                                fontFamilyFallback: TekTypography.malayalamFallback,
+                                fontFamilyFallback:
+                                    TekTypography.malayalamFallback,
                               ),
                             ),
                           ],
@@ -678,7 +790,8 @@ class _RemindersScreenState extends State<RemindersScreen>
                         final partyKey = entry.key;
                         final p = entry.value;
                         final bal = _d(p['balance']);
-                        final eval = ReminderService.instance.evaluateCustomerReminder(p);
+                        final eval = ReminderService.instance
+                            .evaluateCustomerReminder(p);
                         final bool isOver30 = eval['isOver30Days'] == true;
                         final bool isDue = eval['isDue'] == true;
                         final phone = '${p['phone'] ?? ''}'.trim();
@@ -693,7 +806,9 @@ class _RemindersScreenState extends State<RemindersScreen>
                             border: Border.all(
                               color: isOver30
                                   ? TekColors.error.withValues(alpha: 0.6)
-                                  : (isDue ? TekColors.warning.withValues(alpha: 0.5) : TekColors.border),
+                                  : (isDue
+                                      ? TekColors.warning.withValues(alpha: 0.5)
+                                      : TekColors.border),
                             ),
                             boxShadow: TekColors.cardShadow,
                           ),
@@ -707,22 +822,30 @@ class _RemindersScreenState extends State<RemindersScreen>
                                     padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(
                                       color: isOver30
-                                          ? TekColors.error.withValues(alpha: 0.15)
-                                          : (isDue ? TekColors.warning.withValues(alpha: 0.15) : TekColors.primary.withValues(alpha: 0.15)),
+                                          ? TekColors.error
+                                              .withValues(alpha: 0.15)
+                                          : (isDue
+                                              ? TekColors.warning
+                                                  .withValues(alpha: 0.15)
+                                              : TekColors.primary
+                                                  .withValues(alpha: 0.15)),
                                       shape: BoxShape.circle,
                                     ),
                                     child: Icon(
                                       Icons.person_rounded,
                                       color: isOver30
                                           ? TekColors.error
-                                          : (isDue ? TekColors.warning : TekColors.secondary),
+                                          : (isDue
+                                              ? TekColors.warning
+                                              : TekColors.secondary),
                                       size: 22,
                                     ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Row(
                                           children: [
@@ -741,7 +864,9 @@ class _RemindersScreenState extends State<RemindersScreen>
                                               style: TextStyle(
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 16,
-                                                color: isOver30 ? TekColors.error : TekColors.secondary,
+                                                color: isOver30
+                                                    ? TekColors.error
+                                                    : TekColors.secondary,
                                               ),
                                             ),
                                           ],
@@ -750,17 +875,28 @@ class _RemindersScreenState extends State<RemindersScreen>
                                         Row(
                                           children: [
                                             Icon(
-                                              phone.isNotEmpty ? Icons.phone_outlined : Icons.phone_disabled_outlined,
+                                              phone.isNotEmpty
+                                                  ? Icons.phone_outlined
+                                                  : Icons
+                                                      .phone_disabled_outlined,
                                               size: 13,
-                                              color: phone.isNotEmpty ? TekColors.textSecondary : TekColors.error,
+                                              color: phone.isNotEmpty
+                                                  ? TekColors.textSecondary
+                                                  : TekColors.error,
                                             ),
                                             const SizedBox(width: 4),
                                             Text(
-                                              phone.isNotEmpty ? phone : 'ഫോൺ നമ്പർ നൽകിയിട്ടില്ല (No Phone)',
+                                              phone.isNotEmpty
+                                                  ? phone
+                                                  : 'ഫോൺ നമ്പർ നൽകിയിട്ടില്ല (No Phone)',
                                               style: TextStyle(
                                                 fontSize: 11.5,
-                                                color: phone.isNotEmpty ? TekColors.textSecondary : TekColors.error,
-                                                fontFamilyFallback: TekTypography.malayalamFallback,
+                                                color: phone.isNotEmpty
+                                                    ? TekColors.textSecondary
+                                                    : TekColors.error,
+                                                fontFamilyFallback:
+                                                    TekTypography
+                                                        .malayalamFallback,
                                               ),
                                             ),
                                           ],
@@ -772,24 +908,45 @@ class _RemindersScreenState extends State<RemindersScreen>
                                           children: [
                                             if (isOver30)
                                               Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 7,
+                                                        vertical: 2.5),
                                                 decoration: BoxDecoration(
-                                                  color: TekColors.error.withValues(alpha: 0.2),
-                                                  borderRadius: BorderRadius.circular(6),
-                                                  border: Border.all(color: TekColors.error.withValues(alpha: 0.5)),
+                                                  color: TekColors.error
+                                                      .withValues(alpha: 0.2),
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                  border: Border.all(
+                                                      color: TekColors.error
+                                                          .withValues(
+                                                              alpha: 0.5)),
                                                 ),
                                                 child: const Text(
                                                   '30+ Days Overdue',
-                                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: TekColors.error),
+                                                  style: TextStyle(
+                                                      fontSize: 10,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: TekColors.error),
                                                 ),
                                               ),
                                             Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 7,
+                                                      vertical: 2.5),
                                               decoration: BoxDecoration(
-                                                color: (isDue ? TekColors.warning : TekColors.primary).withValues(alpha: 0.15),
-                                                borderRadius: BorderRadius.circular(6),
+                                                color: (isDue
+                                                        ? TekColors.warning
+                                                        : TekColors.primary)
+                                                    .withValues(alpha: 0.15),
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
                                                 border: Border.all(
-                                                  color: (isDue ? TekColors.warning : TekColors.border),
+                                                  color: (isDue
+                                                      ? TekColors.warning
+                                                      : TekColors.border),
                                                 ),
                                               ),
                                               child: Text(
@@ -797,20 +954,29 @@ class _RemindersScreenState extends State<RemindersScreen>
                                                 style: TextStyle(
                                                   fontSize: 10,
                                                   fontWeight: FontWeight.bold,
-                                                  color: isDue ? TekColors.warning : TekColors.textSecondary,
+                                                  color: isDue
+                                                      ? TekColors.warning
+                                                      : TekColors.textSecondary,
                                                 ),
                                               ),
                                             ),
                                             Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 7,
+                                                      vertical: 2.5),
                                               decoration: BoxDecoration(
                                                 color: TekColors.bgSecondary,
-                                                borderRadius: BorderRadius.circular(6),
-                                                border: Border.all(color: TekColors.border),
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                                border: Border.all(
+                                                    color: TekColors.border),
                                               ),
                                               child: Text(
                                                 'Reminders: $sentCount',
-                                                style: const TextStyle(fontSize: 10, color: TekColors.textMuted),
+                                                style: const TextStyle(
+                                                    fontSize: 10,
+                                                    color: TekColors.textMuted),
                                               ),
                                             ),
                                           ],
@@ -821,7 +987,8 @@ class _RemindersScreenState extends State<RemindersScreen>
                                 ],
                               ),
 
-                              const Divider(height: 20, color: TekColors.border),
+                              const Divider(
+                                  height: 20, color: TekColors.border),
 
                               // Actions Row: Statement / WhatsApp / SMS
                               Row(
@@ -829,27 +996,46 @@ class _RemindersScreenState extends State<RemindersScreen>
                                   // Statement / Ledger
                                   OutlinedButton.icon(
                                     style: OutlinedButton.styleFrom(
-                                      side: const BorderSide(color: TekColors.border),
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                      side: const BorderSide(
+                                          color: TekColors.border),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 8),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10)),
                                     ),
-                                    icon: const Icon(Icons.receipt_long_rounded, size: 15, color: TekColors.secondary),
-                                    label: const Text('Statement', style: TextStyle(fontSize: 11, color: TekColors.textPrimary)),
-                                    onPressed: () => _showCustomerLedgerDialog(p),
+                                    icon: const Icon(Icons.receipt_long_rounded,
+                                        size: 15, color: TekColors.secondary),
+                                    label: const Text('Statement',
+                                        style: TextStyle(
+                                            fontSize: 11,
+                                            color: TekColors.textPrimary)),
+                                    onPressed: () =>
+                                        _showCustomerLedgerDialog(p),
                                   ),
                                   const Spacer(),
                                   if (phone.isNotEmpty) ...[
                                     // WhatsApp Action
                                     ElevatedButton.icon(
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF22C55E),
+                                        backgroundColor:
+                                            const Color(0xFF22C55E),
                                         foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 10, vertical: 8),
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(10)),
                                       ),
-                                      icon: const Icon(Icons.chat_bubble_rounded, size: 14),
-                                      label: const Text('WhatsApp', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                      onPressed: () => _handleWhatsApp(partyKey, p),
+                                      icon: const Icon(
+                                          Icons.chat_bubble_rounded,
+                                          size: 14),
+                                      label: const Text('WhatsApp',
+                                          style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold)),
+                                      onPressed: () =>
+                                          _handleWhatsApp(partyKey, p),
                                     ),
                                     const SizedBox(width: 8),
                                     // Device SMS Intent Action
@@ -857,11 +1043,18 @@ class _RemindersScreenState extends State<RemindersScreen>
                                       style: FilledButton.styleFrom(
                                         backgroundColor: TekColors.primary,
                                         foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 10, vertical: 8),
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(10)),
                                       ),
-                                      icon: const Icon(Icons.sms_rounded, size: 14),
-                                      label: const Text('SMS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                      icon: const Icon(Icons.sms_rounded,
+                                          size: 14),
+                                      label: const Text('SMS',
+                                          style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold)),
                                       onPressed: () => _handleSms(partyKey, p),
                                     ),
                                   ],
@@ -882,7 +1075,9 @@ class _RemindersScreenState extends State<RemindersScreen>
   }
 
   Widget _buildMessageLogsTab() {
-    final logs = ((Db.settings.get('reminders_msg_logs') as List?) ?? []).reversed.toList();
+    final logs = ((Db.settings.get('reminders_msg_logs') as List?) ?? [])
+        .reversed
+        .toList();
 
     if (logs.isEmpty) {
       return const Center(
@@ -896,7 +1091,9 @@ class _RemindersScreenState extends State<RemindersScreen>
               Text(
                 'സന്ദേശ വിവരങ്ങൾ ലഭ്യമല്ല\n(No reminder logs recorded yet)',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: TekColors.textSecondary, fontFamilyFallback: TekTypography.malayalamFallback),
+                style: TextStyle(
+                    color: TekColors.textSecondary,
+                    fontFamilyFallback: TekTypography.malayalamFallback),
               ),
             ],
           ),
@@ -928,12 +1125,19 @@ class _RemindersScreenState extends State<RemindersScreen>
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: (success ? TekColors.success : TekColors.error).withValues(alpha: 0.15),
+                  color: (success ? TekColors.success : TekColors.error)
+                      .withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  isWhatsApp ? Icons.chat_bubble_rounded : (success ? Icons.done_rounded : Icons.error_outline_rounded),
-                  color: isWhatsApp ? const Color(0xFF22C55E) : (success ? TekColors.success : TekColors.error),
+                  isWhatsApp
+                      ? Icons.chat_bubble_rounded
+                      : (success
+                          ? Icons.done_rounded
+                          : Icons.error_outline_rounded),
+                  color: isWhatsApp
+                      ? const Color(0xFF22C55E)
+                      : (success ? TekColors.success : TekColors.error),
                   size: 18,
                 ),
               ),
@@ -948,14 +1152,20 @@ class _RemindersScreenState extends State<RemindersScreen>
                         Expanded(
                           child: Text(
                             '${log['customer']} • ${log['phone']}',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: TekColors.textPrimary),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: TekColors.textPrimary),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: (success ? TekColors.success : TekColors.error).withValues(alpha: 0.15),
+                            color:
+                                (success ? TekColors.success : TekColors.error)
+                                    .withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
@@ -963,7 +1173,8 @@ class _RemindersScreenState extends State<RemindersScreen>
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
-                              color: success ? TekColors.success : TekColors.error,
+                              color:
+                                  success ? TekColors.success : TekColors.error,
                             ),
                           ),
                         ),
@@ -974,12 +1185,14 @@ class _RemindersScreenState extends State<RemindersScreen>
                       '${log['text']}',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11.5, color: TekColors.textSecondary),
+                      style: const TextStyle(
+                          fontSize: 11.5, color: TekColors.textSecondary),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${_dateFormat.format(date)} • ${log['type']}',
-                      style: const TextStyle(fontSize: 10, color: TekColors.textMuted),
+                      style: const TextStyle(
+                          fontSize: 10, color: TekColors.textMuted),
                     ),
                   ],
                 ),
@@ -1008,12 +1221,16 @@ class _RemindersScreenState extends State<RemindersScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.verified_user_rounded, size: 54, color: TekColors.success),
+                  Icon(Icons.verified_user_rounded,
+                      size: 54, color: TekColors.success),
                   SizedBox(height: 12),
                   Text(
                     'എല്ലാ ബാക്കിയുള്ള ഉപഭോക്താക്കൾക്കും സാധുവായ ഫോൺ നമ്പർ ഉണ്ട് 👍',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.bold, fontFamilyFallback: TekTypography.malayalamFallback),
+                    style: TextStyle(
+                        color: TekColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontFamilyFallback: TekTypography.malayalamFallback),
                   ),
                 ],
               ),
@@ -1029,11 +1246,13 @@ class _RemindersScreenState extends State<RemindersScreen>
               decoration: BoxDecoration(
                 color: TekColors.warning.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: TekColors.warning.withValues(alpha: 0.4)),
+                border:
+                    Border.all(color: TekColors.warning.withValues(alpha: 0.4)),
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.warning_amber_rounded, size: 24, color: TekColors.warning),
+                  Icon(Icons.warning_amber_rounded,
+                      size: 24, color: TekColors.warning),
                   SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -1067,7 +1286,8 @@ class _RemindersScreenState extends State<RemindersScreen>
                         color: TekColors.error.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.phonelink_erase_rounded, color: TekColors.error, size: 22),
+                      child: const Icon(Icons.phonelink_erase_rounded,
+                          color: TekColors.error, size: 22),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -1076,12 +1296,16 @@ class _RemindersScreenState extends State<RemindersScreen>
                         children: [
                           Text(
                             '${entry.value['name']}',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: TekColors.textPrimary),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: TekColors.textPrimary),
                           ),
                           const SizedBox(height: 2),
                           const Text(
                             '⚠️ ഫോൺ നമ്പർ ലഭ്യമല്ല (Missing Contact Number)',
-                            style: TextStyle(fontSize: 11, color: TekColors.error),
+                            style:
+                                TextStyle(fontSize: 11, color: TekColors.error),
                           ),
                         ],
                       ),
@@ -1091,17 +1315,25 @@ class _RemindersScreenState extends State<RemindersScreen>
                       children: [
                         Text(
                           rs(_d(entry.value['balance'])),
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: TekColors.secondary),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: TekColors.secondary),
                         ),
                         const SizedBox(height: 4),
                         OutlinedButton(
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: TekColors.border),
                             visualDensity: VisualDensity.compact,
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
                           ),
-                          onPressed: () => _showCustomerLedgerDialog(entry.value),
-                          child: const Text('Statement', style: TextStyle(fontSize: 11, color: TekColors.textSecondary)),
+                          onPressed: () =>
+                              _showCustomerLedgerDialog(entry.value),
+                          child: const Text('Statement',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: TekColors.textSecondary)),
                         ),
                       ],
                     ),

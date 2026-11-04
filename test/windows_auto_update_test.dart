@@ -101,20 +101,27 @@ void main() {
       expect(checksumAsset, isNotNull);
       expect(checksumAsset!.name, equals('TekFixERP-Setup-v1.0.14.exe.sha256'));
 
-      final hashFromBody = release.extractChecksumFromBody('TekFixERP-Setup-v1.0.14.exe');
-      expect(hashFromBody, equals('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'));
+      final hashFromBody =
+          release.extractChecksumFromBody('TekFixERP-Setup-v1.0.14.exe');
+      expect(
+          hashFromBody,
+          equals(
+              'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'));
     });
   });
 
   group('TEST 3: Checksum Validation & Corrupted Installer Rejection', () {
     test('verifies valid SHA-256 checksum correctly', () {
-      final sampleBytes = utf8.encode('TekFix ERP Secure Windows Installer Binary Payload');
-      final calculatedHash = sha256.convert(sampleBytes).toString().toLowerCase();
+      final sampleBytes =
+          utf8.encode('TekFix ERP Secure Windows Installer Binary Payload');
+      final calculatedHash =
+          sha256.convert(sampleBytes).toString().toLowerCase();
 
       expect(calculatedHash.length, equals(64));
 
       // Matches exact hash
-      expect(calculatedHash, equals(sha256.convert(sampleBytes).toString().toLowerCase()));
+      expect(calculatedHash,
+          equals(sha256.convert(sampleBytes).toString().toLowerCase()));
     });
 
     test('rejects tampered or mismatched checksum bytes', () {
@@ -130,7 +137,8 @@ void main() {
 
   group('TEST 4: Silent Updater Batch Script Generation', () {
     test('generates valid Windows batch script with required silent flags', () {
-      const installerPath = r'C:\Users\User\AppData\Local\Temp\tekfix_updates\TekFixERP-Setup-v1.0.14.exe';
+      const installerPath =
+          r'C:\Users\User\AppData\Local\Temp\tekfix_updates\TekFixERP-Setup-v1.0.14.exe';
       const executablePath = r'C:\Program Files\TekFix ERP\tekfix_pos.exe';
 
       final script = WindowsUpdateService.generateUpdaterBatchScript(
@@ -218,7 +226,8 @@ void main() {
 
   group('TEST 6: Download & Checksum Verification in Service', () {
     test('downloads and verifies valid file successfully', () async {
-      final payload = utf8.encode('Simulated Windows Installer Binary Content For Verification');
+      final payload = utf8.encode(
+          'Simulated Windows Installer Binary Content For Verification');
       final payloadSha256 = sha256.convert(payload).toString().toLowerCase();
 
       final mockClient = MockClient((request) async {
@@ -233,7 +242,8 @@ void main() {
               'assets': [
                 {
                   'name': 'TekFixERP-Setup-v1.0.14.exe',
-                  'browser_download_url': 'https://example.com/download/TekFixERP-Setup-v1.0.14.exe',
+                  'browser_download_url':
+                      'https://example.com/download/TekFixERP-Setup-v1.0.14.exe',
                   'size': payload.length,
                   'content_type': 'application/x-msdownload'
                 }
@@ -269,9 +279,11 @@ void main() {
       await file.delete();
     });
 
-    test('rejects download when SHA-256 checksum mismatches and deletes file', () async {
+    test('rejects download when SHA-256 checksum mismatches and deletes file',
+        () async {
       final payload = utf8.encode('Corrupted Or Modified Installer Content');
-      const bogusExpectedHash = '0000000000000000000000000000000000000000000000000000000000000000';
+      const bogusExpectedHash =
+          '0000000000000000000000000000000000000000000000000000000000000000';
 
       final mockClient = MockClient((request) async {
         if (request.url.path.endsWith('/releases/latest')) {
@@ -285,7 +297,8 @@ void main() {
               'assets': [
                 {
                   'name': 'TekFixERP-Setup-v1.0.14.exe',
-                  'browser_download_url': 'https://example.com/download/TekFixERP-Setup-v1.0.14.exe',
+                  'browser_download_url':
+                      'https://example.com/download/TekFixERP-Setup-v1.0.14.exe',
                   'size': payload.length,
                   'content_type': 'application/x-msdownload'
                 }

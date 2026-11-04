@@ -96,7 +96,9 @@ class NewAccountAlertService {
       await FirebaseFirestore.instance
           .doc('shops/$shopId/meta/account_alert')
           .set({
-        'type': isSecondAccount ? 'second_account_created' : 'new_shop_owner_created',
+        'type': isSecondAccount
+            ? 'second_account_created'
+            : 'new_shop_owner_created',
         'shopId': shopId,
         'ownerName': ownerName,
         'ownerEmail': ownerEmail,
@@ -151,7 +153,8 @@ class NewAccountAlertService {
     final deviceId = DeviceInfo.id;
 
     final payload = <String, dynamic>{
-      '_subject': '⚠️ Warning: New Staff Credential Created ($staffName) - TekFix POS',
+      '_subject':
+          '⚠️ Warning: New Staff Credential Created ($staffName) - TekFix POS',
       '_captcha': 'false',
       '_template': 'table',
       'Alert': 'New Staff Account Created with Another Credential',

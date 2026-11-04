@@ -40,7 +40,8 @@ class _TekTopNavBarState extends State<TekTopNavBar> {
       if (mounted) setState(() => _currentTime = DateTime.now());
     });
     final auth = AuthController.instance;
-    _unreadCountStream = NotificationService.instance.streamUnreadCount(auth.shopId, auth.uid);
+    _unreadCountStream =
+        NotificationService.instance.streamUnreadCount(auth.shopId, auth.uid);
   }
 
   @override
@@ -69,9 +70,13 @@ class _TekTopNavBarState extends State<TekTopNavBar> {
         children: [
           // 1. Sidebar Toggle Button
           IconButton(
-            tooltip: widget.isSidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar',
+            tooltip: widget.isSidebarCollapsed
+                ? 'Expand Sidebar'
+                : 'Collapse Sidebar',
             icon: Icon(
-              widget.isSidebarCollapsed ? Icons.menu_rounded : Icons.menu_open_rounded,
+              widget.isSidebarCollapsed
+                  ? Icons.menu_rounded
+                  : Icons.menu_open_rounded,
               color: TekColors.textPrimary,
               size: 22,
             ),
@@ -95,24 +100,28 @@ class _TekTopNavBarState extends State<TekTopNavBar> {
                       onNavigate: widget.onNavigateModule,
                     ),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: TekColors.border),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.search_rounded, size: 18, color: TekColors.textMuted),
+                          const Icon(Icons.search_rounded,
+                              size: 18, color: TekColors.textMuted),
                           const SizedBox(width: 8),
                           const Expanded(
                             child: Text(
                               'Search anything...',
-                              style: TextStyle(color: TekColors.textMuted, fontSize: 13),
+                              style: TextStyle(
+                                  color: TekColors.textMuted, fontSize: 13),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color: TekColors.sidebarBg,
                               borderRadius: BorderRadius.circular(5),
@@ -155,11 +164,15 @@ class _TekTopNavBarState extends State<TekTopNavBar> {
                   decoration: BoxDecoration(
                     color: sync.state == SyncState.syncing
                         ? TekColors.electricCyan
-                        : (sync.state != SyncState.offline ? TekColors.success : TekColors.warning),
+                        : (sync.state != SyncState.offline
+                            ? TekColors.success
+                            : TekColors.warning),
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: (sync.state == SyncState.syncing ? TekColors.electricCyan : TekColors.success)
+                        color: (sync.state == SyncState.syncing
+                                ? TekColors.electricCyan
+                                : TekColors.success)
                             .withValues(alpha: 0.5),
                         blurRadius: 4,
                       ),
@@ -170,7 +183,9 @@ class _TekTopNavBarState extends State<TekTopNavBar> {
                 Text(
                   sync.state == SyncState.syncing
                       ? 'Syncing...'
-                      : (sync.state != SyncState.offline ? 'Cloud Synced' : 'Offline Mode'),
+                      : (sync.state != SyncState.offline
+                          ? 'Cloud Synced'
+                          : 'Offline Mode'),
                   style: const TextStyle(
                     color: TekColors.textSecondary,
                     fontSize: 11,
@@ -194,7 +209,8 @@ class _TekTopNavBarState extends State<TekTopNavBar> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.access_time_rounded, size: 14, color: TekColors.textMuted),
+                const Icon(Icons.access_time_rounded,
+                    size: 14, color: TekColors.textMuted),
                 const SizedBox(width: 6),
                 Text(
                   '$dateStr • $timeStr',
@@ -281,7 +297,9 @@ class _TekTopNavBarState extends State<TekTopNavBar> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      auth.email.isNotEmpty ? auth.email : 'Shop ID: ${auth.shopId}',
+                      auth.email.isNotEmpty
+                          ? auth.email
+                          : 'Shop ID: ${auth.shopId}',
                       style: const TextStyle(
                         color: TekColors.textMuted,
                         fontSize: 11,
@@ -289,7 +307,8 @@ class _TekTopNavBarState extends State<TekTopNavBar> {
                     ),
                     const SizedBox(height: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         gradient: isOwner ? TekColors.primaryGradient : null,
                         color: isOwner ? null : TekColors.elevatedSurface,
@@ -313,9 +332,12 @@ class _TekTopNavBarState extends State<TekTopNavBar> {
                 value: 'settings',
                 child: Row(
                   children: [
-                    Icon(Icons.settings_rounded, size: 16, color: TekColors.textSecondary),
+                    Icon(Icons.settings_rounded,
+                        size: 16, color: TekColors.textSecondary),
                     SizedBox(width: 10),
-                    Text('Settings & Print', style: TextStyle(color: TekColors.textPrimary, fontSize: 13)),
+                    Text('Settings & Print',
+                        style: TextStyle(
+                            color: TekColors.textPrimary, fontSize: 13)),
                   ],
                 ),
               ),
@@ -323,9 +345,12 @@ class _TekTopNavBarState extends State<TekTopNavBar> {
                 value: 'sync',
                 child: Row(
                   children: [
-                    Icon(Icons.cloud_sync_rounded, size: 16, color: TekColors.textSecondary),
+                    Icon(Icons.cloud_sync_rounded,
+                        size: 16, color: TekColors.textSecondary),
                     SizedBox(width: 10),
-                    Text('Backup & Sync', style: TextStyle(color: TekColors.textPrimary, fontSize: 13)),
+                    Text('Backup & Sync',
+                        style: TextStyle(
+                            color: TekColors.textPrimary, fontSize: 13)),
                   ],
                 ),
               ),
@@ -334,9 +359,11 @@ class _TekTopNavBarState extends State<TekTopNavBar> {
                 value: 'logout',
                 child: Row(
                   children: [
-                    Icon(Icons.logout_rounded, size: 16, color: TekColors.error),
+                    Icon(Icons.logout_rounded,
+                        size: 16, color: TekColors.error),
                     SizedBox(width: 10),
-                    Text('Sign Out (പുറത്തുകടക്കുക)', style: TextStyle(color: TekColors.error, fontSize: 13)),
+                    Text('Sign Out (പുറത്തുകടക്കുക)',
+                        style: TextStyle(color: TekColors.error, fontSize: 13)),
                   ],
                 ),
               ),
@@ -361,7 +388,8 @@ class _TekTopNavBarState extends State<TekTopNavBar> {
                 children: [
                   CircleAvatar(
                     radius: 14,
-                    backgroundColor: TekColors.primaryBlue.withValues(alpha: 0.25),
+                    backgroundColor:
+                        TekColors.primaryBlue.withValues(alpha: 0.25),
                     child: Text(
                       auth.name.isNotEmpty ? auth.name[0].toUpperCase() : 'U',
                       style: const TextStyle(
@@ -381,7 +409,8 @@ class _TekTopNavBarState extends State<TekTopNavBar> {
                     ),
                   ),
                   const SizedBox(width: 4),
-                  const Icon(Icons.arrow_drop_down_rounded, size: 18, color: TekColors.textSecondary),
+                  const Icon(Icons.arrow_drop_down_rounded,
+                      size: 18, color: TekColors.textSecondary),
                 ],
               ),
             ),

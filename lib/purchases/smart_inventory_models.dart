@@ -78,7 +78,10 @@ class InventorySearchItem {
     final stockNum = map['stock'] ?? map['stockCount'] ?? map['units'];
     final stock = stockNum is num ? stockNum.toInt() : 0;
 
-    final rateNum = map['lastPurchaseRate'] ?? map['costPrice'] ?? map['cost'] ?? map['purchaseRate'];
+    final rateNum = map['lastPurchaseRate'] ??
+        map['costPrice'] ??
+        map['cost'] ??
+        map['purchaseRate'];
     final lastPurchaseRate = rateNum is num ? rateNum.toDouble() : 0.0;
 
     final spNum = map['sellingPrice'] ?? map['price'];
@@ -92,7 +95,10 @@ class InventorySearchItem {
     final gstNum = map['gst'] ?? map['gstRate'] ?? map['taxPercent'];
     final gst = gstNum is num ? gstNum.toDouble() : 0.0;
 
-    final warranty = (map['warranty'] ?? map['warrantyDuration'] ?? 'No Warranty').toString().trim();
+    final warranty =
+        (map['warranty'] ?? map['warrantyDuration'] ?? 'No Warranty')
+            .toString()
+            .trim();
 
     final catLower = category.toLowerCase();
     final nameLower = name.toLowerCase();
@@ -191,7 +197,8 @@ class InventorySearchItem {
     TextOverflow overflow = TextOverflow.ellipsis,
   }) {
     if (queryTokens.isEmpty || text.isEmpty) {
-      return Text(text, style: baseStyle, maxLines: maxLines, overflow: overflow);
+      return Text(text,
+          style: baseStyle, maxLines: maxLines, overflow: overflow);
     }
 
     final lowerText = text.toLowerCase();
@@ -210,7 +217,8 @@ class InventorySearchItem {
     }
 
     if (matchIntervals.isEmpty) {
-      return Text(text, style: baseStyle, maxLines: maxLines, overflow: overflow);
+      return Text(text,
+          style: baseStyle, maxLines: maxLines, overflow: overflow);
     }
 
     // Merge overlapping intervals
@@ -281,4 +289,3 @@ enum InventorySyncState {
   /// Error during Firestore synchronization (e.g. permission-denied or network failure)
   error,
 }
-

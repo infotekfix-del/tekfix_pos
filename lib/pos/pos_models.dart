@@ -64,7 +64,8 @@ class PosCartItem {
 
   double get lineTotal => unitPrice * qty;
   bool get isBelowFloor => unitPrice < item.minPrice;
-  bool get hasValidOverride => isBelowFloor && approvalId != null && approvalId!.isNotEmpty;
+  bool get hasValidOverride =>
+      isBelowFloor && approvalId != null && approvalId!.isNotEmpty;
 }
 
 /// Payment breakdown for an invoice.
@@ -158,7 +159,8 @@ class PosInvoice {
         'createdAt': FieldValue.serverTimestamp(),
         'status': status,
         if (serviceJobId != null) 'serviceJobId': serviceJobId,
-        if (serviceAdvanceApplied > 0) 'serviceAdvanceApplied': serviceAdvanceApplied,
+        if (serviceAdvanceApplied > 0)
+          'serviceAdvanceApplied': serviceAdvanceApplied,
         if (serviceJobId != null) 'serviceBill': true,
       };
 }

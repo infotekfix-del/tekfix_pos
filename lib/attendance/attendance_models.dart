@@ -23,7 +23,8 @@ class AttendanceRecord {
 
   // New Shift & Approval Fields
   final String status; // "present", "absent", "leave"
-  final String dutyStage; // "Shift Started", "Full Duty Completed", "Half Duty / Half Day", "Incomplete / Short Duty", "Needs review"
+  final String
+      dutyStage; // "Shift Started", "Full Duty Completed", "Half Duty / Half Day", "Incomplete / Short Duty", "Needs review"
   final double workedHours;
   final bool isLate;
   final String approvalStatus; // "pending_approval", "approved", "rejected"
@@ -87,7 +88,9 @@ class AttendanceRecord {
       'syncedLate': syncedLate,
       'updatedAt': useServerTimestamp
           ? FieldValue.serverTimestamp()
-          : (updatedAt != null ? Timestamp.fromDate(updatedAt!) : FieldValue.serverTimestamp()),
+          : (updatedAt != null
+              ? Timestamp.fromDate(updatedAt!)
+              : FieldValue.serverTimestamp()),
     };
 
     if (checkIn != null) {
@@ -112,8 +115,10 @@ class AttendanceRecord {
 
     if (approvedBy != null) m['approvedBy'] = approvedBy;
     if (approvedAt != null) m['approvedAt'] = Timestamp.fromDate(approvedAt!);
-    if (originalCheckIn != null) m['originalCheckIn'] = Timestamp.fromDate(originalCheckIn!);
-    if (originalCheckOut != null) m['originalCheckOut'] = Timestamp.fromDate(originalCheckOut!);
+    if (originalCheckIn != null)
+      m['originalCheckIn'] = Timestamp.fromDate(originalCheckIn!);
+    if (originalCheckOut != null)
+      m['originalCheckOut'] = Timestamp.fromDate(originalCheckOut!);
     if (adjustedBy != null) m['adjustedBy'] = adjustedBy;
     if (adjustReason != null) m['adjustReason'] = adjustReason;
     if (shiftSalesSummary != null) m['shiftSalesSummary'] = shiftSalesSummary;
@@ -158,7 +163,8 @@ class AttendanceRecord {
       manualEditNote: m['manualEditNote'] as String?,
       updatedAt: parseTs(m['updatedAt']),
       status: '${m['status'] ?? 'present'}',
-      dutyStage: '${m['dutyStage'] ?? (outTime != null ? 'Full Duty Completed' : 'Shift Started')}',
+      dutyStage:
+          '${m['dutyStage'] ?? (outTime != null ? 'Full Duty Completed' : 'Shift Started')}',
       workedHours: calculatedHours,
       isLate: m['isLate'] == true,
       approvalStatus: '${m['approvalStatus'] ?? 'pending_approval'}',
@@ -214,7 +220,8 @@ class ShiftConfig {
       startMinute: m['startMinute'] as int? ?? 30,
       endHour: m['endHour'] as int? ?? 21,
       endMinute: m['endMinute'] as int? ?? 30,
-      halfDayThresholdHours: (m['halfDayThresholdHours'] as num?)?.toDouble() ?? 6.5,
+      halfDayThresholdHours:
+          (m['halfDayThresholdHours'] as num?)?.toDouble() ?? 6.5,
       lateGraceMinutes: m['lateGraceMinutes'] as int? ?? 15,
     );
   }

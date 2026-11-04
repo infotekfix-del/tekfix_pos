@@ -30,7 +30,8 @@ class OwnerSalarySettings {
   }) {
     return OwnerSalarySettings(
       monthlySalaryLimit: monthlySalaryLimit ?? this.monthlySalaryLimit,
-      monthlySalaryLimitPaise: monthlySalaryLimitPaise ?? this.monthlySalaryLimitPaise,
+      monthlySalaryLimitPaise:
+          monthlySalaryLimitPaise ?? this.monthlySalaryLimitPaise,
       ownerName: ownerName ?? this.ownerName,
       ownerUid: ownerUid ?? this.ownerUid,
       effectiveDate: effectiveDate ?? this.effectiveDate,
@@ -62,14 +63,17 @@ class OwnerSalarySettings {
     }
 
     final amt = (map['monthlySalaryLimit'] as num?)?.toDouble() ??
-        (((map['monthlySalaryLimitPaise'] as num?)?.toDouble() ?? 2000000.0) / 100.0);
-    final paise = (map['monthlySalaryLimitPaise'] as num?)?.toInt() ?? (amt * 100).round();
+        (((map['monthlySalaryLimitPaise'] as num?)?.toDouble() ?? 2000000.0) /
+            100.0);
+    final paise = (map['monthlySalaryLimitPaise'] as num?)?.toInt() ??
+        (amt * 100).round();
 
     final List<OwnerSalaryRateHistoryItem> hist = [];
     if (map['rateHistory'] is List) {
       for (final it in (map['rateHistory'] as List)) {
         if (it is Map) {
-          hist.add(OwnerSalaryRateHistoryItem.fromMap(Map<String, dynamic>.from(it)));
+          hist.add(OwnerSalaryRateHistoryItem.fromMap(
+              Map<String, dynamic>.from(it)));
         }
       }
     }
@@ -121,7 +125,8 @@ class OwnerSalaryRateHistoryItem {
     }
 
     final amt = (map['limitAmount'] as num?)?.toDouble() ?? 0.0;
-    final paise = (map['limitAmountPaise'] as num?)?.toInt() ?? (amt * 100).round();
+    final paise =
+        (map['limitAmountPaise'] as num?)?.toInt() ?? (amt * 100).round();
 
     return OwnerSalaryRateHistoryItem(
       effectiveDate: parseDt(map['effectiveDate']),
@@ -226,7 +231,8 @@ class OwnerWithdrawalItem {
   Map<String, dynamic> toMap({bool forFirestore = false}) => {
         'id': id,
         'shopId': shopId,
-        'date': forFirestore ? Timestamp.fromDate(date) : date.toIso8601String(),
+        'date':
+            forFirestore ? Timestamp.fromDate(date) : date.toIso8601String(),
         'dateKey': dateKey,
         'totalAmount': totalAmount,
         'totalAmountPaise': totalAmountPaise,
@@ -240,17 +246,22 @@ class OwnerWithdrawalItem {
         'notes': notes,
         'isVoided': isVoided,
         'voidedAt': voidedAt != null
-            ? (forFirestore ? Timestamp.fromDate(voidedAt!) : voidedAt!.toIso8601String())
+            ? (forFirestore
+                ? Timestamp.fromDate(voidedAt!)
+                : voidedAt!.toIso8601String())
             : null,
         'voidedByUid': voidedByUid,
         'voidedByName': voidedByName,
         'voidReason': voidReason,
         'expenseId': expenseId,
         'ledgerTxId': ledgerTxId,
-        'createdAt': forFirestore ? Timestamp.fromDate(createdAt) : createdAt.toIso8601String(),
+        'createdAt': forFirestore
+            ? Timestamp.fromDate(createdAt)
+            : createdAt.toIso8601String(),
       };
 
-  factory OwnerWithdrawalItem.fromMap(Map<String, dynamic> map, String fallbackId) {
+  factory OwnerWithdrawalItem.fromMap(
+      Map<String, dynamic> map, String fallbackId) {
     DateTime parseDt(dynamic v) {
       if (v is Timestamp) return v.toDate();
       if (v is DateTime) return v;
@@ -260,15 +271,18 @@ class OwnerWithdrawalItem {
 
     final totAmt = (map['totalAmount'] as num?)?.toDouble() ??
         (((map['totalAmountPaise'] as num?)?.toDouble() ?? 0.0) / 100.0);
-    final totPaise = (map['totalAmountPaise'] as num?)?.toInt() ?? (totAmt * 100).round();
+    final totPaise =
+        (map['totalAmountPaise'] as num?)?.toInt() ?? (totAmt * 100).round();
 
     final salAmt = (map['salaryPortion'] as num?)?.toDouble() ??
         (((map['salaryPortionPaise'] as num?)?.toDouble() ?? 0.0) / 100.0);
-    final salPaise = (map['salaryPortionPaise'] as num?)?.toInt() ?? (salAmt * 100).round();
+    final salPaise =
+        (map['salaryPortionPaise'] as num?)?.toInt() ?? (salAmt * 100).round();
 
     final drawAmt = (map['drawingsPortion'] as num?)?.toDouble() ??
         (((map['drawingsPortionPaise'] as num?)?.toDouble() ?? 0.0) / 100.0);
-    final drawPaise = (map['drawingsPortionPaise'] as num?)?.toInt() ?? (drawAmt * 100).round();
+    final drawPaise = (map['drawingsPortionPaise'] as num?)?.toInt() ??
+        (drawAmt * 100).round();
 
     final dt = parseDt(map['date'] ?? map['createdAt']);
     final dKey = map['dateKey']?.toString() ??
@@ -320,12 +334,14 @@ class OwnerMonthlyQuotaMetrics {
     this.totalWithdrawalsCount = 0,
   });
 
-  double get quotaPercentage =>
-      monthlyLimit > 0 ? (usedSalaryThisMonth / monthlyLimit).clamp(0.0, 1.0) : 1.0;
+  double get quotaPercentage => monthlyLimit > 0
+      ? (usedSalaryThisMonth / monthlyLimit).clamp(0.0, 1.0)
+      : 1.0;
 
   bool get isQuotaFull => remainingSalaryThisMonth <= 0;
 
-  factory OwnerMonthlyQuotaMetrics.empty(DateTime month, [double limit = 20000.0]) {
+  factory OwnerMonthlyQuotaMetrics.empty(DateTime month,
+      [double limit = 20000.0]) {
     return OwnerMonthlyQuotaMetrics(
       month: month,
       monthlyLimit: limit,
@@ -357,4 +373,3 @@ class DailyOwnerWithdrawalBreakdown {
   double get totalDrawings => cashDrawings + bankDrawings;
   double get grandTotal => totalCash + totalBank;
 }
-

@@ -27,7 +27,9 @@ void main() {
       expect(Hive.isBoxOpen('tek_sync_outbox'), isTrue);
     });
 
-    test('clearOutbox safely purges pending outbox items without touching other data', () async {
+    test(
+        'clearOutbox safely purges pending outbox items without touching other data',
+        () async {
       final engine = SyncEngine.instance;
       await engine.openBoxes();
       final outbox = Hive.box('tek_sync_outbox');
@@ -47,4 +49,3 @@ void main() {
     });
   });
 }
-

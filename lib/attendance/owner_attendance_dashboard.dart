@@ -50,7 +50,8 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
       toast(context, 'ലൊക്കേഷൻ വിവരങ്ങൾ ലഭ്യമല്ല (Coordinates missing)');
       return;
     }
-    final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+    final uri =
+        Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
@@ -65,8 +66,10 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
       return;
     }
 
-    String selectedStaffId = existing?.staffId ?? staffList.first['phone'] ?? '';
-    String selectedStaffName = existing?.staffName ?? staffList.first['name'] ?? '';
+    String selectedStaffId =
+        existing?.staffId ?? staffList.first['phone'] ?? '';
+    String selectedStaffName =
+        existing?.staffName ?? staffList.first['name'] ?? '';
     DateTime entryDate = existing?.date != null
         ? DateTime.tryParse(existing!.date) ?? DateTime.now()
         : DateTime.now();
@@ -77,14 +80,17 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
     TimeOfDay? outTime = existing?.checkOut != null
         ? TimeOfDay.fromDateTime(existing!.checkOut!)
         : const TimeOfDay(hour: 18, minute: 30);
-    final reasonCtrl = TextEditingController(text: existing?.manualEditNote ?? '');
+    final reasonCtrl =
+        TextEditingController(text: existing?.manualEditNote ?? '');
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, set) {
           return AlertDialog(
-            title: Text(existing == null ? 'ഹാജർ ചേർക്കുക (Add Missing)' : 'വിവരങ്ങൾ മാറ്റുക (Edit)'),
+            title: Text(existing == null
+                ? 'ഹാജർ ചേർക്കുക (Add Missing)'
+                : 'വിവരങ്ങൾ മാറ്റുക (Edit)'),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -92,7 +98,8 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
                 children: [
                   DropdownButtonFormField<String>(
                     initialValue: selectedStaffId,
-                    decoration: const InputDecoration(labelText: 'ജീവനക്കാരൻ (Staff)'),
+                    decoration:
+                        const InputDecoration(labelText: 'ജീവനക്കാരൻ (Staff)'),
                     items: [
                       for (final s in staffList)
                         DropdownMenuItem(
@@ -146,11 +153,13 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
                         child: ListTile(
                           contentPadding: EdgeInsets.zero,
                           title: const Text('Check-out'),
-                          subtitle: Text(outTime != null ? outTime!.format(ctx) : 'None'),
+                          subtitle: Text(
+                              outTime != null ? outTime!.format(ctx) : 'None'),
                           onTap: () async {
                             final t = await showTimePicker(
                                 context: ctx,
-                                initialTime: outTime ?? const TimeOfDay(hour: 18, minute: 0));
+                                initialTime: outTime ??
+                                    const TimeOfDay(hour: 18, minute: 0));
                             if (t != null) set(() => outTime = t);
                           },
                         ),
@@ -169,7 +178,9 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('റദ്ദാക്കുക')),
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('റദ്ദാക്കുക')),
               FilledButton(
                 onPressed: () async {
                   if (reasonCtrl.text.trim().isEmpty) {
@@ -194,9 +205,11 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
                       reason: reasonCtrl.text.trim(),
                     );
                     if (ctx.mounted) Navigator.pop(ctx);
-                    if (mounted) toast(context, 'ഹാജർ വിജയകരമായി രേഖപ്പെടുത്തി');
+                    if (mounted)
+                      toast(context, 'ഹാജർ വിജയകരമായി രേഖപ്പെടുത്തി');
                   } catch (e) {
-                    if (ctx.mounted) toast(ctx, 'പരാജയപ്പെട്ടു: $e', error: true);
+                    if (ctx.mounted)
+                      toast(ctx, 'പരാജയപ്പെട്ടു: $e', error: true);
                   }
                 },
                 child: const Text('സേവ് ചെയ്യുക'),
@@ -210,8 +223,7 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
 
   void _calculateAndPostSalary(
       BuildContext context, Map<String, dynamic> staff, int presentDays) {
-    final totalDaysInMonth =
-        SalaryCalculator.getDaysInMonth(_selectedMonth);
+    final totalDaysInMonth = SalaryCalculator.getDaysInMonth(_selectedMonth);
     final double dailyRate =
         SalaryCalculator.getDailyRate(staff, _selectedMonth);
     final double monthlySalary = SalaryCalculator.calculateMonthlySalary(
@@ -225,9 +237,11 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
     );
     final roundedSalary = (calculatedSalary * 100).round() / 100.0;
 
-    final amtCtrl = TextEditingController(text: roundedSalary.toStringAsFixed(0));
+    final amtCtrl =
+        TextEditingController(text: roundedSalary.toStringAsFixed(0));
     final noteCtrl = TextEditingController(
-        text: 'Salary (${_monthDisplayFormat.format(_selectedMonth)}): ${staff['name']} ($presentDays/$totalDaysInMonth days @ ₹${dailyRate.toStringAsFixed(0)}/day)');
+        text:
+            'Salary (${_monthDisplayFormat.format(_selectedMonth)}): ${staff['name']} ($presentDays/$totalDaysInMonth days @ ₹${dailyRate.toStringAsFixed(0)}/day)');
     String mode = 'Cash';
 
     formDialog(
@@ -245,11 +259,15 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
           ),
           Text(
             'Calculated Monthly Total: ${rs(monthlySalary)}',
-            style: const TextStyle(fontSize: 12.5, color: Colors.blueAccent, fontWeight: FontWeight.w600),
+            style: const TextStyle(
+                fontSize: 12.5,
+                color: Colors.blueAccent,
+                fontWeight: FontWeight.w600),
           ),
           Text(
             'ഹാജർ: $presentDays/$totalDaysInMonth ദിവസം (കണക്കാക്കിയ തുക: ${rs(roundedSalary)})',
-            style: const TextStyle(fontSize: 13, color: Colors.teal, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+                fontSize: 13, color: Colors.teal, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
           tf(amtCtrl, 'നൽകുന്ന തുക ₹', number: true),
@@ -280,7 +298,8 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
           'createdAt': nowIso,
         });
 
-        await Db.moveMoney(mode, -a, 'Expense (Staff Salary): ${noteCtrl.text.trim()}');
+        await Db.moveMoney(
+            mode, -a, 'Expense (Staff Salary): ${noteCtrl.text.trim()}');
 
         await Db.logAction(
           action: 'Salary Posted From Attendance',
@@ -305,7 +324,9 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
-            Tab(text: "Today's Live Status", icon: Icon(Icons.flash_on_rounded)),
+            Tab(
+                text: "Today's Live Status",
+                icon: Icon(Icons.flash_on_rounded)),
             Tab(text: "Monthly Report", icon: Icon(Icons.bar_chart_rounded)),
           ],
         ),
@@ -330,11 +351,13 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
   Widget _buildTodayLiveTab() {
     final staffList = _getAllStaff();
     if (staffList.isEmpty) {
-      return const Center(child: Text('ജീവനക്കാരെ ചേർത്തിട്ടില്ല (No staff found)'));
+      return const Center(
+          child: Text('ജീവനക്കാരെ ചേർത്തിട്ടില്ല (No staff found)'));
     }
 
     return StreamBuilder<List<AttendanceRecord>>(
-      stream: AttendanceService.instance.streamAllTodayAttendance(widget.shopId),
+      stream:
+          AttendanceService.instance.streamAllTodayAttendance(widget.shopId),
       builder: (context, snapshot) {
         final records = snapshot.data ?? [];
         final Map<String, AttendanceRecord> recordByStaff = {
@@ -364,15 +387,18 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
             Row(
               children: [
                 Expanded(
-                  child: _summaryCard('ഹാജർ (Present)', '$presentCount', Colors.green, Icons.check_circle_outline),
+                  child: _summaryCard('ഹാജർ (Present)', '$presentCount',
+                      Colors.green, Icons.check_circle_outline),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: _summaryCard('ഷിഫ്റ്റ് പൂർത്തിയായി', '$completedCount', Colors.indigo, Icons.done_all_rounded),
+                  child: _summaryCard('ഷിഫ്റ്റ് പൂർത്തിയായി', '$completedCount',
+                      Colors.indigo, Icons.done_all_rounded),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: _summaryCard('വന്നിട്ടില്ല (Pending)', '$absentCount', Colors.orange, Icons.schedule_rounded),
+                  child: _summaryCard('വന്നിട്ടില്ല (Pending)', '$absentCount',
+                      Colors.orange, Icons.schedule_rounded),
                 ),
               ],
             ),
@@ -406,7 +432,9 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
                           CircleAvatar(
                             backgroundColor: badgeColor.withAlpha(35),
                             child: Icon(
-                              hasIn ? Icons.person_rounded : Icons.person_off_rounded,
+                              hasIn
+                                  ? Icons.person_rounded
+                                  : Icons.person_off_rounded,
                               color: badgeColor,
                             ),
                           ),
@@ -416,17 +444,25 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text('${s['name']}',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                                Text('${s['role'] ?? 'Staff'} • ${s['phone'] ?? ''}',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15)),
+                                Text(
+                                    '${s['role'] ?? 'Staff'} • ${s['phone'] ?? ''}',
                                     style: TextStyle(
                                         fontSize: 12,
-                                        color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant)),
                               ],
                             ),
                           ),
                           Chip(
                             label: Text(statusLabel,
-                                style: TextStyle(color: badgeColor, fontWeight: FontWeight.bold, fontSize: 11)),
+                                style: TextStyle(
+                                    color: badgeColor,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11)),
                             backgroundColor: badgeColor.withAlpha(25),
                             visualDensity: VisualDensity.compact,
                           ),
@@ -439,13 +475,21 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
                           children: [
                             if (rec.checkIn != null)
                               Text('In: ${_timeFormat.format(rec.checkIn!)}',
-                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                                  style: const TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600)),
                             if (rec.checkOut != null)
                               Text('Out: ${_timeFormat.format(rec.checkOut!)}',
-                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                                  style: const TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600)),
                             if (rec.checkIn != null && rec.checkOut != null)
-                              Text('Hours: ${rec.workingHours.toStringAsFixed(1)}h',
-                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.teal)),
+                              Text(
+                                  'Hours: ${rec.workingHours.toStringAsFixed(1)}h',
+                                  style: const TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.teal)),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -453,23 +497,30 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
                           children: [
                             Icon(Icons.location_on_rounded,
                                 size: 16,
-                                color: rec.checkInStatus == 'Inside shop' ? Colors.green : Colors.orange),
+                                color: rec.checkInStatus == 'Inside shop'
+                                    ? Colors.green
+                                    : Colors.orange),
                             const SizedBox(width: 4),
                             Text(rec.checkInStatus,
                                 style: TextStyle(
                                     fontSize: 12,
-                                    color: rec.checkInStatus == 'Inside shop' ? Colors.green : Colors.orange,
+                                    color: rec.checkInStatus == 'Inside shop'
+                                        ? Colors.green
+                                        : Colors.orange,
                                     fontWeight: FontWeight.w600)),
                             const Spacer(),
                             if (rec.checkInLat != null)
                               OutlinedButton.icon(
                                 style: OutlinedButton.styleFrom(
                                   visualDensity: VisualDensity.compact,
-                                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 8),
                                 ),
                                 icon: const Icon(Icons.map_rounded, size: 16),
-                                label: const Text('Open in Maps', style: TextStyle(fontSize: 11)),
-                                onPressed: () => _openMap(rec.checkInLat, rec.checkInLng),
+                                label: const Text('Open in Maps',
+                                    style: TextStyle(fontSize: 11)),
+                                onPressed: () =>
+                                    _openMap(rec.checkInLat, rec.checkInLng),
                               ),
                             const SizedBox(width: 6),
                             IconButton(
@@ -505,8 +556,8 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
                 icon: const Icon(Icons.chevron_left_rounded),
                 onPressed: () {
                   setState(() {
-                    _selectedMonth = DateTime(
-                        _selectedMonth.year, _selectedMonth.month - 1);
+                    _selectedMonth =
+                        DateTime(_selectedMonth.year, _selectedMonth.month - 1);
                   });
                 },
               ),
@@ -514,15 +565,16 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
                 child: Text(
                   _monthDisplayFormat.format(_selectedMonth),
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 16),
                 ),
               ),
               IconButton(
                 icon: const Icon(Icons.chevron_right_rounded),
                 onPressed: () {
                   setState(() {
-                    _selectedMonth = DateTime(
-                        _selectedMonth.year, _selectedMonth.month + 1);
+                    _selectedMonth =
+                        DateTime(_selectedMonth.year, _selectedMonth.month + 1);
                   });
                 },
               ),
@@ -543,7 +595,8 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
                 const SizedBox(width: 8),
                 ChoiceChip(
                   label: Text('${s['name']}'),
-                  selected: _selectedStaffFilter == '${s['phone'] ?? s['name']}',
+                  selected:
+                      _selectedStaffFilter == '${s['phone'] ?? s['name']}',
                   onSelected: (_) => setState(() =>
                       _selectedStaffFilter = '${s['phone'] ?? s['name']}'),
                 ),
@@ -561,8 +614,10 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
 
               final filteredStaff = _selectedStaffFilter == 'All'
                   ? staffList
-                  : staffList.where((s) =>
-                      '${s['phone'] ?? s['name']}' == _selectedStaffFilter).toList();
+                  : staffList
+                      .where((s) =>
+                          '${s['phone'] ?? s['name']}' == _selectedStaffFilter)
+                      .toList();
 
               return ListView.builder(
                 padding: const EdgeInsets.all(16),
@@ -570,13 +625,17 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
                 itemBuilder: (ctx, i) {
                   final s = filteredStaff[i];
                   final id = '${s['phone'] ?? s['name']}';
-                  final staffRecs = records.where((r) => r.staffId == id).toList();
+                  final staffRecs =
+                      records.where((r) => r.staffId == id).toList();
 
                   // Requirement 4: Payroll must count ONLY approved attendance records
-                  final approvedRecs = staffRecs.where((r) => r.isApproved).toList();
-                  final pendingRecs = staffRecs.where((r) => r.isPending).toList();
+                  final approvedRecs =
+                      staffRecs.where((r) => r.isApproved).toList();
+                  final pendingRecs =
+                      staffRecs.where((r) => r.isPending).toList();
 
-                  final presentDays = approvedRecs.where((r) => r.checkIn != null).length;
+                  final presentDays =
+                      approvedRecs.where((r) => r.checkIn != null).length;
                   double totalHours = 0.0;
                   int lateDays = 0;
                   int fullDays = 0;
@@ -592,14 +651,18 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
                     }
                   }
 
-                  final double staffDailyRate = SalaryCalculator.getDailyRate(s, _selectedMonth);
-                  final int staffMonthDays = SalaryCalculator.getDaysInMonth(_selectedMonth);
-                  final double calculatedMonthTotal = SalaryCalculator.calculateMonthlySalary(
+                  final double staffDailyRate =
+                      SalaryCalculator.getDailyRate(s, _selectedMonth);
+                  final int staffMonthDays =
+                      SalaryCalculator.getDaysInMonth(_selectedMonth);
+                  final double calculatedMonthTotal =
+                      SalaryCalculator.calculateMonthlySalary(
                     dailyRate: staffDailyRate,
                     date: _selectedMonth,
                     customDaysInMonth: staffMonthDays,
                   );
-                  final double earnedSoFar = SalaryCalculator.calculateEarnedSalary(
+                  final double earnedSoFar =
+                      SalaryCalculator.calculateEarnedSalary(
                     dailyRate: staffDailyRate,
                     daysWorked: presentDays,
                   );
@@ -611,7 +674,8 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
                         backgroundColor: kPrimary.withAlpha(25),
                         child: Text(
                           '${s['name']}'.substring(0, 1).toUpperCase(),
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: kPrimary),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, color: kPrimary),
                         ),
                       ),
                       title: Text('${s['name']}',
@@ -620,7 +684,8 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
                           'അംഗീകരിച്ച ഹാജർ: $presentDays ദിവസം ($fullDays Full, $halfDays Half) • $lateDays Late • ${totalHours.toStringAsFixed(1)}h'),
                       children: [
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -631,16 +696,22 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
                                   decoration: BoxDecoration(
                                     color: Colors.amber.shade50,
                                     borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: Colors.amber.shade300),
+                                    border: Border.all(
+                                        color: Colors.amber.shade300),
                                   ),
                                   child: Row(
                                     children: [
-                                      Icon(Icons.info_outline, size: 18, color: Colors.amber.shade900),
+                                      Icon(Icons.info_outline,
+                                          size: 18,
+                                          color: Colors.amber.shade900),
                                       const SizedBox(width: 8),
                                       Expanded(
                                         child: Text(
                                           'ശ്രദ്ധിക്കുക: ${pendingRecs.length} ദിവസത്തെ ഹാജർ അപ്രൂവ് ചെയ്യാൻ ബാക്കിയുണ്ട്. ഇത് ശമ്പളത്തിൽ ഉൾപ്പെടുത്തിയിട്ടില്ല.\n(Pending: ${pendingRecs.length} days, not counted in payroll yet).',
-                                          style: TextStyle(fontSize: 11.5, color: Colors.amber.shade900, fontWeight: FontWeight.w600),
+                                          style: TextStyle(
+                                              fontSize: 11.5,
+                                              color: Colors.amber.shade900,
+                                              fontWeight: FontWeight.w600),
                                         ),
                                       ),
                                     ],
@@ -648,22 +719,34 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
                                 ),
                               ],
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text('Daily Rate: ₹${staffDailyRate.toStringAsFixed(0)} / day ($staffMonthDays days)',
-                                      style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
-                                  Text('മാസ ശമ്പളം: ${rs(calculatedMonthTotal)}',
-                                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  Text(
+                                      'Daily Rate: ₹${staffDailyRate.toStringAsFixed(0)} / day ($staffMonthDays days)',
+                                      style: TextStyle(
+                                          color: Colors.grey.shade400,
+                                          fontSize: 12)),
+                                  Text(
+                                      'മാസ ശമ്പളം: ${rs(calculatedMonthTotal)}',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold)),
                                 ],
                               ),
                               const SizedBox(height: 4),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text('Days Worked: $presentDays days',
-                                      style: const TextStyle(color: Colors.teal, fontWeight: FontWeight.w600, fontSize: 12)),
+                                      style: const TextStyle(
+                                          color: Colors.teal,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 12)),
                                   Text('നേടിയത് (Earned): ${rs(earnedSoFar)}',
-                                      style: const TextStyle(color: Colors.teal, fontWeight: FontWeight.bold)),
+                                      style: const TextStyle(
+                                          color: Colors.teal,
+                                          fontWeight: FontWeight.bold)),
                                 ],
                               ),
                               const SizedBox(height: 10),
@@ -671,41 +754,62 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
                                 width: double.infinity,
                                 child: FilledButton.tonalIcon(
                                   icon: const Icon(Icons.payments_rounded),
-                                  label: const Text('ശമ്പളം ചെലവിലേക്ക് ചേർക്കുക (Post Salary)'),
-                                  onPressed: () => _calculateAndPostSalary(context, s, presentDays),
+                                  label: const Text(
+                                      'ശമ്പളം ചെലവിലേക്ക് ചേർക്കുക (Post Salary)'),
+                                  onPressed: () => _calculateAndPostSalary(
+                                      context, s, presentDays),
                                 ),
                               ),
                               const SizedBox(height: 12),
                               const Text('ദിവസേനയുള്ള വിവരങ്ങൾ (Daily Logs):',
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13)),
                               const SizedBox(height: 6),
                               for (final r in staffRecs)
                                 Container(
-                                  margin: const EdgeInsets.symmetric(vertical: 4),
+                                  margin:
+                                      const EdgeInsets.symmetric(vertical: 4),
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(60),
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .surfaceContainerHighest
+                                        .withAlpha(60),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Row(
                                     children: [
-                                      Text(r.date, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                      Text(r.date,
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12)),
                                       const SizedBox(width: 8),
                                       if (r.checkIn != null)
-                                        Text('In: ${_timeFormat.format(r.checkIn!)}',
-                                            style: const TextStyle(fontSize: 11.5)),
+                                        Text(
+                                            'In: ${_timeFormat.format(r.checkIn!)}',
+                                            style: const TextStyle(
+                                                fontSize: 11.5)),
                                       const SizedBox(width: 6),
                                       if (r.checkOut != null)
-                                        Text('Out: ${_timeFormat.format(r.checkOut!)}',
-                                            style: const TextStyle(fontSize: 11.5)),
+                                        Text(
+                                            'Out: ${_timeFormat.format(r.checkOut!)}',
+                                            style: const TextStyle(
+                                                fontSize: 11.5)),
                                       const Spacer(),
-                                      Text('${r.workingHours.toStringAsFixed(1)}h',
-                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.teal)),
+                                      Text(
+                                          '${r.workingHours.toStringAsFixed(1)}h',
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12,
+                                              color: Colors.teal)),
                                       if (r.checkInLat != null)
                                         IconButton(
                                           visualDensity: VisualDensity.compact,
-                                          icon: const Icon(Icons.map_rounded, size: 16),
-                                          onPressed: () => _openMap(r.checkInLat, r.checkInLng),
+                                          icon: const Icon(Icons.map_rounded,
+                                              size: 16),
+                                          onPressed: () => _openMap(
+                                              r.checkInLat, r.checkInLng),
                                         ),
                                     ],
                                   ),
@@ -740,11 +844,15 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
             children: [
               Icon(icon, size: 18, color: color),
               const Spacer(),
-              Text(val, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+              Text(val,
+                  style: TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.bold, color: color)),
             ],
           ),
           const SizedBox(height: 4),
-          Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+          Text(title,
+              style: TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.w600, color: color)),
         ],
       ),
     );

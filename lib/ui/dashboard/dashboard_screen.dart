@@ -208,12 +208,14 @@ class _TekDashboardScreenState extends State<TekDashboardScreen> {
       child: Focus(
         autofocus: true,
         child: StreamBuilder<List<AttendanceRecord>>(
-          stream: AttendanceService.instance.streamPendingApprovals(auth.shopId),
+          stream:
+              AttendanceService.instance.streamPendingApprovals(auth.shopId),
           builder: (context, attendanceSnap) {
             final pendingAttendance = attendanceSnap.data?.length ?? 0;
 
             return StreamBuilder<int>(
-              stream: NotificationService.instance.streamUnreadCount(auth.shopId, auth.uid),
+              stream: NotificationService.instance
+                  .streamUnreadCount(auth.shopId, auth.uid),
               builder: (context, notifSnap) {
                 final unreadNotifs = notifSnap.data ?? 0;
 
@@ -226,7 +228,8 @@ class _TekDashboardScreenState extends State<TekDashboardScreen> {
                       if (v is! Map) continue;
                       final p = tekM(v);
                       if (tekD(p['balance']) > 0) {
-                        final eval = ReminderService.instance.evaluateCustomerReminder(p);
+                        final eval = ReminderService.instance
+                            .evaluateCustomerReminder(p);
                         if (eval['isDue'] == true) dueRemindersCount++;
                       }
                     }
@@ -267,7 +270,9 @@ class _TekDashboardScreenState extends State<TekDashboardScreen> {
                       key: _scaffoldKey,
                       drawer: isDesktop
                           ? null
-                          : Drawer(backgroundColor: const Color(0xFF0C1236), child: sidebar),
+                          : Drawer(
+                              backgroundColor: const Color(0xFF0C1236),
+                              child: sidebar),
                       body: Container(
                         decoration: const BoxDecoration(
                           gradient: DashboardColors.backgroundGradient,
@@ -285,11 +290,13 @@ class _TekDashboardScreenState extends State<TekDashboardScreen> {
                                         topBar,
                                         Expanded(
                                           child: TekDashboardContent(
-                                            onNavigateModule: widget.onNavigateModule,
+                                            onNavigateModule:
+                                                widget.onNavigateModule,
                                             onNavigateTo: _navigateTo,
                                             isDesktop: true,
                                             isOwner: isOwner,
-                                            pendingAttendance: pendingAttendance,
+                                            pendingAttendance:
+                                                pendingAttendance,
                                           ),
                                         ),
                                       ],
@@ -355,7 +362,8 @@ class TekDashboardContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
-    final isDesktopResolved = isDesktop ?? (MediaQuery.of(context).size.width >= 980);
+    final isDesktopResolved =
+        isDesktop ?? (MediaQuery.of(context).size.width >= 980);
 
     return ListenableBuilder(
       listenable: Listenable.merge([
@@ -422,10 +430,14 @@ class TekDashboardContent extends StatelessWidget {
           TekStatCard(
             title: 'Reminders Due',
             subtitle: 'ഓർമ്മപ്പെടുത്തലുകൾ',
-            amount: dueRemindersCount > 0 ? '$dueRemindersCount Due' : 'All Clear',
+            amount:
+                dueRemindersCount > 0 ? '$dueRemindersCount Due' : 'All Clear',
             icon: Icons.notification_important_rounded,
-            accentColor: dueRemindersCount > 0 ? DashboardColors.neonPink : DashboardColors.neonGreen,
-            changeText: dueRemindersCount > 0 ? '$dueRemindersCount Due' : 'Clear',
+            accentColor: dueRemindersCount > 0
+                ? DashboardColors.neonPink
+                : DashboardColors.neonGreen,
+            changeText:
+                dueRemindersCount > 0 ? '$dueRemindersCount Due' : 'Clear',
             isPositive: dueRemindersCount == 0,
             sparklineData: dueRemindersCount > 0
                 ? const [10, 20, 15, 30, 25, 45, 60, 75]
@@ -435,7 +447,8 @@ class TekDashboardContent extends StatelessWidget {
         ];
 
         return StreamBuilder<List<AttendanceRecord>>(
-          stream: AttendanceService.instance.streamPendingApprovals(auth.shopId),
+          stream:
+              AttendanceService.instance.streamPendingApprovals(auth.shopId),
           builder: (context, snap) {
             final pendingCount = pendingAttendance ?? (snap.data?.length ?? 0);
 
@@ -444,11 +457,12 @@ class TekDashboardContent extends StatelessWidget {
                 isDesktopResolved ? 20.0 : 16.0,
                 isDesktopResolved ? 20.0 : 12.0,
                 isDesktopResolved ? 20.0 : 16.0,
-                isDesktopResolved ? 30.0 : (MediaQuery.of(context).padding.bottom + 85.0),
+                isDesktopResolved
+                    ? 30.0
+                    : (MediaQuery.of(context).padding.bottom + 85.0),
               ),
               children: [
-                if (!kIsWeb && Platform.isWindows)
-                  const WindowsUpdateBanner(),
+                if (!kIsWeb && Platform.isWindows) const WindowsUpdateBanner(),
 
                 // 1. Hero Banner
                 const TekHeroBanner(
@@ -510,13 +524,19 @@ class TekDashboardContent extends StatelessWidget {
                             TekQuickActionsGrid(
                               onNewSale: () => _nav(context, const SaleView()),
                               onAddItem: () => showItemForm(context),
-                              onAddExpense: () => AddExpenseDialog.show(context),
-                              onDailyRent: () => DailyRentPaymentDialog.show(context),
-                              onOwnerWithdrawal: () => OwnerWithdrawalDialog.show(context),
-                              onServiceRequest: () => showServiceJobForm(context),
+                              onAddExpense: () =>
+                                  AddExpenseDialog.show(context),
+                              onDailyRent: () =>
+                                  DailyRentPaymentDialog.show(context),
+                              onOwnerWithdrawal: () =>
+                                  OwnerWithdrawalDialog.show(context),
+                              onServiceRequest: () =>
+                                  showServiceJobForm(context),
                               onAddCustomer: () => showPartyForm(context),
-                              onViewReports: () => _nav(context, const ReportsView()),
-                              onOpenSettings: () => _nav(context, const SettingsView()),
+                              onViewReports: () =>
+                                  _nav(context, const ReportsView()),
+                              onOpenSettings: () =>
+                                  _nav(context, const SettingsView()),
                             ),
                           ],
                         ),
@@ -533,11 +553,13 @@ class TekDashboardContent extends StatelessWidget {
                             const TekWeatherCard(),
                             const SizedBox(height: 18),
                             TekServiceSummary(
-                              onSelectFilter: (f) => _nav(context, ServicesView(initialFilter: f)),
+                              onSelectFilter: (f) =>
+                                  _nav(context, ServicesView(initialFilter: f)),
                             ),
                             const SizedBox(height: 18),
                             TekRecentActivity(
-                              onViewAll: () => _nav(context, const AuditLogView()),
+                              onViewAll: () =>
+                                  _nav(context, const AuditLogView()),
                             ),
                           ],
                         ),
@@ -556,17 +578,20 @@ class TekDashboardContent extends StatelessWidget {
                         onAddItem: () => showItemForm(context),
                         onAddExpense: () => AddExpenseDialog.show(context),
                         onDailyRent: () => DailyRentPaymentDialog.show(context),
-                        onOwnerWithdrawal: () => OwnerWithdrawalDialog.show(context),
+                        onOwnerWithdrawal: () =>
+                            OwnerWithdrawalDialog.show(context),
                         onServiceRequest: () => showServiceJobForm(context),
                         onAddCustomer: () => showPartyForm(context),
                         onViewReports: () => _nav(context, const ReportsView()),
-                        onOpenSettings: () => _nav(context, const SettingsView()),
+                        onOpenSettings: () =>
+                            _nav(context, const SettingsView()),
                       ),
                       const SizedBox(height: 20),
                       const TekWeatherCard(),
                       const SizedBox(height: 20),
                       TekServiceSummary(
-                        onSelectFilter: (f) => _nav(context, ServicesView(initialFilter: f)),
+                        onSelectFilter: (f) =>
+                            _nav(context, ServicesView(initialFilter: f)),
                       ),
                       const SizedBox(height: 20),
                       TekRecentActivity(

@@ -91,7 +91,17 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
   bool _isSaving = false;
   String? _saveError;
 
-  static const _units = ['Piece', 'Box', 'Bundle', 'Pair', 'Set', 'Kg', 'Gram', 'Litre', 'Metre'];
+  static const _units = [
+    'Piece',
+    'Box',
+    'Bundle',
+    'Pair',
+    'Set',
+    'Kg',
+    'Gram',
+    'Litre',
+    'Metre'
+  ];
   static const _gstRates = [0.0, 3.0, 5.0, 12.0, 18.0, 28.0];
 
   @override
@@ -105,7 +115,8 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
     _categoryCtrl = TextEditingController(text: 'General');
     _hsnCtrl = TextEditingController(text: widget.prefillHsn);
     _mrpCtrl = TextEditingController(
-        text: widget.prefillMrp > 0 ? widget.prefillMrp.toStringAsFixed(0) : '');
+        text:
+            widget.prefillMrp > 0 ? widget.prefillMrp.toStringAsFixed(0) : '');
     _sellingPriceCtrl = TextEditingController(
         text: widget.prefillSellingPrice > 0
             ? widget.prefillSellingPrice.toStringAsFixed(0)
@@ -117,8 +128,16 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
   @override
   void dispose() {
     for (final c in [
-      _nameCtrl, _brandCtrl, _modelCtrl, _skuCtrl, _barcodeCtrl,
-      _categoryCtrl, _hsnCtrl, _mrpCtrl, _sellingPriceCtrl, _warrantyCtrl
+      _nameCtrl,
+      _brandCtrl,
+      _modelCtrl,
+      _skuCtrl,
+      _barcodeCtrl,
+      _categoryCtrl,
+      _hsnCtrl,
+      _mrpCtrl,
+      _sellingPriceCtrl,
+      _warrantyCtrl
     ]) {
       c.dispose();
     }
@@ -137,7 +156,8 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
       sku = 'SKU_${DateTime.now().millisecondsSinceEpoch}';
     }
     if (barcode.isEmpty) {
-      barcode = 'TKF${DateTime.now().millisecondsSinceEpoch.toString().substring(3)}';
+      barcode =
+          'TKF${DateTime.now().millisecondsSinceEpoch.toString().substring(3)}';
     }
 
     final mrp = double.tryParse(_mrpCtrl.text) ?? 0.0;
@@ -156,10 +176,12 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
         final existingSku = raw['sku']?.toString().trim() ?? '';
         final existingBarcode = raw['barcode']?.toString().trim() ?? '';
         if (_skuCtrl.text.trim().isNotEmpty && existingSku == sku) {
-          throw Exception('A product with SKU "$sku" already exists: ${raw['name']}');
+          throw Exception(
+              'A product with SKU "$sku" already exists: ${raw['name']}');
         }
         if (_barcodeCtrl.text.trim().isNotEmpty && existingBarcode == barcode) {
-          throw Exception('A product with barcode "$barcode" already exists: ${raw['name']}');
+          throw Exception(
+              'A product with barcode "$barcode" already exists: ${raw['name']}');
         }
       }
 
@@ -283,13 +305,15 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
 
                 // Header
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   child: Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: DashboardColors.neonGreen.withValues(alpha: 0.15),
+                          color:
+                              DashboardColors.neonGreen.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: const Icon(Icons.add_box_rounded,
@@ -302,7 +326,8 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
                           Text('Quick Register Product',
                               style: DashboardTypography.poppins(
                                   fontSize: 16, fontWeight: FontWeight.w700)),
-                          const Text('New product — stock added after bill save',
+                          const Text(
+                              'New product — stock added after bill save',
                               style: TextStyle(
                                   color: DashboardColors.textMuted,
                                   fontSize: 11)),
@@ -328,7 +353,8 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
                       color: DashboardColors.alertRed.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                          color: DashboardColors.alertRed.withValues(alpha: 0.3)),
+                          color:
+                              DashboardColors.alertRed.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       children: [
@@ -349,7 +375,8 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
                 Expanded(
                   child: ListView(
                     controller: scrollCtrl,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     children: [
                       _sectionLabel('Product Identity'),
                       _fField('Product Name *', _nameCtrl,
@@ -371,9 +398,11 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
                       _sectionLabel('Pricing & Tax'),
                       _row([
                         _fField('MRP (₹)', _mrpCtrl,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true)),
                         _fField('Selling Price (₹)', _sellingPriceCtrl,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true)),
                       ]),
                       _row([
                         _dropdownGst(),
@@ -459,7 +488,9 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
                               )
                             : const Icon(Icons.check_circle_rounded, size: 20),
                         label: Text(
-                          _isSaving ? 'Registering...' : 'Register & Link to Purchase Line',
+                          _isSaving
+                              ? 'Registering...'
+                              : 'Register & Link to Purchase Line',
                           style: DashboardTypography.poppins(
                               fontSize: 14, fontWeight: FontWeight.w700),
                         ),
@@ -518,8 +549,8 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
-          labelStyle: const TextStyle(
-              color: DashboardColors.textMuted, fontSize: 12),
+          labelStyle:
+              const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
           hintStyle: const TextStyle(
               color: DashboardColors.textDarkMuted, fontSize: 11),
           isDense: true,
@@ -535,8 +566,8 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(
-                color: DashboardColors.neonBlue, width: 1.5),
+            borderSide:
+                const BorderSide(color: DashboardColors.neonBlue, width: 1.5),
           ),
           errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
@@ -556,8 +587,8 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
         style: const TextStyle(color: Colors.white, fontSize: 13),
         decoration: InputDecoration(
           labelText: 'GST Rate %',
-          labelStyle: const TextStyle(
-              color: DashboardColors.textMuted, fontSize: 12),
+          labelStyle:
+              const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
           isDense: true,
           filled: true,
           fillColor: Colors.white.withValues(alpha: 0.04),
@@ -573,7 +604,8 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
         items: _gstRates
             .map((r) => DropdownMenuItem(
                 value: r,
-                child: Text('${r.toStringAsFixed(r == r.truncateToDouble() ? 0 : 1)}%')))
+                child: Text(
+                    '${r.toStringAsFixed(r == r.truncateToDouble() ? 0 : 1)}%')))
             .toList(),
         onChanged: (v) {
           if (v != null) setState(() => _gstRate = v);
@@ -591,8 +623,8 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
         style: const TextStyle(color: Colors.white, fontSize: 13),
         decoration: InputDecoration(
           labelText: 'Unit',
-          labelStyle: const TextStyle(
-              color: DashboardColors.textMuted, fontSize: 12),
+          labelStyle:
+              const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
           isDense: true,
           filled: true,
           fillColor: Colors.white.withValues(alpha: 0.04),
@@ -619,13 +651,14 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: DropdownButtonFormField<String>(
-        value: _warrantyCtrl.text.isNotEmpty ? _warrantyCtrl.text : 'No Warranty',
+        value:
+            _warrantyCtrl.text.isNotEmpty ? _warrantyCtrl.text : 'No Warranty',
         dropdownColor: const Color(0xFF0B1030),
         style: const TextStyle(color: Colors.white, fontSize: 13),
         decoration: InputDecoration(
           labelText: 'Default Warranty',
-          labelStyle: const TextStyle(
-              color: DashboardColors.textMuted, fontSize: 12),
+          labelStyle:
+              const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
           isDense: true,
           filled: true,
           fillColor: Colors.white.withValues(alpha: 0.04),
@@ -653,4 +686,3 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
     );
   }
 }
-

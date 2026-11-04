@@ -31,12 +31,16 @@ class TekServiceSummary extends StatelessWidget {
 
         for (final j in jobs) {
           final dt = tekDt(j['createdAt']);
-          if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
+          if (dt.year == now.year &&
+              dt.month == now.month &&
+              dt.day == now.day) {
             newTodayCount++;
           }
 
           final status = '${j['status'] ?? ''}';
-          if (status == 'In Progress' || status == 'Diagnosing' || status == 'Received') {
+          if (status == 'In Progress' ||
+              status == 'Diagnosing' ||
+              status == 'Received') {
             inProgressCount++;
           } else if (status == 'Ready') {
             readyCount++;
@@ -115,7 +119,8 @@ class TekServiceSummary extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: DashboardColors.neonPurple.withValues(alpha: 0.15),
+                            color: DashboardColors.neonPurple
+                                .withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Icon(

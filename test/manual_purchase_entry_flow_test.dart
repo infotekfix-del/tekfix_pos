@@ -177,8 +177,8 @@ void main() {
           name: 'Display Screen',
           quantity: 2,
           purchaseRate: 1500.0, // 3000
-          discount: 200.0,      // 2800 taxable
-          taxPercent: 18.0,     // 504 tax
+          discount: 200.0, // 2800 taxable
+          taxPercent: 18.0, // 504 tax
         ),
       ];
 
@@ -201,7 +201,8 @@ void main() {
     });
 
     // M6: Duplicate invoice (same supplier + number) is blocked
-    test('M6. Duplicate invoice validation blocks saving duplicate invoice number',
+    test(
+        'M6. Duplicate invoice validation blocks saving duplicate invoice number',
         () async {
       final billsBox = Hive.box(boxPurchaseBills);
       final existingBill = PurchaseBill(
@@ -242,7 +243,8 @@ void main() {
     });
 
     // M7 & M8: Single atomic post, idempotency, retry safety
-    test('M7 & M8. confirmPurchaseBill handles idempotency and records stock & ledger',
+    test(
+        'M7 & M8. confirmPurchaseBill handles idempotency and records stock & ledger',
         () async {
       final itemsBox = Hive.box(boxItems);
       final itemKey = await itemsBox.add({
@@ -293,7 +295,8 @@ void main() {
     });
 
     // M9: Partial payment: invoice balance due vs vendor outstanding separate
-    test('M9. Partial payment separates Invoice Balance Due and Vendor Outstanding',
+    test(
+        'M9. Partial payment separates Invoice Balance Due and Vendor Outstanding',
         () {
       const engine = PurchaseCalculationEngine(isInterState: false);
       final items = [
@@ -301,7 +304,7 @@ void main() {
           name: 'Fast Charger 65W',
           quantity: 4,
           purchaseRate: 500.0, // 2000
-          taxPercent: 18.0,    // 360 tax → grand 2360
+          taxPercent: 18.0, // 360 tax → grand 2360
         ),
       ];
 
@@ -313,7 +316,8 @@ void main() {
 
       // Suppose vendor previous balance is ₹5,000
       const double previousVendorBalance = 5000.0;
-      final double newVendorOutstanding = previousVendorBalance + result.balanceDue;
+      final double newVendorOutstanding =
+          previousVendorBalance + result.balanceDue;
 
       expect(result.balanceDue, equals(1360.0));
       expect(newVendorOutstanding, equals(6360.0));
@@ -353,7 +357,8 @@ void main() {
     });
 
     // M11: Manual and uploaded purchases appear in same history with correct source chips
-    test('M11. Purchase history displays both manual and auto bills with source tags',
+    test(
+        'M11. Purchase history displays both manual and auto bills with source tags',
         () async {
       final billsBox = Hive.box(boxPurchaseBills);
 
@@ -400,18 +405,22 @@ void main() {
       await billsBox.put(autoBill.billNumber, autoBill.toMap());
       await billsBox.put(manualBill.billNumber, manualBill.toMap());
 
-      final results = PurchaseBillService.instance.searchPurchaseBills(query: '');
+      final results =
+          PurchaseBillService.instance.searchPurchaseBills(query: '');
       expect(results.length, greaterThanOrEqualTo(2));
 
-      final foundAuto = results.firstWhere((b) => b.billNumber == 'PB-2026-AUTO');
-      final foundManual = results.firstWhere((b) => b.billNumber == 'PB-2026-MANUAL');
+      final foundAuto =
+          results.firstWhere((b) => b.billNumber == 'PB-2026-AUTO');
+      final foundManual =
+          results.firstWhere((b) => b.billNumber == 'PB-2026-MANUAL');
 
       expect(foundAuto.entrySource, equals(EntrySource.billUpload));
       expect(foundManual.entrySource, equals(EntrySource.manual));
     });
 
     // M12: Existing Upload Bill and navigation still intact (Regression)
-    test('M12. Regression test: Legacy methods, model constructors & getters intact',
+    test(
+        'M12. Regression test: Legacy methods, model constructors & getters intact',
         () {
       // Create legacy purchase bill without entrySource
       final legacyMap = {

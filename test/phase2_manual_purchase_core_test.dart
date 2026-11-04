@@ -52,14 +52,20 @@ void main() {
       expect(ProductMatchStatus.reviewRequired, equals('REVIEW_REQUIRED'));
 
       // Check colors
-      expect(ProductMatchStatus.getColor(ProductMatchStatus.matched), equals(const Color(0xFF10B981)));
-      expect(ProductMatchStatus.getColor(ProductMatchStatus.quickRegister), equals(const Color(0xFFF59E0B)));
-      expect(ProductMatchStatus.getColor(ProductMatchStatus.reviewRequired), equals(const Color(0xFFEF4444)));
+      expect(ProductMatchStatus.getColor(ProductMatchStatus.matched),
+          equals(const Color(0xFF10B981)));
+      expect(ProductMatchStatus.getColor(ProductMatchStatus.quickRegister),
+          equals(const Color(0xFFF59E0B)));
+      expect(ProductMatchStatus.getColor(ProductMatchStatus.reviewRequired),
+          equals(const Color(0xFFEF4444)));
 
       // Check labels
-      expect(ProductMatchStatus.getLabel(ProductMatchStatus.matched), equals('Existing Product Matched'));
-      expect(ProductMatchStatus.getLabel(ProductMatchStatus.quickRegister), equals('New Item: + Quick Register'));
-      expect(ProductMatchStatus.getLabel(ProductMatchStatus.reviewRequired), equals('Review Required / Discrepancy'));
+      expect(ProductMatchStatus.getLabel(ProductMatchStatus.matched),
+          equals('Existing Product Matched'));
+      expect(ProductMatchStatus.getLabel(ProductMatchStatus.quickRegister),
+          equals('New Item: + Quick Register'));
+      expect(ProductMatchStatus.getLabel(ProductMatchStatus.reviewRequired),
+          equals('Review Required / Discrepancy'));
     });
 
     test('2. PurchaseBillItem HSN, MRP, and MatchStatus Resolution', () {
@@ -101,12 +107,14 @@ void main() {
         purchaseRate: 3500.0,
         sellingPrice: 3000.0,
         matchStatusOverride: ProductMatchStatus.reviewRequired,
-        matchNotes: 'Rate Anomaly: Purchase rate (₹3500) > Selling price (₹3000)',
+        matchNotes:
+            'Rate Anomaly: Purchase rate (₹3500) > Selling price (₹3000)',
         isNewProduct: false,
         isStagedReady: false,
       );
 
-      expect(anomalyItem.matchStatus, equals(ProductMatchStatus.reviewRequired));
+      expect(
+          anomalyItem.matchStatus, equals(ProductMatchStatus.reviewRequired));
       expect(anomalyItem.matchNotes, contains('Rate Anomaly'));
     });
 
@@ -155,7 +163,8 @@ void main() {
       );
       expect(rateAnomalyMatch, isNotNull);
       // In local fallback or firestore, verify match was found
-      expect(rateAnomalyMatch!['name'], equals('Apple 20W USB-C Power Adapter'));
+      expect(
+          rateAnomalyMatch!['name'], equals('Apple 20W USB-C Power Adapter'));
 
       // 4. Unknown product returns null (triggers AMBER Quick Register)
       final unknownMatch = await service.matchProductInFirestore(
@@ -166,7 +175,8 @@ void main() {
       expect(unknownMatch, isNull);
     });
 
-    test('4. GST Auto-Detection: Intra-State (Kerala 32) vs Inter-State (IGST)', () {
+    test('4. GST Auto-Detection: Intra-State (Kerala 32) vs Inter-State (IGST)',
+        () {
       // Kerala GSTIN starts with '32'
       const keralaGst = '32AAAAA0000A1Z5';
       const karnatakaGst = '29BBBBB1111B1Z2';
@@ -225,14 +235,18 @@ void main() {
         ),
       ];
 
-      final double subtotal = items.fold(0.0, (sum, it) => sum + (it.quantity * it.purchaseRate));
-      final double totalDiscount = items.fold(0.0, (sum, it) => sum + it.discount);
+      final double subtotal =
+          items.fold(0.0, (sum, it) => sum + (it.quantity * it.purchaseRate));
+      final double totalDiscount =
+          items.fold(0.0, (sum, it) => sum + it.discount);
       final double totalTax = items.fold(0.0, (sum, it) => sum + it.taxAmount);
       const double otherCharges = 25.0;
 
-      final double rawGrandTotal = subtotal - totalDiscount + totalTax + otherCharges;
+      final double rawGrandTotal =
+          subtotal - totalDiscount + totalTax + otherCharges;
       final bool applyRoundOff = !subtotal.isNaN;
-      final double grandTotal = applyRoundOff ? rawGrandTotal.roundToDouble() : rawGrandTotal;
+      final double grandTotal =
+          applyRoundOff ? rawGrandTotal.roundToDouble() : rawGrandTotal;
       final double roundOff = grandTotal - rawGrandTotal;
 
       expect(subtotal, closeTo(1900.99, 0.01));
@@ -264,7 +278,8 @@ void main() {
       ];
 
       // Check if unconfigured item prevents confirmation
-      final unconfiguredIndex = items.indexWhere((it) => it.isNewProduct && !it.isStagedReady);
+      final unconfiguredIndex =
+          items.indexWhere((it) => it.isNewProduct && !it.isStagedReady);
       expect(unconfiguredIndex, equals(1)); // Should block confirmation
 
       // Simulate quick register resolution
@@ -276,7 +291,8 @@ void main() {
         matchStatusOverride: ProductMatchStatus.matched,
       );
 
-      final recheckUnconfigured = items.indexWhere((it) => it.isNewProduct && !it.isStagedReady);
+      final recheckUnconfigured =
+          items.indexWhere((it) => it.isNewProduct && !it.isStagedReady);
       expect(recheckUnconfigured, equals(-1)); // Now ready!
     });
   });

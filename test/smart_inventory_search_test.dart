@@ -29,7 +29,8 @@ void main() {
   late Box itemsBox;
 
   setUp(() async {
-    tempDir = await Directory.systemTemp.createTemp('tekfix_smart_search_test_');
+    tempDir =
+        await Directory.systemTemp.createTemp('tekfix_smart_search_test_');
     Hive.init(tempDir.path);
 
     itemsBox = await Hive.openBox(boxItems);
@@ -114,7 +115,8 @@ void main() {
   });
 
   group('SMART INVENTORY SEARCH & INTELLIGENT PURCHASE SELECTOR TESTS', () {
-    test('1. Search "TPU" finds existing products with stock & purchase rate', () async {
+    test('1. Search "TPU" finds existing products with stock & purchase rate',
+        () async {
       final engine = SmartInventorySearchEngine.instance;
       await engine.initialize(shopId: 'tekfix');
 
@@ -130,7 +132,9 @@ void main() {
       expect(item.gst, equals(18.0));
     });
 
-    test('2. Select existing TPU links existing product ID without creating duplicate inventory', () async {
+    test(
+        '2. Select existing TPU links existing product ID without creating duplicate inventory',
+        () async {
       final engine = SmartInventorySearchEngine.instance;
       await engine.initialize(shopId: 'tekfix');
 
@@ -159,7 +163,9 @@ void main() {
       expect(billItem.lineTotal, equals(10 * 120.0 * 1.18));
     });
 
-    test('3. Search nonexistent product shows empty results and triggers new item creation path', () async {
+    test(
+        '3. Search nonexistent product shows empty results and triggers new item creation path',
+        () async {
       final engine = SmartInventorySearchEngine.instance;
       await engine.initialize(shopId: 'tekfix');
 
@@ -167,7 +173,9 @@ void main() {
       expect(results, isEmpty);
     });
 
-    test('4. Create new product marks isNewProduct=true and generates valid SKU', () {
+    test(
+        '4. Create new product marks isNewProduct=true and generates valid SKU',
+        () {
       final newItem = PurchaseBillItem(
         name: 'Hydrogel Matte Screen Protector for Nothing Phone 2',
         brand: 'Nothing',
@@ -202,11 +210,13 @@ void main() {
       expect(scannedBySku!.productId, equals('ITEM_SAMS_CHG'));
     });
 
-    test('6. Selecting same product increments quantity without duplicate row', () {
+    test('6. Selecting same product increments quantity without duplicate row',
+        () {
       final billItems = <PurchaseBillItem>[];
 
       void addOrIncrement(InventorySearchItem item) {
-        final existingIdx = billItems.indexWhere((it) => it.itemId == item.productId);
+        final existingIdx =
+            billItems.indexWhere((it) => it.itemId == item.productId);
         if (existingIdx >= 0) {
           final existing = billItems[existingIdx];
           billItems[existingIdx] = PurchaseBillItem(
@@ -250,7 +260,8 @@ void main() {
 
       // Add second time (e.g. user selects it again or scans barcode again)
       addOrIncrement(searchItem);
-      expect(billItems.length, equals(1)); // Still only 1 row! No duplicate row!
+      expect(
+          billItems.length, equals(1)); // Still only 1 row! No duplicate row!
       expect(billItems.first.quantity, equals(2)); // Quantity incremented!
     });
 
@@ -268,20 +279,25 @@ void main() {
       expect(zeroStockItem.lastPurchaseRate, equals(450.0));
     });
 
-    test('8. Advanced IMEI validation enforces 15-digit Luhn check and exact quantity match', () {
+    test(
+        '8. Advanced IMEI validation enforces 15-digit Luhn check and exact quantity match',
+        () {
       // Valid Luhn 15-digit IMEI
       const validImei = '352099001761481';
       expect(ImeiValidator.isValidLuhn(validImei), isTrue);
-      expect(ImeiValidator.categorizeIdentifier(validImei), equals('VALID_IMEI'));
+      expect(
+          ImeiValidator.categorizeIdentifier(validImei), equals('VALID_IMEI'));
 
       // Invalid Luhn 15-digit IMEI (typo in check digit)
       const invalidImei = '352099001761482';
       expect(ImeiValidator.isValidLuhn(invalidImei), isFalse);
-      expect(ImeiValidator.categorizeIdentifier(invalidImei), equals('INVALID_LUHN_IMEI'));
+      expect(ImeiValidator.categorizeIdentifier(invalidImei),
+          equals('INVALID_LUHN_IMEI'));
 
       // Alphanumeric device serial
       const serial = 'F2LW80R0Q6L4';
-      expect(ImeiValidator.categorizeIdentifier(serial), equals('DEVICE_SERIAL'));
+      expect(
+          ImeiValidator.categorizeIdentifier(serial), equals('DEVICE_SERIAL'));
 
       // Check enforcement: quantity = 2, serialNumbers = 1 -> should fail validation
       final item = PurchaseBillItem(
@@ -296,7 +312,9 @@ void main() {
       expect(isComplete, isFalse);
     });
 
-    test('9. Multi-token partial search matches regardless of word order and whitespace', () async {
+    test(
+        '9. Multi-token partial search matches regardless of word order and whitespace',
+        () async {
       final engine = SmartInventorySearchEngine.instance;
       await engine.initialize(shopId: 'tekfix');
 
@@ -316,7 +334,8 @@ void main() {
       expect(r3.first.productId, equals('ITEM_IPH_15_PRO'));
     });
 
-    test('10. Multi-item purchase calculations (subtotal, GST, grand total)', () {
+    test('10. Multi-item purchase calculations (subtotal, GST, grand total)',
+        () {
       const engine = PurchaseCalculationEngine(isInterState: false);
 
       final items = [
@@ -360,7 +379,9 @@ void main() {
       expect(result.grandTotal, equals(2478.0));
     });
 
-    test('11. Bill confirmation updates stock atomically via PurchaseBillService', () async {
+    test(
+        '11. Bill confirmation updates stock atomically via PurchaseBillService',
+        () async {
       final initialStock = (itemsBox.get('ITEM_TPU_14') as Map)['stock'] as int;
       expect(initialStock, equals(25));
 
@@ -448,7 +469,9 @@ void main() {
       expect(labelItems[1].quantity, equals(1));
     });
 
-    test('14. Existing Item Auto-Populate in Purchase Entry Links Product Without Creating Duplicate', () async {
+    test(
+        '14. Existing Item Auto-Populate in Purchase Entry Links Product Without Creating Duplicate',
+        () async {
       final engine = SmartInventorySearchEngine.instance;
       await engine.initialize(shopId: 'tekfix');
 
@@ -478,7 +501,9 @@ void main() {
       expect(purchaseRow.mrp, equals(1699.0));
     });
 
-    test('15. Purchase Draft: Delete item, auto-recalculate totals, undo restore, and verify master inventory untouched', () {
+    test(
+        '15. Purchase Draft: Delete item, auto-recalculate totals, undo restore, and verify master inventory untouched',
+        () {
       const calcEngine = PurchaseCalculationEngine(isInterState: false);
       final draftItems = <PurchaseBillItem>[
         PurchaseBillItem(
@@ -518,7 +543,7 @@ void main() {
       // 2. Recalculate totals
       result = calcEngine.calculate(items: draftItems);
       expect(result.subtotalPaise, equals(100000)); // 1000.00
-      expect(result.totalGstPaise, equals(18000));  // 180.00
+      expect(result.totalGstPaise, equals(18000)); // 180.00
       expect(result.cgstPaise, equals(9000));
       expect(result.sgstPaise, equals(9000));
       expect(result.grandTotalPaise, equals(118000)); // 1180.00
@@ -535,7 +560,8 @@ void main() {
       expect(result.grandTotalPaise, equals(236000));
     });
 
-    test('16. Real-time Inventory Sync State transitions & metadata handling', () async {
+    test('16. Real-time Inventory Sync State transitions & metadata handling',
+        () async {
       final engine = SmartInventorySearchEngine.instance;
       await engine.initialize(shopId: 'tekfix', forceRefresh: true);
 

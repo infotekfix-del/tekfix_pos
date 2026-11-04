@@ -15,7 +15,8 @@ void main() {
   late Directory tempDir;
 
   setUp(() async {
-    tempDir = await Directory.systemTemp.createTemp('tekfix_service_bill_test_');
+    tempDir =
+        await Directory.systemTemp.createTemp('tekfix_service_bill_test_');
     Hive.init(tempDir.path);
     await Hive.openBox(boxItems);
     await Hive.openBox(boxServices);
@@ -38,7 +39,8 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 1: Owner Role can create a service bill
     // -------------------------------------------------------------------------
-    test('1. Owner can create a service bill with all required collections', () async {
+    test('1. Owner can create a service bill with all required collections',
+        () async {
       final mockJob = <String, dynamic>{
         'jobId': 'JOB-OWNER-001',
         'customerName': 'Rahul Sharma',
@@ -71,7 +73,8 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 2: Authorized staff can create a service bill
     // -------------------------------------------------------------------------
-    test('2. Authorized staff can create a service bill with active status', () async {
+    test('2. Authorized staff can create a service bill with active status',
+        () async {
       await Db.settings.put('auth_role', 'staff');
       await Db.settings.put('shop_id', 'tekfix_store');
       await Db.settings.put('active_user', 'Shahal Tech');
@@ -95,7 +98,8 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 3: Unauthorized user / Cross-shop data isolation
     // -------------------------------------------------------------------------
-    test('3. Unauthorized users or mismatched shopId cannot access billing', () async {
+    test('3. Unauthorized users or mismatched shopId cannot access billing',
+        () async {
       // Simulate access with different shop
       final userShop = 'shop_alpha';
       final targetShop = 'shop_beta';
@@ -111,7 +115,8 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 4: Inventory stock deducts correctly
     // -------------------------------------------------------------------------
-    test('4. Inventory stock deducts correctly upon service bill confirmation', () async {
+    test('4. Inventory stock deducts correctly upon service bill confirmation',
+        () async {
       await Db.items.put('COMBO-OPPO-A52', {
         '_id': 'COMBO-OPPO-A52',
         'name': 'COMBO OPPO A52',
@@ -134,7 +139,8 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 5: Duplicate billing is prevented
     // -------------------------------------------------------------------------
-    test('5. Duplicate billing is prevented via in-flight lock & idempotency', () async {
+    test('5. Duplicate billing is prevented via in-flight lock & idempotency',
+        () async {
       final inFlight = <String>{};
       final invoiceId = 'INV-STAFF-1001';
 
@@ -153,7 +159,8 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 6: COMBO OPPO A52 displays without overlapping text (Widget Test)
     // -------------------------------------------------------------------------
-    testWidgets('6. COMBO OPPO A52 displays in responsive card with distinct vertical space and no overlap',
+    testWidgets(
+        '6. COMBO OPPO A52 displays in responsive card with distinct vertical space and no overlap',
         (tester) async {
       tester.view.physicalSize = const Size(1280, 900);
       tester.view.devicePixelRatio = 1.0;
@@ -208,7 +215,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 7: Multiple spare parts display correctly in separate cards
     // -------------------------------------------------------------------------
-    test('7. Multiple spare parts calculate totals and line items without clipping', () {
+    test(
+        '7. Multiple spare parts calculate totals and line items without clipping',
+        () {
       final parts = <ServiceSparePartItem>[
         ServiceSparePartItem(
           itemId: 'COMBO-OPPO-A52',
@@ -238,7 +247,8 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 8: External spare parts do not deduct inventory
     // -------------------------------------------------------------------------
-    test('8. External spare parts do not deduct inventory and preserve stock', () async {
+    test('8. External spare parts do not deduct inventory and preserve stock',
+        () async {
       await Db.items.put('ITEM-EXT-01', {
         '_id': 'ITEM-EXT-01',
         'name': 'Original Vendor IC',
@@ -272,7 +282,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 9: ServiceInvoiceReceiptDialog displays with all 4 required actions
     // -------------------------------------------------------------------------
-    testWidgets('9. ServiceInvoiceReceiptDialog displays with Thermal, A4, WhatsApp and Close options', (tester) async {
+    testWidgets(
+        '9. ServiceInvoiceReceiptDialog displays with Thermal, A4, WhatsApp and Close options',
+        (tester) async {
       final mockInvoice = <String, dynamic>{
         'invoice': 'INV-2026-0042',
         'customerName': 'Abhinav Krishna',
@@ -311,7 +323,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 10: Service job card delivery & completion status update
     // -------------------------------------------------------------------------
-    test('10. Service job card status updates to COMPLETED and DELIVERED upon billing', () async {
+    test(
+        '10. Service job card status updates to COMPLETED and DELIVERED upon billing',
+        () async {
       await Db.services.put('JOB-KEY-888', {
         'id': 'JOB-888',
         'customerName': 'Fahad',
@@ -363,7 +377,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 12: Acceptance Test: Job SRV-20261103-W004, Cash, ₹1300
     // -------------------------------------------------------------------------
-    test('12. Acceptance Test: Job SRV-20261103-W004, Cash, ₹1300 atomic commit', () async {
+    test(
+        '12. Acceptance Test: Job SRV-20261103-W004, Cash, ₹1300 atomic commit',
+        () async {
       const shopId = 'tekfix';
       const jobId = 'SRV-20261103-W004';
       const invoiceId = 'INV-20261103-0004';
@@ -468,7 +484,8 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 13: Service checkout with UPI succeeds
     // -------------------------------------------------------------------------
-    test('13. Service checkout with UPI succeeds and records UPI payment', () async {
+    test('13. Service checkout with UPI succeeds and records UPI payment',
+        () async {
       const shopId = 'tekfix';
       const jobId = 'SRV-20261103-W005';
       const invoiceId = 'INV-20261103-0005';
@@ -510,7 +527,8 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 14: Service checkout with Card succeeds
     // -------------------------------------------------------------------------
-    test('14. Service checkout with Card succeeds and records Card payment', () async {
+    test('14. Service checkout with Card succeeds and records Card payment',
+        () async {
       const due = 1300.0;
       const paymentMode = 'Card';
 
@@ -529,7 +547,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 15: Staff user is authorized; unauthenticated user is denied
     // -------------------------------------------------------------------------
-    test('15. Role-based rules: Staff user is permitted; unauthenticated user is denied', () {
+    test(
+        '15. Role-based rules: Staff user is permitted; unauthenticated user is denied',
+        () {
       bool isSignedIn(String? uid) => uid != null && uid.isNotEmpty;
       bool isShopMember(String shopId, String? uid, String? role) {
         if (!isSignedIn(uid)) return false;
@@ -551,7 +571,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 16: Failure preserves cart, amount and payment method
     // -------------------------------------------------------------------------
-    test('16. On error or failure, cart, amount and payment method remain preserved', () {
+    test(
+        '16. On error or failure, cart, amount and payment method remain preserved',
+        () {
       final selectedParts = [
         ServiceSparePartItem(
           itemId: 'COMBO-OPPO-A52',
@@ -588,4 +610,3 @@ void main() {
     });
   });
 }
-

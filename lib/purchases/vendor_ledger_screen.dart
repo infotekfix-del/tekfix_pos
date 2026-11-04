@@ -45,7 +45,9 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
     if (widget.vendorKey != null) {
       _activeVendorKey = widget.vendorKey;
       final found = vendors.firstWhere(
-        (v) => v['key'] == widget.vendorKey || '${v['key']}' == '${widget.vendorKey}',
+        (v) =>
+            v['key'] == widget.vendorKey ||
+            '${v['key']}' == '${widget.vendorKey}',
         orElse: () => {},
       );
       _activeVendorName = found['name'] ?? widget.vendorName ?? 'Vendor';
@@ -77,18 +79,21 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
       );
     }
 
-    final ledger = PurchaseBillService.instance.getVendorLedger(_activeVendorKey);
+    final ledger =
+        PurchaseBillService.instance.getVendorLedger(_activeVendorKey);
     final vendorData = Db.parties.get(_activeVendorKey) as Map?;
     final vendorPhone = vendorData?['phone']?.toString() ?? '';
     final vendorGst = vendorData?['gst']?.toString() ?? '';
     final vendorAddress = vendorData?['address']?.toString() ?? '';
-    final outstandingBalance = PurchaseBillService.instance.getVendorOutstandingBalance(_activeVendorKey);
+    final outstandingBalance = PurchaseBillService.instance
+        .getVendorOutstandingBalance(_activeVendorKey);
 
     // Apply filters
     final filtered = ledger.where((e) {
       if (_filterType != 'All' && e.type != _filterType) return false;
       if (_startDate != null && e.date.isBefore(_startDate!)) return false;
-      if (_endDate != null && e.date.isAfter(_endDate!.add(const Duration(days: 1)))) return false;
+      if (_endDate != null &&
+          e.date.isAfter(_endDate!.add(const Duration(days: 1)))) return false;
       return true;
     }).toList();
 
@@ -105,7 +110,8 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
                 gradient: DashboardColors.activePillGradient,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 20),
+              child: const Icon(Icons.account_balance_wallet_rounded,
+                  color: Colors.white, size: 20),
             ),
             const SizedBox(width: 12),
             Column(
@@ -115,16 +121,22 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
                   child: DropdownButton<dynamic>(
                     value: _activeVendorKey,
                     dropdownColor: const Color(0xFF101846),
-                    style: DashboardTypography.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                    icon: const Icon(Icons.arrow_drop_down, color: DashboardColors.neonBlue),
+                    style: DashboardTypography.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white),
+                    icon: const Icon(Icons.arrow_drop_down,
+                        color: DashboardColors.neonBlue),
                     items: vendors.map((v) {
                       return DropdownMenuItem<dynamic>(
                         value: v['key'],
-                        child: Text('${v['name']}', style: const TextStyle(color: Colors.white)),
+                        child: Text('${v['name']}',
+                            style: const TextStyle(color: Colors.white)),
                       );
                     }).toList(),
                     onChanged: (k) {
-                      final found = vendors.firstWhere((v) => v['key'] == k, orElse: () => {});
+                      final found = vendors.firstWhere((v) => v['key'] == k,
+                          orElse: () => {});
                       setState(() {
                         _activeVendorKey = k;
                         _activeVendorName = found['name'] ?? 'Vendor';
@@ -134,7 +146,8 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
                 ),
                 Text(
                   'Complete chronological statement of purchase bills, payments and balance',
-                  style: DashboardTypography.inter(fontSize: 11.5, color: DashboardColors.textMuted),
+                  style: DashboardTypography.inter(
+                      fontSize: 11.5, color: DashboardColors.textMuted),
                 ),
               ],
             ),
@@ -146,20 +159,26 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
             child: FilledButton.icon(
               style: FilledButton.styleFrom(
                 backgroundColor: DashboardColors.neonGreen,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
               ),
               onPressed: () => _showRecordAdvancePaymentDialog(),
-              icon: const Icon(Icons.payment_rounded, color: Colors.black, size: 18),
+              icon: const Icon(Icons.payment_rounded,
+                  color: Colors.black, size: 18),
               label: Text(
                 'Record Payment / Advance',
-                style: DashboardTypography.poppins(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                style: DashboardTypography.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black),
               ),
             ),
           ),
         ],
       ),
       body: Container(
-        decoration: const BoxDecoration(gradient: DashboardColors.backgroundGradient),
+        decoration:
+            const BoxDecoration(gradient: DashboardColors.backgroundGradient),
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -213,7 +232,8 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
           CircleAvatar(
             radius: 28,
             backgroundColor: DashboardColors.primaryBlue.withValues(alpha: 0.2),
-            child: const Icon(Icons.store_rounded, color: DashboardColors.neonBlue, size: 30),
+            child: const Icon(Icons.store_rounded,
+                color: DashboardColors.neonBlue, size: 30),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -224,18 +244,25 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
                   children: [
                     Text(
                       _activeVendorName,
-                      style: DashboardTypography.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: DashboardTypography.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white),
                     ),
                     const SizedBox(width: 10),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: const Color(0x3300D4FF),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         'Verified Supplier',
-                        style: DashboardTypography.inter(fontSize: 11, fontWeight: FontWeight.bold, color: DashboardColors.neonBlue),
+                        style: DashboardTypography.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: DashboardColors.neonBlue),
                       ),
                     ),
                   ],
@@ -251,7 +278,8 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
                       _buildInfoSnippet(Icons.receipt_rounded, 'GST: $gst'),
                     if (address.isNotEmpty)
                       _buildInfoSnippet(Icons.location_on_rounded, address),
-                    _buildInfoSnippet(Icons.history_rounded, '$totalTransactions recorded entries'),
+                    _buildInfoSnippet(Icons.history_rounded,
+                        '$totalTransactions recorded entries'),
                   ],
                 ),
               ],
@@ -265,7 +293,9 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
                   : const Color(0x2610B981),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: outstandingBalance > 0 ? const Color(0x80EF4444) : const Color(0x8010B981),
+                color: outstandingBalance > 0
+                    ? const Color(0x80EF4444)
+                    : const Color(0x8010B981),
                 width: 1.5,
               ),
             ),
@@ -274,7 +304,8 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
               children: [
                 Text(
                   'Total Outstanding Balance',
-                  style: DashboardTypography.inter(fontSize: 11.5, color: DashboardColors.textLight),
+                  style: DashboardTypography.inter(
+                      fontSize: 11.5, color: DashboardColors.textLight),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -282,7 +313,9 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
                   style: DashboardTypography.poppins(
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
-                    color: outstandingBalance > 0 ? DashboardColors.alertOrange : DashboardColors.neonGreen,
+                    color: outstandingBalance > 0
+                        ? DashboardColors.alertOrange
+                        : DashboardColors.neonGreen,
                   ),
                 ),
                 Text(
@@ -290,7 +323,9 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
                   style: DashboardTypography.inter(
                     fontSize: 10.5,
                     fontWeight: FontWeight.bold,
-                    color: outstandingBalance > 0 ? const Color(0xFFF87171) : DashboardColors.neonGreen,
+                    color: outstandingBalance > 0
+                        ? const Color(0xFFF87171)
+                        : DashboardColors.neonGreen,
                   ),
                 ),
               ],
@@ -309,7 +344,8 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
         const SizedBox(width: 4),
         Text(
           text,
-          style: DashboardTypography.inter(fontSize: 12, color: DashboardColors.textLight),
+          style: DashboardTypography.inter(
+              fontSize: 12, color: DashboardColors.textLight),
         ),
       ],
     );
@@ -325,11 +361,15 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
       decoration: DashboardColors.glassCard(radius: 12),
       child: Row(
         children: [
-          const Icon(Icons.filter_list_rounded, color: DashboardColors.neonBlue, size: 18),
+          const Icon(Icons.filter_list_rounded,
+              color: DashboardColors.neonBlue, size: 18),
           const SizedBox(width: 8),
           Text(
             'Filter Ledger:',
-            style: DashboardTypography.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.white),
+            style: DashboardTypography.inter(
+                fontSize: 12.5,
+                fontWeight: FontWeight.bold,
+                color: Colors.white),
           ),
           const SizedBox(width: 12),
           SegmentedButton<String>(
@@ -340,7 +380,8 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
               ButtonSegment(value: 'Advance Payment', label: Text('Advances')),
             ],
             selected: {_filterType},
-            onSelectionChanged: (set) => setState(() => _filterType = set.first),
+            onSelectionChanged: (set) =>
+                setState(() => _filterType = set.first),
             style: SegmentedButton.styleFrom(
               backgroundColor: const Color(0x26000000),
               selectedBackgroundColor: DashboardColors.primaryBlue,
@@ -352,9 +393,15 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
           const Spacer(),
           OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
-              foregroundColor: _startDate != null ? DashboardColors.neonBlue : DashboardColors.textLight,
-              side: BorderSide(color: _startDate != null ? DashboardColors.neonBlue : const Color(0x33FFFFFF)),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              foregroundColor: _startDate != null
+                  ? DashboardColors.neonBlue
+                  : DashboardColors.textLight,
+              side: BorderSide(
+                  color: _startDate != null
+                      ? DashboardColors.neonBlue
+                      : const Color(0x33FFFFFF)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             ),
             onPressed: () async {
@@ -393,7 +440,8 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
           if (_startDate != null) ...[
             const SizedBox(width: 8),
             IconButton(
-              icon: const Icon(Icons.clear_rounded, size: 16, color: DashboardColors.textMuted),
+              icon: const Icon(Icons.clear_rounded,
+                  size: 16, color: DashboardColors.textMuted),
               onPressed: () => setState(() {
                 _startDate = null;
                 _endDate = null;
@@ -417,16 +465,21 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
         decoration: DashboardColors.glassCard(),
         child: Column(
           children: [
-            const Icon(Icons.account_balance_wallet_outlined, size: 48, color: DashboardColors.textMuted),
+            const Icon(Icons.account_balance_wallet_outlined,
+                size: 48, color: DashboardColors.textMuted),
             const SizedBox(height: 14),
             Text(
               'No Transactions Recorded in Ledger',
-              style: DashboardTypography.poppins(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+              style: DashboardTypography.poppins(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white),
             ),
             const SizedBox(height: 6),
             Text(
               'Purchase bills and payments for this vendor will appear here in real-time.',
-              style: DashboardTypography.inter(fontSize: 12.5, color: DashboardColors.textMuted),
+              style: DashboardTypography.inter(
+                  fontSize: 12.5, color: DashboardColors.textMuted),
             ),
           ],
         ),
@@ -462,21 +515,34 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
               return DataRow(
                 cells: [
                   // Date
-                  DataCell(Text(_dateFormat.format(e.date), style: DashboardTypography.inter(fontSize: 12, color: Colors.white))),
+                  DataCell(Text(_dateFormat.format(e.date),
+                      style: DashboardTypography.inter(
+                          fontSize: 12, color: Colors.white))),
 
                   // Type
                   DataCell(
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: isBill
-                            ? DashboardColors.primaryBlue.withValues(alpha: 0.15)
-                            : (isAdvance ? DashboardColors.neonPurple.withValues(alpha: 0.15) : DashboardColors.neonGreen.withValues(alpha: 0.15)),
+                            ? DashboardColors.primaryBlue
+                                .withValues(alpha: 0.15)
+                            : (isAdvance
+                                ? DashboardColors.neonPurple
+                                    .withValues(alpha: 0.15)
+                                : DashboardColors.neonGreen
+                                    .withValues(alpha: 0.15)),
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                           color: isBill
-                              ? DashboardColors.primaryBlue.withValues(alpha: 0.5)
-                              : (isAdvance ? DashboardColors.neonPurple.withValues(alpha: 0.5) : DashboardColors.neonGreen.withValues(alpha: 0.5)),
+                              ? DashboardColors.primaryBlue
+                                  .withValues(alpha: 0.5)
+                              : (isAdvance
+                                  ? DashboardColors.neonPurple
+                                      .withValues(alpha: 0.5)
+                                  : DashboardColors.neonGreen
+                                      .withValues(alpha: 0.5)),
                         ),
                       ),
                       child: Text(
@@ -486,17 +552,25 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
                           fontWeight: FontWeight.bold,
                           color: isBill
                               ? DashboardColors.neonBlue
-                              : (isAdvance ? DashboardColors.neonPurple : DashboardColors.neonGreen),
+                              : (isAdvance
+                                  ? DashboardColors.neonPurple
+                                  : DashboardColors.neonGreen),
                         ),
                       ),
                     ),
                   ),
 
                   // Reference
-                  DataCell(Text(e.reference, style: DashboardTypography.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white))),
+                  DataCell(Text(e.reference,
+                      style: DashboardTypography.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white))),
 
                   // Vendor Invoice #
-                  DataCell(Text(e.vendorInvoiceNumber ?? '—', style: DashboardTypography.inter(fontSize: 12, color: DashboardColors.textLight))),
+                  DataCell(Text(e.vendorInvoiceNumber ?? '—',
+                      style: DashboardTypography.inter(
+                          fontSize: 12, color: DashboardColors.textLight))),
 
                   // Debit (Bills amount)
                   DataCell(
@@ -505,7 +579,9 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
                       style: DashboardTypography.inter(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w700,
-                        color: e.debit > 0 ? DashboardColors.alertOrange : DashboardColors.textMuted,
+                        color: e.debit > 0
+                            ? DashboardColors.alertOrange
+                            : DashboardColors.textMuted,
                       ),
                     ),
                   ),
@@ -517,7 +593,9 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
                       style: DashboardTypography.inter(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w700,
-                        color: e.credit > 0 ? DashboardColors.neonGreen : DashboardColors.textMuted,
+                        color: e.credit > 0
+                            ? DashboardColors.neonGreen
+                            : DashboardColors.textMuted,
                       ),
                     ),
                   ),
@@ -529,7 +607,9 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
                       style: DashboardTypography.poppins(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w800,
-                        color: e.runningBalance > 0 ? DashboardColors.alertOrange : DashboardColors.neonGreen,
+                        color: e.runningBalance > 0
+                            ? DashboardColors.alertOrange
+                            : DashboardColors.neonGreen,
                       ),
                     ),
                   ),
@@ -542,7 +622,8 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
                         e.notes ?? '—',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: DashboardTypography.inter(fontSize: 11.5, color: DashboardColors.textMuted),
+                        style: DashboardTypography.inter(
+                            fontSize: 11.5, color: DashboardColors.textMuted),
                       ),
                     ),
                   ),
@@ -585,11 +666,15 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
           ),
           title: Row(
             children: [
-              const Icon(Icons.payment_rounded, color: DashboardColors.neonGreen),
+              const Icon(Icons.payment_rounded,
+                  color: DashboardColors.neonGreen),
               const SizedBox(width: 10),
               Text(
                 'Record Vendor Payment / Advance',
-                style: DashboardTypography.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                style: DashboardTypography.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white),
               ),
             ],
           ),
@@ -601,25 +686,31 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
               children: [
                 Text(
                   'Record a direct payment or advance payment to $_activeVendorName. This automatically updates the vendor ledger and cash/bank account.',
-                  style: DashboardTypography.inter(fontSize: 12, color: DashboardColors.textMuted),
+                  style: DashboardTypography.inter(
+                      fontSize: 12, color: DashboardColors.textMuted),
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: amountCtrl,
                   keyboardType: TextInputType.number,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold),
                   decoration: const InputDecoration(
                     labelText: 'Payment Amount (₹) *',
                     labelStyle: TextStyle(color: Colors.white70),
                     prefixText: '₹ ',
-                    prefixStyle: TextStyle(color: DashboardColors.neonGreen, fontWeight: FontWeight.bold),
+                    prefixStyle: TextStyle(
+                        color: DashboardColors.neonGreen,
+                        fontWeight: FontWeight.bold),
                     filled: true,
                     fillColor: Color(0x26000000),
                     border: OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 12),
-                Text('Payment Mode *', style: DashboardTypography.inter(fontSize: 12, color: DashboardColors.textLight)),
+                Text('Payment Mode *',
+                    style: DashboardTypography.inter(
+                        fontSize: 12, color: DashboardColors.textLight)),
                 const SizedBox(height: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -633,8 +724,18 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
                       isExpanded: true,
                       dropdownColor: const Color(0xFF1E293B),
                       value: method,
-                      items: ['Cash', 'UPI', 'Bank Transfer', 'Card', 'Cheque', 'Other'].map((m) {
-                        return DropdownMenuItem(value: m, child: Text(m, style: const TextStyle(color: Colors.white)));
+                      items: [
+                        'Cash',
+                        'UPI',
+                        'Bank Transfer',
+                        'Card',
+                        'Cheque',
+                        'Other'
+                      ].map((m) {
+                        return DropdownMenuItem(
+                            value: m,
+                            child: Text(m,
+                                style: const TextStyle(color: Colors.white)));
                       }).toList(),
                       onChanged: (val) => setD(() => method = val ?? 'UPI'),
                     ),
@@ -670,20 +771,26 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
           actions: [
             TextButton(
               onPressed: submitting ? null : () => Navigator.pop(ctx),
-              child: Text('Cancel', style: DashboardTypography.inter(color: Colors.white70)),
+              child: Text('Cancel',
+                  style: DashboardTypography.inter(color: Colors.white70)),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: DashboardColors.neonGreen),
+              style: FilledButton.styleFrom(
+                  backgroundColor: DashboardColors.neonGreen),
               onPressed: submitting
                   ? null
                   : () async {
-                      final amt = double.tryParse(amountCtrl.text.trim()) ?? 0.0;
+                      final amt =
+                          double.tryParse(amountCtrl.text.trim()) ?? 0.0;
                       if (amt <= 0) {
-                        toast(context, 'Please enter a valid amount', error: true);
+                        toast(context, 'Please enter a valid amount',
+                            error: true);
                         return;
                       }
                       if (refCtrl.text.trim().isEmpty) {
-                        toast(context, 'Please enter transaction reference / UTR', error: true);
+                        toast(
+                            context, 'Please enter transaction reference / UTR',
+                            error: true);
                         return;
                       }
 
@@ -696,23 +803,33 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
                           paymentDate: payDate,
                           paymentMethod: method,
                           transactionReference: refCtrl.text.trim(),
-                          notes: notesCtrl.text.trim().isNotEmpty ? notesCtrl.text.trim() : null,
+                          notes: notesCtrl.text.trim().isNotEmpty
+                              ? notesCtrl.text.trim()
+                              : null,
                           staffId: 'staff_1',
                           staffName: 'Staff User',
                         );
                         if (ctx.mounted) {
                           Navigator.pop(ctx);
-                          toast(context, 'Payment of ₹$amt recorded in vendor ledger');
+                          toast(context,
+                              'Payment of ₹$amt recorded in vendor ledger');
                           setState(() {});
                         }
                       } catch (e) {
                         setD(() => submitting = false);
-                        if (ctx.mounted) toast(context, 'Failed: $e', error: true);
+                        if (ctx.mounted)
+                          toast(context, 'Failed: $e', error: true);
                       }
                     },
               child: submitting
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
-                  : Text('Save Payment', style: DashboardTypography.inter(fontWeight: FontWeight.bold, color: Colors.black)),
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          color: Colors.black, strokeWidth: 2))
+                  : Text('Save Payment',
+                      style: DashboardTypography.inter(
+                          fontWeight: FontWeight.bold, color: Colors.black)),
             ),
           ],
         ),

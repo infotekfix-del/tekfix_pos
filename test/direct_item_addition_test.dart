@@ -31,7 +31,9 @@ void main() {
       } catch (_) {}
     });
 
-    test('Purchase bill item with blank barcode auto-generates TKF barcode and saves directly without Quick Register block', () async {
+    test(
+        'Purchase bill item with blank barcode auto-generates TKF barcode and saves directly without Quick Register block',
+        () async {
       final vendorKey = await Db.parties.add({
         'name': 'Direct Tech Wholesale',
         'phone': '9847123456',
@@ -96,7 +98,9 @@ void main() {
       expect(foundItem['barcode'].toString().startsWith('TKF'), isTrue);
     });
 
-    test('Modifying item details inline updates bill correctly without requiring Quick Register', () async {
+    test(
+        'Modifying item details inline updates bill correctly without requiring Quick Register',
+        () async {
       final vendorKey = await Db.parties.add({
         'name': 'Anker Accessories Dist.',
         'phone': '9847999888',
@@ -118,7 +122,8 @@ void main() {
         warrantyDuration: 'No Warranty',
       );
 
-      final originalBill = await PurchaseBillService.instance.confirmPurchaseBill(
+      final originalBill =
+          await PurchaseBillService.instance.confirmPurchaseBill(
         billNumber: 'PB-2026-DIR02',
         vendorInvoiceNumber: 'INV-DIR-002',
         vendorKey: vendorKey,
@@ -139,7 +144,8 @@ void main() {
         isStagedReady: true,
       );
 
-      final updatedBill = await PurchaseBillService.instance.updateConfirmedPurchaseBill(
+      final updatedBill =
+          await PurchaseBillService.instance.updateConfirmedPurchaseBill(
         originalBill: originalBill,
         vendorInvoiceNumber: 'INV-DIR-002-REV',
         vendorKey: vendorKey,

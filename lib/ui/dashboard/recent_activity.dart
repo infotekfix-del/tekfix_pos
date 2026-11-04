@@ -34,10 +34,14 @@ class TekRecentActivity extends StatelessWidget {
         _ActivityItemModel(
           title: '$inv • $cust',
           subtitle: DateFormat('dd MMM yyyy, hh:mm a').format(dt),
-          icon: isRet ? Icons.assignment_return_rounded : Icons.receipt_long_rounded,
-          iconColor: isRet ? DashboardColors.neonPink : DashboardColors.neonGreen,
+          icon: isRet
+              ? Icons.assignment_return_rounded
+              : Icons.receipt_long_rounded,
+          iconColor:
+              isRet ? DashboardColors.neonPink : DashboardColors.neonGreen,
           statusLabel: isRet ? 'Returned' : 'Payment Received ${rs(total)}',
-          statusColor: isRet ? DashboardColors.neonPink : DashboardColors.neonGreen,
+          statusColor:
+              isRet ? DashboardColors.neonPink : DashboardColors.neonGreen,
           date: dt,
         ),
       );
@@ -56,7 +60,8 @@ class TekRecentActivity extends StatelessWidget {
           subtitle: DateFormat('dd MMM yyyy, hh:mm a').format(dt),
           icon: Icons.inventory_2_rounded,
           iconColor: DashboardColors.neonBlue,
-          statusLabel: delta >= 0 ? 'Stock Updated +$delta' : 'Stock Updated $delta',
+          statusLabel:
+              delta >= 0 ? 'Stock Updated +$delta' : 'Stock Updated $delta',
           statusColor: DashboardColors.neonBlue,
           date: dt,
         ),
@@ -119,7 +124,8 @@ class TekRecentActivity extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
-                          color: DashboardColors.neonBlue.withValues(alpha: 0.15),
+                          color:
+                              DashboardColors.neonBlue.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Icon(
@@ -147,7 +153,8 @@ class TekRecentActivity extends StatelessWidget {
                 TextButton(
                   onPressed: onViewAll,
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
@@ -205,7 +212,8 @@ class TekRecentActivity extends StatelessWidget {
               itemBuilder: (context, idx) {
                 final item = displayItems[idx];
                 return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
                   child: Row(
                     children: [
                       // Squircle Icon Badge
@@ -259,7 +267,8 @@ class TekRecentActivity extends StatelessWidget {
 
                       // Status Chip
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 9, vertical: 4),
                         decoration: BoxDecoration(
                           color: item.statusColor.withValues(alpha: 0.14),
                           borderRadius: BorderRadius.circular(20),

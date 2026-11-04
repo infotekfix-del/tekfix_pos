@@ -55,13 +55,15 @@ class _NotificationDrawerState extends State<NotificationDrawer> {
   @override
   void didUpdateWidget(covariant NotificationDrawer oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.shopId != widget.shopId || oldWidget.staffId != widget.staffId) {
+    if (oldWidget.shopId != widget.shopId ||
+        oldWidget.staffId != widget.staffId) {
       _initStream();
     }
   }
 
   void _initStream() {
-    _notificationsStream = NotificationService.instance.streamNotifications(widget.shopId, widget.staffId);
+    _notificationsStream = NotificationService.instance
+        .streamNotifications(widget.shopId, widget.staffId);
   }
 
   @override
@@ -102,7 +104,8 @@ class _NotificationDrawerState extends State<NotificationDrawer> {
                       gradient: TekColors.primaryGradient,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.notifications_active_rounded, color: Colors.white, size: 18),
+                    child: const Icon(Icons.notifications_active_rounded,
+                        color: Colors.white, size: 18),
                   ),
                   const SizedBox(width: 10),
                   const Column(
@@ -119,14 +122,16 @@ class _NotificationDrawerState extends State<NotificationDrawer> {
                       ),
                       Text(
                         'Live broadcast & repair updates',
-                        style: TextStyle(fontSize: 11, color: TekColors.textSecondary),
+                        style: TextStyle(
+                            fontSize: 11, color: TekColors.textSecondary),
                       ),
                     ],
                   ),
                 ],
               ),
               IconButton(
-                icon: const Icon(Icons.close_rounded, color: TekColors.textSecondary),
+                icon: const Icon(Icons.close_rounded,
+                    color: TekColors.textSecondary),
                 onPressed: () => Navigator.pop(context),
               ),
             ],
@@ -139,7 +144,8 @@ class _NotificationDrawerState extends State<NotificationDrawer> {
             child: StreamBuilder<List<TekNotification>>(
               stream: _notificationsStream,
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    !snapshot.hasData) {
                   return const Center(
                     child: CircularProgressIndicator(color: TekColors.primary),
                   );
@@ -168,8 +174,10 @@ class _NotificationDrawerState extends State<NotificationDrawer> {
                     final notif = list[index];
                     return InkWell(
                       onTap: () {
-                        NotificationService.instance.markAsRead(widget.staffId, notif.id);
-                        if (notif.type == NotificationType.repairUpdate && widget.onNavigateTab != null) {
+                        NotificationService.instance
+                            .markAsRead(widget.staffId, notif.id);
+                        if (notif.type == NotificationType.repairUpdate &&
+                            widget.onNavigateTab != null) {
                           Navigator.pop(context);
                           widget.onNavigateTab!(1);
                         }
@@ -202,7 +210,8 @@ class _NotificationDrawerState extends State<NotificationDrawer> {
                                 ),
                                 Text(
                                   notif.timeFormatted,
-                                  style: const TextStyle(fontSize: 10, color: TekColors.textMuted),
+                                  style: const TextStyle(
+                                      fontSize: 10, color: TekColors.textMuted),
                                 ),
                               ],
                             ),
@@ -222,7 +231,9 @@ class _NotificationDrawerState extends State<NotificationDrawer> {
                               notif.message,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 11.5, color: TekColors.textSecondary),
+                              style: const TextStyle(
+                                  fontSize: 11.5,
+                                  color: TekColors.textSecondary),
                             ),
                           ],
                         ),

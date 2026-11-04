@@ -50,15 +50,21 @@ class _OwnerAttendanceApprovalsViewState
     }
   }
 
-  Future<void> _bulkApprove(List<AttendanceRecord> records, String ownerUid) async {
+  Future<void> _bulkApprove(
+      List<AttendanceRecord> records, String ownerUid) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text(TekStrings.btnApproveAll),
-        content: Text('${records.length} ജീവനക്കാരുടെ അറ്റൻഡൻസ് ഒന്നിച്ച് അംഗീകരിക്കണോ?'),
+        content: Text(
+            '${records.length} ജീവനക്കാരുടെ അറ്റൻഡൻസ് ഒന്നിച്ച് അംഗീകരിക്കണോ?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('വേണ്ട')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('അംഗീകരിക്കുക')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('വേണ്ട')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('അംഗീകരിക്കുക')),
         ],
       ),
     );
@@ -73,11 +79,13 @@ class _OwnerAttendanceApprovalsViewState
       );
       if (mounted) toast(context, '${records.length} അറ്റൻഡൻസുകൾ അംഗീകരിച്ചു');
     } catch (e) {
-      if (mounted) toast(context, 'ബൾക്ക് അപ്രൂവൽ പരാജയപ്പെട്ടു: $e', error: true);
+      if (mounted)
+        toast(context, 'ബൾക്ക് അപ്രൂവൽ പരാജയപ്പെട്ടു: $e', error: true);
     }
   }
 
-  Future<void> _showAdjustOrRejectDialog(AttendanceRecord r, String ownerUid) async {
+  Future<void> _showAdjustOrRejectDialog(
+      AttendanceRecord r, String ownerUid) async {
     int activeTab = 0; // 0 = Adjust, 1 = Reject
     DateTime inTime = r.checkIn ?? DateTime.now();
     DateTime? outTime = r.checkOut;
@@ -99,21 +107,26 @@ class _OwnerAttendanceApprovalsViewState
                 children: [
                   SegmentedButton<int>(
                     segments: const [
-                      ButtonSegment(value: 0, label: Text('സമയം തിരുത്തുക (Adjust)')),
-                      ButtonSegment(value: 1, label: Text('നിരസിക്കുക (Reject)')),
+                      ButtonSegment(
+                          value: 0, label: Text('സമയം തിരുത്തുക (Adjust)')),
+                      ButtonSegment(
+                          value: 1, label: Text('നിരസിക്കുക (Reject)')),
                     ],
                     selected: {activeTab},
-                    onSelectionChanged: (val) => setD(() => activeTab = val.first),
+                    onSelectionChanged: (val) =>
+                        setD(() => activeTab = val.first),
                   ),
                   const SizedBox(height: 16),
-
                   if (activeTab == 0) ...[
                     // Adjust Tab
-                    const Text('ചെക്ക്-ഇൻ സമയം (Check-In Time):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    const Text('ചെക്ക്-ഇൻ സമയം (Check-In Time):',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 13)),
                     const SizedBox(height: 6),
                     ListTile(
                       tileColor: Colors.grey.withAlpha(20),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                       title: Text(_timeFormat.format(inTime)),
                       trailing: const Icon(Icons.access_time_rounded),
                       onTap: () async {
@@ -136,17 +149,23 @@ class _OwnerAttendanceApprovalsViewState
                     ),
                     const SizedBox(height: 12),
 
-                    const Text('ചെക്ക്-ഔട്ട് സമയം (Check-Out Time):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    const Text('ചെക്ക്-ഔട്ട് സമയം (Check-Out Time):',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 13)),
                     const SizedBox(height: 6),
                     ListTile(
                       tileColor: Colors.grey.withAlpha(20),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      title: Text(outTime != null ? _timeFormat.format(outTime!) : 'ഡ്യൂട്ടിയിലാണ് (Currently Active)'),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                      title: Text(outTime != null
+                          ? _timeFormat.format(outTime!)
+                          : 'ഡ്യൂട്ടിയിലാണ് (Currently Active)'),
                       trailing: const Icon(Icons.access_time_filled_rounded),
                       onTap: () async {
                         final picked = await showTimePicker(
                           context: ctx,
-                          initialTime: TimeOfDay.fromDateTime(outTime ?? DateTime.now()),
+                          initialTime:
+                              TimeOfDay.fromDateTime(outTime ?? DateTime.now()),
                         );
                         if (picked != null) {
                           setD(() {
@@ -182,7 +201,8 @@ class _OwnerAttendanceApprovalsViewState
                       ),
                       child: Text(
                         'അറ്റൻഡൻസ് നിരസിച്ചാൽ ഈ ദിവസത്തെ ഹാജർ പെറോൾ ശമ്പളത്തിൽ കണക്കാക്കില്ല.',
-                        style: TextStyle(color: Colors.red.shade900, fontSize: 12),
+                        style:
+                            TextStyle(color: Colors.red.shade900, fontSize: 12),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -206,24 +226,28 @@ class _OwnerAttendanceApprovalsViewState
                       ),
                     ),
                   ],
-
                   if (err != null) ...[
                     const SizedBox(height: 8),
-                    Text(err!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                    Text(err!,
+                        style:
+                            const TextStyle(color: Colors.red, fontSize: 12)),
                   ],
                 ],
               ),
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('റദ്ദാക്കുക (Cancel)')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('റദ്ദാക്കുക (Cancel)')),
             FilledButton(
               style: FilledButton.styleFrom(
                 backgroundColor: activeTab == 0 ? kPrimary : Colors.red,
               ),
               onPressed: () async {
                 if (reasonCtrl.text.trim().isEmpty) {
-                  setD(() => err = 'കാരണം നൽകേണ്ടത് നിർബന്ധമാണ് (Reason is required)');
+                  setD(() =>
+                      err = 'കാരണം നൽകേണ്ടത് നിർബന്ധമാണ് (Reason is required)');
                   return;
                 }
 
@@ -238,7 +262,8 @@ class _OwnerAttendanceApprovalsViewState
                       reason: reasonCtrl.text.trim(),
                     );
                     if (ctx.mounted) Navigator.pop(ctx);
-                    if (mounted) toast(context, 'അറ്റൻഡൻസ് സമയം തിരുത്തി അപ്രൂവ് ചെയ്തു');
+                    if (mounted)
+                      toast(context, 'അറ്റൻഡൻസ് സമയം തിരുത്തി അപ്രൂവ് ചെയ്തു');
                   } else {
                     await AttendanceService.instance.rejectAttendance(
                       shopId: _effectiveShopId,
@@ -254,7 +279,9 @@ class _OwnerAttendanceApprovalsViewState
                   setD(() => err = '$e');
                 }
               },
-              child: Text(activeTab == 0 ? 'തിരുത്തുക & അപ്രൂവ് ചെയ്യുക' : 'നിരസിക്കുക (Reject)'),
+              child: Text(activeTab == 0
+                  ? 'തിരുത്തുക & അപ്രൂവ് ചെയ്യുക'
+                  : 'നിരസിക്കുക (Reject)'),
             ),
           ],
         ),
@@ -271,7 +298,8 @@ class _OwnerAttendanceApprovalsViewState
         title: const Text(TekStrings.approvalsTitle),
       ),
       body: StreamBuilder<List<AttendanceRecord>>(
-        stream: AttendanceService.instance.streamPendingApprovals(_effectiveShopId),
+        stream:
+            AttendanceService.instance.streamPendingApprovals(_effectiveShopId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -284,9 +312,11 @@ class _OwnerAttendanceApprovalsViewState
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.error_outline_rounded, color: Colors.red, size: 48),
+                    const Icon(Icons.error_outline_rounded,
+                        color: Colors.red, size: 48),
                     const SizedBox(height: 12),
-                    Text('അപ്രൂവൽ വിവരങ്ങൾ ലഭിക്കുന്നതിൽ പിശക്: ${snapshot.error}',
+                    Text(
+                        'അപ്രൂവൽ വിവരങ്ങൾ ലഭിക്കുന്നതിൽ പിശക്: ${snapshot.error}',
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: Colors.red)),
                   ],
@@ -301,7 +331,8 @@ class _OwnerAttendanceApprovalsViewState
           final staffNames = {'All', ...allPending.map((e) => e.staffName)};
 
           final filtered = allPending.where((r) {
-            final matchesStaff = _filterStaff == 'All' || r.staffName == _filterStaff;
+            final matchesStaff =
+                _filterStaff == 'All' || r.staffName == _filterStaff;
             bool matchesDate = true;
             if (_filterDate != null && r.checkIn != null) {
               matchesDate = r.checkIn!.year == _filterDate!.year &&
@@ -318,7 +349,8 @@ class _OwnerAttendanceApprovalsViewState
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.amber.shade50,
-                  border: Border(bottom: BorderSide(color: Colors.amber.shade200)),
+                  border:
+                      Border(bottom: BorderSide(color: Colors.amber.shade200)),
                 ),
                 child: Row(
                   children: [
@@ -328,7 +360,8 @@ class _OwnerAttendanceApprovalsViewState
                         color: Colors.amber.shade100,
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(Icons.pending_actions_rounded, color: Colors.amber.shade900, size: 28),
+                      child: Icon(Icons.pending_actions_rounded,
+                          color: Colors.amber.shade900, size: 28),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -346,7 +379,8 @@ class _OwnerAttendanceApprovalsViewState
                           const SizedBox(height: 2),
                           const Text(
                             'സ്റ്റാഫിന്റെ കൃത്യമായ ജോലി സമയവും രജിസ്റ്റർ ക്യാഷും പരിശോധിച്ച് അപ്രൂവ് ചെയ്യുക.',
-                            style: TextStyle(fontSize: 12, color: Colors.black54),
+                            style:
+                                TextStyle(fontSize: 12, color: Colors.black54),
                           ),
                         ],
                       ),
@@ -355,7 +389,8 @@ class _OwnerAttendanceApprovalsViewState
                       FilledButton.icon(
                         style: FilledButton.styleFrom(
                           backgroundColor: Colors.green.shade700,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
                         ),
                         onPressed: () => _bulkApprove(allPending, ownerUid),
                         icon: const Icon(Icons.done_all_rounded, size: 18),
@@ -367,7 +402,8 @@ class _OwnerAttendanceApprovalsViewState
 
               // Filter Bar
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 child: Row(
                   children: [
                     // Staff Dropdown
@@ -375,9 +411,11 @@ class _OwnerAttendanceApprovalsViewState
                       value: _filterStaff,
                       underline: const SizedBox(),
                       items: staffNames
-                          .map((name) => DropdownMenuItem(value: name, child: Text(name)))
+                          .map((name) =>
+                              DropdownMenuItem(value: name, child: Text(name)))
                           .toList(),
-                      onChanged: (val) => setState(() => _filterStaff = val ?? 'All'),
+                      onChanged: (val) =>
+                          setState(() => _filterStaff = val ?? 'All'),
                     ),
                     const Spacer(),
                     // Date Filter
@@ -395,7 +433,9 @@ class _OwnerAttendanceApprovalsViewState
                         setState(() => _filterDate = picked);
                       },
                       icon: const Icon(Icons.calendar_today_rounded, size: 14),
-                      label: Text(_filterDate != null ? DateFormat('dd MMM').format(_filterDate!) : 'All Dates'),
+                      label: Text(_filterDate != null
+                          ? DateFormat('dd MMM').format(_filterDate!)
+                          : 'All Dates'),
                     ),
                     if (_filterDate != null)
                       IconButton(
@@ -415,12 +455,14 @@ class _OwnerAttendanceApprovalsViewState
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.task_alt_rounded, size: 56, color: Colors.green.shade400),
+                            Icon(Icons.task_alt_rounded,
+                                size: 56, color: Colors.green.shade400),
                             const SizedBox(height: 12),
                             const Text(
                               'അപ്രൂവ് ചെയ്യാൻ ബാക്കിയില്ല!\n(No pending attendance approvals)',
                               textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.grey, fontSize: 15),
+                              style:
+                                  TextStyle(color: Colors.grey, fontSize: 15),
                             ),
                           ],
                         ),
@@ -445,7 +487,8 @@ class _OwnerAttendanceApprovalsViewState
     final now = DateTime.now();
     final inTime = r.checkIn;
     final outTime = r.checkOut;
-    final isPendingMoreThan24h = inTime != null && now.difference(inTime).inHours >= 24;
+    final isPendingMoreThan24h =
+        inTime != null && now.difference(inTime).inHours >= 24;
 
     final cashReg = r.cashRegister;
     final hasMismatch = cashReg != null && cashReg['mismatch'] == true;
@@ -472,7 +515,8 @@ class _OwnerAttendanceApprovalsViewState
                   backgroundColor: kPrimary.withAlpha(30),
                   child: Text(
                     r.staffName.isNotEmpty ? r.staffName[0].toUpperCase() : 'S',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: kPrimary),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, color: kPrimary),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -482,25 +526,31 @@ class _OwnerAttendanceApprovalsViewState
                     children: [
                       Text(
                         r.staffName,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                       Text(
                         inTime != null ? _dateFormat.format(inTime) : r.date,
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        style:
+                            const TextStyle(fontSize: 12, color: Colors.grey),
                       ),
                     ],
                   ),
                 ),
                 if (isPendingMoreThan24h)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: Colors.red.shade100,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: const Text(
                       TekStrings.pendingMoreThan24h,
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.red),
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red),
                     ),
                   ),
               ],
@@ -521,25 +571,33 @@ class _OwnerAttendanceApprovalsViewState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('ചെക്ക്-ഇൻ (Check-In)', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                        const Text('ചെക്ക്-ഇൻ (Check-In)',
+                            style: TextStyle(fontSize: 11, color: Colors.grey)),
                         const SizedBox(height: 2),
                         Row(
                           children: [
                             Text(
-                              inTime != null ? _timeFormat.format(inTime) : '--',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                              inTime != null
+                                  ? _timeFormat.format(inTime)
+                                  : '--',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 14),
                             ),
                             if (r.isLate) ...[
                               const SizedBox(width: 6),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 4, vertical: 1),
                                 decoration: BoxDecoration(
                                   color: Colors.orange.shade100,
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
                                   TekStrings.lateArrival,
-                                  style: TextStyle(fontSize: 9, color: Colors.orange.shade900, fontWeight: FontWeight.bold),
+                                  style: TextStyle(
+                                      fontSize: 9,
+                                      color: Colors.orange.shade900,
+                                      fontWeight: FontWeight.bold),
                                 ),
                               ),
                             ],
@@ -552,10 +610,13 @@ class _OwnerAttendanceApprovalsViewState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('ചെക്ക്-ഔട്ട് (Check-Out)', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                        const Text('ചെക്ക്-ഔട്ട് (Check-Out)',
+                            style: TextStyle(fontSize: 11, color: Colors.grey)),
                         const SizedBox(height: 2),
                         Text(
-                          outTime != null ? _timeFormat.format(outTime) : 'ഡ്യൂട്ടിയിലാണ് (Active)',
+                          outTime != null
+                              ? _timeFormat.format(outTime)
+                              : 'ഡ്യൂട്ടിയിലാണ് (Active)',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
@@ -569,15 +630,18 @@ class _OwnerAttendanceApprovalsViewState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('ജോലി സമയം', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                        const Text('ജോലി സമയം',
+                            style: TextStyle(fontSize: 11, color: Colors.grey)),
                         const SizedBox(height: 2),
                         Text(
                           '${r.workingHours.toStringAsFixed(1)} hrs',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 14),
                         ),
                         Text(
                           r.dutyStage,
-                          style: const TextStyle(fontSize: 10, color: Colors.grey),
+                          style:
+                              const TextStyle(fontSize: 10, color: Colors.grey),
                         ),
                       ],
                     ),
@@ -592,16 +656,21 @@ class _OwnerAttendanceApprovalsViewState
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: hasMismatch ? Colors.red.shade50 : Colors.green.shade50,
+                  color:
+                      hasMismatch ? Colors.red.shade50 : Colors.green.shade50,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: hasMismatch ? Colors.red.shade200 : Colors.green.shade200,
+                    color: hasMismatch
+                        ? Colors.red.shade200
+                        : Colors.green.shade200,
                   ),
                 ),
                 child: Row(
                   children: [
                     Icon(
-                      hasMismatch ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+                      hasMismatch
+                          ? Icons.warning_amber_rounded
+                          : Icons.check_circle_outline,
                       size: 20,
                       color: hasMismatch ? Colors.red : Colors.green,
                     ),
@@ -614,7 +683,9 @@ class _OwnerAttendanceApprovalsViewState
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: hasMismatch ? Colors.red.shade900 : Colors.green.shade900,
+                          color: hasMismatch
+                              ? Colors.red.shade900
+                              : Colors.green.shade900,
                         ),
                       ),
                     ),

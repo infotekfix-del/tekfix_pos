@@ -112,7 +112,8 @@ class DailyRentSettings {
   double getRentForDate(DateTime date) {
     if (!isActive) return 0.0;
     final target = DateTime(date.year, date.month, date.day);
-    final eff = DateTime(effectiveDate.year, effectiveDate.month, effectiveDate.day);
+    final eff =
+        DateTime(effectiveDate.year, effectiveDate.month, effectiveDate.day);
 
     // If on or after the current effective date, use the current active rate
     if (!target.isBefore(eff)) {
@@ -124,7 +125,8 @@ class DailyRentSettings {
       ..sort((a, b) => b.effectiveDate.compareTo(a.effectiveDate));
 
     for (final h in sorted) {
-      final hDate = DateTime(h.effectiveDate.year, h.effectiveDate.month, h.effectiveDate.day);
+      final hDate = DateTime(
+          h.effectiveDate.year, h.effectiveDate.month, h.effectiveDate.day);
       if (!target.isBefore(hDate)) {
         return h.amount;
       }
@@ -137,7 +139,8 @@ class DailyRentSettings {
   bool isScheduledForDate(DateTime date) {
     if (!isActive) return false;
     final target = DateTime(date.year, date.month, date.day);
-    final eff = DateTime(effectiveDate.year, effectiveDate.month, effectiveDate.day);
+    final eff =
+        DateTime(effectiveDate.year, effectiveDate.month, effectiveDate.day);
     if (target.isBefore(eff)) return false;
 
     if (scheduleType == RentScheduleType.operatingDaysOnly) {
@@ -201,8 +204,10 @@ class DailyRentSettings {
     }
 
     final double amt = (map['dailyRentAmount'] as num?)?.toDouble() ??
-        (((map['dailyRentAmountPaise'] as num?)?.toDouble() ?? 30000.0) / 100.0);
-    final int paise = (map['dailyRentAmountPaise'] as num?)?.toInt() ?? (amt * 100).round();
+        (((map['dailyRentAmountPaise'] as num?)?.toDouble() ?? 30000.0) /
+            100.0);
+    final int paise =
+        (map['dailyRentAmountPaise'] as num?)?.toInt() ?? (amt * 100).round();
 
     final List<RentRateHistoryItem> hist = [];
     if (map['rateHistory'] is List) {
@@ -223,7 +228,8 @@ class DailyRentSettings {
       dailyRentAmountPaise: paise,
       currency: map['currency']?.toString() ?? 'INR',
       landlordName: map['landlordName']?.toString() ?? '',
-      defaultPaymentMode: map['defaultPaymentMode']?.toString() ?? ExpensePaymentMode.cash,
+      defaultPaymentMode:
+          map['defaultPaymentMode']?.toString() ?? ExpensePaymentMode.cash,
       effectiveDate: parseDt(map['effectiveDate']),
       scheduleType: RentScheduleType.fromCode(map['scheduleType']),
       isActive: map['isActive'] != false,
@@ -252,7 +258,8 @@ class DailyRentRecord {
   final String recordedByName;
   final DateTime? recordedAt;
   final String? expenseId; // Linked document in shops/{shopId}/expenses/
-  final String? accountingTransactionId; // Linked document in shops/{shopId}/accounting_cash_bank/
+  final String?
+      accountingTransactionId; // Linked document in shops/{shopId}/accounting_cash_bank/
   final bool isVoided;
   final DateTime? voidedAt;
   final String? voidedByUid;
@@ -330,7 +337,8 @@ class DailyRentRecord {
       recordedByName: recordedByName ?? this.recordedByName,
       recordedAt: recordedAt ?? this.recordedAt,
       expenseId: expenseId ?? this.expenseId,
-      accountingTransactionId: accountingTransactionId ?? this.accountingTransactionId,
+      accountingTransactionId:
+          accountingTransactionId ?? this.accountingTransactionId,
       isVoided: isVoided ?? this.isVoided,
       voidedAt: voidedAt ?? this.voidedAt,
       voidedByUid: voidedByUid ?? this.voidedByUid,
@@ -343,7 +351,8 @@ class DailyRentRecord {
   Map<String, dynamic> toMap({bool forFirestore = false}) => {
         'dateKey': dateKey,
         'shopId': shopId,
-        'date': forFirestore ? Timestamp.fromDate(date) : date.toIso8601String(),
+        'date':
+            forFirestore ? Timestamp.fromDate(date) : date.toIso8601String(),
         'expectedRent': expectedRent,
         'expectedRentPaise': expectedRentPaise,
         'paidAmount': paidAmount,
@@ -357,13 +366,19 @@ class DailyRentRecord {
         'recordedByUid': recordedByUid,
         'recordedByName': recordedByName,
         'recordedAt': recordedAt != null
-            ? (forFirestore ? Timestamp.fromDate(recordedAt!) : recordedAt!.toIso8601String())
-            : (forFirestore ? FieldValue.serverTimestamp() : DateTime.now().toIso8601String()),
+            ? (forFirestore
+                ? Timestamp.fromDate(recordedAt!)
+                : recordedAt!.toIso8601String())
+            : (forFirestore
+                ? FieldValue.serverTimestamp()
+                : DateTime.now().toIso8601String()),
         'expenseId': expenseId,
         'accountingTransactionId': accountingTransactionId,
         'isVoided': isVoided,
         'voidedAt': voidedAt != null
-            ? (forFirestore ? Timestamp.fromDate(voidedAt!) : voidedAt!.toIso8601String())
+            ? (forFirestore
+                ? Timestamp.fromDate(voidedAt!)
+                : voidedAt!.toIso8601String())
             : null,
         'voidedByUid': voidedByUid,
         'voidedByName': voidedByName,
@@ -383,11 +398,13 @@ class DailyRentRecord {
 
     final double expected = (map['expectedRent'] as num?)?.toDouble() ??
         (((map['expectedRentPaise'] as num?)?.toDouble() ?? 0.0) / 100.0);
-    final int expPaise = (map['expectedRentPaise'] as num?)?.toInt() ?? (expected * 100).round();
+    final int expPaise =
+        (map['expectedRentPaise'] as num?)?.toInt() ?? (expected * 100).round();
 
     final double paid = (map['paidAmount'] as num?)?.toDouble() ??
         (((map['paidAmountPaise'] as num?)?.toDouble() ?? 0.0) / 100.0);
-    final int pdPaise = (map['paidAmountPaise'] as num?)?.toInt() ?? (paid * 100).round();
+    final int pdPaise =
+        (map['paidAmountPaise'] as num?)?.toInt() ?? (paid * 100).round();
 
     List<Map<String, dynamic>> hist = [];
     if (map['auditHistory'] is List) {

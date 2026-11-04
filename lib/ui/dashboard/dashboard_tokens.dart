@@ -74,7 +74,10 @@ class DashboardColors {
       color: fillColor ?? glassFill,
       borderRadius: BorderRadius.circular(radius),
       border: Border.all(
-        color: borderColor ?? (glow && glowColor != null ? glowColor.withValues(alpha: 0.5) : glassBorder),
+        color: borderColor ??
+            (glow && glowColor != null
+                ? glowColor.withValues(alpha: 0.5)
+                : glassBorder),
         width: borderWidth,
       ),
       boxShadow: [

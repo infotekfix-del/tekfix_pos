@@ -203,7 +203,8 @@ void main() {
       final totalDiscount = 500.0;
       final totalTax = 2610.0;
       final otherCharges = 200.0;
-      final grandTotal = subtotal - totalDiscount + totalTax + otherCharges; // 22,310.0
+      final grandTotal =
+          subtotal - totalDiscount + totalTax + otherCharges; // 22,310.0
 
       expect(grandTotal, equals(22310.0));
     });
@@ -414,7 +415,8 @@ void main() {
       expect(bill.paidAmount, equals(0.0));
       expect(bill.balanceDue, equals(20000.0));
       expect(bill.paymentStatus, equals(BillPaymentStatus.unpaid));
-      expect(service.getVendorOutstandingBalance(vendor['key']), equals(20000.0));
+      expect(
+          service.getVendorOutstandingBalance(vendor['key']), equals(20000.0));
 
       // 2. Record First Payment: ₹5,000 (Becomes Partially Paid)
       final afterPay1 = await service.recordBillPayment(
@@ -430,7 +432,8 @@ void main() {
       expect(afterPay1.paidAmount, equals(5000.0));
       expect(afterPay1.balanceDue, equals(15000.0));
       expect(afterPay1.paymentStatus, equals(BillPaymentStatus.partiallyPaid));
-      expect(service.getVendorOutstandingBalance(vendor['key']), equals(15000.0));
+      expect(
+          service.getVendorOutstandingBalance(vendor['key']), equals(15000.0));
 
       // 3. Record Second Payment: ₹5,000 (Remaining ₹10,000)
       final afterPay2 = await service.recordBillPayment(
@@ -445,7 +448,8 @@ void main() {
 
       expect(afterPay2.paidAmount, equals(10000.0));
       expect(afterPay2.balanceDue, equals(10000.0));
-      expect(service.getVendorOutstandingBalance(vendor['key']), equals(10000.0));
+      expect(
+          service.getVendorOutstandingBalance(vendor['key']), equals(10000.0));
 
       // 4. Record Final Payment: ₹10,000 (Becomes Fully Paid)
       final afterPay3 = await service.recordBillPayment(
@@ -528,7 +532,8 @@ void main() {
       );
 
       // Total Outstanding must be ₹11,700 (5,700 + 6,000)
-      expect(service.getVendorOutstandingBalance(vendor['key']), equals(11700.0));
+      expect(
+          service.getVendorOutstandingBalance(vendor['key']), equals(11700.0));
 
       // Record Advance Payment of ₹2,000 on Feb 8
       await service.recordAdvancePayment(
@@ -543,11 +548,13 @@ void main() {
       );
 
       // Outstanding balance is reduced to ₹9,700 (11,700 - 2,000)
-      expect(service.getVendorOutstandingBalance(vendor['key']), equals(9700.0));
+      expect(
+          service.getVendorOutstandingBalance(vendor['key']), equals(9700.0));
 
       // Fetch Vendor Ledger
       final ledger = service.getVendorLedger(vendor['key']);
-      expect(ledger.length, equals(5)); // Bill 1, Pay 1, Bill 2, Pay 2, Advance Pay
+      expect(ledger.length,
+          equals(5)); // Bill 1, Pay 1, Bill 2, Pay 2, Advance Pay
 
       // Verify running balance at end of ledger is ₹9,700
       expect(ledger.first.runningBalance, equals(9700.0));
@@ -614,15 +621,15 @@ void main() {
       expect(vendorInfo['purchaseBillNumber'], equals(pBill.billNumber));
       expect(vendorInfo['warrantyDuration'],
           equals(ItemWarrantyDuration.twelveMonths));
-      expect(vendorInfo['warrantyExpiryDate'],
-          equals(DateTime(2027, 1, 10)));
+      expect(vendorInfo['warrantyExpiryDate'], equals(DateTime(2027, 1, 10)));
     });
 
     test('12. Dashboard Metrics KPI Calculations and Multi-Criteria Search',
         () async {
       final service = PurchaseBillService.instance;
 
-      final vA = await service.addNewVendor(name: 'Vendor Alpha', phone: '1111');
+      final vA =
+          await service.addNewVendor(name: 'Vendor Alpha', phone: '1111');
       final vB = await service.addNewVendor(name: 'Vendor Beta', phone: '2222');
 
       // Bill 1: ₹10,000 paid ₹10,000 (Paid)
@@ -632,7 +639,10 @@ void main() {
         vendorName: vA['name'],
         vendorPhone: vA['phone'],
         purchaseDate: DateTime.now(),
-        items: [PurchaseBillItem(itemName: 'Item A1', quantity: 1, purchaseRate: 10000.0)],
+        items: [
+          PurchaseBillItem(
+              itemName: 'Item A1', quantity: 1, purchaseRate: 10000.0)
+        ],
         initialPaidAmount: 10000.0,
         staffId: 's1',
         staffName: 'Staff One',
@@ -645,7 +655,10 @@ void main() {
         vendorName: vB['name'],
         vendorPhone: vB['phone'],
         purchaseDate: DateTime.now(),
-        items: [PurchaseBillItem(itemName: 'Item B1', quantity: 2, purchaseRate: 10000.0)],
+        items: [
+          PurchaseBillItem(
+              itemName: 'Item B1', quantity: 2, purchaseRate: 10000.0)
+        ],
         initialPaidAmount: 5000.0,
         staffId: 's2',
         staffName: 'Staff Two',
@@ -658,7 +671,10 @@ void main() {
         vendorName: vB['name'],
         vendorPhone: vB['phone'],
         purchaseDate: DateTime.now(),
-        items: [PurchaseBillItem(itemName: 'Item B2', quantity: 1, purchaseRate: 5000.0)],
+        items: [
+          PurchaseBillItem(
+              itemName: 'Item B2', quantity: 1, purchaseRate: 5000.0)
+        ],
         initialPaidAmount: 0.0,
         staffId: 's2',
         staffName: 'Staff Two',

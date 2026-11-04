@@ -14,7 +14,8 @@ void main() {
 
     setUpAll(() async {
       GoogleFonts.config.allowRuntimeFetching = false;
-      tempDir = await Directory.systemTemp.createTemp('repairs_inline_actions_test_');
+      tempDir =
+          await Directory.systemTemp.createTemp('repairs_inline_actions_test_');
       Hive.init(tempDir.path);
 
       for (final b in allBoxes) {
@@ -37,7 +38,9 @@ void main() {
       } catch (_) {}
     });
 
-    test('1. RepairJob model accurately computes balance, overdue, and status attributes', () {
+    test(
+        '1. RepairJob model accurately computes balance, overdue, and status attributes',
+        () {
       final job = RepairJob(
         id: 'JOB-9001',
         customerName: 'Rahul Menon',
@@ -67,7 +70,9 @@ void main() {
       expect(job.formattedCreatedAt, isNotEmpty);
     });
 
-    test('2. Changing status to Delivered must NOT alter billCreated or mark unpaid bill as paid', () async {
+    test(
+        '2. Changing status to Delivered must NOT alter billCreated or mark unpaid bill as paid',
+        () async {
       final serviceKey = await Db.services.add({
         'jobId': 'JOB-DELV-101',
         'customerName': 'Suresh Babu',
@@ -97,7 +102,8 @@ void main() {
         staffId: 'STAFF-02',
       );
 
-      final updatedJob = Map<String, dynamic>.from(Db.services.get(serviceKey) as Map);
+      final updatedJob =
+          Map<String, dynamic>.from(Db.services.get(serviceKey) as Map);
       expect(updatedJob['status'], 'Delivered');
       // Crucial: billCreated must remain false and invoice must remain null!
       expect(updatedJob['billCreated'], isFalse);
@@ -110,10 +116,13 @@ void main() {
       expect(history.length, 1);
       expect(history.first['status'], 'Delivered');
       expect(history.first['user'], 'Deepak');
-      expect(history.first['notes'], 'Device delivered to customer in good condition');
+      expect(history.first['notes'],
+          'Device delivered to customer in good condition');
     });
 
-    test('3. Direct Service Checkout completes sale, updates Db.sales and links invoice to Db.services atomically', () async {
+    test(
+        '3. Direct Service Checkout completes sale, updates Db.sales and links invoice to Db.services atomically',
+        () async {
       final srvKey = await Db.services.add({
         'jobId': 'JOB-SALE-202',
         'customerName': 'Anjali Nair',
@@ -196,7 +205,8 @@ void main() {
       expect(invoice.serviceAdvanceApplied, 2000.0);
 
       // Verify Service record in Db.services was linked
-      final updatedSrv = Map<String, dynamic>.from(Db.services.get(srvKey) as Map);
+      final updatedSrv =
+          Map<String, dynamic>.from(Db.services.get(srvKey) as Map);
       expect(updatedSrv['billCreated'], isTrue);
       expect(updatedSrv['invoice'], invoice.invoiceId);
       expect(updatedSrv['finalAmount'], 9000.0);
@@ -207,7 +217,8 @@ void main() {
       expect(PosService.instance.isJobBilled('JOB-SALE-202'), isTrue);
 
       // Verify sales record in Db.sales
-      final sale = PosService.instance.getLinkedSale(invoice.invoiceId, 'JOB-SALE-202');
+      final sale =
+          PosService.instance.getLinkedSale(invoice.invoiceId, 'JOB-SALE-202');
       expect(sale, isNotNull);
       expect(sale!['invoice'], invoice.invoiceId);
       expect(sale['serviceJobId'], 'JOB-SALE-202');
@@ -216,7 +227,8 @@ void main() {
       expect(sale['cash'], 7000.0);
     });
 
-    test('4. Prevent duplicate billing when job has already been billed', () async {
+    test('4. Prevent duplicate billing when job has already been billed',
+        () async {
       final srvKey = await Db.services.add({
         'jobId': 'JOB-PAID-303',
         'customerName': 'Mathew George',
@@ -238,12 +250,15 @@ void main() {
       // Verify isJobBilled returns true
       expect(PosService.instance.isJobBilled('JOB-PAID-303'), isTrue);
 
-      final job = RepairJob.fromMap(srvKey, Map<String, dynamic>.from(Db.services.get(srvKey) as Map));
+      final job = RepairJob.fromMap(
+          srvKey, Map<String, dynamic>.from(Db.services.get(srvKey) as Map));
       expect(job.billCreated, isTrue);
       expect(job.invoice, 'INV-SRV-SHAHAL-5555');
     });
 
-    test('5. Verify inline action buttons state: Unbilled job yields Sale to Customer, Billed job yields View Invoice', () async {
+    test(
+        '5. Verify inline action buttons state: Unbilled job yields Sale to Customer, Billed job yields View Invoice',
+        () async {
       final unbilledKey = await Db.services.add({
         'jobId': 'JOB-UNBILLED-505',
         'customerName': 'Nikhil Raj',
@@ -262,7 +277,8 @@ void main() {
         'statusHistory': [],
       });
 
-      final unbilledJob = RepairJob.fromMap(unbilledKey, Map<String, dynamic>.from(Db.services.get(unbilledKey) as Map));
+      final unbilledJob = RepairJob.fromMap(unbilledKey,
+          Map<String, dynamic>.from(Db.services.get(unbilledKey) as Map));
       expect(PosService.instance.isJobBilled(unbilledJob.id), isFalse);
       expect(unbilledJob.billCreated, isFalse);
       expect(unbilledJob.invoice, isNull);
@@ -305,12 +321,14 @@ void main() {
         serviceAdvanceApplied: 500.0,
       );
 
-      final billedJob = RepairJob.fromMap(unbilledKey, Map<String, dynamic>.from(Db.services.get(unbilledKey) as Map));
+      final billedJob = RepairJob.fromMap(unbilledKey,
+          Map<String, dynamic>.from(Db.services.get(unbilledKey) as Map));
       expect(billedJob.billCreated, isTrue);
       expect(billedJob.invoice, invoice.invoiceId);
       expect(PosService.instance.isJobBilled(billedJob.id), isTrue);
 
-      final linkedSale = PosService.instance.getLinkedSale(billedJob.invoice, billedJob.id);
+      final linkedSale =
+          PosService.instance.getLinkedSale(billedJob.invoice, billedJob.id);
       expect(linkedSale, isNotNull);
       expect(linkedSale!['invoice'], invoice.invoiceId);
       expect(linkedSale['serviceJobId'], unbilledJob.id);

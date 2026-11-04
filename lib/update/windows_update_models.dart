@@ -19,7 +19,10 @@ class SemVer implements Comparable<SemVer> {
   /// Parses strings like "v1.0.14", "1.0.14+14", "v2.1.0-beta.1"
   factory SemVer.parse(String input) {
     final clean = input.trim().replaceFirst(RegExp(r'^[vV]'), '');
-    final isPre = clean.contains('-') || clean.toLowerCase().contains('beta') || clean.toLowerCase().contains('rc') || clean.toLowerCase().contains('alpha');
+    final isPre = clean.contains('-') ||
+        clean.toLowerCase().contains('beta') ||
+        clean.toLowerCase().contains('rc') ||
+        clean.toLowerCase().contains('alpha');
 
     // Split build metadata after '+'
     final plusSplit = clean.split('+');
@@ -29,7 +32,8 @@ class SemVer implements Comparable<SemVer> {
       buildNumber = int.tryParse(plusSplit[1].trim()) ?? 0;
     }
 
-    final parts = versionCore.split('.').map((e) => int.tryParse(e.trim()) ?? 0).toList();
+    final parts =
+        versionCore.split('.').map((e) => int.tryParse(e.trim()) ?? 0).toList();
     final maj = parts.isNotEmpty ? parts[0] : 0;
     final min = parts.length > 1 ? parts[1] : 0;
     final pat = parts.length > 2 ? parts[2] : 0;
@@ -96,7 +100,9 @@ class GitHubReleaseAsset {
 
   bool get isChecksumFile {
     final lower = name.toLowerCase();
-    return lower.endsWith('.sha256') || lower == 'sha256sum.txt' || lower.endsWith('.sha256.txt');
+    return lower.endsWith('.sha256') ||
+        lower == 'sha256sum.txt' ||
+        lower.endsWith('.sha256.txt');
   }
 }
 
@@ -128,7 +134,8 @@ class GitHubReleaseInfo {
 
     DateTime pubDate = DateTime.now();
     if (json['published_at'] != null) {
-      pubDate = DateTime.tryParse(json['published_at'].toString()) ?? DateTime.now();
+      pubDate =
+          DateTime.tryParse(json['published_at'].toString()) ?? DateTime.now();
     }
 
     return GitHubReleaseInfo(
@@ -177,12 +184,14 @@ class GitHubReleaseInfo {
 
     // Pattern 1: e.g. "a1b2c3d4... TekFixERP-Setup-v1.0.14.exe"
     final escapedName = RegExp.escape(installerFileName);
-    final regFile = RegExp(r'([a-fA-F0-9]{64})\s+[*]?\s*' + escapedName, caseSensitive: false);
+    final regFile = RegExp(r'([a-fA-F0-9]{64})\s+[*]?\s*' + escapedName,
+        caseSensitive: false);
     final matchFile = regFile.firstMatch(body);
     if (matchFile != null) return matchFile.group(1)?.toLowerCase();
 
     // Pattern 2: e.g. "SHA256: a1b2c3d4..."
-    final regSha = RegExp(r'(?:SHA256|SHA-256|checksum)[\s:]+([a-fA-F0-9]{64})', caseSensitive: false);
+    final regSha = RegExp(r'(?:SHA256|SHA-256|checksum)[\s:]+([a-fA-F0-9]{64})',
+        caseSensitive: false);
     final matchSha = regSha.firstMatch(body);
     if (matchSha != null) return matchSha.group(1)?.toLowerCase();
 

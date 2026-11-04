@@ -31,7 +31,8 @@ class OwnerWithdrawalDialog extends StatefulWidget {
         barrierDismissible: true,
         builder: (ctx) => Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 540),
             child: OwnerWithdrawalDialog(
@@ -47,7 +48,8 @@ class OwnerWithdrawalDialog extends StatefulWidget {
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
         builder: (ctx) => Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          padding:
+              EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
           child: OwnerWithdrawalDialog(
             shopId: shopId,
             onWithdrawalSuccess: onWithdrawalSuccess,
@@ -72,7 +74,8 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
   bool _isSubmitting = false;
 
   OwnerSalarySettings? _settings;
-  OwnerMonthlyQuotaMetrics _quotaMetrics = OwnerMonthlyQuotaMetrics.empty(DateTime.now());
+  OwnerMonthlyQuotaMetrics _quotaMetrics =
+      OwnerMonthlyQuotaMetrics.empty(DateTime.now());
 
   double _enteredAmount = 0.0;
 
@@ -173,13 +176,17 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
       );
 
       if (mounted) {
-        String msg = 'Withdrawal of ₹${_enteredAmount.toStringAsFixed(0)} recorded successfully!';
+        String msg =
+            'Withdrawal of ₹${_enteredAmount.toStringAsFixed(0)} recorded successfully!';
         if (item.isSplit) {
-          msg = '₹${item.salaryPortion.toStringAsFixed(0)} recorded as Salary + ₹${item.drawingsPortion.toStringAsFixed(0)} as Drawings!';
+          msg =
+              '₹${item.salaryPortion.toStringAsFixed(0)} recorded as Salary + ₹${item.drawingsPortion.toStringAsFixed(0)} as Drawings!';
         } else if (item.hasDrawings) {
-          msg = '₹${item.drawingsPortion.toStringAsFixed(0)} recorded as Owner Excess Drawings!';
+          msg =
+              '₹${item.drawingsPortion.toStringAsFixed(0)} recorded as Owner Excess Drawings!';
         } else {
-          msg = '₹${item.salaryPortion.toStringAsFixed(0)} recorded as Owner Salary!';
+          msg =
+              '₹${item.salaryPortion.toStringAsFixed(0)} recorded as Owner Salary!';
         }
         toast(context, msg);
         widget.onWithdrawalSuccess?.call();
@@ -222,7 +229,8 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
       decoration: BoxDecoration(
         color: TekColors.mainBg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: TekColors.border.withValues(alpha: 0.8), width: 1.2),
+        border: Border.all(
+            color: TekColors.border.withValues(alpha: 0.8), width: 1.2),
         boxShadow: const [
           BoxShadow(
             color: Color(0x66000000),
@@ -284,7 +292,8 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, color: TekColors.textSecondary),
+                    icon: const Icon(Icons.close_rounded,
+                        color: TekColors.textSecondary),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
@@ -297,7 +306,8 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
                 const Center(
                   child: Padding(
                     padding: EdgeInsets.symmetric(vertical: 16),
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF8B5CF6)),
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Color(0xFF8B5CF6)),
                   ),
                 )
               else
@@ -325,7 +335,9 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
                                     ? Icons.warning_amber_rounded
                                     : Icons.donut_large_rounded,
                                 size: 16,
-                                color: isLimitReached ? const Color(0xFFF59E0B) : const Color(0xFF8B5CF6),
+                                color: isLimitReached
+                                    ? const Color(0xFFF59E0B)
+                                    : const Color(0xFF8B5CF6),
                               ),
                               const SizedBox(width: 6),
                               Text(
@@ -343,7 +355,9 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
                             style: TextStyle(
                               fontSize: 12.5,
                               fontWeight: FontWeight.bold,
-                              color: isLimitReached ? const Color(0xFFF59E0B) : const Color(0xFF8B5CF6),
+                              color: isLimitReached
+                                  ? const Color(0xFFF59E0B)
+                                  : const Color(0xFF8B5CF6),
                             ),
                           ),
                         ],
@@ -356,22 +370,29 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
                           minHeight: 8,
                           backgroundColor: TekColors.elevatedSurface,
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            isLimitReached ? const Color(0xFFF59E0B) : const Color(0xFF8B5CF6),
+                            isLimitReached
+                                ? const Color(0xFFF59E0B)
+                                : const Color(0xFF8B5CF6),
                           ),
                         ),
                       ),
                       const SizedBox(height: 10),
                       if (isLimitReached)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                            color:
+                                const Color(0xFFF59E0B).withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
+                            border: Border.all(
+                                color: const Color(0xFFF59E0B)
+                                    .withValues(alpha: 0.3)),
                           ),
                           child: const Row(
                             children: [
-                              Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFFF59E0B)),
+                              Icon(Icons.info_outline_rounded,
+                                  size: 14, color: Color(0xFFF59E0B)),
                               SizedBox(width: 6),
                               Expanded(
                                 child: Text(
@@ -422,7 +443,8 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
                       onTap: _selectDate,
                       borderRadius: BorderRadius.circular(10),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
                         decoration: BoxDecoration(
                           color: TekColors.cardBg,
                           borderRadius: BorderRadius.circular(10),
@@ -430,16 +452,20 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF8B5CF6)),
+                            const Icon(Icons.calendar_today_rounded,
+                                size: 16, color: Color(0xFF8B5CF6)),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const Text('Date (തീയതി)',
-                                      style: TextStyle(fontSize: 10, color: TekColors.textSecondary)),
+                                      style: TextStyle(
+                                          fontSize: 10,
+                                          color: TekColors.textSecondary)),
                                   Text(
-                                    OwnerFinanceService.toDisplayDate(_selectedDate),
+                                    OwnerFinanceService.toDisplayDate(
+                                        _selectedDate),
                                     style: const TextStyle(
                                       fontSize: 12.5,
                                       fontWeight: FontWeight.w600,
@@ -483,7 +509,8 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
               // 4. Withdrawal Amount Input
               TextFormField(
                 controller: _amountCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
                 autofocus: true,
                 style: const TextStyle(
                   fontSize: 20,
@@ -492,7 +519,8 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
                 ),
                 decoration: InputDecoration(
                   labelText: 'Withdrawal Amount (പിൻവലിക്കുന്ന തുക)',
-                  labelStyle: const TextStyle(color: TekColors.textSecondary, fontSize: 13),
+                  labelStyle: const TextStyle(
+                      color: TekColors.textSecondary, fontSize: 13),
                   prefixText: '₹ ',
                   prefixStyle: const TextStyle(
                     fontSize: 20,
@@ -501,7 +529,8 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
                   ),
                   filled: true,
                   fillColor: TekColors.cardBg,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(color: TekColors.border),
@@ -512,11 +541,13 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF8B5CF6), width: 1.8),
+                    borderSide:
+                        const BorderSide(color: Color(0xFF8B5CF6), width: 1.8),
                   ),
                 ),
                 validator: (val) {
-                  if (val == null || val.trim().isEmpty) return 'തുക നൽകുക (Amount required)';
+                  if (val == null || val.trim().isEmpty)
+                    return 'തുക നൽകുക (Amount required)';
                   final n = double.tryParse(val.trim());
                   if (n == null || n <= 0) return 'ശരിയായ പോസിറ്റീവ് തുക നൽകുക';
                   return null;
@@ -533,8 +564,13 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
                   _quickAmountChip(2000),
                   _quickAmountChip(5000),
                   _quickAmountChip(10000),
-                  if (remaining > 0 && remaining != 2000 && remaining != 5000 && remaining != 10000)
-                    _quickAmountChip(remaining, label: 'Full Salary (₹${remaining.toStringAsFixed(0)})'),
+                  if (remaining > 0 &&
+                      remaining != 2000 &&
+                      remaining != 5000 &&
+                      remaining != 10000)
+                    _quickAmountChip(remaining,
+                        label:
+                            'Full Salary (₹${remaining.toStringAsFixed(0)})'),
                 ],
               ),
 
@@ -547,7 +583,8 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
                   decoration: BoxDecoration(
                     color: TekColors.elevatedSurface,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.3)),
+                    border: Border.all(
+                        color: const Color(0xFF8B5CF6).withValues(alpha: 0.3)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -568,11 +605,14 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
                           children: [
                             const Row(
                               children: [
-                                Icon(Icons.check_circle_outline_rounded, size: 14, color: Color(0xFF10B981)),
+                                Icon(Icons.check_circle_outline_rounded,
+                                    size: 14, color: Color(0xFF10B981)),
                                 SizedBox(width: 6),
                                 Text(
                                   "Owner Salary (OPEX Expense):",
-                                  style: TextStyle(fontSize: 12, color: TekColors.textPrimary),
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: TekColors.textPrimary),
                                 ),
                               ],
                             ),
@@ -593,11 +633,14 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
                           children: [
                             const Row(
                               children: [
-                                Icon(Icons.account_balance_outlined, size: 14, color: Color(0xFFA78BFA)),
+                                Icon(Icons.account_balance_outlined,
+                                    size: 14, color: Color(0xFFA78BFA)),
                                 SizedBox(width: 6),
                                 Text(
                                   "Owner Drawings (Equity Withdrawal):",
-                                  style: TextStyle(fontSize: 12, color: TekColors.textPrimary),
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: TekColors.textPrimary),
                                 ),
                               ],
                             ),
@@ -624,10 +667,12 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
                 style: const TextStyle(color: Colors.white, fontSize: 13.5),
                 decoration: InputDecoration(
                   labelText: 'Notes / Reason (കുറിപ്പ് / കാരണം - ഓപ്ഷണൽ)',
-                  labelStyle: const TextStyle(color: TekColors.textSecondary, fontSize: 12),
+                  labelStyle: const TextStyle(
+                      color: TekColors.textSecondary, fontSize: 12),
                   filled: true,
                   fillColor: TekColors.cardBg,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: const BorderSide(color: TekColors.border),
@@ -652,14 +697,16 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
                   backgroundColor: const Color(0xFF8B5CF6),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   elevation: 4,
                 ),
                 child: _isSubmitting
                     ? const SizedBox(
                         height: 20,
                         width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
                       )
                     : Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -670,7 +717,8 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
                             _enteredAmount > 0
                                 ? 'Record Withdrawal (₹${_enteredAmount.toStringAsFixed(0)})'
                                 : 'Record Withdrawal (രേഖപ്പെടുത്തുക)',
-                            style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                                fontSize: 14.5, fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
@@ -690,7 +738,8 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.menu_book_rounded, size: 15, color: Color(0xFFA78BFA)),
+                    Icon(Icons.menu_book_rounded,
+                        size: 15, color: Color(0xFFA78BFA)),
                     SizedBox(width: 6),
                     Text(
                       'View Owner Salary & Drawings Ledger (ലെഡ്ജർ കാണുക)',
@@ -752,4 +801,3 @@ class _OwnerWithdrawalDialogState extends State<OwnerWithdrawalDialog> {
     );
   }
 }
-

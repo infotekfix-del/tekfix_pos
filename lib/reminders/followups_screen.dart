@@ -79,9 +79,11 @@ class _FollowupsScreenState extends State<FollowupsScreen>
                         .put('include_review_link', includeReview.toString());
                     if (ctx.mounted) Navigator.pop(ctx);
                     if (mounted) setState(() {});
-                    if (mounted) toast(context, 'Follow-up Settings സേവ് ചെയ്തു');
+                    if (mounted)
+                      toast(context, 'Follow-up Settings സേവ് ചെയ്തു');
                   },
-                  child: const Text('SAVE', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: const Text('SAVE',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
@@ -90,7 +92,8 @@ class _FollowupsScreenState extends State<FollowupsScreen>
               children: [
                 SwitchListTile(
                   title: const Text('Auto Follow-ups (വാറണ്ടി ഫോളോ-അപ്പ്)'),
-                  subtitle: const Text('സാധനങ്ങൾ വാങ്ങിയവർക്ക് ക്ഷേമാന്വേഷണ SMS'),
+                  subtitle:
+                      const Text('സാധനങ്ങൾ വാങ്ങിയവർക്ക് ക്ഷേമാന്വേഷണ SMS'),
                   value: autoOn,
                   onChanged: (v) => set(() => autoOn = v),
                 ),
@@ -101,39 +104,46 @@ class _FollowupsScreenState extends State<FollowupsScreen>
                   trailing: DropdownButton<int>(
                     value: f1Days,
                     items: [3, 5, 7, 10, 14]
-                        .map((n) => DropdownMenuItem(value: n, child: Text('$n ദിവസം')))
+                        .map((n) =>
+                            DropdownMenuItem(value: n, child: Text('$n ദിവസം')))
                         .toList(),
                     onChanged: (v) => set(() => f1Days = v!),
                   ),
                 ),
                 ListTile(
                   title: const Text('രണ്ടാം ഫോളോ-അപ്പ് (Follow-up #2)'),
-                  subtitle: Text('$f2Days-ാം ദിവസം അല്ലെങ്കിൽ വാറണ്ടി തീരുന്നതിന് 3 ദിവസം മുൻപ്'),
+                  subtitle: Text(
+                      '$f2Days-ാം ദിവസം അല്ലെങ്കിൽ വാറണ്ടി തീരുന്നതിന് 3 ദിവസം മുൻപ്'),
                   trailing: DropdownButton<int>(
                     value: f2Days,
                     items: [20, 25, 27, 30]
-                        .map((n) => DropdownMenuItem(value: n, child: Text('$n ദിവസം')))
+                        .map((n) =>
+                            DropdownMenuItem(value: n, child: Text('$n ദിവസം')))
                         .toList(),
                     onChanged: (v) => set(() => f2Days = v!),
                   ),
                 ),
                 const SizedBox(height: 10),
                 const Text('സന്ദേശം #1 രൂപം (Follow-Up #1 Template)',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: tpl1Ctrl,
                   maxLines: 3,
-                  decoration: const InputDecoration(border: OutlineInputBorder()),
+                  decoration:
+                      const InputDecoration(border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 12),
                 const Text('സന്ദേശം #2 രൂപം (Follow-Up #2 Template)',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: tpl2Ctrl,
                   maxLines: 3,
-                  decoration: const InputDecoration(border: OutlineInputBorder()),
+                  decoration:
+                      const InputDecoration(border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 12),
                 SwitchListTile(
@@ -174,8 +184,8 @@ class _FollowupsScreenState extends State<FollowupsScreen>
                               toast(ctx, 'ശരിയായ ഫോൺ നമ്പർ നൽകുക');
                               return;
                             }
-                            final msg = ReminderService.instance
-                                .buildFollowUp1Message(
+                            final msg =
+                                ReminderService.instance.buildFollowUp1Message(
                               customerName: 'Test Customer',
                               itemName: 'Fast Charger 65W',
                               saleDate: _dateFormat.format(DateTime.now()),
@@ -188,7 +198,8 @@ class _FollowupsScreenState extends State<FollowupsScreen>
                               }
                             } catch (e) {
                               if (ctx.mounted) {
-                                toast(ctx, 'SMS പരാജയപ്പെട്ടു: $e', error: true);
+                                toast(ctx, 'SMS പരാജയപ്പെട്ടു: $e',
+                                    error: true);
                               }
                             }
                           },
@@ -230,8 +241,11 @@ class _FollowupsScreenState extends State<FollowupsScreen>
         valueListenable: Db.sales.listenable(),
         builder: (context, box, _) {
           final all = ReminderService.instance.getEligibleFollowUps();
-          final upcoming = all.where((f) => !f['fu1Sent'] || !f['fu2Sent']).toList();
-          final completed = all.where((f) => f['fu1Sent'] == true && f['fu2Sent'] == true).toList();
+          final upcoming =
+              all.where((f) => !f['fu1Sent'] || !f['fu2Sent']).toList();
+          final completed = all
+              .where((f) => f['fu1Sent'] == true && f['fu2Sent'] == true)
+              .toList();
 
           return TabBarView(
             controller: _tabController,
@@ -245,7 +259,8 @@ class _FollowupsScreenState extends State<FollowupsScreen>
     );
   }
 
-  Widget _buildList(List<Map<String, dynamic>> items, {required bool isCompleted}) {
+  Widget _buildList(List<Map<String, dynamic>> items,
+      {required bool isCompleted}) {
     if (items.isEmpty) {
       return Center(
         child: Text(isCompleted
@@ -275,7 +290,8 @@ class _FollowupsScreenState extends State<FollowupsScreen>
                 children: [
                   CircleAvatar(
                     backgroundColor: Colors.teal.shade50,
-                    child: const Icon(Icons.verified_outlined, color: Colors.teal),
+                    child:
+                        const Icon(Icons.verified_outlined, color: Colors.teal),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -283,19 +299,26 @@ class _FollowupsScreenState extends State<FollowupsScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('${fu['itemName']}',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 15)),
                         Text('${fu['customerName']} • $phone',
                             style: TextStyle(
                                 fontSize: 12,
-                                color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant)),
                         const SizedBox(height: 4),
                         Text(
                           'വാങ്ങിയത്: ${fu['saleDate']} • വാറണ്ടി: ${fu['warranty']}',
-                          style: const TextStyle(fontSize: 11.5, color: Colors.blueGrey),
+                          style: const TextStyle(
+                              fontSize: 11.5, color: Colors.blueGrey),
                         ),
                         if (fu['warrantyEnd'] != 'N/A')
                           Text('വാറണ്ടി തീരുന്നത്: ${fu['warrantyEnd']}',
-                              style: const TextStyle(fontSize: 11, color: Colors.teal, fontWeight: FontWeight.bold)),
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.teal,
+                                  fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),
@@ -310,7 +333,11 @@ class _FollowupsScreenState extends State<FollowupsScreen>
                       fu['fu1Sent']
                           ? 'Follow-up #1 Sent'
                           : 'Due #1: ${_dateFormat.format(fu['fu1Due'])}',
-                      style: TextStyle(fontSize: 10, color: fu['fu1Sent'] ? Colors.green : (is1Due ? Colors.red : Colors.blueGrey)),
+                      style: TextStyle(
+                          fontSize: 10,
+                          color: fu['fu1Sent']
+                              ? Colors.green
+                              : (is1Due ? Colors.red : Colors.blueGrey)),
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -321,7 +348,11 @@ class _FollowupsScreenState extends State<FollowupsScreen>
                         fu['fu2Sent']
                             ? 'Follow-up #2 Sent'
                             : 'Due #2: ${_dateFormat.format(fu['fu2Due'])}',
-                        style: TextStyle(fontSize: 10, color: fu['fu2Sent'] ? Colors.green : (is2Due ? Colors.red : Colors.blueGrey)),
+                        style: TextStyle(
+                            fontSize: 10,
+                            color: fu['fu2Sent']
+                                ? Colors.green
+                                : (is2Due ? Colors.red : Colors.blueGrey)),
                       ),
                     ),
                 ],
@@ -332,7 +363,8 @@ class _FollowupsScreenState extends State<FollowupsScreen>
                 children: [
                   TextButton.icon(
                     icon: const Icon(Icons.build_circle_outlined, size: 16),
-                    label: const Text('Create Ticket', style: TextStyle(fontSize: 11.5)),
+                    label: const Text('Create Ticket',
+                        style: TextStyle(fontSize: 11.5)),
                     onPressed: () {
                       showServiceJobForm(
                         context,
@@ -352,14 +384,17 @@ class _FollowupsScreenState extends State<FollowupsScreen>
                       onPressed: () async {
                         await ReminderService.instance.skipFollowUp(fu);
                         if (mounted) setState(() {});
-                        if (mounted) toast(context, 'സ്കിപ്പ് ചെയ്തു (Skipped)');
+                        if (mounted)
+                          toast(context, 'സ്കിപ്പ് ചെയ്തു (Skipped)');
                       },
-                      child: const Text('Skip', style: TextStyle(fontSize: 11.5)),
+                      child:
+                          const Text('Skip', style: TextStyle(fontSize: 11.5)),
                     ),
                     const SizedBox(width: 4),
                     FilledButton.icon(
                       icon: const Icon(Icons.send_rounded, size: 15),
-                      label: const Text('Send Now', style: TextStyle(fontSize: 11.5)),
+                      label: const Text('Send Now',
+                          style: TextStyle(fontSize: 11.5)),
                       onPressed: () async {
                         try {
                           if (!fu['fu1Sent']) {

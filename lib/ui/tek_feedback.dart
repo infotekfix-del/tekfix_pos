@@ -38,7 +38,8 @@ class TekFeedback {
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: TekColors.success.withValues(alpha: 0.5), width: 1.2),
+          side: BorderSide(
+              color: TekColors.success.withValues(alpha: 0.5), width: 1.2),
         ),
         margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         content: Row(
@@ -48,7 +49,8 @@ class TekFeedback {
               decoration: BoxDecoration(
                 color: TekColors.success.withValues(alpha: 0.18),
                 shape: BoxShape.circle,
-                border: Border.all(color: TekColors.success.withValues(alpha: 0.4)),
+                border:
+                    Border.all(color: TekColors.success.withValues(alpha: 0.4)),
               ),
               child: const Icon(
                 Icons.check_circle_rounded,
@@ -109,7 +111,8 @@ class TekFeedback {
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: TekColors.error.withValues(alpha: 0.6), width: 1.2),
+          side: BorderSide(
+              color: TekColors.error.withValues(alpha: 0.6), width: 1.2),
         ),
         margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         content: Row(
@@ -119,7 +122,8 @@ class TekFeedback {
               decoration: BoxDecoration(
                 color: TekColors.error.withValues(alpha: 0.18),
                 shape: BoxShape.circle,
-                border: Border.all(color: TekColors.error.withValues(alpha: 0.5)),
+                border:
+                    Border.all(color: TekColors.error.withValues(alpha: 0.5)),
               ),
               child: const Icon(
                 Icons.error_outline_rounded,
@@ -289,17 +293,20 @@ class _TekRedSignalBadgeState extends State<TekRedSignalBadge>
 
   @override
   Widget build(BuildContext context) {
-    if (widget.count <= 0 && widget.child == null) return const SizedBox.shrink();
+    if (widget.count <= 0 && widget.child == null)
+      return const SizedBox.shrink();
 
     final text = widget.count > 99 ? '99+' : '${widget.count}';
 
     Widget badgeWidget = widget.count <= 0
         ? const SizedBox.shrink()
         : ScaleTransition(
-            scale: widget.pulse ? _scaleAnim : const AlwaysStoppedAnimation(1.0),
+            scale:
+                widget.pulse ? _scaleAnim : const AlwaysStoppedAnimation(1.0),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-              constraints: BoxConstraints(minWidth: widget.size, minHeight: widget.size),
+              constraints:
+                  BoxConstraints(minWidth: widget.size, minHeight: widget.size),
               decoration: BoxDecoration(
                 color: widget.badgeColor,
                 borderRadius: BorderRadius.circular(widget.size / 2),
@@ -469,7 +476,8 @@ class _TekButtonState extends State<TekButton> {
                               color: fg,
                               fontWeight: FontWeight.w600,
                               fontSize: 13.5,
-                              fontFamilyFallback: TekTypography.malayalamFallback,
+                              fontFamilyFallback:
+                                  TekTypography.malayalamFallback,
                             ),
                           ),
                         ],

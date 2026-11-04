@@ -42,7 +42,8 @@ class TekQuickActions extends StatelessWidget {
         title: 'Add Item',
         malayalam: 'സാധനം ചേർക്കുക',
         icon: Icons.add_box_rounded,
-        gradient: const LinearGradient(colors: [Color(0xFF22C55E), Color(0xFF16A34A)]),
+        gradient: const LinearGradient(
+            colors: [Color(0xFF22C55E), Color(0xFF16A34A)]),
         onTap: onAddItem,
       ),
       if (onAddExpense != null)
@@ -50,7 +51,8 @@ class TekQuickActions extends StatelessWidget {
           title: 'Add Expense',
           malayalam: 'ചിലവുകൾ രേഖപ്പെടുത്തുക',
           icon: Icons.receipt_long_rounded,
-          gradient: const LinearGradient(colors: [Color(0xFFF43F5E), Color(0xFFBE123C)]),
+          gradient: const LinearGradient(
+              colors: [Color(0xFFF43F5E), Color(0xFFBE123C)]),
           onTap: onAddExpense!,
         ),
       if (onDailyRent != null)
@@ -58,7 +60,8 @@ class TekQuickActions extends StatelessWidget {
           title: 'Daily Rent',
           malayalam: 'കട വാടക',
           icon: Icons.store_mall_directory_rounded,
-          gradient: const LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFB45309)]),
+          gradient: const LinearGradient(
+              colors: [Color(0xFFF59E0B), Color(0xFFB45309)]),
           onTap: onDailyRent!,
         ),
       if (onOwnerWithdrawal != null)
@@ -66,35 +69,40 @@ class TekQuickActions extends StatelessWidget {
           title: 'Owner Withdrawal',
           malayalam: 'ഉടമയുടെ പിൻവലിക്കൽ',
           icon: Icons.account_balance_wallet_rounded,
-          gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)]),
+          gradient: const LinearGradient(
+              colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)]),
           onTap: onOwnerWithdrawal!,
         ),
       _ActionItem(
         title: 'Service Request',
         malayalam: 'സർവീസ് റിപ്പയർ',
         icon: Icons.build_circle_rounded,
-        gradient: const LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFD97706)]),
+        gradient: const LinearGradient(
+            colors: [Color(0xFFF59E0B), Color(0xFFD97706)]),
         onTap: onServiceRequest,
       ),
       _ActionItem(
         title: 'Add Customer',
         malayalam: 'കസ്റ്റമർ ചേർക്കുക',
         icon: Icons.person_add_alt_1_rounded,
-        gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)]),
+        gradient: const LinearGradient(
+            colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)]),
         onTap: onAddCustomer,
       ),
       _ActionItem(
         title: 'View Reports',
         malayalam: 'റിപ്പോർട്ടുകൾ',
         icon: Icons.bar_chart_rounded,
-        gradient: const LinearGradient(colors: [Color(0xFF0284C7), Color(0xFF0369A1)]),
+        gradient: const LinearGradient(
+            colors: [Color(0xFF0284C7), Color(0xFF0369A1)]),
         onTap: onViewReports,
       ),
       _ActionItem(
         title: 'Settings',
         malayalam: 'ക്രമീകരണങ്ങൾ',
         icon: Icons.settings_rounded,
-        gradient: const LinearGradient(colors: [Color(0xFF475569), Color(0xFF334155)]),
+        gradient: const LinearGradient(
+            colors: [Color(0xFF475569), Color(0xFF334155)]),
         onTap: onOpenSettings,
       ),
     ];
@@ -110,7 +118,8 @@ class TekQuickActions extends StatelessWidget {
             padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
             child: Row(
               children: [
-                Icon(Icons.bolt_rounded, size: 18, color: TekColors.electricCyan),
+                Icon(Icons.bolt_rounded,
+                    size: 18, color: TekColors.electricCyan),
                 SizedBox(width: 8),
                 Text(
                   'Quick Actions (ദ്രുത പ്രവർത്തനങ്ങൾ)',
@@ -187,10 +196,13 @@ class _PressableActionCardState extends State<_PressableActionCard> {
             color: TekColors.cardBg,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: _isHovered ? TekColors.primaryBlue.withValues(alpha: 0.6) : TekColors.border,
+              color: _isHovered
+                  ? TekColors.primaryBlue.withValues(alpha: 0.6)
+                  : TekColors.border,
               width: 1.2,
             ),
-            boxShadow: _isHovered ? TekColors.primaryGlow : TekColors.cardShadow,
+            boxShadow:
+                _isHovered ? TekColors.primaryGlow : TekColors.cardShadow,
           ),
           child: Material(
             color: Colors.transparent,
@@ -214,7 +226,8 @@ class _PressableActionCardState extends State<_PressableActionCard> {
                         gradient: widget.item.gradient,
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Icon(widget.item.icon, color: Colors.white, size: 20),
+                      child:
+                          Icon(widget.item.icon, color: Colors.white, size: 20),
                     ),
                     const Spacer(),
                     Text(

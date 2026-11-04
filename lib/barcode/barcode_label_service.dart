@@ -67,8 +67,10 @@ class BarcodeLabelService extends ChangeNotifier {
       );
 
   /// Sets label preset (38x25mm, 50x25mm, or Custom) and persists to settings.
-  Future<void> setPreset(LabelPreset preset, {double? customWidth, double? customHeight}) async {
-    await saveSettings(_config.withPreset(preset, customWidth: customWidth, customHeight: customHeight));
+  Future<void> setPreset(LabelPreset preset,
+      {double? customWidth, double? customHeight}) async {
+    await saveSettings(_config.withPreset(preset,
+        customWidth: customWidth, customHeight: customHeight));
   }
 
   /// Sets label profile (alias for setPreset).
@@ -348,7 +350,8 @@ class BarcodeLabelService extends ChangeNotifier {
           showPrice: showPrice,
         );
 
-        debugPrint('BarcodeLabelService: Sending raw TSPL commands to "$targetPrinter"');
+        debugPrint(
+            'BarcodeLabelService: Sending raw TSPL commands to "$targetPrinter"');
         final result = await WindowsRawPrinter.instance.sendRawTspl(
           printerName: targetPrinter,
           tsplCommand: tsplCommands,
@@ -447,7 +450,8 @@ class BarcodeLabelService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final res = await WindowsRawPrinter.instance.testPrint(target, config: _config);
+      final res =
+          await WindowsRawPrinter.instance.testPrint(target, config: _config);
       _status = res.success
           ? PrinterConnectionStatus.connected
           : PrinterConnectionStatus.error;
@@ -517,7 +521,8 @@ class BarcodeLabelService extends ChangeNotifier {
     String shopName = defaultStoreName,
   }) async {
     final doc = pw.Document(
-      title: 'TekFix Barcode Labels ${_config.widthMm.toStringAsFixed(0)}x${_config.heightMm.toStringAsFixed(0)}mm',
+      title:
+          'TekFix Barcode Labels ${_config.widthMm.toStringAsFixed(0)}x${_config.heightMm.toStringAsFixed(0)}mm',
       author: 'TekFix POS',
     );
 
@@ -644,7 +649,8 @@ class BarcodeLabelService extends ChangeNotifier {
     for (final item in items) {
       final qty = item.quantity.clamp(1, 9999);
       final rawBarcode = item.barcode.trim();
-      final barcodeData = rawBarcode.isNotEmpty ? rawBarcode : generateUniqueBarcode();
+      final barcodeData =
+          rawBarcode.isNotEmpty ? rawBarcode : generateUniqueBarcode();
       final price = item.effectivePrice ?? item.sellingPrice;
       final priceStr = showPrice && (price != null && price > 0)
           ? 'MRP: Rs. ${price.toStringAsFixed(2)}'

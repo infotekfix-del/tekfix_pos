@@ -66,15 +66,19 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
   }
 
   void _initStreams() {
-    _attendanceStream = AttendanceService.instance.streamTodayAttendance(widget.shopId, widget.staffId);
-    _unreadCountStream = NotificationService.instance.streamUnreadCount(widget.shopId, widget.staffId);
-    _historyStream = AttendanceService.instance.streamStaffAttendanceHistory(widget.shopId, widget.staffId);
+    _attendanceStream = AttendanceService.instance
+        .streamTodayAttendance(widget.shopId, widget.staffId);
+    _unreadCountStream = NotificationService.instance
+        .streamUnreadCount(widget.shopId, widget.staffId);
+    _historyStream = AttendanceService.instance
+        .streamStaffAttendanceHistory(widget.shopId, widget.staffId);
   }
 
   @override
   void didUpdateWidget(StaffAttendanceScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.shopId != widget.shopId || oldWidget.staffId != widget.staffId) {
+    if (oldWidget.shopId != widget.shopId ||
+        oldWidget.staffId != widget.staffId) {
       _initStreams();
     }
   }
@@ -92,8 +96,10 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
           backgroundColor: const Color(0xFF1E293B),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          icon: const Icon(Icons.location_on_rounded, size: 48, color: Color(0xFF38BDF8)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          icon: const Icon(Icons.location_on_rounded,
+              size: 48, color: Color(0xFF38BDF8)),
           title: const Text(
             'ലൊക്കേഷൻ അനുമതി (Location Consent)',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
@@ -101,13 +107,15 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
           content: const Text(
             'നിങ്ങൾ ചെക്ക്-ഇൻ / ചെക്ക്-ഔട്ട് ചെയ്യുന്ന സമയത്ത് മാത്രം നിങ്ങളുടെ സാന്നിധ്യം ഉറപ്പുവരുത്താനായി ലൊക്കേഷൻ ശേഖരിക്കുന്നതാണ്. ആപ്പ് ഉപയോഗിക്കാത്ത സമയത്തോ തുടർച്ചയായോ ലൊക്കേഷൻ ട്രാക്ക് ചെയ്യില്ല.\n\n'
             '(Location is captured ONLY when you tap Check-in or Check-out to verify your attendance. Continuous tracking is NEVER done).',
-            style: TextStyle(fontSize: 13.5, height: 1.4, color: Colors.white70),
+            style:
+                TextStyle(fontSize: 13.5, height: 1.4, color: Colors.white70),
           ),
           actions: [
             FilledButton(
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF2563EB),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
               onPressed: () async {
                 await Db.settings.put('location_consent_given', 'true');
@@ -129,14 +137,16 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
 
     if (isCheckedOut) {
       HapticFeedback.lightImpact();
-      toast(context, 'ഇന്നത്തെ ഡ്യൂട്ടി ഇതിനകം അവസാനിപ്പിച്ചു (Completed for today)');
+      toast(context,
+          'ഇന്നത്തെ ഡ്യൂട്ടി ഇതിനകം അവസാനിപ്പിച്ചു (Completed for today)');
       return;
     }
 
     if (isCheckedIn) {
       HapticFeedback.heavyImpact();
       // Check-out Flow: First verify hours, then Cash Register
-      final worked = DateTime.now().difference(record.checkIn!).inMinutes / 60.0;
+      final worked =
+          DateTime.now().difference(record.checkIn!).inMinutes / 60.0;
       final shift = AttendanceService.instance.getShiftConfig();
 
       if (worked < shift.halfDayThresholdHours) {
@@ -144,11 +154,14 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
           context: context,
           builder: (ctx) => AlertDialog(
             backgroundColor: const Color(0xFF1E293B),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-            icon: const Icon(Icons.warning_amber_rounded, size: 40, color: Colors.orange),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            icon: const Icon(Icons.warning_amber_rounded,
+                size: 40, color: Colors.orange),
             title: const Text(
               'കുറഞ്ഞ ജോലി സമയം (Short Duty)',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
             content: Text(
               'നിങ്ങൾ ${worked.toStringAsFixed(1)} മണിക്കൂർ മാത്രമേ ജോലി ചെയ്തിട്ടുള്ളൂ (കുറഞ്ഞത് ${shift.halfDayThresholdHours} മണിക്കൂർ വേണം).\n\nഡ്യൂട്ടി അവസാനിപ്പിക്കാൻ ഉറപ്പാണോ?',
@@ -157,10 +170,12 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('തുടരുക (Cancel)', style: TextStyle(color: Colors.white70)),
+                child: const Text('തുടരുക (Cancel)',
+                    style: TextStyle(color: Colors.white70)),
               ),
               FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade700),
+                style: FilledButton.styleFrom(
+                    backgroundColor: Colors.orange.shade700),
                 onPressed: () => Navigator.pop(ctx, true),
                 child: const Text('ചെക്ക്-ഔട്ട് ചെയ്യുക'),
               ),
@@ -188,10 +203,12 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
         final timeStr = _timeFormat.format(DateTime.now());
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('ഡ്യൂട്ടി അവസാനിപ്പിച്ചു ($timeStr) - ${res.record.dutyStage}'),
+            content: Text(
+                'ഡ്യൂട്ടി അവസാനിപ്പിച്ചു ($timeStr) - ${res.record.dutyStage}'),
             backgroundColor: TekColors.primary,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
       } catch (e) {
@@ -215,10 +232,12 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
         final timeStr = _timeFormat.format(DateTime.now());
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('ചെക്ക്-ഇൻ രേഖപ്പെടുത്തി ($timeStr) - POS അൺലോക്ക് ചെയ്തു'),
+            content: Text(
+                'ചെക്ക്-ഇൻ രേഖപ്പെടുത്തി ($timeStr) - POS അൺലോക്ക് ചെയ്തു'),
             backgroundColor: TekColors.success,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
 
@@ -234,21 +253,24 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
 
   Future<double?> _showCashRegisterDialog(AttendanceRecord record) async {
     final inTime = record.checkIn ?? DateTime.now();
-    final sales = AttendanceService.instance.computeShiftSalesSummary(widget.staffId, inTime);
+    final sales = AttendanceService.instance
+        .computeShiftSalesSummary(widget.staffId, inTime);
     final double expectedCash = (sales['cash'] as num?)?.toDouble() ?? 0.0;
     final double upi = (sales['upi'] as num?)?.toDouble() ?? 0.0;
     final double card = (sales['card'] as num?)?.toDouble() ?? 0.0;
     final int billCount = (sales['billCount'] as num?)?.toInt() ?? 0;
     final double grandTotal = (sales['total'] as num?)?.toDouble() ?? 0.0;
 
-    final cashCtrl = TextEditingController(text: expectedCash.toStringAsFixed(0));
+    final cashCtrl =
+        TextEditingController(text: expectedCash.toStringAsFixed(0));
 
     final result = await showDialog<double?>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setD) {
-          final double closingCash = double.tryParse(cashCtrl.text) ?? expectedCash;
+          final double closingCash =
+              double.tryParse(cashCtrl.text) ?? expectedCash;
           final double diff = closingCash - expectedCash;
           final bool mismatch = diff.abs() > 0.01;
 
@@ -258,7 +280,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
               borderRadius: BorderRadius.circular(20),
               side: const BorderSide(color: TekColors.border),
             ),
-            icon: const Icon(Icons.point_of_sale_rounded, size: 40, color: TekColors.secondary),
+            icon: const Icon(Icons.point_of_sale_rounded,
+                size: 40, color: TekColors.secondary),
             title: const Text(
               TekStrings.cashRegisterTitle,
               style: TextStyle(
@@ -293,11 +316,17 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                     child: Column(
                       children: [
                         _summaryRow('ബില്ലുകളുടെ എണ്ണം (Bills)', '$billCount'),
-                        _summaryRow('ക്യാഷ് വിൽപ്പന (Cash Sales)', '₹${expectedCash.toStringAsFixed(2)}'),
-                        _summaryRow('UPI / QR വിൽപ്പന', '₹${upi.toStringAsFixed(2)}'),
-                        if (card > 0) _summaryRow('കാർഡ് വിൽപ്പന', '₹${card.toStringAsFixed(2)}'),
+                        _summaryRow('ക്യാഷ് വിൽപ്പന (Cash Sales)',
+                            '₹${expectedCash.toStringAsFixed(2)}'),
+                        _summaryRow(
+                            'UPI / QR വിൽപ്പന', '₹${upi.toStringAsFixed(2)}'),
+                        if (card > 0)
+                          _summaryRow(
+                              'കാർഡ് വിൽപ്പന', '₹${card.toStringAsFixed(2)}'),
                         const Divider(height: 14, color: TekColors.border),
-                        _summaryRow('ആകെ വിൽപ്പന (Shift Total)', '₹${grandTotal.toStringAsFixed(2)}', isBold: true),
+                        _summaryRow('ആകെ വിൽപ്പന (Shift Total)',
+                            '₹${grandTotal.toStringAsFixed(2)}',
+                            isBold: true),
                       ],
                     ),
                   ),
@@ -306,14 +335,21 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
 
                   TextField(
                     controller: cashCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    style: const TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    style: const TextStyle(
+                        color: TekColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16),
                     onChanged: (_) => setD(() {}),
                     decoration: InputDecoration(
                       labelText: TekStrings.labelClosingCash,
-                      labelStyle: const TextStyle(color: TekColors.textSecondary),
+                      labelStyle:
+                          const TextStyle(color: TekColors.textSecondary),
                       prefixText: '₹ ',
-                      prefixStyle: const TextStyle(color: TekColors.secondary, fontWeight: FontWeight.bold),
+                      prefixStyle: const TextStyle(
+                          color: TekColors.secondary,
+                          fontWeight: FontWeight.bold),
                       hintText: 'എണ്ണി തിട്ടപ്പെടുത്തിയ ക്യാഷ്',
                       filled: true,
                       fillColor: TekColors.bgSecondary,
@@ -327,7 +363,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: TekColors.primary, width: 1.5),
+                        borderSide: const BorderSide(
+                            color: TekColors.primary, width: 1.5),
                       ),
                     ),
                   ),
@@ -350,7 +387,9 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                     child: Row(
                       children: [
                         Icon(
-                          mismatch ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+                          mismatch
+                              ? Icons.warning_amber_rounded
+                              : Icons.check_circle_outline,
                           size: 20,
                           color: mismatch ? TekColors.error : TekColors.success,
                         ),
@@ -363,8 +402,11 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: mismatch ? const Color(0xFFFECDD3) : const Color(0xFFBBF7D0),
-                              fontFamilyFallback: TekTypography.malayalamFallback,
+                              color: mismatch
+                                  ? const Color(0xFFFECDD3)
+                                  : const Color(0xFFBBF7D0),
+                              fontFamilyFallback:
+                                  TekTypography.malayalamFallback,
                             ),
                           ),
                         ),
@@ -377,15 +419,18 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, null),
-                child: const Text('റദ്ദാക്കുക (Cancel)', style: TextStyle(color: TekColors.textSecondary)),
+                child: const Text('റദ്ദാക്കുക (Cancel)',
+                    style: TextStyle(color: TekColors.textSecondary)),
               ),
               FilledButton(
                 style: FilledButton.styleFrom(
                   backgroundColor: TekColors.primary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: () {
-                  final entered = double.tryParse(cashCtrl.text) ?? expectedCash;
+                  final entered =
+                      double.tryParse(cashCtrl.text) ?? expectedCash;
                   Navigator.pop(ctx, entered);
                 },
                 child: const Text(TekStrings.btnConfirmCheckOut),
@@ -437,7 +482,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
           borderRadius: BorderRadius.circular(18),
           side: const BorderSide(color: TekColors.border),
         ),
-        icon: const Icon(Icons.error_outline_rounded, color: TekColors.error, size: 40),
+        icon: const Icon(Icons.error_outline_rounded,
+            color: TekColors.error, size: 40),
         title: const Text(
           'ശ്രദ്ധിക്കുക (Attention)',
           style: TextStyle(
@@ -569,7 +615,11 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                                 final count = snap.data ?? 0;
                                 return Badge(
                                   isLabelVisible: count > 0,
-                                  label: Text('$count', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+                                  label: Text('$count',
+                                      style: const TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white)),
                                   backgroundColor: TekColors.error,
                                   child: Icon(
                                     icon,
@@ -596,8 +646,9 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                             overflow: TextOverflow.ellipsis,
                             style: TekTypography.malayalam(
                               fontSize: 10,
-                              fontWeight:
-                                  isSelected ? FontWeight.bold : FontWeight.w600,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.w600,
                               color: isSelected
                                   ? TekColors.textPrimary
                                   : TekColors.textSecondary,
@@ -614,7 +665,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                                   ? FontWeight.w600
                                   : FontWeight.normal,
                               color: isSelected
-                                  ? TekColors.textPrimary.withValues(alpha: 0.85)
+                                  ? TekColors.textPrimary
+                                      .withValues(alpha: 0.85)
                                   : TekColors.textMuted,
                             ),
                           ),
@@ -641,7 +693,9 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
         child: StreamBuilder<AttendanceRecord?>(
           stream: _attendanceStream,
           builder: (context, snapshot) {
-            final record = snapshot.data ?? AttendanceService.instance.getCachedTodayAttendance(widget.staffId);
+            final record = snapshot.data ??
+                AttendanceService.instance
+                    .getCachedTodayAttendance(widget.staffId);
             final isCheckedIn = record?.checkIn != null;
             final isCheckedOut = record?.checkOut != null;
 
@@ -659,13 +713,15 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // 1. Modern Top Header: Logo, Profile Avatar, Name, Shop Badge, Notifications, Sign-Out
-                    _buildModernHeaderCard(record, isCheckedIn, isCheckedOut, shift),
+                    _buildModernHeaderCard(
+                        record, isCheckedIn, isCheckedOut, shift),
                     const SizedBox(height: 14),
 
                     // Date Pill Header
                     Center(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 6),
                         decoration: BoxDecoration(
                           color: TekColors.bgSecondary,
                           borderRadius: BorderRadius.circular(20),
@@ -674,7 +730,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.calendar_today_rounded, size: 14, color: TekColors.secondary),
+                            const Icon(Icons.calendar_today_rounded,
+                                size: 14, color: TekColors.secondary),
                             const SizedBox(width: 8),
                             Text(
                               _dateFormat.format(now),
@@ -682,7 +739,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 color: TekColors.textPrimary,
-                                fontFamilyFallback: TekTypography.malayalamFallback,
+                                fontFamilyFallback:
+                                    TekTypography.malayalamFallback,
                               ),
                             ),
                           ],
@@ -692,7 +750,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                     const SizedBox(height: 14),
 
                     // 2. Work & Duty Overview Card
-                    _buildDutyOverviewCard(record, isCheckedIn, isCheckedOut, shift),
+                    _buildDutyOverviewCard(
+                        record, isCheckedIn, isCheckedOut, shift),
                     const SizedBox(height: 18),
 
                     // 3. Primary Action Card (Check-in / Check-out / Shift Completed)
@@ -724,7 +783,13 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
     ShiftConfig shift,
   ) {
     final staffInitials = widget.staffName.isNotEmpty
-        ? widget.staffName.trim().split(' ').map((w) => w.isNotEmpty ? w[0] : '').take(2).join().toUpperCase()
+        ? widget.staffName
+            .trim()
+            .split(' ')
+            .map((w) => w.isNotEmpty ? w[0] : '')
+            .take(2)
+            .join()
+            .toUpperCase()
         : 'ST';
 
     // Status state
@@ -736,8 +801,10 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
         : (isCheckedIn ? 'Active • On Duty' : 'Not Punched In');
 
     // Shift timing label
-    final shiftStartStr = '${shift.startHour > 12 ? shift.startHour - 12 : shift.startHour}:${shift.startMinute.toString().padLeft(2, '0')} ${shift.startHour >= 12 ? 'PM' : 'AM'}';
-    final shiftEndStr = '${shift.endHour > 12 ? shift.endHour - 12 : shift.endHour}:${shift.endMinute.toString().padLeft(2, '0')} ${shift.endHour >= 12 ? 'PM' : 'AM'}';
+    final shiftStartStr =
+        '${shift.startHour > 12 ? shift.startHour - 12 : shift.startHour}:${shift.startMinute.toString().padLeft(2, '0')} ${shift.startHour >= 12 ? 'PM' : 'AM'}';
+    final shiftEndStr =
+        '${shift.endHour > 12 ? shift.endHour - 12 : shift.endHour}:${shift.endMinute.toString().padLeft(2, '0')} ${shift.endHour >= 12 ? 'PM' : 'AM'}';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -760,7 +827,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: TekColors.primaryGlow,
                 ),
-                child: const Icon(Icons.bolt_rounded, size: 28, color: Colors.white),
+                child: const Icon(Icons.bolt_rounded,
+                    size: 28, color: Colors.white),
               ),
               const SizedBox(width: 12),
 
@@ -784,11 +852,14 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                         ),
                         const SizedBox(width: 6),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: TekColors.primary.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: TekColors.primary.withValues(alpha: 0.4)),
+                            border: Border.all(
+                                color:
+                                    TekColors.primary.withValues(alpha: 0.4)),
                           ),
                           child: Text(
                             widget.shopId.toUpperCase(),
@@ -819,7 +890,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                         const SizedBox(width: 6),
                         const Text(
                           'Staff Member • Authenticated',
-                          style: TextStyle(fontSize: 11, color: TekColors.textSecondary),
+                          style: TextStyle(
+                              fontSize: 11, color: TekColors.textSecondary),
                         ),
                       ],
                     ),
@@ -838,10 +910,14 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                       isLabelVisible: unreadCount > 0,
                       label: Text(
                         '$unreadCount',
-                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+                        style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white),
                       ),
                       backgroundColor: TekColors.error,
-                      child: const Icon(Icons.notifications_active_rounded, color: TekColors.secondary, size: 22),
+                      child: const Icon(Icons.notifications_active_rounded,
+                          color: TekColors.secondary, size: 22),
                     ),
                     onPressed: () {
                       HapticFeedback.lightImpact();
@@ -860,7 +936,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
               // App Update Action
               IconButton(
                 tooltip: 'Check Updates',
-                icon: const Icon(Icons.system_update_rounded, color: TekColors.info, size: 21),
+                icon: const Icon(Icons.system_update_rounded,
+                    color: TekColors.info, size: 21),
                 onPressed: () => AppUpdateService.instance.checkForUpdate(
                   context,
                   autoShowDialog: true,
@@ -871,7 +948,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
               // Sign Out Action
               IconButton(
                 tooltip: 'Sign Out (ലോഗൗട്ട്)',
-                icon: const Icon(Icons.logout_rounded, color: TekColors.error, size: 21),
+                icon: const Icon(Icons.logout_rounded,
+                    color: TekColors.error, size: 21),
                 onPressed: () => _confirmSignOut(context),
               ),
             ],
@@ -886,18 +964,21 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
               // Shift duration label
               Row(
                 children: [
-                  const Icon(Icons.schedule_rounded, size: 15, color: TekColors.textSecondary),
+                  const Icon(Icons.schedule_rounded,
+                      size: 15, color: TekColors.textSecondary),
                   const SizedBox(width: 6),
                   Text(
                     'Shift: $shiftStartStr - $shiftEndStr',
-                    style: const TextStyle(fontSize: 11.5, color: TekColors.textSecondary),
+                    style: const TextStyle(
+                        fontSize: 11.5, color: TekColors.textSecondary),
                   ),
                 ],
               ),
 
               // Animated Pulsing Status Chip
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
@@ -983,7 +1064,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Icon(Icons.dashboard_customize_rounded, size: 18, color: TekColors.secondary),
+              const Icon(Icons.dashboard_customize_rounded,
+                  size: 18, color: TekColors.secondary),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
@@ -1043,7 +1125,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                   iconColor: TekColors.primaryLight,
                   title: 'Punch-in Time',
                   value: checkInDisplay,
-                  subtitle: isCheckedIn ? 'Recorded at counter' : 'Waiting check-in',
+                  subtitle:
+                      isCheckedIn ? 'Recorded at counter' : 'Waiting check-in',
                 ),
               ),
               const SizedBox(width: 10),
@@ -1062,11 +1145,13 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
               decoration: BoxDecoration(
                 color: TekColors.warning.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: TekColors.warning.withValues(alpha: 0.4)),
+                border:
+                    Border.all(color: TekColors.warning.withValues(alpha: 0.4)),
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.warning_amber_rounded, size: 18, color: TekColors.warning),
+                  Icon(Icons.warning_amber_rounded,
+                      size: 18, color: TekColors.warning),
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -1102,7 +1187,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
         color: TekColors.bgSecondary,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: highlight ? iconColor.withValues(alpha: 0.5) : TekColors.border,
+          color:
+              highlight ? iconColor.withValues(alpha: 0.5) : TekColors.border,
         ),
       ),
       child: Column(
@@ -1117,7 +1203,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11, color: TekColors.textSecondary),
+                  style: const TextStyle(
+                      fontSize: 11, color: TekColors.textSecondary),
                 ),
               ),
             ],
@@ -1191,7 +1278,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                   'Owner Approval',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 11, color: TekColors.textSecondary),
+                  style:
+                      TextStyle(fontSize: 11, color: TekColors.textSecondary),
                 ),
               ),
             ],
@@ -1239,7 +1327,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
         decoration: BoxDecoration(
           color: TekColors.bgCard,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: TekColors.success.withValues(alpha: 0.5), width: 1.2),
+          border: Border.all(
+              color: TekColors.success.withValues(alpha: 0.5), width: 1.2),
           boxShadow: [
             BoxShadow(
               color: TekColors.success.withValues(alpha: 0.15),
@@ -1256,7 +1345,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                 color: TekColors.success.withValues(alpha: 0.18),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.task_alt_rounded, color: TekColors.success, size: 28),
+              child: const Icon(Icons.task_alt_rounded,
+                  color: TekColors.success, size: 28),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -1275,7 +1365,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                   const SizedBox(height: 2),
                   Text(
                     'Worked: ${record?.workedHours.toStringAsFixed(1) ?? "0"} hrs • Cash register reconciled',
-                    style: const TextStyle(fontSize: 12, color: TekColors.textSecondary),
+                    style: const TextStyle(
+                        fontSize: 12, color: TekColors.textSecondary),
                   ),
                 ],
               ),
@@ -1318,9 +1409,11 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                     ? const SizedBox(
                         width: 24,
                         height: 24,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2.5),
                       )
-                    : const Icon(Icons.point_of_sale_rounded, color: Colors.white, size: 26),
+                    : const Icon(Icons.point_of_sale_rounded,
+                        color: Colors.white, size: 26),
               ),
               const SizedBox(width: 16),
               const Expanded(
@@ -1329,7 +1422,10 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                   children: [
                     Text(
                       'Check-out & Close Register',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white),
                     ),
                     SizedBox(height: 2),
                     Text(
@@ -1343,7 +1439,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                   ],
                 ),
               ),
-              const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 18),
+              const Icon(Icons.arrow_forward_ios_rounded,
+                  color: Colors.white70, size: 18),
             ],
           ),
         ),
@@ -1382,9 +1479,11 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                   ? const SizedBox(
                       width: 24,
                       height: 24,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2.5),
                     )
-                  : const Icon(Icons.fingerprint_rounded, color: Colors.white, size: 28),
+                  : const Icon(Icons.fingerprint_rounded,
+                      color: Colors.white, size: 28),
             ),
             const SizedBox(width: 16),
             const Expanded(
@@ -1393,7 +1492,10 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                 children: [
                   Text(
                     'Tap to Check-in & Unlock POS',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white),
                   ),
                   SizedBox(height: 2),
                   Text(
@@ -1407,7 +1509,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 18),
+            const Icon(Icons.arrow_forward_ios_rounded,
+                color: Colors.white70, size: 18),
           ],
         ),
       ),
@@ -1570,7 +1673,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                   child: Icon(icon, color: Colors.white, size: 20),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: iconGradient.first.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
@@ -1626,7 +1730,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const Icon(Icons.history_rounded, size: 18, color: TekColors.secondary),
+                  const Icon(Icons.history_rounded,
+                      size: 18, color: TekColors.secondary),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(
@@ -1635,7 +1740,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                       children: [
                         Text(
                           'Attendance History',
-                          style: TekTypography.titleMedium.copyWith(fontSize: 14),
+                          style:
+                              TekTypography.titleMedium.copyWith(fontSize: 14),
                         ),
                         Text(
                           'ഹാജർ ചരിത്രം',
@@ -1674,11 +1780,13 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
         StreamBuilder<List<AttendanceRecord>>(
           stream: _historyStream,
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                !snapshot.hasData) {
               return const Center(
                 child: Padding(
                   padding: EdgeInsets.all(24),
-                  child: CircularProgressIndicator(strokeWidth: 2, color: TekColors.primary),
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: TekColors.primary),
                 ),
               );
             }
@@ -1695,7 +1803,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                 child: const Center(
                   child: Column(
                     children: [
-                      Icon(Icons.event_note_rounded, size: 36, color: TekColors.textMuted),
+                      Icon(Icons.event_note_rounded,
+                          size: 36, color: TekColors.textMuted),
                       SizedBox(height: 8),
                       Text(
                         'ഹാജർ വിവരങ്ങൾ ലഭ്യമല്ല (No attendance history records)',
@@ -1771,14 +1880,19 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
       badgeIcon = Icons.hourglass_top_rounded;
     }
 
-    final inTimeStr = r.checkIn != null ? _timeFormat.format(r.checkIn!) : '--:--';
-    final outTimeStr = r.checkOut != null ? _timeFormat.format(r.checkOut!) : (r.checkIn != null ? 'Active' : '--:--');
+    final inTimeStr =
+        r.checkIn != null ? _timeFormat.format(r.checkIn!) : '--:--';
+    final outTimeStr = r.checkOut != null
+        ? _timeFormat.format(r.checkOut!)
+        : (r.checkIn != null ? 'Active' : '--:--');
 
     DateTime? parsedDate;
     try {
       parsedDate = DateTime.parse(r.date);
     } catch (_) {}
-    final dateDisplay = parsedDate != null ? DateFormat('EEE, dd MMM yyyy').format(parsedDate) : r.date;
+    final dateDisplay = parsedDate != null
+        ? DateFormat('EEE, dd MMM yyyy').format(parsedDate)
+        : r.date;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1802,7 +1916,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.event_available_rounded, size: 15, color: TekColors.secondary),
+                  const Icon(Icons.event_available_rounded,
+                      size: 15, color: TekColors.secondary),
                   const SizedBox(width: 6),
                   Text(
                     dateDisplay,
@@ -1845,7 +1960,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
               Expanded(
                 child: Row(
                   children: [
-                    const Icon(Icons.login_rounded, size: 14, color: TekColors.success),
+                    const Icon(Icons.login_rounded,
+                        size: 14, color: TekColors.success),
                     const SizedBox(width: 4),
                     Text(
                       inTimeStr,
@@ -1856,9 +1972,14 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                       ),
                     ),
                     const SizedBox(width: 6),
-                    const Text('→', style: TextStyle(color: TekColors.textMuted)),
+                    const Text('→',
+                        style: TextStyle(color: TekColors.textMuted)),
                     const SizedBox(width: 6),
-                    Icon(Icons.logout_rounded, size: 14, color: r.checkOut != null ? TekColors.error : TekColors.warning),
+                    Icon(Icons.logout_rounded,
+                        size: 14,
+                        color: r.checkOut != null
+                            ? TekColors.error
+                            : TekColors.warning),
                     const SizedBox(width: 4),
                     Text(
                       outTimeStr,
@@ -1888,7 +2009,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
               ),
             ],
           ),
-          if (r.cashRegister != null && (r.cashRegister!['mismatch'] == true)) ...[
+          if (r.cashRegister != null &&
+              (r.cashRegister!['mismatch'] == true)) ...[
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -1899,11 +2021,15 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.warning_amber_rounded, size: 12, color: TekColors.warning),
+                  Icon(Icons.warning_amber_rounded,
+                      size: 12, color: TekColors.warning),
                   SizedBox(width: 4),
                   Text(
                     'Cash register mismatch flagged',
-                    style: TextStyle(fontSize: 10, color: TekColors.warning, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                        fontSize: 10,
+                        color: TekColors.warning,
+                        fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -1941,7 +2067,8 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('വേണ്ട (Cancel)', style: TextStyle(color: TekColors.textSecondary)),
+            child: const Text('വേണ്ട (Cancel)',
+                style: TextStyle(color: TekColors.textSecondary)),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: TekColors.error),
@@ -2016,7 +2143,8 @@ class _LiveWorkingTimeTileState extends State<_LiveWorkingTimeTile> {
     final double worked = widget.isCheckedIn && widget.record?.checkIn != null
         ? (widget.isCheckedOut
             ? widget.record!.workedHours
-            : DateTime.now().difference(widget.record!.checkIn!).inMinutes / 60.0)
+            : DateTime.now().difference(widget.record!.checkIn!).inMinutes /
+                60.0)
         : 0.0;
 
     final hours = worked.floor();

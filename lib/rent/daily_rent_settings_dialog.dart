@@ -43,7 +43,8 @@ class DailyRentSettingsDialog extends StatefulWidget {
   }
 
   @override
-  State<DailyRentSettingsDialog> createState() => _DailyRentSettingsDialogState();
+  State<DailyRentSettingsDialog> createState() =>
+      _DailyRentSettingsDialogState();
 }
 
 class _DailyRentSettingsDialogState extends State<DailyRentSettingsDialog> {
@@ -117,7 +118,9 @@ class _DailyRentSettingsDialogState extends State<DailyRentSettingsDialog> {
     final staffId = auth.uid.isNotEmpty ? auth.uid : 'admin';
     final staffName = auth.name.isNotEmpty ? auth.name : 'Admin';
 
-    final updated = (_currentSettings ?? DailyRentSettings(effectiveDate: _effectiveDate)).copyWith(
+    final updated =
+        (_currentSettings ?? DailyRentSettings(effectiveDate: _effectiveDate))
+            .copyWith(
       dailyRentAmount: amt,
       dailyRentAmountPaise: (amt * 100).round(),
       landlordName: _landlordCtrl.text.trim(),
@@ -138,13 +141,15 @@ class _DailyRentSettingsDialogState extends State<DailyRentSettingsDialog> {
       );
 
       if (mounted) {
-        toast(context, 'Daily Rent settings saved successfully (വാടക വിവരങ്ങൾ സേവ് ചെയ്തു)!');
+        toast(context,
+            'Daily Rent settings saved successfully (വാടക വിവരങ്ങൾ സേവ് ചെയ്തു)!');
         widget.onSettingsSaved?.call();
         Navigator.pop(context);
       }
     } catch (e) {
       setState(() => _isSaving = false);
-      if (mounted) toast(context, 'Failed saving rent settings: $e', error: true);
+      if (mounted)
+        toast(context, 'Failed saving rent settings: $e', error: true);
     }
   }
 
@@ -158,7 +163,9 @@ class _DailyRentSettingsDialogState extends State<DailyRentSettingsDialog> {
         border: Border.all(color: TekColors.border, width: 1.5),
       ),
       child: _isLoading
-          ? const Center(heightFactor: 4, child: CircularProgressIndicator(color: Color(0xFFF59E0B)))
+          ? const Center(
+              heightFactor: 4,
+              child: CircularProgressIndicator(color: Color(0xFFF59E0B)))
           : Form(
               key: _formKey,
               child: SingleChildScrollView(
@@ -175,10 +182,12 @@ class _DailyRentSettingsDialogState extends State<DailyRentSettingsDialog> {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                                color: const Color(0xFFF59E0B)
+                                    .withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: const Icon(Icons.tune_rounded, color: Color(0xFFF59E0B), size: 20),
+                              child: const Icon(Icons.tune_rounded,
+                                  color: Color(0xFFF59E0B), size: 20),
                             ),
                             const SizedBox(width: 10),
                             const Text(
@@ -192,7 +201,8 @@ class _DailyRentSettingsDialogState extends State<DailyRentSettingsDialog> {
                           ],
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close_rounded, color: TekColors.textSecondary),
+                          icon: const Icon(Icons.close_rounded,
+                              color: TekColors.textSecondary),
                           onPressed: () => Navigator.pop(context),
                         ),
                       ],
@@ -204,8 +214,15 @@ class _DailyRentSettingsDialogState extends State<DailyRentSettingsDialog> {
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       activeColor: const Color(0xFFF59E0B),
-                      title: const Text('Rent Module Active (വാടക സജീവം)', style: TextStyle(color: TekColors.textPrimary, fontSize: 13.5, fontWeight: FontWeight.w600)),
-                      subtitle: const Text('Enable or pause automatic rent schedule', style: TextStyle(color: TekColors.textMuted, fontSize: 11.5)),
+                      title: const Text('Rent Module Active (വാടക സജീവം)',
+                          style: TextStyle(
+                              color: TekColors.textPrimary,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600)),
+                      subtitle: const Text(
+                          'Enable or pause automatic rent schedule',
+                          style: TextStyle(
+                              color: TekColors.textMuted, fontSize: 11.5)),
                       value: _isActive,
                       onChanged: (v) => setState(() => _isActive = v),
                     ),
@@ -216,19 +233,30 @@ class _DailyRentSettingsDialogState extends State<DailyRentSettingsDialog> {
                     // Daily Rent Amount
                     TextFormField(
                       controller: _amountCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      style: const TextStyle(color: TekColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      style: const TextStyle(
+                          color: TekColors.textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold),
                       decoration: InputDecoration(
-                        labelText: 'Configured Daily Rent Amount (പ്രതിദിന വാടക) *',
+                        labelText:
+                            'Configured Daily Rent Amount (പ്രതിദിന വാടക) *',
                         prefixText: '₹ ',
-                        prefixStyle: const TextStyle(color: TekColors.primary, fontWeight: FontWeight.bold),
+                        prefixStyle: const TextStyle(
+                            color: TekColors.primary,
+                            fontWeight: FontWeight.bold),
                         filled: true,
                         fillColor: TekColors.bgSecondary,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TekColors.border)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: TekColors.border)),
                       ),
                       validator: (v) {
                         final n = double.tryParse(v?.trim() ?? '');
-                        if (n == null || n <= 0) return 'Valid positive amount required';
+                        if (n == null || n <= 0)
+                          return 'Valid positive amount required';
                         return null;
                       },
                     ),
@@ -238,12 +266,16 @@ class _DailyRentSettingsDialogState extends State<DailyRentSettingsDialog> {
                     // Landlord Name
                     TextFormField(
                       controller: _landlordCtrl,
-                      style: const TextStyle(color: TekColors.textPrimary, fontSize: 13),
+                      style: const TextStyle(
+                          color: TekColors.textPrimary, fontSize: 13),
                       decoration: InputDecoration(
                         labelText: 'Landlord / Property Owner Name',
                         filled: true,
                         fillColor: TekColors.bgSecondary,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TekColors.border)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: TekColors.border)),
                       ),
                     ),
 
@@ -252,20 +284,27 @@ class _DailyRentSettingsDialogState extends State<DailyRentSettingsDialog> {
                     // Default Payment Mode
                     Row(
                       children: [
-                        const Text('Default Mode: ', style: TextStyle(color: TekColors.textSecondary, fontSize: 12.5)),
+                        const Text('Default Mode: ',
+                            style: TextStyle(
+                                color: TekColors.textSecondary,
+                                fontSize: 12.5)),
                         const SizedBox(width: 8),
                         ChoiceChip(
                           label: const Text('Cash in Hand'),
                           selected: _defaultMode == ExpensePaymentMode.cash,
-                          selectedColor: const Color(0xFFF59E0B).withValues(alpha: 0.25),
-                          onSelected: (_) => setState(() => _defaultMode = ExpensePaymentMode.cash),
+                          selectedColor:
+                              const Color(0xFFF59E0B).withValues(alpha: 0.25),
+                          onSelected: (_) => setState(
+                              () => _defaultMode = ExpensePaymentMode.cash),
                         ),
                         const SizedBox(width: 8),
                         ChoiceChip(
                           label: const Text('Bank / UPI'),
                           selected: _defaultMode == ExpensePaymentMode.bank,
-                          selectedColor: TekColors.secondary.withValues(alpha: 0.25),
-                          onSelected: (_) => setState(() => _defaultMode = ExpensePaymentMode.bank),
+                          selectedColor:
+                              TekColors.secondary.withValues(alpha: 0.25),
+                          onSelected: (_) => setState(
+                              () => _defaultMode = ExpensePaymentMode.bank),
                         ),
                       ],
                     ),
@@ -277,15 +316,21 @@ class _DailyRentSettingsDialogState extends State<DailyRentSettingsDialog> {
                       value: _scheduleType,
                       dropdownColor: TekColors.bgCard,
                       decoration: InputDecoration(
-                        labelText: 'Rent Schedule Policy (വാടക കണക്കാക്കേണ്ട ദിവസങ്ങൾ)',
+                        labelText:
+                            'Rent Schedule Policy (വാടക കണക്കാക്കേണ്ട ദിവസങ്ങൾ)',
                         filled: true,
                         fillColor: TekColors.bgSecondary,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TekColors.border)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: TekColors.border)),
                       ),
                       items: RentScheduleType.values.map((s) {
                         return DropdownMenuItem(
                           value: s,
-                          child: Text(s.label, style: const TextStyle(color: TekColors.textPrimary, fontSize: 13)),
+                          child: Text(s.label,
+                              style: const TextStyle(
+                                  color: TekColors.textPrimary, fontSize: 13)),
                         );
                       }).toList(),
                       onChanged: (v) {
@@ -296,8 +341,11 @@ class _DailyRentSettingsDialogState extends State<DailyRentSettingsDialog> {
                     const SizedBox(height: 12),
 
                     // Operating Days Checkboxes (if operating days only)
-                    if (_scheduleType == RentScheduleType.operatingDaysOnly) ...[
-                      const Text('Operating Days:', style: TextStyle(color: TekColors.textSecondary, fontSize: 12)),
+                    if (_scheduleType ==
+                        RentScheduleType.operatingDaysOnly) ...[
+                      const Text('Operating Days:',
+                          style: TextStyle(
+                              color: TekColors.textSecondary, fontSize: 12)),
                       const SizedBox(height: 6),
                       Wrap(
                         spacing: 6,
@@ -321,14 +369,16 @@ class _DailyRentSettingsDialogState extends State<DailyRentSettingsDialog> {
                           context: context,
                           initialDate: _effectiveDate,
                           firstDate: DateTime(2024, 1, 1),
-                          lastDate: DateTime.now().add(const Duration(days: 365)),
+                          lastDate:
+                              DateTime.now().add(const Duration(days: 365)),
                         );
                         if (picked != null) {
                           setState(() => _effectiveDate = picked);
                         }
                       },
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 12),
                         decoration: BoxDecoration(
                           color: TekColors.bgSecondary,
                           borderRadius: BorderRadius.circular(12),
@@ -339,9 +389,11 @@ class _DailyRentSettingsDialogState extends State<DailyRentSettingsDialog> {
                           children: [
                             Text(
                               'Rent Rate Effective Date: ${DateFormat('dd MMM yyyy').format(_effectiveDate)}',
-                              style: const TextStyle(color: TekColors.textPrimary, fontSize: 12.5),
+                              style: const TextStyle(
+                                  color: TekColors.textPrimary, fontSize: 12.5),
                             ),
-                            const Icon(Icons.calendar_today_rounded, size: 16, color: TekColors.primary),
+                            const Icon(Icons.calendar_today_rounded,
+                                size: 16, color: TekColors.primary),
                           ],
                         ),
                       ),
@@ -353,12 +405,16 @@ class _DailyRentSettingsDialogState extends State<DailyRentSettingsDialog> {
                     TextFormField(
                       controller: _notesCtrl,
                       maxLines: 2,
-                      style: const TextStyle(color: TekColors.textPrimary, fontSize: 13),
+                      style: const TextStyle(
+                          color: TekColors.textPrimary, fontSize: 13),
                       decoration: InputDecoration(
                         labelText: 'Rental Agreement / Terms Notes',
                         filled: true,
                         fillColor: TekColors.bgSecondary,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TekColors.border)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: TekColors.border)),
                       ),
                     ),
 
@@ -370,13 +426,19 @@ class _DailyRentSettingsDialogState extends State<DailyRentSettingsDialog> {
                         backgroundColor: const Color(0xFFF59E0B),
                         foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: _isSaving ? null : _save,
                       icon: _isSaving
-                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  color: Colors.black, strokeWidth: 2))
                           : const Icon(Icons.check_circle_rounded, size: 18),
-                      label: Text(_isSaving ? 'Saving...' : 'Save Settings', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      label: Text(_isSaving ? 'Saving...' : 'Save Settings',
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),

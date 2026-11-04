@@ -199,7 +199,8 @@ class PrinterConfig {
     );
   }
 
-  PrinterConfig withPreset(LabelPreset newPreset, {double? customWidth, double? customHeight}) {
+  PrinterConfig withPreset(LabelPreset newPreset,
+      {double? customWidth, double? customHeight}) {
     if (newPreset == LabelPreset.custom) {
       return copyWith(
         preset: LabelPreset.custom,
@@ -238,7 +239,8 @@ class PrinterConfig {
     if (map == null) return const PrinterConfig();
     LabelPreset preset = LabelPreset.preset38x25;
     final presetStr = map['preset']?.toString();
-    if (presetStr == LabelPreset.preset50x25.name || presetStr == 'profile50x25') {
+    if (presetStr == LabelPreset.preset50x25.name ||
+        presetStr == 'profile50x25') {
       preset = LabelPreset.preset50x25;
     } else if (presetStr == LabelPreset.custom.name) {
       preset = LabelPreset.custom;

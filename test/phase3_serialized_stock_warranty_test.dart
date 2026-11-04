@@ -45,7 +45,8 @@ void main() {
     }
   });
 
-  group('PHASE 3: SERIALIZED STOCK, DUAL-IMEI & SUPPLIER WARRANTY TEST SUITE', () {
+  group('PHASE 3: SERIALIZED STOCK, DUAL-IMEI & SUPPLIER WARRANTY TEST SUITE',
+      () {
     test('1. 3GPP Luhn Checksum Algorithm & Check Digit Generation', () {
       // 14-digit prefix
       const prefix14 = '86450104712345';
@@ -56,18 +57,21 @@ void main() {
       // Construct valid 15-digit IMEI
       final validImei = '$prefix14$checkDigit';
       expect(ImeiValidator.isValidLuhn(validImei), isTrue);
-      expect(ImeiValidator.categorizeIdentifier(validImei), equals('VALID_IMEI'));
+      expect(
+          ImeiValidator.categorizeIdentifier(validImei), equals('VALID_IMEI'));
 
       // Tampered / typo IMEI (corrupted check digit)
       final badCheckDigit = (checkDigit + 1) % 10;
       final invalidImei = '$prefix14$badCheckDigit';
       expect(ImeiValidator.isValidLuhn(invalidImei), isFalse);
-      expect(ImeiValidator.categorizeIdentifier(invalidImei), equals('INVALID_LUHN_IMEI'));
+      expect(ImeiValidator.categorizeIdentifier(invalidImei),
+          equals('INVALID_LUHN_IMEI'));
 
       // Non-15 digit alphanumeric device serial (e.g. Apple serial number)
       const appleSerial = 'F17X89KLMD6R';
       expect(ImeiValidator.isValidLuhn(appleSerial), isFalse);
-      expect(ImeiValidator.categorizeIdentifier(appleSerial), equals('DEVICE_SERIAL'));
+      expect(ImeiValidator.categorizeIdentifier(appleSerial),
+          equals('DEVICE_SERIAL'));
 
       // Empty string
       expect(ImeiValidator.categorizeIdentifier(''), equals('EMPTY'));
@@ -96,7 +100,8 @@ void main() {
       expect(extracted[1], equals(imei2));
 
       // Extraction of comma-separated dual IMEI
-      final commaExtracted = ImeiValidator.extractImeisFromUnit('$imei1, $imei2');
+      final commaExtracted =
+          ImeiValidator.extractImeisFromUnit('$imei1, $imei2');
       expect(commaExtracted.length, equals(2));
       expect(commaExtracted[0], equals(imei1));
       expect(commaExtracted[1], equals(imei2));
@@ -114,7 +119,10 @@ void main() {
           quantity: 2,
           purchaseRate: 95000.0,
           imeiRequired: true,
-          serialNumbers: ['864501047123450 / 864501047123451', '864501047123452 / 864501047123453'],
+          serialNumbers: [
+            '864501047123450 / 864501047123451',
+            '864501047123452 / 864501047123453'
+          ],
         ),
         PurchaseBillItem(
           name: 'iPhone 15 Pro 256GB',
@@ -142,14 +150,16 @@ void main() {
       }
 
       expect(duplicateFound, isFalse);
-      expect(allBillImeis.length, equals(6)); // 3 units * 2 IMEIs each = 6 IMEIs
+      expect(
+          allBillImeis.length, equals(6)); // 3 units * 2 IMEIs each = 6 IMEIs
 
       // Now introduce duplicate in item 2
       const duplicateImei = '864501047123450'; // already in item 1
       expect(allBillImeis.contains(duplicateImei), isTrue);
     });
 
-    test('4. Supplier Warranty Duration Presets & Expiry Date Auto-Calculation', () {
+    test('4. Supplier Warranty Duration Presets & Expiry Date Auto-Calculation',
+        () {
       final service = PurchaseBillService.instance;
       final purchaseDate = DateTime(2026, 10, 29);
 
@@ -174,7 +184,8 @@ void main() {
         ItemWarrantyDuration.sixMonths,
       );
       expect(exp6M, isNotNull);
-      expect(exp6M!.difference(purchaseDate).inDays, inInclusiveRange(180, 184));
+      expect(
+          exp6M!.difference(purchaseDate).inDays, inInclusiveRange(180, 184));
 
       // 12 Months
       final exp12M = service.calculateItemWarrantyExpiry(
@@ -182,7 +193,8 @@ void main() {
         ItemWarrantyDuration.twelveMonths,
       );
       expect(exp12M, isNotNull);
-      expect(exp12M!.difference(purchaseDate).inDays, inInclusiveRange(365, 366));
+      expect(
+          exp12M!.difference(purchaseDate).inDays, inInclusiveRange(365, 366));
 
       // 24 Months
       final exp24M = service.calculateItemWarrantyExpiry(
@@ -190,7 +202,8 @@ void main() {
         ItemWarrantyDuration.twentyFourMonths,
       );
       expect(exp24M, isNotNull);
-      expect(exp24M!.difference(purchaseDate).inDays, inInclusiveRange(730, 731));
+      expect(
+          exp24M!.difference(purchaseDate).inDays, inInclusiveRange(730, 731));
 
       // Custom Days (e.g. 45 Days)
       final expCustom = service.calculateItemWarrantyExpiry(
@@ -235,11 +248,11 @@ void main() {
       expect(revived.name, equals(item.name));
       expect(revived.serialNumbers.length, equals(2));
       expect(revived.serialNumbers.first, contains(' / '));
-      expect(revived.warrantyDuration, equals(ItemWarrantyDuration.twelveMonths));
+      expect(
+          revived.warrantyDuration, equals(ItemWarrantyDuration.twelveMonths));
       expect(revived.warrantyExpiryDate, equals(item.warrantyExpiryDate));
       expect(revived.hsnCode, equals('85171300'));
       expect(revived.mrp, equals(129999.0));
     });
   });
 }
-

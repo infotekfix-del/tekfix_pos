@@ -3,7 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../auth/auth_controller.dart';
-import '../main.dart' show Db, ModeSelector, printInvoice, sendInvoiceWhatsApp, toast;
+import '../main.dart'
+    show Db, ModeSelector, printInvoice, sendInvoiceWhatsApp, toast;
 import '../pos/pos_models.dart';
 import '../pos/pos_service.dart';
 import '../staff/activity_log.dart';
@@ -109,7 +110,8 @@ class ServiceBillDialog extends StatefulWidget {
     String? staffName,
   }) async {
     if (job['billCreated'] == true) {
-      TekFeedback.error('ഈ Job-ന് ബിൽ ഇതിനകം സൃഷ്ടിച്ചിട്ടുണ്ട് (Bill already created)');
+      TekFeedback.error(
+          'ഈ Job-ന് ബിൽ ഇതിനകം സൃഷ്ടിച്ചിട്ടുണ്ട് (Bill already created)');
       return false;
     }
 
@@ -141,7 +143,8 @@ class ServiceBillDialog extends StatefulWidget {
     String? staffName,
   }) async {
     if (job.billCreated || (job.invoice != null && job.invoice!.isNotEmpty)) {
-      TekFeedback.error('ഈ Job-ന് ബിൽ ഇതിനകം സൃഷ്ടിച്ചിട്ടുണ്ട് (Bill already created)');
+      TekFeedback.error(
+          'ഈ Job-ന് ബിൽ ഇതിനകം സൃഷ്ടിച്ചിട്ടുണ്ട് (Bill already created)');
       return false;
     }
 
@@ -201,7 +204,8 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
   String? _errorMessage;
 
   String get _shopId {
-    if (widget.shopId != null && widget.shopId!.trim().isNotEmpty) return widget.shopId!.trim();
+    if (widget.shopId != null && widget.shopId!.trim().isNotEmpty)
+      return widget.shopId!.trim();
     final authShop = AuthController.instance.shopId.trim();
     if (authShop.isNotEmpty) return authShop;
     final dbShop = Db.setting('shop_id', '').trim();
@@ -210,24 +214,33 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
   }
 
   String get _staffId {
-    if (widget.staffId != null && widget.staffId!.trim().isNotEmpty) return widget.staffId!.trim();
+    if (widget.staffId != null && widget.staffId!.trim().isNotEmpty)
+      return widget.staffId!.trim();
     final authUid = AuthController.instance.uid.trim();
     if (authUid.isNotEmpty) return authUid;
     return Db.setting('active_user_id', Db.setting('active_user', 'Staff'));
   }
 
   String get _staffName {
-    if (widget.staffName != null && widget.staffName!.trim().isNotEmpty) return widget.staffName!.trim();
+    if (widget.staffName != null && widget.staffName!.trim().isNotEmpty)
+      return widget.staffName!.trim();
     final authName = AuthController.instance.name.trim();
     if (authName.isNotEmpty) return authName;
     return Db.setting('active_user', 'Staff');
   }
 
-  String get _jobId => '${widget.jobData['jobId'] ?? widget.repairJob?.id ?? ''}';
-  String get _customerName => '${widget.jobData['customerName'] ?? widget.repairJob?.customerName ?? 'Customer'}';
-  String get _customerPhone => '${widget.jobData['phone'] ?? widget.repairJob?.phone ?? ''}';
-  String get _brandModel => '${widget.jobData['brandModel'] ?? widget.repairJob?.brandModel ?? 'Device'}';
-  int get _warrantyDays => (widget.jobData['warrantyDays'] as num?)?.toInt() ?? widget.repairJob?.warrantyDays ?? 30;
+  String get _jobId =>
+      '${widget.jobData['jobId'] ?? widget.repairJob?.id ?? ''}';
+  String get _customerName =>
+      '${widget.jobData['customerName'] ?? widget.repairJob?.customerName ?? 'Customer'}';
+  String get _customerPhone =>
+      '${widget.jobData['phone'] ?? widget.repairJob?.phone ?? ''}';
+  String get _brandModel =>
+      '${widget.jobData['brandModel'] ?? widget.repairJob?.brandModel ?? 'Device'}';
+  int get _warrantyDays =>
+      (widget.jobData['warrantyDays'] as num?)?.toInt() ??
+      widget.repairJob?.warrantyDays ??
+      30;
 
   @override
   void initState() {
@@ -281,7 +294,10 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
       final barcode = it.barcode.toLowerCase();
       final cat = it.category.toLowerCase();
 
-      if (name.contains(query) || sku.contains(query) || barcode.contains(query) || cat.contains(query)) {
+      if (name.contains(query) ||
+          sku.contains(query) ||
+          barcode.contains(query) ||
+          cat.contains(query)) {
         if (!seenIds.contains(it.id)) {
           seenIds.add(it.id);
           results.add(ServiceSparePartItem(
@@ -308,9 +324,13 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
       final name = '${m['name'] ?? ''}'.toLowerCase();
       final model = '${m['model'] ?? ''}'.toLowerCase();
       final cat = '${m['category'] ?? ''}'.toLowerCase();
-      final barcode = '${m['barcode'] ?? m['code'] ?? m['sku'] ?? ''}'.toLowerCase();
+      final barcode =
+          '${m['barcode'] ?? m['code'] ?? m['sku'] ?? ''}'.toLowerCase();
 
-      if (name.contains(query) || model.contains(query) || cat.contains(query) || barcode.contains(query)) {
+      if (name.contains(query) ||
+          model.contains(query) ||
+          cat.contains(query) ||
+          barcode.contains(query)) {
         seenIds.add(id);
         final price = (m['sellingPrice'] as num?)?.toDouble() ??
             (m['price'] as num?)?.toDouble() ??
@@ -342,7 +362,8 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
   // ---------------------------------------------------------------------------
   // 2. FINANCIAL CALCULATIONS IN PAISE & INR
   // ---------------------------------------------------------------------------
-  double get _serviceCharge => double.tryParse(_serviceChargeCtrl.text.trim()) ?? 0.0;
+  double get _serviceCharge =>
+      double.tryParse(_serviceChargeCtrl.text.trim()) ?? 0.0;
   double get _labour => double.tryParse(_labourCtrl.text.trim()) ?? 0.0;
   double get _discount => double.tryParse(_discountCtrl.text.trim()) ?? 0.0;
 
@@ -371,7 +392,10 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
   int get _advanceReceivedPaise => (_advanceReceived * 100).round();
 
   int get _grossTotalPaise {
-    final gross = _allSparesPaise + _serviceChargePaise + _labourChargePaise - _discountPaise;
+    final gross = _allSparesPaise +
+        _serviceChargePaise +
+        _labourChargePaise -
+        _discountPaise;
     return gross < 0 ? 0 : gross;
   }
 
@@ -379,7 +403,9 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
 
   int get _advanceAppliedPaise {
     if (_advanceReceivedPaise <= 0) return 0;
-    return _grossTotalPaise < _advanceReceivedPaise ? _grossTotalPaise : _advanceReceivedPaise;
+    return _grossTotalPaise < _advanceReceivedPaise
+        ? _grossTotalPaise
+        : _advanceReceivedPaise;
   }
 
   double get _advanceApplied => _advanceAppliedPaise / 100.0;
@@ -395,7 +421,8 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
   // 3. SELECTION & TABLE MANIPULATION (Validations & Steppers)
   // ---------------------------------------------------------------------------
   void _addInventoryPart(ServiceSparePartItem item) {
-    final existingIndex = _selectedParts.indexWhere((p) => p.itemId == item.itemId && p.isInventory);
+    final existingIndex = _selectedParts
+        .indexWhere((p) => p.itemId == item.itemId && p.isInventory);
 
     if (existingIndex >= 0) {
       final existing = _selectedParts[existingIndex];
@@ -403,9 +430,11 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
         setState(() {
           existing.quantity++;
         });
-        TekFeedback.toast('Incremented ${existing.name} (Qty: ${existing.quantity})');
+        TekFeedback.toast(
+            'Incremented ${existing.name} (Qty: ${existing.quantity})');
       } else {
-        TekFeedback.error('Cannot add more than available stock (${item.availableStock}) for ${item.name}');
+        TekFeedback.error(
+            'Cannot add more than available stock (${item.availableStock}) for ${item.name}');
       }
     } else {
       if (item.availableStock <= 0) {
@@ -446,7 +475,8 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
       if (newQty <= 0) {
         _selectedParts.removeAt(index);
       } else if (part.isInventory && newQty > part.availableStock) {
-        TekFeedback.error('Cannot exceed available stock (${part.availableStock}) for ${part.name}');
+        TekFeedback.error(
+            'Cannot exceed available stock (${part.availableStock}) for ${part.name}');
       } else {
         part.quantity = newQty;
       }
@@ -486,11 +516,15 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
         ),
         title: Row(
           children: [
-            const Icon(Icons.build_circle_outlined, color: DashboardColors.neonOrange, size: 22),
+            const Icon(Icons.build_circle_outlined,
+                color: DashboardColors.neonOrange, size: 22),
             const SizedBox(width: 8),
             const Text(
               'Add Custom / External Spare Part',
-              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -500,7 +534,8 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
           children: [
             const Text(
               'Use this for parts purchased outside the shop. These parts will NOT deduct shop inventory.',
-              style: TextStyle(color: DashboardColors.textMuted, fontSize: 11.5),
+              style:
+                  TextStyle(color: DashboardColors.textMuted, fontSize: 11.5),
             ),
             const SizedBox(height: 14),
             TextField(
@@ -514,7 +549,8 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                 hintStyle: const TextStyle(color: Colors.white24, fontSize: 12),
                 filled: true,
                 fillColor: Colors.white.withValues(alpha: 0.05),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               ),
             ),
             const SizedBox(height: 10),
@@ -524,13 +560,18 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                   child: TextField(
                     controller: qtyCtrl,
                     keyboardType: TextInputType.number,
-                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold),
                     decoration: InputDecoration(
                       labelText: 'Quantity *',
-                      labelStyle: const TextStyle(color: DashboardColors.textMuted),
+                      labelStyle:
+                          const TextStyle(color: DashboardColors.textMuted),
                       filled: true,
                       fillColor: Colors.white.withValues(alpha: 0.05),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
                 ),
@@ -539,15 +580,21 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                   child: TextField(
                     controller: priceCtrl,
                     keyboardType: TextInputType.number,
-                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold),
                     decoration: InputDecoration(
                       labelText: 'Unit Rate ₹ *',
-                      labelStyle: const TextStyle(color: DashboardColors.textMuted),
+                      labelStyle:
+                          const TextStyle(color: DashboardColors.textMuted),
                       prefixText: '₹ ',
-                      prefixStyle: const TextStyle(color: DashboardColors.neonGreen),
+                      prefixStyle:
+                          const TextStyle(color: DashboardColors.neonGreen),
                       filled: true,
                       fillColor: Colors.white.withValues(alpha: 0.05),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
                 ),
@@ -558,7 +605,8 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: DashboardColors.textMuted)),
+            child: const Text('Cancel',
+                style: TextStyle(color: DashboardColors.textMuted)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -573,12 +621,14 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
               final qty = int.tryParse(qtyCtrl.text.trim()) ?? 0;
               final rate = double.tryParse(priceCtrl.text.trim()) ?? -1.0;
               if (qty <= 0 || rate < 0) {
-                TekFeedback.error('Please enter valid positive quantity and rate');
+                TekFeedback.error(
+                    'Please enter valid positive quantity and rate');
                 return;
               }
               Navigator.pop(ctx, true);
             },
-            child: const Text('Add External Spare', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('Add External Spare',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -638,8 +688,10 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
     });
 
     final now = DateTime.now();
-    final todayStr = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
-    final invoiceId = await PosService.instance.generateStaffInvoiceId(_shopId, _staffName);
+    final todayStr =
+        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+    final invoiceId =
+        await PosService.instance.generateStaffInvoiceId(_shopId, _staffName);
 
     // Double submission in-flight memory guard
     if (_inFlightInvoices.contains(invoiceId)) {
@@ -659,257 +711,294 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
       if (_shopId.isNotEmpty) {
         if (FirebaseAuth.instance.currentUser != null) {
           await FirebaseFirestore.instance.runTransaction((transaction) async {
-          final shopDocRef = FirebaseFirestore.instance.collection('shops').doc(_shopId);
+            final shopDocRef =
+                FirebaseFirestore.instance.collection('shops').doc(_shopId);
 
-          // 1. READ PHASE: Verify live stock for all inventory items
-          final itemSnapshots = <String, DocumentSnapshot<Map<String, dynamic>>>{};
-          for (final part in _selectedParts) {
-            if (part.isInventory && part.itemId != null) {
-              // Check in shops/{shopId}/inventory first, then fallback to shops/{shopId}/items
-              DocumentReference<Map<String, dynamic>> ref =
-                  shopDocRef.collection('inventory').doc(part.itemId);
-              var snap = await transaction.get(ref);
+            // 1. READ PHASE: Verify live stock for all inventory items
+            final itemSnapshots =
+                <String, DocumentSnapshot<Map<String, dynamic>>>{};
+            for (final part in _selectedParts) {
+              if (part.isInventory && part.itemId != null) {
+                // Check in shops/{shopId}/inventory first, then fallback to shops/{shopId}/items
+                DocumentReference<Map<String, dynamic>> ref =
+                    shopDocRef.collection('inventory').doc(part.itemId);
+                var snap = await transaction.get(ref);
 
-              if (!snap.exists) {
-                ref = shopDocRef.collection('items').doc(part.itemId);
-                snap = await transaction.get(ref);
-              }
+                if (!snap.exists) {
+                  ref = shopDocRef.collection('items').doc(part.itemId);
+                  snap = await transaction.get(ref);
+                }
 
-              itemSnapshots[part.itemId!] = snap;
+                itemSnapshots[part.itemId!] = snap;
 
-              if (snap.exists) {
-                final data = snap.data();
-                final currentStock = (data?['stock'] ?? data?['stockCount'] as num?)?.toInt() ?? 0;
-                if (currentStock < part.quantity) {
-                  throw Exception(
-                    'ആവശ്യത്തിന് സ്റ്റോക്കില്ല: "${part.name}" (Live Available: $currentStock, Required: ${part.quantity})',
-                  );
+                if (snap.exists) {
+                  final data = snap.data();
+                  final currentStock =
+                      (data?['stock'] ?? data?['stockCount'] as num?)
+                              ?.toInt() ??
+                          0;
+                  if (currentStock < part.quantity) {
+                    throw Exception(
+                      'ആവശ്യത്തിന് സ്റ്റോക്കില്ല: "${part.name}" (Live Available: $currentStock, Required: ${part.quantity})',
+                    );
+                  }
                 }
               }
             }
-          }
 
-          // Check invoice idempotency in Firestore
-          final invRef = shopDocRef.collection('sales').doc(invoiceId);
-          final invSnap = await transaction.get(invRef);
-          if (invSnap.exists) {
-            throw Exception('Invoice $invoiceId already exists. Aborting duplicate.');
-          }
+            // Check invoice idempotency in Firestore
+            final invRef = shopDocRef.collection('sales').doc(invoiceId);
+            final invSnap = await transaction.get(invRef);
+            if (invSnap.exists) {
+              throw Exception(
+                  'Invoice $invoiceId already exists. Aborting duplicate.');
+            }
 
-          // 2. WRITE PHASE:
-          // A. Stock deduction & Inventory consumption logs
-          for (final part in _selectedParts) {
-            if (part.isInventory && part.itemId != null) {
-              final snap = itemSnapshots[part.itemId!];
-              if (snap != null && snap.exists) {
-                final ref = snap.reference;
-                final curStock = (snap.data()?['stock'] ?? snap.data()?['stockCount'] as num?)?.toInt() ?? 0;
-                final newStock = curStock - part.quantity;
+            // 2. WRITE PHASE:
+            // A. Stock deduction & Inventory consumption logs
+            for (final part in _selectedParts) {
+              if (part.isInventory && part.itemId != null) {
+                final snap = itemSnapshots[part.itemId!];
+                if (snap != null && snap.exists) {
+                  final ref = snap.reference;
+                  final curStock = (snap.data()?['stock'] ??
+                              snap.data()?['stockCount'] as num?)
+                          ?.toInt() ??
+                      0;
+                  final newStock = curStock - part.quantity;
 
-                transaction.update(ref, {
-                  'stock': newStock,
-                  'stockCount': newStock,
-                  'updatedAt': FieldValue.serverTimestamp(),
-                });
+                  transaction.update(ref, {
+                    'stock': newStock,
+                    'stockCount': newStock,
+                    'updatedAt': FieldValue.serverTimestamp(),
+                  });
 
-                // Inventory Log: shops/{shopId}/inventory_logs/{logId}
-                final logRef = shopDocRef.collection('inventory_logs').doc();
-                transaction.set(logRef, {
-                  'type': 'SERVICE_CONSUMPTION',
-                  'itemId': part.itemId,
-                  'itemName': part.name,
-                  'quantity': part.quantity,
-                  'jobId': _jobId,
-                  'billId': invoiceId,
-                  'createdAt': FieldValue.serverTimestamp(),
-                  'createdBy': _staffId,
-                });
+                  // Inventory Log: shops/{shopId}/inventory_logs/{logId}
+                  final logRef = shopDocRef.collection('inventory_logs').doc();
+                  transaction.set(logRef, {
+                    'type': 'SERVICE_CONSUMPTION',
+                    'itemId': part.itemId,
+                    'itemName': part.name,
+                    'quantity': part.quantity,
+                    'jobId': _jobId,
+                    'billId': invoiceId,
+                    'createdAt': FieldValue.serverTimestamp(),
+                    'createdBy': _staffId,
+                  });
 
-                // Stock Movement Log
-                final moveRef = shopDocRef.collection('stockMovements').doc();
-                transaction.set(moveRef, {
-                  'itemId': part.itemId,
-                  'itemName': part.name,
-                  'qtyChange': -part.quantity,
-                  'reason': 'Service Job $_jobId Consumption',
-                  'jobId': _jobId,
-                  'invoiceId': invoiceId,
-                  'staffId': _staffId,
-                  'staffName': _staffName,
-                  'timestamp': FieldValue.serverTimestamp(),
-                });
+                  // Stock Movement Log
+                  final moveRef = shopDocRef.collection('stockMovements').doc();
+                  transaction.set(moveRef, {
+                    'itemId': part.itemId,
+                    'itemName': part.name,
+                    'qtyChange': -part.quantity,
+                    'reason': 'Service Job $_jobId Consumption',
+                    'jobId': _jobId,
+                    'invoiceId': invoiceId,
+                    'staffId': _staffId,
+                    'staffName': _staffName,
+                    'timestamp': FieldValue.serverTimestamp(),
+                  });
+                }
               }
             }
-          }
 
-          // B. Service Job Card Update (shops/{shopId}/service_jobs & shops/{shopId}/services)
-          final sparePartsUsedMaps = _selectedParts.map((p) => p.toJobSpareMap()).toList();
-          final jobPayload = {
-            'billCreated': true,
-            'billId': invoiceId,
-            'invoice': invoiceId,
-            'sparePartsUsed': sparePartsUsedMaps,
-            'sparePartsTotalPaise': _allSparesPaise,
-            'serviceChargePaise': _serviceChargePaise,
-            'labourChargePaise': _labourChargePaise,
-            'discountPaise': _discountPaise,
-            'advanceReceivedPaise': _advanceReceivedPaise,
-            'netPayablePaise': _netPayablePaise,
-            'finalAmount': _netPayable,
-            'paidAmount': _netPayable,
-            'advanceApplied': appliedAdvance,
-            'paymentMethod': _paymentMode,
-            'paymentStatus': 'PAID',
-            'status': 'COMPLETED',
-            'deliveryStatus': 'DELIVERED',
-            'deliveredAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-            'createdBy': _staffId,
-          };
+            // B. Service Job Card Update (shops/{shopId}/service_jobs & shops/{shopId}/services)
+            final sparePartsUsedMaps =
+                _selectedParts.map((p) => p.toJobSpareMap()).toList();
+            final jobPayload = {
+              'billCreated': true,
+              'billId': invoiceId,
+              'invoice': invoiceId,
+              'sparePartsUsed': sparePartsUsedMaps,
+              'sparePartsTotalPaise': _allSparesPaise,
+              'serviceChargePaise': _serviceChargePaise,
+              'labourChargePaise': _labourChargePaise,
+              'discountPaise': _discountPaise,
+              'advanceReceivedPaise': _advanceReceivedPaise,
+              'netPayablePaise': _netPayablePaise,
+              'finalAmount': _netPayable,
+              'paidAmount': _netPayable,
+              'advanceApplied': appliedAdvance,
+              'paymentMethod': _paymentMode,
+              'paymentStatus': 'PAID',
+              'status': 'COMPLETED',
+              'deliveryStatus': 'DELIVERED',
+              'deliveredAt': FieldValue.serverTimestamp(),
+              'updatedAt': FieldValue.serverTimestamp(),
+              'createdBy': _staffId,
+            };
 
-          if (_jobId.isNotEmpty) {
-            final jobRef1 = shopDocRef.collection('service_jobs').doc(_jobId);
-            transaction.set(jobRef1, jobPayload, SetOptions(merge: true));
+            if (_jobId.isNotEmpty) {
+              final jobRef1 = shopDocRef.collection('service_jobs').doc(_jobId);
+              transaction.set(jobRef1, jobPayload, SetOptions(merge: true));
 
-            final jobRef2 = shopDocRef.collection('services').doc(_jobId);
-            transaction.set(jobRef2, jobPayload, SetOptions(merge: true));
-          }
+              final jobRef2 = shopDocRef.collection('services').doc(_jobId);
+              transaction.set(jobRef2, jobPayload, SetOptions(merge: true));
+            }
 
-          // C. Sales & Invoices (shops/{shopId}/sales_invoices, sales, sales_orders)
-          final lineItems = <Map<String, dynamic>>[
-            {
-              'name': 'Service #$_jobId • $_brandModel (Service & Labour)',
-              'qty': 1,
-              'price': _serviceCharge + _labour - _discount,
-              'costPrice': 0.0,
-              'warranty': '$_warrantyDays days',
+            // C. Sales & Invoices (shops/{shopId}/sales_invoices, sales, sales_orders)
+            final lineItems = <Map<String, dynamic>>[
+              {
+                'name': 'Service #$_jobId • $_brandModel (Service & Labour)',
+                'qty': 1,
+                'price': _serviceCharge + _labour - _discount,
+                'costPrice': 0.0,
+                'warranty': '$_warrantyDays days',
+              },
+              for (final p in _selectedParts) p.toInvoiceLineMap(),
+            ];
+
+            final salesInvoiceMap = {
+              'invoiceId': invoiceId,
+              'invoice': invoiceId,
+              'shopId': _shopId,
+              'staffId': _staffId,
+              'staffName': _staffName,
+              'date': todayStr,
+              'customerName': _customerName,
+              'customerPhone': _customerPhone,
+              'deviceModel': _brandModel,
+              'serviceJobId': _jobId,
+              'serviceBill': true,
+              'items': lineItems,
+              'sparePartsUsed': sparePartsUsedMaps,
+              'serviceCharge': _serviceCharge,
+              'labourCharge': _labour,
+              'sparesTotal': _allSparesTotal,
+              'subtotal': _grossTotal,
+              'discount': _discount,
+              'total': _grossTotal,
+              'advanceReceived': _advanceReceived,
+              'advanceApplied': appliedAdvance,
+              'netPayable': due,
+              'paymentMethod': _paymentMode,
+              'payment': {
+                'mode': _paymentMode,
+                'cashAmount': _paymentMode == 'Cash' ? due : 0.0,
+                'upiAmount': _paymentMode == 'UPI' ? due : 0.0,
+                'cardAmount': _paymentMode == 'Card' ? due : 0.0,
+              },
+              'cash': _paymentMode == 'Cash' ? due : 0.0,
+              'upi': _paymentMode == 'UPI' ? due : 0.0,
+              'card': _paymentMode == 'Card' ? due : 0.0,
+              'due': 0.0,
+              'status': 'completed',
+              'createdAt': FieldValue.serverTimestamp(),
+            };
+
+            transaction.set(
+                shopDocRef.collection('sales_invoices').doc(invoiceId),
+                salesInvoiceMap);
+            transaction.set(
+                shopDocRef.collection('sales').doc(invoiceId), salesInvoiceMap);
+            transaction.set(
+                shopDocRef.collection('sales_orders').doc(invoiceId),
+                salesInvoiceMap);
+
+            // D. Accounting & Cash Registers (shops/{shopId}/accounting_cash_bank & daily_registers)
+            final cashBankRef = shopDocRef
+                .collection('accounting_cash_bank')
+                .doc('TXN_$invoiceId');
+            transaction.set(cashBankRef, {
+              'txId': 'TXN_$invoiceId',
+              'invoiceId': invoiceId,
+              'jobId': _jobId,
+              'type': 'SERVICE_INCOME',
+              'paymentMode': _paymentMode,
+              'amount': due,
+              'amountPaise': _netPayablePaise,
+              'staffId': _staffId,
+              'staffName': _staffName,
+              'shopId': _shopId,
+              'customerName': _customerName,
+              'customerPhone': _customerPhone,
+              'createdAt': FieldValue.serverTimestamp(),
+            });
+
+            final dailyRegRef =
+                shopDocRef.collection('daily_registers').doc(todayStr);
+            transaction.set(
+                dailyRegRef,
+                {
+                  'date': todayStr,
+                  'shopId': _shopId,
+                  'totalSales': FieldValue.increment(due),
+                  'cashSales':
+                      FieldValue.increment(_paymentMode == 'Cash' ? due : 0.0),
+                  'upiSales':
+                      FieldValue.increment(_paymentMode == 'UPI' ? due : 0.0),
+                  'cardSales':
+                      FieldValue.increment(_paymentMode == 'Card' ? due : 0.0),
+                  'serviceSales': FieldValue.increment(due),
+                  'billCount': FieldValue.increment(1),
+                  'lastUpdated': FieldValue.serverTimestamp(),
+                },
+                SetOptions(merge: true));
+
+            // E. Daily Sales Counters & Payment Records & Daily Sales Ledger
+            final counterRef =
+                shopDocRef.collection('counters').doc('daily_sales_$todayStr');
+            transaction.set(
+                counterRef,
+                {
+                  'totalSales': FieldValue.increment(due),
+                  'cashSales':
+                      FieldValue.increment(_paymentMode == 'Cash' ? due : 0.0),
+                  'upiSales':
+                      FieldValue.increment(_paymentMode == 'UPI' ? due : 0.0),
+                  'cardSales':
+                      FieldValue.increment(_paymentMode == 'Card' ? due : 0.0),
+                  'serviceSales': FieldValue.increment(due),
+                  'billCount': FieldValue.increment(1),
+                  'lastUpdated': FieldValue.serverTimestamp(),
+                },
+                SetOptions(merge: true));
+
+            final paymentRecordMap = {
+              'paymentId': invoiceId,
+              'billId': invoiceId,
+              'jobId': _jobId,
+              'type': 'SERVICE_PAYMENT',
+              'amount': due,
+              'amountPaise': _netPayablePaise,
+              'method': _paymentMode,
+              'status': 'SUCCESS',
+              'shopId': _shopId,
+              'staffId': _staffId,
+              'staffName': _staffName,
+              'customerName': _customerName,
+              'customerPhone': _customerPhone,
+              'createdAt': FieldValue.serverTimestamp(),
+            };
+            transaction.set(
+                shopDocRef.collection('payment_records').doc(invoiceId),
+                paymentRecordMap);
+
+            final dailyLedgerRef = shopDocRef
+                .collection('daily_sales_ledger')
+                .doc('${todayStr}_$invoiceId');
+            transaction.set(dailyLedgerRef, {
+              'date': todayStr,
+              'invoiceId': invoiceId,
+              'type': 'SERVICE_SALE',
+              'amount': due,
+              'paymentMethod': _paymentMode,
+              'staffId': _staffId,
+              'staffName': _staffName,
+              'customerName': _customerName,
+              'createdAt': FieldValue.serverTimestamp(),
+            });
+          }).timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              throw TimeoutException(
+                  'Firestore billing transaction timed out after 10s. Please check network.');
             },
-            for (final p in _selectedParts) p.toInvoiceLineMap(),
-          ];
-
-          final salesInvoiceMap = {
-            'invoiceId': invoiceId,
-            'invoice': invoiceId,
-            'shopId': _shopId,
-            'staffId': _staffId,
-            'staffName': _staffName,
-            'date': todayStr,
-            'customerName': _customerName,
-            'customerPhone': _customerPhone,
-            'deviceModel': _brandModel,
-            'serviceJobId': _jobId,
-            'serviceBill': true,
-            'items': lineItems,
-            'sparePartsUsed': sparePartsUsedMaps,
-            'serviceCharge': _serviceCharge,
-            'labourCharge': _labour,
-            'sparesTotal': _allSparesTotal,
-            'subtotal': _grossTotal,
-            'discount': _discount,
-            'total': _grossTotal,
-            'advanceReceived': _advanceReceived,
-            'advanceApplied': appliedAdvance,
-            'netPayable': due,
-            'paymentMethod': _paymentMode,
-            'payment': {
-              'mode': _paymentMode,
-              'cashAmount': _paymentMode == 'Cash' ? due : 0.0,
-              'upiAmount': _paymentMode == 'UPI' ? due : 0.0,
-              'cardAmount': _paymentMode == 'Card' ? due : 0.0,
-            },
-            'cash': _paymentMode == 'Cash' ? due : 0.0,
-            'upi': _paymentMode == 'UPI' ? due : 0.0,
-            'card': _paymentMode == 'Card' ? due : 0.0,
-            'due': 0.0,
-            'status': 'completed',
-            'createdAt': FieldValue.serverTimestamp(),
-          };
-
-          transaction.set(shopDocRef.collection('sales_invoices').doc(invoiceId), salesInvoiceMap);
-          transaction.set(shopDocRef.collection('sales').doc(invoiceId), salesInvoiceMap);
-          transaction.set(shopDocRef.collection('sales_orders').doc(invoiceId), salesInvoiceMap);
-
-          // D. Accounting & Cash Registers (shops/{shopId}/accounting_cash_bank & daily_registers)
-          final cashBankRef = shopDocRef.collection('accounting_cash_bank').doc('TXN_$invoiceId');
-          transaction.set(cashBankRef, {
-            'txId': 'TXN_$invoiceId',
-            'invoiceId': invoiceId,
-            'jobId': _jobId,
-            'type': 'SERVICE_INCOME',
-            'paymentMode': _paymentMode,
-            'amount': due,
-            'amountPaise': _netPayablePaise,
-            'staffId': _staffId,
-            'staffName': _staffName,
-            'shopId': _shopId,
-            'customerName': _customerName,
-            'customerPhone': _customerPhone,
-            'createdAt': FieldValue.serverTimestamp(),
-          });
-
-          final dailyRegRef = shopDocRef.collection('daily_registers').doc(todayStr);
-          transaction.set(dailyRegRef, {
-            'date': todayStr,
-            'shopId': _shopId,
-            'totalSales': FieldValue.increment(due),
-            'cashSales': FieldValue.increment(_paymentMode == 'Cash' ? due : 0.0),
-            'upiSales': FieldValue.increment(_paymentMode == 'UPI' ? due : 0.0),
-            'cardSales': FieldValue.increment(_paymentMode == 'Card' ? due : 0.0),
-            'serviceSales': FieldValue.increment(due),
-            'billCount': FieldValue.increment(1),
-            'lastUpdated': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
-
-          // E. Daily Sales Counters & Payment Records & Daily Sales Ledger
-          final counterRef = shopDocRef.collection('counters').doc('daily_sales_$todayStr');
-          transaction.set(counterRef, {
-            'totalSales': FieldValue.increment(due),
-            'cashSales': FieldValue.increment(_paymentMode == 'Cash' ? due : 0.0),
-            'upiSales': FieldValue.increment(_paymentMode == 'UPI' ? due : 0.0),
-            'cardSales': FieldValue.increment(_paymentMode == 'Card' ? due : 0.0),
-            'serviceSales': FieldValue.increment(due),
-            'billCount': FieldValue.increment(1),
-            'lastUpdated': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
-
-          final paymentRecordMap = {
-            'paymentId': invoiceId,
-            'billId': invoiceId,
-            'jobId': _jobId,
-            'type': 'SERVICE_PAYMENT',
-            'amount': due,
-            'amountPaise': _netPayablePaise,
-            'method': _paymentMode,
-            'status': 'SUCCESS',
-            'shopId': _shopId,
-            'staffId': _staffId,
-            'staffName': _staffName,
-            'customerName': _customerName,
-            'customerPhone': _customerPhone,
-            'createdAt': FieldValue.serverTimestamp(),
-          };
-          transaction.set(shopDocRef.collection('payment_records').doc(invoiceId), paymentRecordMap);
-
-          final dailyLedgerRef = shopDocRef.collection('daily_sales_ledger').doc('${todayStr}_$invoiceId');
-          transaction.set(dailyLedgerRef, {
-            'date': todayStr,
-            'invoiceId': invoiceId,
-            'type': 'SERVICE_SALE',
-            'amount': due,
-            'paymentMethod': _paymentMode,
-            'staffId': _staffId,
-            'staffName': _staffName,
-            'customerName': _customerName,
-            'createdAt': FieldValue.serverTimestamp(),
-          });
-        }).timeout(
-          const Duration(seconds: 10),
-          onTimeout: () {
-            throw TimeoutException('Firestore billing transaction timed out after 10s. Please check network.');
-          },
-        );
+          );
         } else {
-          debugPrint('ServiceBillDialog: Firebase user not authenticated, completing bill locally.');
+          debugPrint(
+              'ServiceBillDialog: Firebase user not authenticated, completing bill locally.');
         }
       }
 
@@ -918,11 +1007,14 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
         if (part.isInventory) {
           for (final k in Db.items.keys) {
             final cur = tekM(Db.items.get(k));
-            if (cur['_id'] == part.itemId || '$k' == part.itemId || cur['name'] == part.name) {
+            if (cur['_id'] == part.itemId ||
+                '$k' == part.itemId ||
+                cur['name'] == part.name) {
               final curStock = (cur['stock'] as num?)?.toInt() ?? 0;
               cur['stock'] = curStock - part.quantity;
               await Db.items.put(k, cur);
-              await Db.stockMove(k, part.name, -part.quantity, 'Service $_jobId Consumption');
+              await Db.stockMove(
+                  k, part.name, -part.quantity, 'Service $_jobId Consumption');
               break;
             }
           }
@@ -982,21 +1074,25 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
         updatedJob['advanceApplied'] = appliedAdvance;
         updatedJob['billCreated'] = true;
         updatedJob['invoice'] = invoiceId;
-        updatedJob['parts'] = _selectedParts.map((p) => p.toJobSpareMap()).toList();
+        updatedJob['parts'] =
+            _selectedParts.map((p) => p.toJobSpareMap()).toList();
         updatedJob['status'] = 'COMPLETED';
         updatedJob['deliveryStatus'] = 'DELIVERED';
         updatedJob['deliveredAt'] = now.toIso8601String();
         updatedJob['warrantyStart'] = now.toIso8601String();
-        updatedJob['warrantyEnd'] = now.add(Duration(days: _warrantyDays)).toIso8601String();
+        updatedJob['warrantyEnd'] =
+            now.add(Duration(days: _warrantyDays)).toIso8601String();
         await Db.services.put(widget.jobKey, updatedJob);
       }
 
       if (mounted) {
-        TekFeedback.success('Service Invoice #$invoiceId created successfully!');
+        TekFeedback.success(
+            'Service Invoice #$invoiceId created successfully!');
         Navigator.of(context).pop(localBill);
       }
     } on FirebaseException catch (fe) {
-      final errorMsg = 'Firestore [${fe.code}]: ${fe.message ?? 'Missing or insufficient permissions.'}\n\n'
+      final errorMsg =
+          'Firestore [${fe.code}]: ${fe.message ?? 'Missing or insufficient permissions.'}\n\n'
           'Atomic Transaction Collections Checked:\n'
           ' • shops/$_shopId/service_jobs\n'
           ' • shops/$_shopId/sales_invoices\n'
@@ -1011,12 +1107,15 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
       if (mounted) {
         setState(() {
           _isSubmitting = false;
-          _errorMessage = 'Firestore Error (${fe.code}): ${fe.message ?? 'Permission Denied'}';
+          _errorMessage =
+              'Firestore Error (${fe.code}): ${fe.message ?? 'Permission Denied'}';
         });
-        await _showErrorDetailsDialog(context, 'Firestore Security Permission Denied', errorMsg);
+        await _showErrorDetailsDialog(
+            context, 'Firestore Security Permission Denied', errorMsg);
       }
     } on TimeoutException catch (te) {
-      final errorMsg = '${te.message ?? 'Connection timed out'}\nCheck your internet connectivity or Firestore access.';
+      final errorMsg =
+          '${te.message ?? 'Connection timed out'}\nCheck your internet connectivity or Firestore access.';
       debugPrint('ServiceBillDialog: $errorMsg');
       if (mounted) {
         setState(() {
@@ -1044,7 +1143,8 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
     }
   }
 
-  Future<void> _showErrorDetailsDialog(BuildContext context, String title, String message) async {
+  Future<void> _showErrorDetailsDialog(
+      BuildContext context, String title, String message) async {
     if (!mounted) return;
     await showDialog(
       context: context,
@@ -1054,19 +1154,25 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
           borderRadius: BorderRadius.circular(16),
           side: const BorderSide(color: Colors.redAccent),
         ),
-        icon: const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 40),
+        icon: const Icon(Icons.error_outline_rounded,
+            color: Colors.redAccent, size: 40),
         title: Text(
           title,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+          style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
         ),
         content: SelectableText(
           message,
-          style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+          style:
+              const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Dismiss', style: TextStyle(color: DashboardColors.neonBlue, fontWeight: FontWeight.bold)),
+            child: const Text('Dismiss',
+                style: TextStyle(
+                    color: DashboardColors.neonBlue,
+                    fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -1101,7 +1207,8 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                     color: DashboardColors.neonBlue.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.receipt_long_rounded, color: DashboardColors.neonBlue, size: 24),
+                  child: const Icon(Icons.receipt_long_rounded,
+                      color: DashboardColors.neonBlue, size: 24),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -1119,7 +1226,8 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                       const SizedBox(height: 2),
                       Text(
                         '$_customerName • $_brandModel • Phone: $_customerPhone',
-                        style: const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
+                        style: const TextStyle(
+                            color: DashboardColors.textMuted, fontSize: 12),
                       ),
                     ],
                   ),
@@ -1182,7 +1290,8 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.inventory_2_rounded, size: 18, color: DashboardColors.neonGreen),
+                            const Icon(Icons.inventory_2_rounded,
+                                size: 18, color: DashboardColors.neonGreen),
                             const SizedBox(width: 8),
                             Text(
                               'Spare Parts',
@@ -1197,12 +1306,17 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                         OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
                             foregroundColor: DashboardColors.neonOrange,
-                            side: const BorderSide(color: DashboardColors.neonOrange),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            side: const BorderSide(
+                                color: DashboardColors.neonOrange),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
                           ),
-                          icon: const Icon(Icons.add_circle_outline_rounded, size: 15),
-                          label: const Text('+ Add Custom / External Spare', style: TextStyle(fontSize: 11.5)),
+                          icon: const Icon(Icons.add_circle_outline_rounded,
+                              size: 15),
+                          label: const Text('+ Add Custom / External Spare',
+                              style: TextStyle(fontSize: 11.5)),
                           onPressed: _showAddCustomSpareDialog,
                         ),
                       ],
@@ -1217,15 +1331,20 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                         TextField(
                           controller: _searchCtrl,
                           focusNode: _searchFocus,
-                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 13),
                           decoration: InputDecoration(
                             isDense: true,
-                            hintText: 'Search Spare Part (Combo, Battery, Display, IC, Barcode)...',
-                            hintStyle: const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
-                            prefixIcon: const Icon(Icons.search_rounded, color: DashboardColors.neonBlue, size: 20),
+                            hintText:
+                                'Search Spare Part (Combo, Battery, Display, IC, Barcode)...',
+                            hintStyle: const TextStyle(
+                                color: DashboardColors.textMuted, fontSize: 12),
+                            prefixIcon: const Icon(Icons.search_rounded,
+                                color: DashboardColors.neonBlue, size: 20),
                             suffixIcon: _searchCtrl.text.isNotEmpty
                                 ? IconButton(
-                                    icon: const Icon(Icons.clear_rounded, size: 18, color: Colors.white60),
+                                    icon: const Icon(Icons.clear_rounded,
+                                        size: 18, color: Colors.white60),
                                     onPressed: () {
                                       _searchCtrl.clear();
                                       setState(() {
@@ -1237,14 +1356,17 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                                 : null,
                             filled: true,
                             fillColor: Colors.white.withValues(alpha: 0.05),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 12),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
-                              borderSide: const BorderSide(color: Color(0x33FFFFFF)),
+                              borderSide:
+                                  const BorderSide(color: Color(0x33FFFFFF)),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
-                              borderSide: const BorderSide(color: DashboardColors.neonBlue, width: 1.5),
+                              borderSide: const BorderSide(
+                                  color: DashboardColors.neonBlue, width: 1.5),
                             ),
                           ),
                         ),
@@ -1257,7 +1379,9 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                             decoration: BoxDecoration(
                               color: const Color(0xFF141C48),
                               borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.5)),
+                              border: Border.all(
+                                  color: DashboardColors.neonBlue
+                                      .withValues(alpha: 0.5)),
                               boxShadow: [
                                 BoxShadow(
                                   color: Colors.black.withValues(alpha: 0.4),
@@ -1271,9 +1395,11 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 8),
                                   child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(
                                         'Available Spare Parts (${_searchResults.length})',
@@ -1294,19 +1420,23 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                                         borderRadius: BorderRadius.circular(12),
                                         child: const Padding(
                                           padding: EdgeInsets.all(2),
-                                          child: Icon(Icons.close_rounded, size: 16, color: Colors.white60),
+                                          child: Icon(Icons.close_rounded,
+                                              size: 16, color: Colors.white60),
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
-                                const Divider(color: Color(0x1FFFFFFF), height: 1),
+                                const Divider(
+                                    color: Color(0x1FFFFFFF), height: 1),
                                 Flexible(
                                   child: ListView.separated(
                                     shrinkWrap: true,
-                                    padding: const EdgeInsets.symmetric(vertical: 4),
+                                    padding:
+                                        const EdgeInsets.symmetric(vertical: 4),
                                     itemCount: _searchResults.length,
-                                    separatorBuilder: (_, __) => const Divider(color: Color(0x14FFFFFF), height: 1),
+                                    separatorBuilder: (_, __) => const Divider(
+                                        color: Color(0x14FFFFFF), height: 1),
                                     itemBuilder: (ctx, idx) {
                                       final it = _searchResults[idx];
                                       final inStock = it.availableStock > 0;
@@ -1316,12 +1446,18 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                                         leading: CircleAvatar(
                                           radius: 14,
                                           backgroundColor: inStock
-                                              ? DashboardColors.neonGreen.withValues(alpha: 0.15)
-                                              : Colors.red.withValues(alpha: 0.15),
+                                              ? DashboardColors.neonGreen
+                                                  .withValues(alpha: 0.15)
+                                              : Colors.red
+                                                  .withValues(alpha: 0.15),
                                           child: Icon(
-                                            inStock ? Icons.check_circle_rounded : Icons.warning_rounded,
+                                            inStock
+                                                ? Icons.check_circle_rounded
+                                                : Icons.warning_rounded,
                                             size: 16,
-                                            color: inStock ? DashboardColors.neonGreen : Colors.red,
+                                            color: inStock
+                                                ? DashboardColors.neonGreen
+                                                : Colors.red,
                                           ),
                                         ),
                                         title: Text(
@@ -1335,7 +1471,9 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                                         subtitle: Text(
                                           '${it.model.isNotEmpty ? "${it.model} • " : ""}${it.category.isNotEmpty ? "${it.category} • " : ""}Stock: ${it.availableStock}',
                                           style: TextStyle(
-                                            color: inStock ? DashboardColors.neonGreen : Colors.red,
+                                            color: inStock
+                                                ? DashboardColors.neonGreen
+                                                : Colors.red,
                                             fontSize: 11,
                                           ),
                                         ),
@@ -1353,14 +1491,26 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                                             const SizedBox(width: 8),
                                             ElevatedButton(
                                               style: ElevatedButton.styleFrom(
-                                                backgroundColor: inStock ? DashboardColors.neonBlue : Colors.white24,
+                                                backgroundColor: inStock
+                                                    ? DashboardColors.neonBlue
+                                                    : Colors.white24,
                                                 foregroundColor: Colors.black,
-                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 10,
+                                                        vertical: 6),
                                                 minimumSize: Size.zero,
-                                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                                tapTargetSize:
+                                                    MaterialTapTargetSize
+                                                        .shrinkWrap,
                                               ),
-                                              onPressed: () => _addInventoryPart(it),
-                                              child: const Text('Add', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                              onPressed: () =>
+                                                  _addInventoryPart(it),
+                                              child: const Text('Add',
+                                                  style: TextStyle(
+                                                      fontSize: 11,
+                                                      fontWeight:
+                                                          FontWeight.bold)),
                                             ),
                                           ],
                                         ),
@@ -1395,7 +1545,9 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                             children: [
                               Row(
                                 children: [
-                                  const Icon(Icons.build_circle_outlined, size: 18, color: DashboardColors.neonBlue),
+                                  const Icon(Icons.build_circle_outlined,
+                                      size: 18,
+                                      color: DashboardColors.neonBlue),
                                   const SizedBox(width: 8),
                                   Text(
                                     'Selected Spare Parts (${_selectedParts.length})',
@@ -1413,10 +1565,16 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                                 runSpacing: 4,
                                 children: [
                                   if (_inventorySparesTotal > 0)
-                                    _buildBadge('Inventory: ₹${_inventorySparesTotal.toStringAsFixed(0)}', DashboardColors.neonBlue),
+                                    _buildBadge(
+                                        'Inventory: ₹${_inventorySparesTotal.toStringAsFixed(0)}',
+                                        DashboardColors.neonBlue),
                                   if (_externalSparesTotal > 0)
-                                    _buildBadge('External: ₹${_externalSparesTotal.toStringAsFixed(0)}', DashboardColors.neonOrange),
-                                  _buildBadge('Total: ₹${_allSparesTotal.toStringAsFixed(0)}', DashboardColors.neonGreen),
+                                    _buildBadge(
+                                        'External: ₹${_externalSparesTotal.toStringAsFixed(0)}',
+                                        DashboardColors.neonOrange),
+                                  _buildBadge(
+                                      'Total: ₹${_allSparesTotal.toStringAsFixed(0)}',
+                                      DashboardColors.neonGreen),
                                 ],
                               ),
                             ],
@@ -1429,12 +1587,19 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                               child: Center(
                                 child: Column(
                                   children: const [
-                                    Icon(Icons.inventory_2_outlined, size: 32, color: Colors.white24),
+                                    Icon(Icons.inventory_2_outlined,
+                                        size: 32, color: Colors.white24),
                                     SizedBox(height: 8),
-                                    Text('No spare parts attached yet.', style: TextStyle(color: DashboardColors.textMuted, fontSize: 12.5)),
+                                    Text('No spare parts attached yet.',
+                                        style: TextStyle(
+                                            color: DashboardColors.textMuted,
+                                            fontSize: 12.5)),
                                     SizedBox(height: 4),
-                                    Text('Search inventory above to add screens, batteries, or click "+ Add Custom / External Spare"',
-                                        style: TextStyle(color: Colors.white38, fontSize: 11)),
+                                    Text(
+                                        'Search inventory above to add screens, batteries, or click "+ Add Custom / External Spare"',
+                                        style: TextStyle(
+                                            color: Colors.white38,
+                                            fontSize: 11)),
                                   ],
                                 ),
                               ),
@@ -1444,7 +1609,8 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
                               itemCount: _selectedParts.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 10),
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 10),
                               itemBuilder: (ctx, idx) {
                                 final part = _selectedParts[idx];
                                 return Container(
@@ -1453,12 +1619,15 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                                     borderRadius: BorderRadius.circular(10),
                                     border: Border.all(
                                       color: part.isInventory
-                                          ? DashboardColors.neonBlue.withValues(alpha: 0.25)
-                                          : DashboardColors.neonOrange.withValues(alpha: 0.25),
+                                          ? DashboardColors.neonBlue
+                                              .withValues(alpha: 0.25)
+                                          : DashboardColors.neonOrange
+                                              .withValues(alpha: 0.25),
                                     ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.25),
+                                        color: Colors.black
+                                            .withValues(alpha: 0.25),
                                         blurRadius: 4,
                                         offset: const Offset(0, 2),
                                       ),
@@ -1466,30 +1635,40 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                                   ),
                                   padding: const EdgeInsets.all(12),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       // Row 1: Product Name, Badge & Delete Action
                                       Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Container(
                                             padding: const EdgeInsets.all(6),
                                             decoration: BoxDecoration(
                                               color: part.isInventory
-                                                  ? DashboardColors.neonBlue.withValues(alpha: 0.15)
-                                                  : DashboardColors.neonOrange.withValues(alpha: 0.15),
-                                              borderRadius: BorderRadius.circular(8),
+                                                  ? DashboardColors.neonBlue
+                                                      .withValues(alpha: 0.15)
+                                                  : DashboardColors.neonOrange
+                                                      .withValues(alpha: 0.15),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
                                             ),
                                             child: Icon(
-                                              part.isInventory ? Icons.memory_rounded : Icons.handyman_rounded,
+                                              part.isInventory
+                                                  ? Icons.memory_rounded
+                                                  : Icons.handyman_rounded,
                                               size: 18,
-                                              color: part.isInventory ? DashboardColors.neonBlue : DashboardColors.neonOrange,
+                                              color: part.isInventory
+                                                  ? DashboardColors.neonBlue
+                                                  : DashboardColors.neonOrange,
                                             ),
                                           ),
                                           const SizedBox(width: 10),
                                           Expanded(
                                             child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
                                               children: [
                                                 Text(
                                                   part.name,
@@ -1500,22 +1679,44 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                                                     height: 1.25,
                                                   ),
                                                   maxLines: 2,
-                                                  overflow: TextOverflow.ellipsis,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
                                                 ),
                                                 const SizedBox(height: 5),
                                                 Row(
                                                   children: [
                                                     Container(
-                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                      padding: const EdgeInsets
+                                                          .symmetric(
+                                                          horizontal: 6,
+                                                          vertical: 2),
                                                       decoration: BoxDecoration(
                                                         color: part.isInventory
-                                                            ? DashboardColors.neonBlue.withValues(alpha: 0.12)
-                                                            : DashboardColors.neonOrange.withValues(alpha: 0.12),
-                                                        borderRadius: BorderRadius.circular(4),
+                                                            ? DashboardColors
+                                                                .neonBlue
+                                                                .withValues(
+                                                                    alpha: 0.12)
+                                                            : DashboardColors
+                                                                .neonOrange
+                                                                .withValues(
+                                                                    alpha:
+                                                                        0.12),
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(4),
                                                         border: Border.all(
-                                                          color: part.isInventory
-                                                              ? DashboardColors.neonBlue.withValues(alpha: 0.3)
-                                                              : DashboardColors.neonOrange.withValues(alpha: 0.3),
+                                                          color: part
+                                                                  .isInventory
+                                                              ? DashboardColors
+                                                                  .neonBlue
+                                                                  .withValues(
+                                                                      alpha:
+                                                                          0.3)
+                                                              : DashboardColors
+                                                                  .neonOrange
+                                                                  .withValues(
+                                                                      alpha:
+                                                                          0.3),
                                                         ),
                                                       ),
                                                       child: Text(
@@ -1523,20 +1724,32 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                                                             ? 'INVENTORY • Stock: ${part.availableStock}'
                                                             : 'EXTERNAL VENDOR PART',
                                                         style: TextStyle(
-                                                          color: part.isInventory ? DashboardColors.neonBlue : DashboardColors.neonOrange,
+                                                          color: part
+                                                                  .isInventory
+                                                              ? DashboardColors
+                                                                  .neonBlue
+                                                              : DashboardColors
+                                                                  .neonOrange,
                                                           fontSize: 9.5,
-                                                          fontWeight: FontWeight.bold,
+                                                          fontWeight:
+                                                              FontWeight.bold,
                                                         ),
                                                       ),
                                                     ),
-                                                    if (part.model.isNotEmpty) ...[
+                                                    if (part
+                                                        .model.isNotEmpty) ...[
                                                       const SizedBox(width: 8),
                                                       Flexible(
                                                         child: Text(
                                                           part.model,
-                                                          style: const TextStyle(color: DashboardColors.textMuted, fontSize: 11),
+                                                          style: const TextStyle(
+                                                              color:
+                                                                  DashboardColors
+                                                                      .textMuted,
+                                                              fontSize: 11),
                                                           maxLines: 1,
-                                                          overflow: TextOverflow.ellipsis,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
                                                         ),
                                                       ),
                                                     ],
@@ -1546,9 +1759,13 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                                             ),
                                           ),
                                           IconButton(
-                                            icon: const Icon(Icons.delete_outline_rounded, size: 20, color: Colors.redAccent),
+                                            icon: const Icon(
+                                                Icons.delete_outline_rounded,
+                                                size: 20,
+                                                color: Colors.redAccent),
                                             padding: EdgeInsets.zero,
-                                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                            constraints: const BoxConstraints(
+                                                minWidth: 32, minHeight: 32),
                                             tooltip: 'Remove spare part',
                                             onPressed: () => _removePart(idx),
                                           ),
@@ -1556,47 +1773,83 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                                       ),
 
                                       const SizedBox(height: 10),
-                                      const Divider(color: Color(0x14FFFFFF), height: 1),
+                                      const Divider(
+                                          color: Color(0x14FFFFFF), height: 1),
                                       const SizedBox(height: 10),
 
                                       // Row 2: Quantity Controls, Editable Rate, Line Total
                                       Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
                                         children: [
                                           // Quantity Stepper
                                           Row(
                                             children: [
                                               const Text(
                                                 'Qty: ',
-                                                style: TextStyle(color: DashboardColors.textMuted, fontSize: 11.5, fontWeight: FontWeight.w600),
+                                                style: TextStyle(
+                                                    color: DashboardColors
+                                                        .textMuted,
+                                                    fontSize: 11.5,
+                                                    fontWeight:
+                                                        FontWeight.w600),
                                               ),
                                               Container(
                                                 decoration: BoxDecoration(
-                                                  color: Colors.black.withValues(alpha: 0.35),
-                                                  borderRadius: BorderRadius.circular(6),
-                                                  border: Border.all(color: const Color(0x2EFFFFFF)),
+                                                  color: Colors.black
+                                                      .withValues(alpha: 0.35),
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                  border: Border.all(
+                                                      color: const Color(
+                                                          0x2EFFFFFF)),
                                                 ),
                                                 child: Row(
-                                                  mainAxisSize: MainAxisSize.min,
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
                                                   children: [
                                                     IconButton(
                                                       padding: EdgeInsets.zero,
-                                                      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
-                                                      icon: const Icon(Icons.remove_rounded, size: 14, color: Colors.white70),
-                                                      onPressed: () => _updateQuantity(idx, -1),
+                                                      constraints:
+                                                          const BoxConstraints(
+                                                              minWidth: 26,
+                                                              minHeight: 26),
+                                                      icon: const Icon(
+                                                          Icons.remove_rounded,
+                                                          size: 14,
+                                                          color:
+                                                              Colors.white70),
+                                                      onPressed: () =>
+                                                          _updateQuantity(
+                                                              idx, -1),
                                                     ),
                                                     Padding(
-                                                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                                                      padding: const EdgeInsets
+                                                          .symmetric(
+                                                          horizontal: 6),
                                                       child: Text(
                                                         '${part.quantity}',
-                                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                                        style: const TextStyle(
+                                                            color: Colors.white,
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                            fontSize: 12),
                                                       ),
                                                     ),
                                                     IconButton(
                                                       padding: EdgeInsets.zero,
-                                                      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
-                                                      icon: const Icon(Icons.add_rounded, size: 14, color: DashboardColors.neonGreen),
-                                                      onPressed: () => _updateQuantity(idx, 1),
+                                                      constraints:
+                                                          const BoxConstraints(
+                                                              minWidth: 26,
+                                                              minHeight: 26),
+                                                      icon: const Icon(
+                                                          Icons.add_rounded,
+                                                          size: 14,
+                                                          color: DashboardColors
+                                                              .neonGreen),
+                                                      onPressed: () =>
+                                                          _updateQuantity(
+                                                              idx, 1),
                                                     ),
                                                   ],
                                                 ),
@@ -1609,24 +1862,44 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                                             children: [
                                               const Text(
                                                 'Rate: ₹',
-                                                style: TextStyle(color: DashboardColors.textMuted, fontSize: 11.5, fontWeight: FontWeight.w600),
+                                                style: TextStyle(
+                                                    color: DashboardColors
+                                                        .textMuted,
+                                                    fontSize: 11.5,
+                                                    fontWeight:
+                                                        FontWeight.w600),
                                               ),
                                               SizedBox(
                                                 width: 72,
                                                 height: 28,
                                                 child: TextFormField(
-                                                  initialValue: part.unitPrice.toStringAsFixed(0),
-                                                  keyboardType: TextInputType.number,
+                                                  initialValue: part.unitPrice
+                                                      .toStringAsFixed(0),
+                                                  keyboardType:
+                                                      TextInputType.number,
                                                   textAlign: TextAlign.right,
-                                                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                                  style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.bold),
                                                   decoration: InputDecoration(
                                                     isDense: true,
-                                                    contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-                                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                                                    contentPadding:
+                                                        const EdgeInsets
+                                                            .symmetric(
+                                                            horizontal: 6,
+                                                            vertical: 5),
+                                                    border: OutlineInputBorder(
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(6)),
                                                     filled: true,
-                                                    fillColor: Colors.black.withValues(alpha: 0.3),
+                                                    fillColor: Colors.black
+                                                        .withValues(alpha: 0.3),
                                                   ),
-                                                  onChanged: (v) => _updateUnitPrice(idx, v),
+                                                  onChanged: (v) =>
+                                                      _updateUnitPrice(idx, v),
                                                 ),
                                               ),
                                             ],
@@ -1637,12 +1910,18 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                                             children: [
                                               const Text(
                                                 'Total: ',
-                                                style: TextStyle(color: DashboardColors.textMuted, fontSize: 11.5, fontWeight: FontWeight.w600),
+                                                style: TextStyle(
+                                                    color: DashboardColors
+                                                        .textMuted,
+                                                    fontSize: 11.5,
+                                                    fontWeight:
+                                                        FontWeight.w600),
                                               ),
                                               Text(
                                                 '₹${part.lineTotal.toStringAsFixed(0)}',
                                                 style: const TextStyle(
-                                                  color: DashboardColors.neonGreen,
+                                                  color:
+                                                      DashboardColors.neonGreen,
                                                   fontSize: 13.5,
                                                   fontWeight: FontWeight.bold,
                                                 ),
@@ -1668,24 +1947,33 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                       decoration: BoxDecoration(
                         color: const Color(0xFF141C48),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.3)),
+                        border: Border.all(
+                            color: DashboardColors.neonBlue
+                                .withValues(alpha: 0.3)),
                       ),
                       child: Column(
                         children: [
-                          _buildSummaryRow('Inventory Spares Total:', '₹${_inventorySparesTotal.toStringAsFixed(0)}'),
+                          _buildSummaryRow('Inventory Spares Total:',
+                              '₹${_inventorySparesTotal.toStringAsFixed(0)}'),
                           if (_externalSparesTotal > 0) ...[
                             const SizedBox(height: 4),
-                            _buildSummaryRow('External Spares Total:', '₹${_externalSparesTotal.toStringAsFixed(0)}', color: DashboardColors.neonOrange),
+                            _buildSummaryRow('External Spares Total:',
+                                '₹${_externalSparesTotal.toStringAsFixed(0)}',
+                                color: DashboardColors.neonOrange),
                           ],
                           const SizedBox(height: 4),
-                          _buildSummaryRow('Service Charge:', '₹${_serviceCharge.toStringAsFixed(0)}'),
+                          _buildSummaryRow('Service Charge:',
+                              '₹${_serviceCharge.toStringAsFixed(0)}'),
                           if (_labour > 0) ...[
                             const SizedBox(height: 4),
-                            _buildSummaryRow('Labour Charge:', '₹${_labour.toStringAsFixed(0)}'),
+                            _buildSummaryRow('Labour Charge:',
+                                '₹${_labour.toStringAsFixed(0)}'),
                           ],
                           if (_discount > 0) ...[
                             const SizedBox(height: 4),
-                            _buildSummaryRow('Discount:', '-₹${_discount.toStringAsFixed(0)}', color: Colors.orangeAccent),
+                            _buildSummaryRow('Discount:',
+                                '-₹${_discount.toStringAsFixed(0)}',
+                                color: Colors.orangeAccent),
                           ],
                           const Divider(color: Color(0x26FFFFFF), height: 14),
                           _buildSummaryRow(
@@ -1709,7 +1997,10 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                             children: [
                               const Text(
                                 'NET PAYABLE:',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: Colors.white),
                               ),
                               Text(
                                 '₹${_netPayable.toStringAsFixed(0)}',
@@ -1732,7 +2023,10 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                       children: [
                         const Text(
                           'Payment Method: ',
-                          style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
@@ -1748,20 +2042,24 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                     if (_errorMessage != null) ...[
                       const SizedBox(height: 10),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
                           color: Colors.red.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red.withValues(alpha: 0.4)),
+                          border: Border.all(
+                              color: Colors.red.withValues(alpha: 0.4)),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 18),
+                            const Icon(Icons.error_outline_rounded,
+                                color: Colors.redAccent, size: 18),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 _errorMessage!,
-                                style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+                                style: const TextStyle(
+                                    color: Colors.redAccent, fontSize: 12),
                               ),
                             ),
                           ],
@@ -1783,27 +2081,32 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
               children: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel', style: TextStyle(color: DashboardColors.textMuted)),
+                  child: const Text('Cancel',
+                      style: TextStyle(color: DashboardColors.textMuted)),
                 ),
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: DashboardColors.neonGreen,
                     foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
                   ),
                   icon: _isSubmitting
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.black),
                         )
                       : const Icon(Icons.check_circle_rounded, size: 18),
                   label: Text(
                     _isSubmitting
                         ? 'Creating Bill...'
                         : 'Confirm & Create Bill (₹${_netPayable.toStringAsFixed(0)})',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                   onPressed: _isSubmitting ? null : _handleConfirmBill,
                 ),
@@ -1825,7 +2128,8 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
       ),
       child: Text(
         text,
-        style: TextStyle(color: color, fontSize: 10.5, fontWeight: FontWeight.bold),
+        style: TextStyle(
+            color: color, fontSize: 10.5, fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -1841,23 +2145,29 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
       children: [
         Text(
           label,
-          style: const TextStyle(color: DashboardColors.textMuted, fontSize: 11.5, fontWeight: FontWeight.w600),
+          style: const TextStyle(
+              color: DashboardColors.textMuted,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 4),
         TextField(
           controller: controller,
           keyboardType: TextInputType.number,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+          style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
           decoration: InputDecoration(
             isDense: true,
             prefixIcon: Icon(icon, size: 18, color: DashboardColors.neonBlue),
             filled: true,
             fillColor: Colors.white.withValues(alpha: 0.05),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: DashboardColors.neonBlue, width: 1.5),
+              borderSide:
+                  const BorderSide(color: DashboardColors.neonBlue, width: 1.5),
             ),
           ),
           onChanged: onChanged,
@@ -1907,7 +2217,8 @@ class ServiceInvoiceReceiptDialog extends StatelessWidget {
 
   const ServiceInvoiceReceiptDialog({super.key, required this.invoice});
 
-  static Future<void> show(BuildContext context, Map<String, dynamic> invoice) async {
+  static Future<void> show(
+      BuildContext context, Map<String, dynamic> invoice) async {
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -1945,7 +2256,8 @@ class ServiceInvoiceReceiptDialog extends StatelessWidget {
                   color: DashboardColors.neonGreen.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.check_circle_rounded, color: DashboardColors.neonGreen, size: 48),
+                child: const Icon(Icons.check_circle_rounded,
+                    color: DashboardColors.neonGreen, size: 48),
               ),
             ),
             const SizedBox(height: 14),
@@ -1979,7 +2291,8 @@ class ServiceInvoiceReceiptDialog extends StatelessWidget {
               decoration: BoxDecoration(
                 color: const Color(0xFF141C48),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.3)),
+                border: Border.all(
+                    color: DashboardColors.neonBlue.withValues(alpha: 0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1987,8 +2300,14 @@ class ServiceInvoiceReceiptDialog extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Customer:', style: TextStyle(color: DashboardColors.textMuted, fontSize: 13)),
-                      Text(customerName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                      const Text('Customer:',
+                          style: TextStyle(
+                              color: DashboardColors.textMuted, fontSize: 13)),
+                      Text(customerName,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13)),
                     ],
                   ),
                   if (customerPhone.isNotEmpty) ...[
@@ -1996,8 +2315,13 @@ class ServiceInvoiceReceiptDialog extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Phone:', style: TextStyle(color: DashboardColors.textMuted, fontSize: 13)),
-                        Text(customerPhone, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                        const Text('Phone:',
+                            style: TextStyle(
+                                color: DashboardColors.textMuted,
+                                fontSize: 13)),
+                        Text(customerPhone,
+                            style: const TextStyle(
+                                color: Colors.white70, fontSize: 13)),
                       ],
                     ),
                   ],
@@ -2005,18 +2329,29 @@ class ServiceInvoiceReceiptDialog extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Items Billed:', style: TextStyle(color: DashboardColors.textMuted, fontSize: 13)),
-                      Text('${items.length} item(s)', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                      const Text('Items Billed:',
+                          style: TextStyle(
+                              color: DashboardColors.textMuted, fontSize: 13)),
+                      Text('${items.length} item(s)',
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 13)),
                     ],
                   ),
                   const Divider(color: Color(0x26FFFFFF), height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Total Amount:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                      const Text('Total Amount:',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14)),
                       Text(
                         '₹${total.toStringAsFixed(0)}',
-                        style: const TextStyle(color: DashboardColors.neonGreen, fontWeight: FontWeight.w900, fontSize: 17),
+                        style: const TextStyle(
+                            color: DashboardColors.neonGreen,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 17),
                       ),
                     ],
                   ),
@@ -2025,8 +2360,14 @@ class ServiceInvoiceReceiptDialog extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Balance Due:', style: TextStyle(color: Colors.orangeAccent, fontSize: 13)),
-                        Text('₹${due.toStringAsFixed(0)}', style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold, fontSize: 13)),
+                        const Text('Balance Due:',
+                            style: TextStyle(
+                                color: Colors.orangeAccent, fontSize: 13)),
+                        Text('₹${due.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                                color: Colors.orangeAccent,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13)),
                       ],
                     ),
                   ],
@@ -2046,10 +2387,14 @@ class ServiceInvoiceReceiptDialog extends StatelessWidget {
                       foregroundColor: Colors.white,
                       side: const BorderSide(color: DashboardColors.neonBlue),
                       padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
-                    icon: const Icon(Icons.receipt_long_rounded, color: DashboardColors.neonBlue, size: 18),
-                    label: const Text('Thermal Bill (80mm)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    icon: const Icon(Icons.receipt_long_rounded,
+                        color: DashboardColors.neonBlue, size: 18),
+                    label: const Text('Thermal Bill (80mm)',
+                        style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.bold)),
                     onPressed: () => printInvoice(context, invoice, a4: false),
                   ),
                 ),
@@ -2061,10 +2406,14 @@ class ServiceInvoiceReceiptDialog extends StatelessWidget {
                       foregroundColor: Colors.white,
                       side: const BorderSide(color: DashboardColors.neonBlue),
                       padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
-                    icon: const Icon(Icons.print_rounded, color: DashboardColors.neonBlue, size: 18),
-                    label: const Text('Print A4 Bill', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    icon: const Icon(Icons.print_rounded,
+                        color: DashboardColors.neonBlue, size: 18),
+                    label: const Text('Print A4 Bill',
+                        style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.bold)),
                     onPressed: () => printInvoice(context, invoice, a4: true),
                   ),
                 ),
@@ -2082,10 +2431,13 @@ class ServiceInvoiceReceiptDialog extends StatelessWidget {
                         backgroundColor: const Color(0xFF128C7E),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
                       ),
                       icon: const Icon(Icons.chat_bubble_rounded, size: 18),
-                      label: const Text('Share via WhatsApp', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      label: const Text('Share via WhatsApp',
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.bold)),
                       onPressed: () => sendInvoiceWhatsApp(context, invoice),
                     ),
                   ),
@@ -2097,10 +2449,13 @@ class ServiceInvoiceReceiptDialog extends StatelessWidget {
                       foregroundColor: Colors.white70,
                       side: const BorderSide(color: Color(0x33FFFFFF)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('Done / Close', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    child: const Text('Done / Close',
+                        style: TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600)),
                   ),
                 ),
               ],

@@ -86,7 +86,8 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
         'TEKFIX-ൽ നൽകിയ നിങ്ങളുടെ ${job.brandModel} (Job ID: ${job.id}) സർവീസ് സ്റ്റാറ്റസ്: *${job.status}*.\n'
         'ബാക്കി തുക: ₹${job.balance.toStringAsFixed(0)}.\n'
         'കൂടുതൽ വിവരങ്ങൾക്ക് വിളിക്കുക.';
-    final uri = Uri.parse('https://wa.me/$phone?text=${Uri.encodeComponent(text)}');
+    final uri =
+        Uri.parse('https://wa.me/$phone?text=${Uri.encodeComponent(text)}');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
@@ -184,7 +185,9 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
           final filteredJobs = allJobs.where((j) {
             // Tab filter
             if (_selectedFilter == 'Active' && !j.isActive) return false;
-            if (_selectedFilter != 'Active' && _selectedFilter != 'All' && j.status != _selectedFilter) {
+            if (_selectedFilter != 'Active' &&
+                _selectedFilter != 'All' &&
+                j.status != _selectedFilter) {
               return false;
             }
 
@@ -197,16 +200,23 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
               final matchModel = j.brandModel.toLowerCase().contains(q);
               final matchSerial = j.serial.toLowerCase().contains(q);
               final matchComplaint = j.complaint.toLowerCase().contains(q);
-              return matchId || matchName || matchPhone || matchModel || matchSerial || matchComplaint;
+              return matchId ||
+                  matchName ||
+                  matchPhone ||
+                  matchModel ||
+                  matchSerial ||
+                  matchComplaint;
             }
             return true;
           }).toList();
 
           // Sort Jobs
           if (_sortBy == 'newest') {
-            filteredJobs.sort((a, b) => (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
+            filteredJobs.sort((a, b) => (b.createdAt ?? DateTime(0))
+                .compareTo(a.createdAt ?? DateTime(0)));
           } else if (_sortBy == 'delivery') {
-            filteredJobs.sort((a, b) => a.expectedDelivery.compareTo(b.expectedDelivery));
+            filteredJobs.sort(
+                (a, b) => a.expectedDelivery.compareTo(b.expectedDelivery));
           } else if (_sortBy == 'balance') {
             filteredJobs.sort((a, b) => b.balance.compareTo(a.balance));
           }
@@ -226,15 +236,19 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: TextField(
                   controller: _searchController,
-                  style: const TextStyle(color: TekColors.textPrimary, fontSize: 14),
+                  style: const TextStyle(
+                      color: TekColors.textPrimary, fontSize: 14),
                   onChanged: (val) => setState(() => _searchQuery = val.trim()),
                   decoration: InputDecoration(
                     hintText: 'Search Job ID, Customer, Phone, Model, IMEI...',
-                    hintStyle: const TextStyle(color: TekColors.textMuted, fontSize: 13),
-                    prefixIcon: const Icon(Icons.search_rounded, color: TekColors.secondary, size: 20),
+                    hintStyle: const TextStyle(
+                        color: TekColors.textMuted, fontSize: 13),
+                    prefixIcon: const Icon(Icons.search_rounded,
+                        color: TekColors.secondary, size: 20),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
-                            icon: const Icon(Icons.clear_rounded, size: 18, color: TekColors.textSecondary),
+                            icon: const Icon(Icons.clear_rounded,
+                                size: 18, color: TekColors.textSecondary),
                             onPressed: () {
                               _searchController.clear();
                               setState(() => _searchQuery = '');
@@ -243,7 +257,8 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                         : null,
                     filled: true,
                     fillColor: TekColors.bgSecondary,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide: const BorderSide(color: TekColors.border),
@@ -254,7 +269,8 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
-                      borderSide: const BorderSide(color: TekColors.primary, width: 1.5),
+                      borderSide: const BorderSide(
+                          color: TekColors.primary, width: 1.5),
                     ),
                   ),
                 ),
@@ -276,8 +292,11 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                         f,
                         style: TextStyle(
                           fontSize: 12,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                          color: isSelected ? Colors.white : TekColors.textSecondary,
+                          fontWeight:
+                              isSelected ? FontWeight.bold : FontWeight.w500,
+                          color: isSelected
+                              ? Colors.white
+                              : TekColors.textSecondary,
                         ),
                       ),
                       selected: isSelected,
@@ -286,7 +305,8 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                         side: BorderSide(
-                          color: isSelected ? TekColors.primary : TekColors.border,
+                          color:
+                              isSelected ? TekColors.primary : TekColors.border,
                         ),
                       ),
                       onSelected: (val) {
@@ -304,9 +324,11 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
 
               // Repair Job List
               Expanded(
-                child: snapshot.connectionState == ConnectionState.waiting && allJobs.isEmpty
+                child: snapshot.connectionState == ConnectionState.waiting &&
+                        allJobs.isEmpty
                     ? const Center(
-                        child: CircularProgressIndicator(color: TekColors.primary),
+                        child:
+                            CircularProgressIndicator(color: TekColors.primary),
                       )
                     : filteredJobs.isEmpty
                         ? _buildEmptyState()
@@ -315,7 +337,8 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                             padding: const EdgeInsets.fromLTRB(16, 6, 16, 85),
                             physics: const BouncingScrollPhysics(),
                             itemCount: filteredJobs.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 12),
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 12),
                             itemBuilder: (context, index) {
                               final job = filteredJobs[index];
                               return _buildRepairCard(job);
@@ -336,7 +359,9 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
       child: Row(
         children: [
           Icon(
-            isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+            isSelected
+                ? Icons.check_circle_rounded
+                : Icons.radio_button_unchecked_rounded,
             size: 16,
             color: isSelected ? TekColors.secondary : TekColors.textMuted,
           ),
@@ -346,7 +371,8 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
             style: TextStyle(
               fontSize: 12.5,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              color: isSelected ? TekColors.textPrimary : TekColors.textSecondary,
+              color:
+                  isSelected ? TekColors.textPrimary : TekColors.textSecondary,
               fontFamilyFallback: TekTypography.malayalamFallback,
             ),
           ),
@@ -441,7 +467,8 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(fontSize: 10, color: TekColors.textSecondary),
+            style:
+                const TextStyle(fontSize: 10, color: TekColors.textSecondary),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -463,7 +490,9 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
         border: Border.all(
           color: job.isReady
               ? TekColors.success.withValues(alpha: 0.6)
-              : (job.isOverdue ? TekColors.error.withValues(alpha: 0.5) : TekColors.border),
+              : (job.isOverdue
+                  ? TekColors.error.withValues(alpha: 0.5)
+                  : TekColors.border),
           width: job.isReady || job.isOverdue ? 1.5 : 1.1,
         ),
         boxShadow: TekColors.cardShadow,
@@ -513,13 +542,15 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                                 ),
                               );
                             },
-                            child: const Icon(Icons.copy_rounded, size: 14, color: TekColors.textMuted),
+                            child: const Icon(Icons.copy_rounded,
+                                size: 14, color: TekColors.textMuted),
                           ),
                         ],
                       ),
                       Text(
                         '${job.productType}${job.formattedCreatedAt.isNotEmpty ? ' • ${job.formattedCreatedAt}' : ''}',
-                        style: const TextStyle(fontSize: 10.5, color: TekColors.textSecondary),
+                        style: const TextStyle(
+                            fontSize: 10.5, color: TekColors.textSecondary),
                       ),
                     ],
                   ),
@@ -528,7 +559,8 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
 
               // Status Pill with Glowing Dot
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
@@ -601,7 +633,8 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                       const SizedBox(height: 2),
                       Text(
                         'IMEI / Serial: ${job.serial}',
-                        style: const TextStyle(fontSize: 10.5, color: TekColors.textMuted),
+                        style: const TextStyle(
+                            fontSize: 10.5, color: TekColors.textMuted),
                       ),
                     ],
                   ],
@@ -613,7 +646,8 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                 children: [
                   IconButton(
                     tooltip: 'Call Customer',
-                    icon: const Icon(Icons.phone_rounded, color: TekColors.info, size: 20),
+                    icon: const Icon(Icons.phone_rounded,
+                        color: TekColors.info, size: 20),
                     style: IconButton.styleFrom(
                       backgroundColor: TekColors.info.withValues(alpha: 0.12),
                       shape: const CircleBorder(),
@@ -623,9 +657,11 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                   const SizedBox(width: 4),
                   IconButton(
                     tooltip: 'WhatsApp Update',
-                    icon: const Icon(Icons.chat_bubble_rounded, color: Color(0xFF22C55E), size: 19),
+                    icon: const Icon(Icons.chat_bubble_rounded,
+                        color: Color(0xFF22C55E), size: 19),
                     style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xFF22C55E).withValues(alpha: 0.12),
+                      backgroundColor:
+                          const Color(0xFF22C55E).withValues(alpha: 0.12),
                       shape: const CircleBorder(),
                     ),
                     onPressed: () => _sendWhatsAppMessage(job),
@@ -648,7 +684,8 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.report_problem_rounded, size: 16, color: TekColors.warning),
+                const Icon(Icons.report_problem_rounded,
+                    size: 16, color: TekColors.warning),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Column(
@@ -665,7 +702,9 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        job.complaint.isNotEmpty ? job.complaint : 'No specific problem reported',
+                        job.complaint.isNotEmpty
+                            ? job.complaint
+                            : 'No specific problem reported',
                         style: const TextStyle(
                           fontSize: 12,
                           color: TekColors.textPrimary,
@@ -692,9 +731,13 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildAmountColumn('Estimated Cost', '₹${job.estimatedCost.toStringAsFixed(0)}', TekColors.textPrimary),
+                _buildAmountColumn(
+                    'Estimated Cost',
+                    '₹${job.estimatedCost.toStringAsFixed(0)}',
+                    TekColors.textPrimary),
                 Container(width: 1, height: 26, color: TekColors.border),
-                _buildAmountColumn('Advance Paid', '₹${job.advance.toStringAsFixed(0)}', TekColors.info),
+                _buildAmountColumn('Advance Paid',
+                    '₹${job.advance.toStringAsFixed(0)}', TekColors.info),
                 Container(width: 1, height: 26, color: TekColors.border),
                 _buildAmountColumn(
                   'Balance Due',
@@ -716,9 +759,13 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
               Row(
                 children: [
                   Icon(
-                    job.isOverdue ? Icons.error_outline_rounded : Icons.event_available_rounded,
+                    job.isOverdue
+                        ? Icons.error_outline_rounded
+                        : Icons.event_available_rounded,
                     size: 14,
-                    color: job.isOverdue ? TekColors.error : TekColors.textSecondary,
+                    color: job.isOverdue
+                        ? TekColors.error
+                        : TekColors.textSecondary,
                   ),
                   const SizedBox(width: 6),
                   Text(
@@ -727,21 +774,28 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                         : 'No delivery date set',
                     style: TextStyle(
                       fontSize: 11.5,
-                      fontWeight: job.isOverdue ? FontWeight.bold : FontWeight.normal,
-                      color: job.isOverdue ? TekColors.error : TekColors.textSecondary,
+                      fontWeight:
+                          job.isOverdue ? FontWeight.bold : FontWeight.normal,
+                      color: job.isOverdue
+                          ? TekColors.error
+                          : TekColors.textSecondary,
                     ),
                   ),
                   if (job.isOverdue) ...[
                     const SizedBox(width: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 5, vertical: 1.5),
                       decoration: BoxDecoration(
                         color: TekColors.error.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: const Text(
                         'OVERDUE',
-                        style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: TekColors.error),
+                        style: TextStyle(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.bold,
+                            color: TekColors.error),
                       ),
                     ),
                   ],
@@ -752,7 +806,8 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
               if (job.technician.isNotEmpty)
                 Text(
                   'Tech: ${job.technician}',
-                  style: const TextStyle(fontSize: 11, color: TekColors.textMuted),
+                  style:
+                      const TextStyle(fontSize: 11, color: TekColors.textMuted),
                 ),
             ],
           ),
@@ -763,14 +818,18 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.sticky_note_2_rounded, size: 14, color: TekColors.secondary),
+                const Icon(Icons.sticky_note_2_rounded,
+                    size: 14, color: TekColors.secondary),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     'Notes: ${job.notes}',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11, color: TekColors.textSecondary, fontStyle: FontStyle.italic),
+                    style: const TextStyle(
+                        fontSize: 11,
+                        color: TekColors.textSecondary,
+                        fontStyle: FontStyle.italic),
                   ),
                 ),
               ],
@@ -788,18 +847,23 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
               final saleOrInvoiceBtn = isBilled
                   ? OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFF0D9488), width: 1.5),
-                        backgroundColor: const Color(0xFF0D9488).withValues(alpha: 0.1),
+                        side: const BorderSide(
+                            color: Color(0xFF0D9488), width: 1.5),
+                        backgroundColor:
+                            const Color(0xFF0D9488).withValues(alpha: 0.1),
                         foregroundColor: const Color(0xFF0D9488),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 12),
                         minimumSize: const Size(0, 44),
                       ),
                       onPressed: () => _showInvoiceDetails(job),
                       icon: const Icon(Icons.receipt_rounded, size: 18),
                       label: Text(
                         'View Invoice${job.invoice != null ? " (#${job.invoice})" : ""}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 13),
                         overflow: TextOverflow.ellipsis,
                       ),
                     )
@@ -808,26 +872,35 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                         backgroundColor: TekColors.primary,
                         foregroundColor: Colors.white,
                         elevation: 2,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 12),
                         minimumSize: const Size(0, 44),
                       ),
                       onPressed: () => _openServiceCheckout(job),
-                      icon: const Icon(Icons.shopping_cart_rounded, size: 18, color: Colors.white),
+                      icon: const Icon(Icons.shopping_cart_rounded,
+                          size: 18, color: Colors.white),
                       label: const Text(
                         'Sale to Customer',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: Colors.white),
                         overflow: TextOverflow.ellipsis,
                       ),
                     );
 
               final statusBtn = OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: TekColors.secondary, width: 1.3),
+                  side:
+                      const BorderSide(color: TekColors.secondary, width: 1.3),
                   foregroundColor: TekColors.secondary,
                   backgroundColor: TekColors.secondary.withValues(alpha: 0.08),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   minimumSize: const Size(0, 44),
                 ),
                 onPressed: () => _showCompactStatusUpdateSheet(job),
@@ -889,24 +962,37 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
       context: context,
       builder: (dCtx) => AlertDialog(
         backgroundColor: TekColors.bgCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: TekColors.border)),
-        icon: const Icon(Icons.check_circle_rounded, color: TekColors.success, size: 48),
-        title: const Text('Invoice Generated Successfully', style: TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.bold)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: TekColors.border)),
+        icon: const Icon(Icons.check_circle_rounded,
+            color: TekColors.success, size: 48),
+        title: const Text('Invoice Generated Successfully',
+            style: TextStyle(
+                color: TekColors.textPrimary, fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Invoice: #${invoice.invoiceId}', style: const TextStyle(fontWeight: FontWeight.bold, color: TekColors.secondary)),
+            Text('Invoice: #${invoice.invoiceId}',
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, color: TekColors.secondary)),
             const SizedBox(height: 4),
-            Text('Customer: ${job.customerName}', style: const TextStyle(color: TekColors.textPrimary)),
-            Text('Device: ${job.brandModel}', style: const TextStyle(color: TekColors.textSecondary, fontSize: 13)),
+            Text('Customer: ${job.customerName}',
+                style: const TextStyle(color: TekColors.textPrimary)),
+            Text('Device: ${job.brandModel}',
+                style: const TextStyle(
+                    color: TekColors.textSecondary, fontSize: 13)),
             const SizedBox(height: 6),
-            Text('Total Billed: ₹${invoice.total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: TekColors.success)),
+            Text('Total Billed: ₹${invoice.total.toStringAsFixed(2)}',
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, color: TekColors.success)),
           ],
         ),
         actions: [
           OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(side: const BorderSide(color: Color(0xFF22C55E))),
+            style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFF22C55E))),
             onPressed: () {
               final text = 'നമസ്കാരം ${job.customerName},\n'
                   'TEKFIX സർവീസ് ഇൻവോയ്സ് (#${invoice.invoiceId}):\n'
@@ -915,16 +1001,22 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                   'നന്ദി!';
               final clean = job.phone.replaceAll(RegExp(r'[^0-9]'), '');
               final phone = clean.startsWith('91') ? clean : '91$clean';
-              launchUrl(Uri.parse('https://wa.me/$phone?text=${Uri.encodeComponent(text)}'), mode: LaunchMode.externalApplication);
+              launchUrl(
+                  Uri.parse(
+                      'https://wa.me/$phone?text=${Uri.encodeComponent(text)}'),
+                  mode: LaunchMode.externalApplication);
             },
-            icon: const Icon(Icons.chat_bubble_rounded, size: 16, color: Color(0xFF22C55E)),
-            label: const Text('WhatsApp Receipt', style: TextStyle(color: Color(0xFF22C55E))),
+            icon: const Icon(Icons.chat_bubble_rounded,
+                size: 16, color: Color(0xFF22C55E)),
+            label: const Text('WhatsApp Receipt',
+                style: TextStyle(color: Color(0xFF22C55E))),
           ),
           FilledButton.icon(
             style: FilledButton.styleFrom(backgroundColor: TekColors.primary),
             onPressed: () async {
               Navigator.pop(dCtx);
-              final sale = PosService.instance.getLinkedSale(invoice.invoiceId, job.id);
+              final sale =
+                  PosService.instance.getLinkedSale(invoice.invoiceId, job.id);
               if (sale != null) {
                 await printInvoice(context, sale, a4: true);
               }
@@ -941,12 +1033,16 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
     final sale = PosService.instance.getLinkedSale(job.invoice, job.id);
     final invId = job.invoice ?? sale?['invoice'] ?? 'N/A';
     final items = (sale?['items'] as List?) ?? [];
-    final totalVal = sale != null ? (sale['total'] ?? job.finalAmount) : (job.finalAmount > 0 ? job.finalAmount : job.estimatedCost);
+    final totalVal = sale != null
+        ? (sale['total'] ?? job.finalAmount)
+        : (job.finalAmount > 0 ? job.finalAmount : job.estimatedCost);
     final double total = (totalVal is num) ? totalVal.toDouble() : 0.0;
     final cash = sale != null ? (sale['cash'] ?? 0.0) : 0.0;
     final upi = sale != null ? (sale['upi'] ?? 0.0) : 0.0;
     final card = sale != null ? (sale['card'] ?? 0.0) : 0.0;
-    final pMode = (cash as num) > 0 ? 'Cash' : ((upi as num) > 0 ? 'UPI' : ((card as num) > 0 ? 'Card' : 'Paid'));
+    final pMode = (cash as num) > 0
+        ? 'Cash'
+        : ((upi as num) > 0 ? 'UPI' : ((card as num) > 0 ? 'Card' : 'Paid'));
 
     await showModalBottomSheet(
       context: context,
@@ -968,7 +1064,9 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                 child: Container(
                   width: 44,
                   height: 4,
-                  decoration: BoxDecoration(color: TekColors.border, borderRadius: BorderRadius.circular(2)),
+                  decoration: BoxDecoration(
+                      color: TekColors.border,
+                      borderRadius: BorderRadius.circular(2)),
                 ),
               ),
               const SizedBox(height: 16),
@@ -983,20 +1081,29 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                           color: TekColors.success.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.check_circle_rounded, color: TekColors.success, size: 22),
+                        child: const Icon(Icons.check_circle_rounded,
+                            color: TekColors.success, size: 22),
                       ),
                       const SizedBox(width: 10),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Invoice #$invId', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: TekColors.textPrimary)),
-                          Text('Linked to Job #${job.id}', style: const TextStyle(fontSize: 12, color: TekColors.textSecondary)),
+                          Text('Invoice #$invId',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 17,
+                                  color: TekColors.textPrimary)),
+                          Text('Linked to Job #${job.id}',
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  color: TekColors.textSecondary)),
                         ],
                       ),
                     ],
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, color: TekColors.textSecondary),
+                    icon: const Icon(Icons.close_rounded,
+                        color: TekColors.textSecondary),
                     onPressed: () => Navigator.pop(ctx),
                   ),
                 ],
@@ -1014,45 +1121,78 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Customer:', style: TextStyle(color: TekColors.textSecondary, fontSize: 12.5)),
-                        Text('${job.customerName} (${job.phone})', style: const TextStyle(fontWeight: FontWeight.bold, color: TekColors.textPrimary)),
+                        const Text('Customer:',
+                            style: TextStyle(
+                                color: TekColors.textSecondary,
+                                fontSize: 12.5)),
+                        Text('${job.customerName} (${job.phone})',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: TekColors.textPrimary)),
                       ],
                     ),
                     const SizedBox(height: 6),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Device Model:', style: TextStyle(color: TekColors.textSecondary, fontSize: 12.5)),
-                        Text(job.brandModel, style: const TextStyle(fontWeight: FontWeight.w600, color: TekColors.secondary)),
+                        const Text('Device Model:',
+                            style: TextStyle(
+                                color: TekColors.textSecondary,
+                                fontSize: 12.5)),
+                        Text(job.brandModel,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: TekColors.secondary)),
                       ],
                     ),
                     const SizedBox(height: 6),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Payment Mode:', style: TextStyle(color: TekColors.textSecondary, fontSize: 12.5)),
-                        Text(pMode, style: const TextStyle(fontWeight: FontWeight.bold, color: TekColors.success)),
+                        const Text('Payment Mode:',
+                            style: TextStyle(
+                                color: TekColors.textSecondary,
+                                fontSize: 12.5)),
+                        Text(pMode,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: TekColors.success)),
                       ],
                     ),
                     const Divider(height: 16, color: TekColors.border),
                     if (items.isNotEmpty) ...[
                       ...items.map((it) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 2),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('${it['name']} (x${it['qty'] ?? 1})', style: const TextStyle(fontSize: 12, color: TekColors.textPrimary)),
-                            Text('₹${it['price'] ?? it['lineTotal'] ?? 0}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: TekColors.textPrimary)),
-                          ],
-                        ),
-                      )),
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('${it['name']} (x${it['qty'] ?? 1})',
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        color: TekColors.textPrimary)),
+                                Text('₹${it['price'] ?? it['lineTotal'] ?? 0}',
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: TekColors.textPrimary)),
+                              ],
+                            ),
+                          )),
                       const Divider(height: 16, color: TekColors.border),
                     ],
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Total Paid:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: TekColors.textPrimary)),
-                        Text('₹${total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: TekColors.success)),
+                        const Text('Total Paid:',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: TekColors.textPrimary)),
+                        Text('₹${total.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: TekColors.success)),
                       ],
                     ),
                   ],
@@ -1065,7 +1205,8 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                     child: OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: Color(0xFF22C55E)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       onPressed: () {
@@ -1074,12 +1215,20 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                             'ഡിവൈസ്: ${job.brandModel}\n'
                             'ആകെ തുക: ₹${total.toStringAsFixed(2)} (PAID)\n'
                             'നന്ദി!';
-                        final clean = job.phone.replaceAll(RegExp(r'[^0-9]'), '');
-                        final phone = clean.startsWith('91') ? clean : '91$clean';
-                        launchUrl(Uri.parse('https://wa.me/$phone?text=${Uri.encodeComponent(text)}'), mode: LaunchMode.externalApplication);
+                        final clean =
+                            job.phone.replaceAll(RegExp(r'[^0-9]'), '');
+                        final phone =
+                            clean.startsWith('91') ? clean : '91$clean';
+                        launchUrl(
+                            Uri.parse(
+                                'https://wa.me/$phone?text=${Uri.encodeComponent(text)}'),
+                            mode: LaunchMode.externalApplication);
                       },
-                      icon: const Icon(Icons.chat_bubble_rounded, size: 16, color: Color(0xFF22C55E)),
-                      label: const Text('WhatsApp Receipt', style: TextStyle(color: Color(0xFF22C55E), fontSize: 12.5)),
+                      icon: const Icon(Icons.chat_bubble_rounded,
+                          size: 16, color: Color(0xFF22C55E)),
+                      label: const Text('WhatsApp Receipt',
+                          style: TextStyle(
+                              color: Color(0xFF22C55E), fontSize: 12.5)),
                     ),
                   ),
                   if (sale != null) ...[
@@ -1088,14 +1237,16 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                       child: FilledButton.icon(
                         style: FilledButton.styleFrom(
                           backgroundColor: TekColors.primary,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
                         onPressed: () async {
                           await printInvoice(context, sale, a4: true);
                         },
                         icon: const Icon(Icons.print_rounded, size: 16),
-                        label: const Text('Print Invoice', style: TextStyle(fontSize: 12.5)),
+                        label: const Text('Print Invoice',
+                            style: TextStyle(fontSize: 12.5)),
                       ),
                     ),
                   ],
@@ -1141,7 +1292,8 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
               decoration: const BoxDecoration(
                 color: TekColors.bgCard,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-                border: Border(top: BorderSide(color: TekColors.border, width: 1.5)),
+                border: Border(
+                    top: BorderSide(color: TekColors.border, width: 1.5)),
               ),
               child: SingleChildScrollView(
                 child: Column(
@@ -1152,7 +1304,9 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                       child: Container(
                         width: 44,
                         height: 4,
-                        decoration: BoxDecoration(color: TekColors.border, borderRadius: BorderRadius.circular(2)),
+                        decoration: BoxDecoration(
+                            color: TekColors.border,
+                            borderRadius: BorderRadius.circular(2)),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -1163,14 +1317,20 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Update Job Status • #${job.id}', style: TekTypography.titleMedium.copyWith(fontSize: 18)),
+                              Text('Update Job Status • #${job.id}',
+                                  style: TekTypography.titleMedium
+                                      .copyWith(fontSize: 18)),
                               const SizedBox(height: 2),
-                              Text('${job.customerName} • ${job.brandModel}', style: const TextStyle(color: TekColors.textSecondary, fontSize: 13)),
+                              Text('${job.customerName} • ${job.brandModel}',
+                                  style: const TextStyle(
+                                      color: TekColors.textSecondary,
+                                      fontSize: 13)),
                             ],
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close_rounded, color: TekColors.textSecondary),
+                          icon: const Icon(Icons.close_rounded,
+                              color: TekColors.textSecondary),
                           onPressed: () => Navigator.pop(ctx),
                         ),
                       ],
@@ -1180,17 +1340,27 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                     // Current status indicator
                     Row(
                       children: [
-                        const Text('Current Status: ', style: TextStyle(color: TekColors.textSecondary, fontSize: 12.5)),
+                        const Text('Current Status: ',
+                            style: TextStyle(
+                                color: TekColors.textSecondary,
+                                fontSize: 12.5)),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: _getStatusColor(job.status).withValues(alpha: 0.15),
+                            color: _getStatusColor(job.status)
+                                .withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: _getStatusColor(job.status).withValues(alpha: 0.4)),
+                            border: Border.all(
+                                color: _getStatusColor(job.status)
+                                    .withValues(alpha: 0.4)),
                           ),
                           child: Text(
                             job.status,
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: _getStatusColor(job.status)),
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                color: _getStatusColor(job.status)),
                           ),
                         ),
                       ],
@@ -1209,8 +1379,10 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                             st,
                             style: TextStyle(
                               fontSize: 12,
-                              fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
-                              color: isSel ? Colors.white : TekColors.textPrimary,
+                              fontWeight:
+                                  isSel ? FontWeight.bold : FontWeight.w500,
+                              color:
+                                  isSel ? Colors.white : TekColors.textPrimary,
                             ),
                           ),
                           selected: isSel,
@@ -1218,7 +1390,8 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                           backgroundColor: TekColors.bgSecondary,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
-                            side: BorderSide(color: isSel ? col : TekColors.border),
+                            side: BorderSide(
+                                color: isSel ? col : TekColors.border),
                           ),
                           onSelected: (val) {
                             if (val) {
@@ -1232,24 +1405,36 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                     const SizedBox(height: 16),
 
                     // Technician Notes
-                    const Text('Technician Notes (ഓപ്ഷണൽ കുറിപ്പുകൾ):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: TekColors.textPrimary)),
+                    const Text('Technician Notes (ഓപ്ഷണൽ കുറിപ്പുകൾ):',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12.5,
+                            color: TekColors.textPrimary)),
                     const SizedBox(height: 6),
                     TextField(
                       controller: notesController,
                       maxLines: 2,
-                      style: const TextStyle(color: TekColors.textPrimary, fontSize: 13.5),
+                      style: const TextStyle(
+                          color: TekColors.textPrimary, fontSize: 13.5),
                       decoration: InputDecoration(
-                        hintText: 'ഉദാ: സ്ക്രീൻ മാറ്റി, ടെസ്റ്റിംഗ് പൂർത്തിയായി...',
-                        hintStyle: const TextStyle(color: TekColors.textMuted, fontSize: 12.5),
+                        hintText:
+                            'ഉദാ: സ്ക്രീൻ മാറ്റി, ടെസ്റ്റിംഗ് പൂർത്തിയായി...',
+                        hintStyle: const TextStyle(
+                            color: TekColors.textMuted, fontSize: 12.5),
                         filled: true,
                         fillColor: TekColors.bgSecondary,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TekColors.border)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: TekColors.border)),
                       ),
                     ),
                     const SizedBox(height: 14),
 
                     if (localError != null) ...[
-                      Text(localError!, style: const TextStyle(color: TekColors.error, fontSize: 12)),
+                      Text(localError!,
+                          style: const TextStyle(
+                              color: TekColors.error, fontSize: 12)),
                       const SizedBox(height: 8),
                     ],
 
@@ -1261,7 +1446,8 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                               HapticFeedback.heavyImpact();
                               setSheet(() => isSaving = true);
                               try {
-                                await RepairService.instance.updateRepairStatusAndNotes(
+                                await RepairService.instance
+                                    .updateRepairStatusAndNotes(
                                   shopId: widget.shopId,
                                   jobId: job.id,
                                   hiveKey: job.key,
@@ -1275,10 +1461,13 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                                 if (ctx.mounted) Navigator.pop(ctx);
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text('Job #${job.id} updated to "$selectedStatus" (Synced)'),
+                                    content: Text(
+                                        'Job #${job.id} updated to "$selectedStatus" (Synced)'),
                                     backgroundColor: TekColors.success,
                                     behavior: SnackBarBehavior.floating,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(12)),
                                   ),
                                 );
                               } catch (e) {
@@ -1298,13 +1487,22 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
                         ),
                         child: Center(
                           child: isSaving
-                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                      color: Colors.white, strokeWidth: 2))
                               : const Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.check_rounded, color: Colors.white, size: 18),
+                                    Icon(Icons.check_rounded,
+                                        color: Colors.white, size: 18),
                                     SizedBox(width: 8),
-                                    Text('Save Status Update', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14)),
+                                    Text('Save Status Update',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                            fontSize: 14)),
                                   ],
                                 ),
                         ),
@@ -1322,7 +1520,8 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
     }
   }
 
-  Widget _buildAmountColumn(String label, String value, Color color, {bool isBold = false}) {
+  Widget _buildAmountColumn(String label, String value, Color color,
+      {bool isBold = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -1355,7 +1554,8 @@ class _StaffRepairsScreenState extends State<StaffRepairsScreen> {
               shape: BoxShape.circle,
               border: Border.all(color: TekColors.border),
             ),
-            child: const Icon(Icons.build_circle_outlined, size: 44, color: TekColors.textMuted),
+            child: const Icon(Icons.build_circle_outlined,
+                size: 44, color: TekColors.textMuted),
           ),
           const SizedBox(height: 14),
           const Text(
@@ -1423,22 +1623,28 @@ class _ProductPickerDialogState extends State<_ProductPickerDialog> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close_rounded, color: TekColors.textSecondary),
+                  icon: const Icon(Icons.close_rounded,
+                      color: TekColors.textSecondary),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
             ),
             const SizedBox(height: 10),
             TextField(
-              style: const TextStyle(color: TekColors.textPrimary, fontSize: 13),
+              style:
+                  const TextStyle(color: TekColors.textPrimary, fontSize: 13),
               decoration: InputDecoration(
                 hintText: 'Search items, tempered glass, cables...',
-                hintStyle: const TextStyle(color: TekColors.textMuted, fontSize: 12),
-                prefixIcon: const Icon(Icons.search_rounded, color: TekColors.secondary, size: 18),
+                hintStyle:
+                    const TextStyle(color: TekColors.textMuted, fontSize: 12),
+                prefixIcon: const Icon(Icons.search_rounded,
+                    color: TekColors.secondary, size: 18),
                 isDense: true,
                 filled: true,
                 fillColor: TekColors.bgSecondary,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TekColors.border)),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: TekColors.border)),
               ),
               onChanged: (v) => setState(() => _query = v.trim()),
             ),
@@ -1446,29 +1652,41 @@ class _ProductPickerDialogState extends State<_ProductPickerDialog> {
             Expanded(
               child: filtered.isEmpty
                   ? const Center(
-                      child: Text('No matching items found', style: TextStyle(color: TekColors.textMuted, fontSize: 12)),
+                      child: Text('No matching items found',
+                          style: TextStyle(
+                              color: TekColors.textMuted, fontSize: 12)),
                     )
                   : ListView.separated(
                       itemCount: filtered.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1, color: TekColors.border),
+                      separatorBuilder: (_, __) =>
+                          const Divider(height: 1, color: TekColors.border),
                       itemBuilder: (ctx, idx) {
                         final item = filtered[idx];
                         return ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
                           title: Text(
                             item.name,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: TekColors.textPrimary),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: TekColors.textPrimary),
                           ),
                           subtitle: Text(
                             'Stock: ${item.stock} • ${item.category}',
                             style: TextStyle(
                               fontSize: 11,
-                              color: item.stock <= 0 ? TekColors.error : TekColors.textSecondary,
+                              color: item.stock <= 0
+                                  ? TekColors.error
+                                  : TekColors.textSecondary,
                             ),
                           ),
                           trailing: Text(
                             '₹${item.sellingPrice.toStringAsFixed(0)}',
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: TekColors.secondary, fontSize: 13),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: TekColors.secondary,
+                                fontSize: 13),
                           ),
                           onTap: () {
                             Navigator.pop(context, item);

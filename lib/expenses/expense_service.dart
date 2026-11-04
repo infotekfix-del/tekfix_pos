@@ -63,16 +63,19 @@ class ExpenseService {
     }
     final effectiveAmount = item?.amount ?? amount ?? 0.0;
     if (effectiveAmount <= 0 || effectiveAmount > 10000000) {
-      throw ArgumentError('ശരിയായ തുക നൽകുക (Valid positive amount is required)');
+      throw ArgumentError(
+          'ശരിയായ തുക നൽകുക (Valid positive amount is required)');
     }
 
-    final int amountPaise = item?.amountPaise ?? (effectiveAmount * 100).round();
+    final int amountPaise =
+        item?.amountPaise ?? (effectiveAmount * 100).round();
     final rawMode = item?.paymentMode ?? paymentMode ?? ExpensePaymentMode.cash;
     final normalizedMode = rawMode.toUpperCase() == ExpensePaymentMode.bank
         ? ExpensePaymentMode.bank
         : ExpensePaymentMode.cash;
 
-    final resolvedShopId = shopId.isNotEmpty ? shopId : Db.setting('shop_id', 'tekfix');
+    final resolvedShopId =
+        shopId.isNotEmpty ? shopId : Db.setting('shop_id', 'tekfix');
     final expenseId = item?.id.isNotEmpty == true
         ? item!.id
         : (customExpenseId ??
@@ -81,7 +84,8 @@ class ExpenseService {
     final effectiveDate = item?.expenseDate ?? expenseDate ?? DateTime.now();
     final effectiveUid = item?.recordedByUid ?? recordedByUid ?? 'staff';
     final effectiveName = item?.recordedByName ?? recordedByName ?? 'Staff';
-    final effectiveCategory = item?.category ?? category ?? ExpenseCategory.miscellaneousOther;
+    final effectiveCategory =
+        item?.category ?? category ?? ExpenseCategory.miscellaneousOther;
     final effectiveNotes = item?.notes.isNotEmpty == true ? item!.notes : notes;
     final effectiveReceipt = item?.receiptUrl ?? receiptUrl;
 
@@ -163,16 +167,22 @@ class ExpenseService {
         await firestore.runTransaction((tx) async {
           tx.set(expRef, expenseMap);
           tx.set(ledgerRef, ledgerData);
-          tx.set(firestore.collection('accounting_cash_bank').doc('CB_EXP_$expenseId'), ledgerData);
+          tx.set(
+              firestore
+                  .collection('accounting_cash_bank')
+                  .doc('CB_EXP_$expenseId'),
+              ledgerData);
           tx.set(auditRef, auditData);
         });
       } catch (e) {
-        debugPrint('[ExpenseService] Firestore transaction notice: $e (Falling back to resilient offline-first mode)');
+        debugPrint(
+            '[ExpenseService] Firestore transaction notice: $e (Falling back to resilient offline-first mode)');
         try {
           await expRef.set(expenseMap, SetOptions(merge: true));
           await ledgerRef.set(ledgerData, SetOptions(merge: true));
         } catch (e2) {
-          debugPrint('[ExpenseService] Cloud write deferred to offline outbox: $e2');
+          debugPrint(
+              '[ExpenseService] Cloud write deferred to offline outbox: $e2');
         }
       }
     }
@@ -204,7 +214,8 @@ class ExpenseService {
     String? voidReason,
   }) async {
     final effectiveReason = voidReason ?? reason ?? 'Voided by user';
-    final resolvedShopId = shopId.isNotEmpty ? shopId : Db.setting('shop_id', 'tekfix');
+    final resolvedShopId =
+        shopId.isNotEmpty ? shopId : Db.setting('shop_id', 'tekfix');
 
     // Retrieve current expense record
     Map<String, dynamic>? currentMap;
@@ -233,8 +244,10 @@ class ExpenseService {
 
     final double amount = (currentMap['amount'] as num?)?.toDouble() ??
         (((currentMap['amountPaise'] as num?)?.toDouble() ?? 0.0) / 100.0);
-    final int amountPaise = (currentMap['amountPaise'] as num?)?.toInt() ?? (amount * 100).round();
-    final mode = (currentMap['paymentMode']?.toString() ?? 'CASH').toUpperCase();
+    final int amountPaise =
+        (currentMap['amountPaise'] as num?)?.toInt() ?? (amount * 100).round();
+    final mode =
+        (currentMap['paymentMode']?.toString() ?? 'CASH').toUpperCase();
     final title = currentMap['title']?.toString() ?? 'Expense';
 
     final now = DateTime.now();
@@ -354,7 +367,8 @@ class ExpenseService {
           .ref()
           .child('shops/$sId/expense_receipts/${expenseId}_$cleanName');
 
-      final task = await ref.putData(bytes, SettableMetadata(contentType: mimeType));
+      final task =
+          await ref.putData(bytes, SettableMetadata(contentType: mimeType));
       return await task.ref.getDownloadURL();
     } catch (e) {
       debugPrint('[ExpenseService] Receipt upload error: $e');
@@ -391,15 +405,19 @@ class ExpenseService {
     final sId = shopId ?? Db.setting('shop_id', '');
     if (sId.isNotEmpty && Firebase.apps.isNotEmpty) {
       try {
-        final startOfDay = DateTime(targetDate.year, targetDate.month, targetDate.day);
-        final endOfDay = DateTime(targetDate.year, targetDate.month, targetDate.day, 23, 59, 59, 999);
+        final startOfDay =
+            DateTime(targetDate.year, targetDate.month, targetDate.day);
+        final endOfDay = DateTime(
+            targetDate.year, targetDate.month, targetDate.day, 23, 59, 59, 999);
 
         final snap = await FirebaseFirestore.instance
             .collection('shops')
             .doc(sId)
             .collection('expenses')
-            .where('expenseDate', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
-            .where('expenseDate', isLessThanOrEqualTo: Timestamp.fromDate(endOfDay))
+            .where('expenseDate',
+                isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+            .where('expenseDate',
+                isLessThanOrEqualTo: Timestamp.fromDate(endOfDay))
             .get();
 
         for (final doc in snap.docs) {
@@ -437,7 +455,8 @@ class ExpenseService {
       if (exp.isVoided) continue;
 
       final dt = exp.expenseDate;
-      final isToday = dt.year == now.year && dt.month == now.month && dt.day == now.day;
+      final isToday =
+          dt.year == now.year && dt.month == now.month && dt.day == now.day;
       final isThisMonth = dt.year == now.year && dt.month == now.month;
 
       if (isThisMonth) {
@@ -497,4 +516,3 @@ class ExpenseService {
     return list;
   }
 }
-

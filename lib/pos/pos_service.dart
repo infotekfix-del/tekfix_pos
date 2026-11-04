@@ -36,7 +36,8 @@ class PosService {
   }
 
   /// Verifies Owner PIN for price floor overrides with 3-attempt lockout.
-  Future<({bool success, String? approvalId, String? error})> verifyOwnerPinAndApprove({
+  Future<({bool success, String? approvalId, String? error})>
+      verifyOwnerPinAndApprove({
     required String shopId,
     required String enteredPin,
     required PosItem item,
@@ -48,7 +49,8 @@ class PosService {
       return (
         success: false,
         approvalId: null,
-        error: '3 തവണ തെറ്റായ പിൻ നൽകി. കുറച്ചു സമയം കഴിഞ്ഞ് ശ്രമിക്കുക (PIN Locked).'
+        error:
+            '3 തവണ തെറ്റായ പിൻ നൽകി. കുറച്ചു സമയം കഴിഞ്ഞ് ശ്രമിക്കുക (PIN Locked).'
       );
     }
 
@@ -60,7 +62,8 @@ class PosService {
         return (
           success: false,
           approvalId: null,
-          error: '3 തവണ തെറ്റായ പിൻ നൽകി. 15 മിനിറ്റ് കാത്തിരിക്കുക (PIN Locked for 15 mins).'
+          error:
+              '3 തവണ തെറ്റായ പിൻ നൽകി. 15 മിനിറ്റ് കാത്തിരിക്കുക (PIN Locked for 15 mins).'
         );
       }
       final left = 3 - _failedPinAttempts;
@@ -103,8 +106,10 @@ class PosService {
   /// Generates offline-safe invoice ID: ShopCode-StaffID-Sequence (e.g. TF-SHAHAL-1001)
   Future<String> generateStaffInvoiceId(String shopId, String staffName) async {
     final prefix = Db.setting('invoice_prefix', 'INV');
-    final cleanStaff = staffName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toUpperCase();
-    final staffTag = cleanStaff.length > 5 ? cleanStaff.substring(0, 5) : cleanStaff;
+    final cleanStaff =
+        staffName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toUpperCase();
+    final staffTag =
+        cleanStaff.length > 5 ? cleanStaff.substring(0, 5) : cleanStaff;
 
     final seqKey = 'seq_pos_${staffTag.toLowerCase()}';
     int seq = (Db.settings.get(seqKey) as int?) ?? 1000;
@@ -141,7 +146,8 @@ class PosService {
       _cacheAllLocalItems(list);
       return list;
     }).handleError((e) {
-      debugPrint('Error streaming catalog items: $e. Falling back to local cache.');
+      debugPrint(
+          'Error streaming catalog items: $e. Falling back to local cache.');
       return getCatalogItems();
     });
   }
@@ -238,20 +244,23 @@ class PosService {
 
     // 2. Double-submission prevention (In-flight memory lock)
     if (_inFlightInvoices.contains(invoiceId)) {
-      throw Exception('ഈ ഇൻവോയ്സ് ഇതിനകം സമർപ്പിച്ചുകൊണ്ടിരിക്കുകയാണ് (Duplicate submission blocked).');
+      throw Exception(
+          'ഈ ഇൻവോയ്സ് ഇതിനകം സമർപ്പിച്ചുകൊണ്ടിരിക്കുകയാണ് (Duplicate submission blocked).');
     }
     _inFlightInvoices.add(invoiceId);
 
-    final lineMaps = cartItems.map((c) => {
-      'itemId': c.item.id,
-      'name': c.item.name,
-      'sku': c.item.sku,
-      'qty': c.qty,
-      'mrp': c.item.sellingPrice,
-      'unitPrice': c.unitPrice,
-      'lineTotal': c.lineTotal,
-      'approvalId': c.approvalId,
-    }).toList();
+    final lineMaps = cartItems
+        .map((c) => {
+              'itemId': c.item.id,
+              'name': c.item.name,
+              'sku': c.item.sku,
+              'qty': c.qty,
+              'mrp': c.item.sellingPrice,
+              'unitPrice': c.unitPrice,
+              'lineTotal': c.lineTotal,
+              'approvalId': c.approvalId,
+            })
+        .toList();
 
     final todayStr =
         '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
@@ -264,7 +273,9 @@ class PosService {
       staffName: staffName,
       attendanceDocId: attendanceDocId,
       date: todayStr,
-      customerName: customerName.trim().isEmpty ? 'Walk-in Customer' : customerName.trim(),
+      customerName: customerName.trim().isEmpty
+          ? 'Walk-in Customer'
+          : customerName.trim(),
       customerPhone: customerPhone.trim(),
       items: lineMaps,
       subtotal: subtotal,
@@ -291,14 +302,17 @@ class PosService {
             // Check if invoice already exists (Idempotency)
             final invSnap = await transaction.get(invRef);
             if (invSnap.exists) {
-              debugPrint('Invoice $invoiceId already exists in Firestore. Aborting duplicate.');
+              debugPrint(
+                  'Invoice $invoiceId already exists in Firestore. Aborting duplicate.');
               return;
             }
 
             // READ PHASE: Read all item documents & verify live stock
-            final itemSnapshots = <String, DocumentSnapshot<Map<String, dynamic>>>{};
+            final itemSnapshots =
+                <String, DocumentSnapshot<Map<String, dynamic>>>{};
             for (final line in cartItems) {
-              if (line.item.id.startsWith('service_')) continue; // Skip pure service charge line items
+              if (line.item.id.startsWith('service_'))
+                continue; // Skip pure service charge line items
               final itemRef = FirebaseFirestore.instance
                   .collection('shops')
                   .doc(shopId)
@@ -330,7 +344,8 @@ class PosService {
 
             // 3b. Decrement live stock atomically and log stock movements
             for (final line in cartItems) {
-              if (line.item.id.startsWith('service_')) continue; // Skip pure service charge
+              if (line.item.id.startsWith('service_'))
+                continue; // Skip pure service charge
               final itemRef = FirebaseFirestore.instance
                   .collection('shops')
                   .doc(shopId)
@@ -369,14 +384,17 @@ class PosService {
                   .doc(shopId)
                   .collection('services')
                   .doc(serviceJobId);
-              transaction.set(srvRef, {
-                'billCreated': true,
-                'invoice': invoiceId,
-                'finalAmount': total,
-                'paidAmount': total,
-                'advanceApplied': serviceAdvanceApplied,
-                'updatedAt': FieldValue.serverTimestamp(),
-              }, SetOptions(merge: true));
+              transaction.set(
+                  srvRef,
+                  {
+                    'billCreated': true,
+                    'invoice': invoiceId,
+                    'finalAmount': total,
+                    'paidAmount': total,
+                    'advanceApplied': serviceAdvanceApplied,
+                    'updatedAt': FieldValue.serverTimestamp(),
+                  },
+                  SetOptions(merge: true));
             }
 
             // 3c. Update daily sales counters & cash register
@@ -386,17 +404,21 @@ class PosService {
                 .collection('counters')
                 .doc('daily_sales_$todayStr');
 
-            transaction.set(counterRef, {
-              'totalSales': FieldValue.increment(total),
-              'cashSales': FieldValue.increment(payment.cashAmount),
-              'upiSales': FieldValue.increment(payment.upiAmount),
-              'cardSales': FieldValue.increment(payment.cardAmount),
-              'billCount': FieldValue.increment(1),
-              'lastUpdated': FieldValue.serverTimestamp(),
-            }, SetOptions(merge: true));
+            transaction.set(
+                counterRef,
+                {
+                  'totalSales': FieldValue.increment(total),
+                  'cashSales': FieldValue.increment(payment.cashAmount),
+                  'upiSales': FieldValue.increment(payment.upiAmount),
+                  'cardSales': FieldValue.increment(payment.cardAmount),
+                  'billCount': FieldValue.increment(1),
+                  'lastUpdated': FieldValue.serverTimestamp(),
+                },
+                SetOptions(merge: true));
           });
         } catch (e) {
-          debugPrint('Firestore POS transaction error: $e. SyncEngine will push on reconnect.');
+          debugPrint(
+              'Firestore POS transaction error: $e. SyncEngine will push on reconnect.');
         }
       }
 
@@ -404,18 +426,22 @@ class PosService {
       for (final line in cartItems) {
         for (final k in Db.items.keys) {
           final cur = tekM(Db.items.get(k));
-          if (cur['_id'] == line.item.id || '$k' == line.item.id || cur['name'] == line.item.name) {
+          if (cur['_id'] == line.item.id ||
+              '$k' == line.item.id ||
+              cur['name'] == line.item.name) {
             final curStock = (cur['stock'] as num?)?.toInt() ?? 0;
             cur['stock'] = curStock - line.qty;
             await Db.items.put(k, cur);
-            await Db.stockMove(k, line.item.name, -line.qty, 'POS Sale $invoiceId');
+            await Db.stockMove(
+                k, line.item.name, -line.qty, 'POS Sale $invoiceId');
             break;
           }
         }
       }
 
       // 4b. Auto-deduct paper sheets if Photostat / Printing services were billed
-      final sheetsToDeduct = ConsumablesService.calculateTotalSheetsForCart(cartItems);
+      final sheetsToDeduct =
+          ConsumablesService.calculateTotalSheetsForCart(cartItems);
       if (sheetsToDeduct > 0) {
         await ConsumablesService.deductPaperSheets(
           sheetsToDeduct,
@@ -441,7 +467,8 @@ class PosService {
         'staffId': staffId,
         'staffName': staffName,
         if (serviceJobId != null) 'serviceJobId': serviceJobId,
-        if (serviceAdvanceApplied > 0) 'serviceAdvanceApplied': serviceAdvanceApplied,
+        if (serviceAdvanceApplied > 0)
+          'serviceAdvanceApplied': serviceAdvanceApplied,
         if (serviceJobId != null) 'serviceBill': true,
       };
 
@@ -460,7 +487,8 @@ class PosService {
             final v = Db.services.get(k);
             if (v != null) {
               final m = tekM(v);
-              if ('${m['jobId']}' == serviceJobId || '${m['_id']}' == serviceJobId) {
+              if ('${m['jobId']}' == serviceJobId ||
+                  '${m['_id']}' == serviceJobId) {
                 currentJob = m;
                 keyToUpdate = k;
                 break;
@@ -506,7 +534,8 @@ class PosService {
     for (final k in Db.services.keys) {
       final m = tekM(Db.services.get(k));
       if ('${m['jobId']}' == jobId || '${m['_id']}' == jobId) {
-        if (m['billCreated'] == true || (m['invoice'] != null && '${m['invoice']}'.isNotEmpty)) {
+        if (m['billCreated'] == true ||
+            (m['invoice'] != null && '${m['invoice']}'.isNotEmpty)) {
           return true;
         }
       }

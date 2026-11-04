@@ -9,7 +9,8 @@ class TekGlobalSearchDialog extends StatefulWidget {
 
   const TekGlobalSearchDialog({super.key, this.onNavigateModule});
 
-  static Future<void> show(BuildContext context, {Function(int moduleIndex)? onNavigate}) {
+  static Future<void> show(BuildContext context,
+      {Function(int moduleIndex)? onNavigate}) {
     HapticFeedback.lightImpact();
     return showDialog(
       context: context,
@@ -44,7 +45,9 @@ class _TekGlobalSearchDialogState extends State<TekGlobalSearchDialog> {
           final name = '${v['name'] ?? ''}'.toLowerCase();
           final barcode = '${v['barcode'] ?? ''}'.toLowerCase();
           final category = '${v['category'] ?? ''}'.toLowerCase();
-          if (name.contains(query) || barcode.contains(query) || category.contains(query)) {
+          if (name.contains(query) ||
+              barcode.contains(query) ||
+              category.contains(query)) {
             matchedItems.add(Map<String, dynamic>.from(v));
             if (matchedItems.length >= 5) break;
           }
@@ -70,7 +73,9 @@ class _TekGlobalSearchDialogState extends State<TekGlobalSearchDialog> {
     // 3. Search in Invoices
     final matchedSales = <Map<String, dynamic>>[];
     if (query.isNotEmpty) {
-      for (var i = Db.sales.length - 1; i >= 0 && matchedSales.length < 5; i--) {
+      for (var i = Db.sales.length - 1;
+          i >= 0 && matchedSales.length < 5;
+          i--) {
         final v = Db.sales.getAt(i);
         if (v is Map) {
           final inv = '${v['invoice'] ?? ''}'.toLowerCase();
@@ -84,23 +89,62 @@ class _TekGlobalSearchDialogState extends State<TekGlobalSearchDialog> {
 
     // 4. Quick Nav Modules
     final navItems = [
-      {'title': 'Dashboard / Home', 'icon': Icons.dashboard_rounded, 'index': 0},
+      {
+        'title': 'Dashboard / Home',
+        'icon': Icons.dashboard_rounded,
+        'index': 0
+      },
       {'title': 'Sales / POS', 'icon': Icons.point_of_sale_rounded, 'index': 1},
       {'title': 'Items / Stock', 'icon': Icons.inventory_2_rounded, 'index': 2},
-      {'title': 'Services / Repairs', 'icon': Icons.build_circle_rounded, 'index': 3},
-      {'title': 'Customer Returns & Warranty', 'icon': Icons.assignment_return_rounded, 'index': 4},
-      {'title': 'Purchase Bills & Vendor Payments', 'icon': Icons.receipt_long_rounded, 'index': 5},
-      {'title': 'Cash & Bank', 'icon': Icons.account_balance_rounded, 'index': 8},
-      {'title': 'Attendance Approvals', 'icon': Icons.fact_check_rounded, 'index': 11},
-      {'title': 'Staff Orders', 'icon': Icons.shopping_basket_rounded, 'index': 15},
-      {'title': 'Payment Reminders', 'icon': Icons.notification_important_rounded, 'index': 16},
-      {'title': 'Settings & System', 'icon': Icons.settings_suggest_rounded, 'index': 21},
+      {
+        'title': 'Services / Repairs',
+        'icon': Icons.build_circle_rounded,
+        'index': 3
+      },
+      {
+        'title': 'Customer Returns & Warranty',
+        'icon': Icons.assignment_return_rounded,
+        'index': 4
+      },
+      {
+        'title': 'Purchase Bills & Vendor Payments',
+        'icon': Icons.receipt_long_rounded,
+        'index': 5
+      },
+      {
+        'title': 'Cash & Bank',
+        'icon': Icons.account_balance_rounded,
+        'index': 8
+      },
+      {
+        'title': 'Attendance Approvals',
+        'icon': Icons.fact_check_rounded,
+        'index': 11
+      },
+      {
+        'title': 'Staff Orders',
+        'icon': Icons.shopping_basket_rounded,
+        'index': 15
+      },
+      {
+        'title': 'Payment Reminders',
+        'icon': Icons.notification_important_rounded,
+        'index': 16
+      },
+      {
+        'title': 'Settings & System',
+        'icon': Icons.settings_suggest_rounded,
+        'index': 21
+      },
     ];
 
-    final matchedNav = navItems.where((m) {
-      if (query.isEmpty) return true;
-      return (m['title'] as String).toLowerCase().contains(query);
-    }).take(query.isEmpty ? 5 : 8).toList();
+    final matchedNav = navItems
+        .where((m) {
+          if (query.isEmpty) return true;
+          return (m['title'] as String).toLowerCase().contains(query);
+        })
+        .take(query.isEmpty ? 5 : 8)
+        .toList();
 
     return Center(
       child: ConstrainedBox(
@@ -122,13 +166,15 @@ class _TekGlobalSearchDialogState extends State<TekGlobalSearchDialog> {
               children: [
                 // Search Input Header
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                   decoration: const BoxDecoration(
                     border: Border(bottom: BorderSide(color: TekColors.border)),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.search_rounded, color: TekColors.electricCyan, size: 22),
+                      const Icon(Icons.search_rounded,
+                          color: TekColors.electricCyan, size: 22),
                       const SizedBox(width: 12),
                       Expanded(
                         child: TextField(
@@ -140,8 +186,10 @@ class _TekGlobalSearchDialogState extends State<TekGlobalSearchDialog> {
                             fontFamilyFallback: TekTypography.malayalamFallback,
                           ),
                           decoration: const InputDecoration(
-                            hintText: 'Search items, customers, invoices, or screens...',
-                            hintStyle: TextStyle(color: TekColors.textMuted, fontSize: 14.5),
+                            hintText:
+                                'Search items, customers, invoices, or screens...',
+                            hintStyle: TextStyle(
+                                color: TekColors.textMuted, fontSize: 14.5),
                             border: InputBorder.none,
                             enabledBorder: InputBorder.none,
                             focusedBorder: InputBorder.none,
@@ -152,7 +200,8 @@ class _TekGlobalSearchDialogState extends State<TekGlobalSearchDialog> {
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 3),
                         decoration: BoxDecoration(
                           color: TekColors.sidebarBg,
                           borderRadius: BorderRadius.circular(6),
@@ -174,17 +223,20 @@ class _TekGlobalSearchDialogState extends State<TekGlobalSearchDialog> {
                 // Search Results List
                 Expanded(
                   child: ListView(
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 10, horizontal: 12),
                     children: [
                       // Items results
                       if (matchedItems.isNotEmpty) ...[
-                        _buildSectionHeader('ITEMS & STOCK (${matchedItems.length})'),
+                        _buildSectionHeader(
+                            'ITEMS & STOCK (${matchedItems.length})'),
                         for (final item in matchedItems)
                           _buildResultTile(
                             icon: Icons.inventory_2_rounded,
                             iconColor: TekColors.primaryBlue,
                             title: '${item['name'] ?? 'Item'}',
-                            subtitle: 'Stock: ${item['stock'] ?? 0} | Price: ${rs(item['salePrice'] ?? 0)}',
+                            subtitle:
+                                'Stock: ${item['stock'] ?? 0} | Price: ${rs(item['salePrice'] ?? 0)}',
                             onTap: () {
                               Navigator.pop(context);
                               widget.onNavigateModule?.call(2); // ItemsView
@@ -194,13 +246,15 @@ class _TekGlobalSearchDialogState extends State<TekGlobalSearchDialog> {
 
                       // Customers results
                       if (matchedParties.isNotEmpty) ...[
-                        _buildSectionHeader('CUSTOMERS / PARTIES (${matchedParties.length})'),
+                        _buildSectionHeader(
+                            'CUSTOMERS / PARTIES (${matchedParties.length})'),
                         for (final party in matchedParties)
                           _buildResultTile(
                             icon: Icons.person_rounded,
                             iconColor: TekColors.success,
                             title: '${party['name'] ?? 'Customer'}',
-                            subtitle: 'Phone: ${party['phone'] ?? 'N/A'} | Balance: ${rs(party['balance'] ?? 0)}',
+                            subtitle:
+                                'Phone: ${party['phone'] ?? 'N/A'} | Balance: ${rs(party['balance'] ?? 0)}',
                             onTap: () {
                               Navigator.pop(context);
                               widget.onNavigateModule?.call(5); // PartiesView
@@ -210,13 +264,16 @@ class _TekGlobalSearchDialogState extends State<TekGlobalSearchDialog> {
 
                       // Invoices results
                       if (matchedSales.isNotEmpty) ...[
-                        _buildSectionHeader('INVOICES (${matchedSales.length})'),
+                        _buildSectionHeader(
+                            'INVOICES (${matchedSales.length})'),
                         for (final sale in matchedSales)
                           _buildResultTile(
                             icon: Icons.receipt_long_rounded,
                             iconColor: TekColors.premiumPurple,
-                            title: '${sale['invoice']} • ${sale['customerName']}',
-                            subtitle: 'Total: ${rs(sale['total'] ?? 0)} | ${sale['items'] is List ? (sale['items'] as List).length : 0} items',
+                            title:
+                                '${sale['invoice']} • ${sale['customerName']}',
+                            subtitle:
+                                'Total: ${rs(sale['total'] ?? 0)} | ${sale['items'] is List ? (sale['items'] as List).length : 0} items',
                             onTap: () {
                               Navigator.pop(context);
                               widget.onNavigateModule?.call(7); // ReportsView
@@ -225,7 +282,9 @@ class _TekGlobalSearchDialogState extends State<TekGlobalSearchDialog> {
                       ],
 
                       // Quick Nav / Screens
-                      _buildSectionHeader(query.isEmpty ? 'QUICK NAVIGATION' : 'MATCHING MODULES'),
+                      _buildSectionHeader(query.isEmpty
+                          ? 'QUICK NAVIGATION'
+                          : 'MATCHING MODULES'),
                       for (final m in matchedNav)
                         _buildResultTile(
                           icon: m['icon'] as IconData,
@@ -313,7 +372,8 @@ class _TekGlobalSearchDialogState extends State<TekGlobalSearchDialog> {
                   ],
                 ),
               ),
-              const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: TekColors.textMuted),
+              const Icon(Icons.arrow_forward_ios_rounded,
+                  size: 12, color: TekColors.textMuted),
             ],
           ),
         ),

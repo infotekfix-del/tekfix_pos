@@ -127,7 +127,8 @@ class _WindowsUpdateDialogState extends State<WindowsUpdateDialog> {
                                 'Current: v${widget.currentVersion}',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: isDark ? Colors.white70 : Colors.black87,
+                                  color:
+                                      isDark ? Colors.white70 : Colors.black87,
                                 ),
                               ),
                             ),
@@ -142,7 +143,8 @@ class _WindowsUpdateDialogState extends State<WindowsUpdateDialog> {
                                 color: const Color(0xFF10B981).withAlpha(30),
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(
-                                    color: const Color(0xFF10B981).withAlpha(80)),
+                                    color:
+                                        const Color(0xFF10B981).withAlpha(80)),
                               ),
                               child: Text(
                                 'Latest: ${widget.release.tagName}',
@@ -202,7 +204,9 @@ class _WindowsUpdateDialogState extends State<WindowsUpdateDialog> {
                       style: TextStyle(
                         fontSize: 12.5,
                         height: 1.4,
-                        color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                        color: isDark
+                            ? const Color(0xFFCBD5E1)
+                            : const Color(0xFF475569),
                       ),
                     ),
                   ),
@@ -217,7 +221,8 @@ class _WindowsUpdateDialogState extends State<WindowsUpdateDialog> {
                   decoration: BoxDecoration(
                     color: const Color(0xFF3B82F6).withAlpha(15),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF3B82F6).withAlpha(60)),
+                    border: Border.all(
+                        color: const Color(0xFF3B82F6).withAlpha(60)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,7 +254,8 @@ class _WindowsUpdateDialogState extends State<WindowsUpdateDialog> {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(6),
                         child: LinearProgressIndicator(
-                          value: progress.progress > 0 ? progress.progress : null,
+                          value:
+                              progress.progress > 0 ? progress.progress : null,
                           minHeight: 8,
                           backgroundColor: isDark
                               ? const Color(0xFF334155)
@@ -292,7 +298,8 @@ class _WindowsUpdateDialogState extends State<WindowsUpdateDialog> {
                   decoration: BoxDecoration(
                     color: const Color(0xFF10B981).withAlpha(20),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF10B981).withAlpha(80)),
+                    border: Border.all(
+                        color: const Color(0xFF10B981).withAlpha(80)),
                   ),
                   child: const Row(
                     children: [
@@ -332,7 +339,8 @@ class _WindowsUpdateDialogState extends State<WindowsUpdateDialog> {
                   decoration: BoxDecoration(
                     color: const Color(0xFFEF4444).withAlpha(20),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFEF4444).withAlpha(80)),
+                    border: Border.all(
+                        color: const Color(0xFFEF4444).withAlpha(80)),
                   ),
                   child: Row(
                     children: [
@@ -413,7 +421,9 @@ class _WindowsUpdateDialogState extends State<WindowsUpdateDialog> {
                         _service.downloadUpdate();
                       },
                       icon: Icon(
-                        isFailed ? Icons.refresh_rounded : Icons.download_rounded,
+                        isFailed
+                            ? Icons.refresh_rounded
+                            : Icons.download_rounded,
                         size: 18,
                       ),
                       label: Text(

@@ -3,14 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:pdf/pdf.dart';
 import 'package:tekfix_erp_pos/barcode/barcode_label_service.dart';
-import 'package:tekfix_erp_pos/main.dart'
-    show boxItems, boxStockMoves, Db;
+import 'package:tekfix_erp_pos/main.dart' show boxItems, boxStockMoves, Db;
 
 void main() {
   late Directory tempDir;
 
   setUp(() async {
-    tempDir = await Directory.systemTemp.createTemp('tekfix_phase5_barcode_test_');
+    tempDir =
+        await Directory.systemTemp.createTemp('tekfix_phase5_barcode_test_');
     Hive.init(tempDir.path);
     await Hive.openBox(boxItems);
     await Hive.openBox(boxStockMoves);
@@ -23,7 +23,8 @@ void main() {
     }
   });
 
-  group('PHASE 5: TVS LP 46 LITE (38 mm × 25 mm) BARCODE PRINTING TEST SUITE', () {
+  group('PHASE 5: TVS LP 46 LITE (38 mm × 25 mm) BARCODE PRINTING TEST SUITE',
+      () {
     test('1. Exact Physical Specification (38 mm × 25 mm)', () {
       final pageFormat = BarcodeLabelService.pageFormat;
 
@@ -113,7 +114,8 @@ void main() {
       expect(tspl, contains('PRINT 10,1'));
     });
 
-    test('5. Reprint Without Modifying Stock or Creating Stock Moves', () async {
+    test('5. Reprint Without Modifying Stock or Creating Stock Moves',
+        () async {
       final service = BarcodeLabelService.instance;
 
       // 1. Setup item in Db.items with stock = 20
@@ -175,4 +177,3 @@ void main() {
     });
   });
 }
-

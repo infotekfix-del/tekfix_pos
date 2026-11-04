@@ -14,8 +14,10 @@ enum DiscountType { rupees, percent }
 /// Additional charge (shipping, handling, etc.) with an optional GST rate.
 class BillCharge {
   final String label;
+
   /// Gross charge amount before any GST on the charge itself.
   final double amount;
+
   /// GST rate on this charge (0 if not taxable).
   final double gstRate;
 
@@ -40,16 +42,22 @@ class BillCharge {
 class LineCalcResult {
   final String itemId;
   final int quantity;
+
   /// Gross paise: qty × purchaseRate (rounded per unit, accumulated).
   final int grossPaise;
+
   /// Discount paise applied to this line.
   final int discountPaise;
+
   /// Taxable paise = gross − discount.
   final int taxablePaise;
+
   /// GST rate applied.
   final double gstRate;
+
   /// Total GST paise on this line = taxable × gstRate / 100, rounded.
   final int gstPaise;
+
   /// Line total paise = taxable + GST.
   final int lineTotalPaise;
 
@@ -75,9 +83,9 @@ class LineCalcResult {
 class GstSlabSummary {
   final double rate;
   final int taxablePaise;
-  final int cgstPaise;  // 0 when inter-state
-  final int sgstPaise;  // 0 when inter-state
-  final int igstPaise;  // 0 when intra-state
+  final int cgstPaise; // 0 when inter-state
+  final int sgstPaise; // 0 when inter-state
+  final int igstPaise; // 0 when intra-state
 
   const GstSlabSummary({
     required this.rate,
@@ -102,21 +110,21 @@ class BillCalcResult {
   final List<GstSlabSummary> gstSlabs;
 
   // Integer paise totals
-  final int subtotalPaise;        // sum of all line gross
-  final int totalDiscountPaise;   // sum of all line discounts
-  final int taxableValuePaise;    // subtotal − totalDiscount
-  final int totalGstPaise;        // sum of all line GST
-  final int cgstPaise;            // intra-state half
-  final int sgstPaise;            // intra-state half
-  final int igstPaise;            // inter-state full
-  final int chargesGrossPaise;    // sum of charge amounts (excl charge GST)
-  final int chargesGstPaise;      // GST on charges
-  final int chargesTotalPaise;    // charges + charge GST
-  final int rawGrandTotalPaise;   // taxableValue + totalGST + chargesTotal
+  final int subtotalPaise; // sum of all line gross
+  final int totalDiscountPaise; // sum of all line discounts
+  final int taxableValuePaise; // subtotal − totalDiscount
+  final int totalGstPaise; // sum of all line GST
+  final int cgstPaise; // intra-state half
+  final int sgstPaise; // intra-state half
+  final int igstPaise; // inter-state full
+  final int chargesGrossPaise; // sum of charge amounts (excl charge GST)
+  final int chargesGstPaise; // GST on charges
+  final int chargesTotalPaise; // charges + charge GST
+  final int rawGrandTotalPaise; // taxableValue + totalGST + chargesTotal
   /// Round-off applied to reach grandTotal (may be negative).
   /// Rule: nearest rupee, i.e. round rawGrandTotal to nearest 100 paise.
   final int roundOffPaise;
-  final int grandTotalPaise;      // rawGrandTotal + roundOff
+  final int grandTotalPaise; // rawGrandTotal + roundOff
 
   // Payment derived
   final int paidAmountPaise;
@@ -297,7 +305,8 @@ class PurchaseCalculationEngine {
       totalGstPaise += lr.gstPaise;
 
       // Accumulate per-slab
-      slabTaxable[lr.gstRate] = (slabTaxable[lr.gstRate] ?? 0) + lr.taxablePaise;
+      slabTaxable[lr.gstRate] =
+          (slabTaxable[lr.gstRate] ?? 0) + lr.taxablePaise;
       slabGst[lr.gstRate] = (slabGst[lr.gstRate] ?? 0) + lr.gstPaise;
     }
 
@@ -351,8 +360,7 @@ class PurchaseCalculationEngine {
     // roundOff = round(raw/100)*100 - raw
     int roundOffPaise = 0;
     if (applyRoundOff) {
-      final int roundedPaise =
-          ((rawGrandTotalPaise / 100).round()) * 100;
+      final int roundedPaise = ((rawGrandTotalPaise / 100).round()) * 100;
       roundOffPaise = roundedPaise - rawGrandTotalPaise;
     }
 
@@ -360,7 +368,8 @@ class PurchaseCalculationEngine {
 
     // ---- Payment ----
     final int safePaidPaise = paidAmountPaise.clamp(0, grandTotalPaise);
-    final int balanceDuePaise = (grandTotalPaise - safePaidPaise).clamp(0, grandTotalPaise);
+    final int balanceDuePaise =
+        (grandTotalPaise - safePaidPaise).clamp(0, grandTotalPaise);
 
     // ---- Printed total mismatch ----
     int? mismatchPaise;
@@ -394,4 +403,3 @@ class PurchaseCalculationEngine {
     );
   }
 }
-

@@ -66,10 +66,14 @@ class _TekWeatherCardState extends State<TekWeatherCard> {
         final decoded = jsonDecode(response.body) as Map<String, dynamic>;
         final current = decoded['current'] as Map<String, dynamic>?;
         if (current != null) {
-          final temp = (current['temperature_2m'] as num?)?.toDouble() ?? _temperature;
-          final humidity = (current['relative_humidity_2m'] as num?)?.toInt() ?? _humidity;
-          final wind = (current['wind_speed_10m'] as num?)?.toDouble() ?? _windSpeed;
-          final code = (current['weather_code'] as num?)?.toInt() ?? _weatherCode;
+          final temp =
+              (current['temperature_2m'] as num?)?.toDouble() ?? _temperature;
+          final humidity =
+              (current['relative_humidity_2m'] as num?)?.toInt() ?? _humidity;
+          final wind =
+              (current['wind_speed_10m'] as num?)?.toDouble() ?? _windSpeed;
+          final code =
+              (current['weather_code'] as num?)?.toInt() ?? _weatherCode;
           final conditionText = _mapWeatherCode(code);
 
           if (mounted) {
@@ -205,9 +209,13 @@ class _TekWeatherCardState extends State<TekWeatherCard> {
                           ),
                         )
                       : Icon(
-                          _isOffline ? Icons.cloud_off_rounded : Icons.refresh_rounded,
+                          _isOffline
+                              ? Icons.cloud_off_rounded
+                              : Icons.refresh_rounded,
                           size: 16,
-                          color: _isOffline ? DashboardColors.textMuted : DashboardColors.neonBlue,
+                          color: _isOffline
+                              ? DashboardColors.textMuted
+                              : DashboardColors.neonBlue,
                         ),
                 ),
               ),
@@ -281,7 +289,8 @@ class _TekWeatherCardState extends State<TekWeatherCard> {
             children: [
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                   decoration: BoxDecoration(
                     color: const Color(0x1F22325E),
                     borderRadius: BorderRadius.circular(10),
@@ -290,7 +299,8 @@ class _TekWeatherCardState extends State<TekWeatherCard> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.water_drop_rounded, size: 14, color: DashboardColors.neonBlue),
+                      const Icon(Icons.water_drop_rounded,
+                          size: 14, color: DashboardColors.neonBlue),
                       const SizedBox(width: 6),
                       Text(
                         '$_humidity% Humidity',
@@ -307,7 +317,8 @@ class _TekWeatherCardState extends State<TekWeatherCard> {
               const SizedBox(width: 10),
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                   decoration: BoxDecoration(
                     color: const Color(0x1F22325E),
                     borderRadius: BorderRadius.circular(10),
@@ -316,7 +327,8 @@ class _TekWeatherCardState extends State<TekWeatherCard> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.air_rounded, size: 14, color: DashboardColors.neonGreen),
+                      const Icon(Icons.air_rounded,
+                          size: 14, color: DashboardColors.neonGreen),
                       const SizedBox(width: 6),
                       Text(
                         '${_windSpeed.toStringAsFixed(1)} km/h',

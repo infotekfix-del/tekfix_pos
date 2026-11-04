@@ -69,7 +69,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST A: Cash Rent Payment
     // -------------------------------------------------------------------------
-    test('Test A: Cash Rent - Debits cash_in_hand by ₹300, bank untouched, creates ledger entry', () async {
+    test(
+        'Test A: Cash Rent - Debits cash_in_hand by ₹300, bank untouched, creates ledger entry',
+        () async {
       final initialCash = (Db.bank.get('cash_in_hand') as num).toDouble();
       final initialBank = (Db.bank.get('bank_balance') as num).toDouble();
       expect(initialCash, 10000.0);
@@ -108,7 +110,8 @@ void main() {
       final lastTxn = txnLog.last;
       expect(lastTxn['account'] ?? lastTxn['mode'], 'Cash');
       expect(lastTxn['amount'], -300.0);
-      expect(lastTxn['note'].toString().contains('Shop Daily Rent: 2026-11-02'), true);
+      expect(lastTxn['note'].toString().contains('Shop Daily Rent: 2026-11-02'),
+          true);
 
       // Verify EOD closing calculation
       final summary = DailyRegisterService.instance.computeDailySummary(
@@ -129,7 +132,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST B: Bank / UPI Rent Payment
     // -------------------------------------------------------------------------
-    test('Test B: Bank Rent - Debits bank_balance by ₹400, cash untouched, reports as bank expense', () async {
+    test(
+        'Test B: Bank Rent - Debits bank_balance by ₹400, cash untouched, reports as bank expense',
+        () async {
       final initialCash = (Db.bank.get('cash_in_hand') as num).toDouble();
       final initialBank = (Db.bank.get('bank_balance') as num).toDouble();
 
@@ -171,13 +176,16 @@ void main() {
       );
       expect(summary.cashRentPaid, 0.0);
       expect(summary.bankRentPaid, 400.0);
-      expect(summary.expectedClosingCash, 5000.0); // Bank rent does not reduce drawer cash!
+      expect(summary.expectedClosingCash,
+          5000.0); // Bank rent does not reduce drawer cash!
     });
 
     // -------------------------------------------------------------------------
     // TEST C & D: Duplicate Prevention & Deterministic Key Uniqueness
     // -------------------------------------------------------------------------
-    test('Test C & D: Duplicate Prevention - Throws DuplicateRentPaymentException on same dateKey', () async {
+    test(
+        'Test C & D: Duplicate Prevention - Throws DuplicateRentPaymentException on same dateKey',
+        () async {
       const dateKey = '2026-11-04';
 
       // 1st recording succeeds
@@ -213,7 +221,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST E: Unpaid Rent Handling
     // -------------------------------------------------------------------------
-    test('Test E: Unpaid Rent - Leaves status PENDING, never debits cash or bank', () async {
+    test(
+        'Test E: Unpaid Rent - Leaves status PENDING, never debits cash or bank',
+        () async {
       final initialCash = (Db.bank.get('cash_in_hand') as num).toDouble();
       final initialBank = (Db.bank.get('bank_balance') as num).toDouble();
 
@@ -237,8 +247,11 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST F: EOD Reminder & Closing Flow
     // -------------------------------------------------------------------------
-    test('Test F: EOD Closing with Pending Rent - Reports warning, Skip does not create financial txn', () {
-      final summaryWithPendingRent = DailyRegisterService.instance.computeDailySummary(
+    test(
+        'Test F: EOD Closing with Pending Rent - Reports warning, Skip does not create financial txn',
+        () {
+      final summaryWithPendingRent =
+          DailyRegisterService.instance.computeDailySummary(
         sales: [],
         date: DateTime(2026, 11, 6),
         openingCash: 5000.0,
@@ -260,7 +273,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST G: Monthly History & Aggregations
     // -------------------------------------------------------------------------
-    test('Test G: Monthly History - 25 paid days @ ₹300 results in ₹7,500 total paid', () async {
+    test(
+        'Test G: Monthly History - 25 paid days @ ₹300 results in ₹7,500 total paid',
+        () async {
       // Record 25 distinct days in October 2026
       for (int day = 1; day <= 25; day++) {
         final dateKey = '2026-10-${day.toString().padLeft(2, '0')}';
@@ -283,19 +298,24 @@ void main() {
       final paidRecords = history.where((r) => r.isPaid).toList();
       expect(paidRecords.length, 25);
 
-      final totalPaid = paidRecords.fold<double>(0.0, (sum, r) => sum + r.paidAmount);
+      final totalPaid =
+          paidRecords.fold<double>(0.0, (sum, r) => sum + r.paidAmount);
       expect(totalPaid, 7500.0);
 
-      final unpaidRecords = history.where((r) => r.status == 'PENDING').toList();
+      final unpaidRecords =
+          history.where((r) => r.status == 'PENDING').toList();
       expect(unpaidRecords.length, 31 - 25); // 6 days unpaid
     });
 
     // -------------------------------------------------------------------------
     // TEST H: Rent Rate Change & Historical Rates
     // -------------------------------------------------------------------------
-    test('Test H: Rent Rate Adjustment - Historical records retain old rate, future uses new rate', () async {
+    test(
+        'Test H: Rent Rate Adjustment - Historical records retain old rate, future uses new rate',
+        () async {
       // Current configured rate: ₹300/day
-      final settings = await RentService.instance.getSettings(shopId: testShopId);
+      final settings =
+          await RentService.instance.getSettings(shopId: testShopId);
       expect(settings.getRentForDate(DateTime(2026, 11, 10)), 300.0);
 
       // Owner updates rate to ₹400/day starting from 2026-12-01
@@ -312,7 +332,8 @@ void main() {
         staffName: 'Store Owner',
       );
 
-      final reloaded = await RentService.instance.getSettings(shopId: testShopId);
+      final reloaded =
+          await RentService.instance.getSettings(shopId: testShopId);
       expect(reloaded.dailyRentAmount, 400.0);
 
       // Historical date (November 2026) still expects ₹300
@@ -326,7 +347,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST I: General Expense Integration (Single Effective Debit)
     // -------------------------------------------------------------------------
-    test('Test I: General Expense Integration - Creates linked expense without double ledger debit', () async {
+    test(
+        'Test I: General Expense Integration - Creates linked expense without double ledger debit',
+        () async {
       const dateKey = '2026-11-20';
       final rentRecord = await RentService.instance.recordRentPayment(
         shopId: testShopId,
@@ -340,7 +363,8 @@ void main() {
       // Check linked expense exists in Db.expenses with isDailyRent = true
       final linkedExpRaw = Db.expenses.get(rentRecord.expenseId);
       expect(linkedExpRaw != null, true);
-      final linkedExp = ExpenseItem.fromMap(tekM(linkedExpRaw), rentRecord.expenseId!);
+      final linkedExp =
+          ExpenseItem.fromMap(tekM(linkedExpRaw), rentRecord.expenseId!);
       expect(linkedExp.isDailyRent, true);
       expect(linkedExp.rentRecordId, dateKey);
       expect(linkedExp.amount, 300.0);
@@ -348,7 +372,9 @@ void main() {
 
       // Total ledger debit is exactly ₹300 (no duplicate debit from Expense module)
       final txnLog = (Db.bank.get('txn_log') as List).cast<Map>();
-      final rentDebits = txnLog.where((t) => t['note'].toString().contains('Daily Rent: 2026-11-20')).toList();
+      final rentDebits = txnLog
+          .where((t) => t['note'].toString().contains('Daily Rent: 2026-11-20'))
+          .toList();
       expect(rentDebits.length, 1);
       expect(rentDebits.first['amount'], -300.0);
     });
@@ -356,7 +382,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST J: Reversal / Void
     // -------------------------------------------------------------------------
-    test('Test J: Void Rent Payment - Restores cash balance and marks record VOIDED', () async {
+    test(
+        'Test J: Void Rent Payment - Restores cash balance and marks record VOIDED',
+        () async {
       const dateKey = '2026-11-21';
       await RentService.instance.recordRentPayment(
         shopId: testShopId,
@@ -395,7 +423,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST K: Operating Days Schedule Type
     // -------------------------------------------------------------------------
-    test('Test K: Operating Days Schedule - Non-operating days marked NOT_SCHEDULED', () async {
+    test(
+        'Test K: Operating Days Schedule - Non-operating days marked NOT_SCHEDULED',
+        () async {
       // Configure shop to only operate Monday through Saturday (1 to 6). Sunday (7) is closed.
       final operatingSettings = DailyRentSettings(
         dailyRentAmount: 350.0,

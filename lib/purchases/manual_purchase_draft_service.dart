@@ -80,9 +80,8 @@ class ManualPurchaseDraft {
       vendorInvoiceNumber.isNotEmpty ||
       itemMaps.isNotEmpty;
 
-  List<PurchaseBillItem> get items => itemMaps
-      .map((m) => PurchaseBillItem.fromMap(m))
-      .toList();
+  List<PurchaseBillItem> get items =>
+      itemMaps.map((m) => PurchaseBillItem.fromMap(m)).toList();
 
   Map<String, dynamic> toJson() => {
         'vendorKey': vendorKey?.toString(),
@@ -205,4 +204,3 @@ class ManualPurchaseDraftService {
     }
   }
 }
-

@@ -26,7 +26,8 @@ class PurchaseBillDetailsScreen extends StatefulWidget {
   }) : billKey = billKey ?? bill?.key;
 
   @override
-  State<PurchaseBillDetailsScreen> createState() => _PurchaseBillDetailsScreenState();
+  State<PurchaseBillDetailsScreen> createState() =>
+      _PurchaseBillDetailsScreenState();
 }
 
 class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
@@ -62,14 +63,17 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
           : Hive.box(boxPurchaseBills).listenable(),
       builder: (context, Box box, _) {
         final bill = (widget.billKey != null
-            ? PurchaseBillService.instance.getPurchaseBill(widget.billKey)
-            : null) ?? _currentBill ?? widget.bill;
+                ? PurchaseBillService.instance.getPurchaseBill(widget.billKey)
+                : null) ??
+            _currentBill ??
+            widget.bill;
         if (bill == null) {
           return Scaffold(
             backgroundColor: DashboardColors.bgDarkNavyStart,
             appBar: AppBar(backgroundColor: const Color(0xFF0C1236)),
             body: const Center(
-              child: Text('Purchase bill not found', style: TextStyle(color: Colors.white)),
+              child: Text('Purchase bill not found',
+                  style: TextStyle(color: Colors.white)),
             ),
           );
         }
@@ -82,7 +86,8 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
           backgroundColor: DashboardColors.bgDarkNavyStart,
           appBar: _buildAppBar(bill),
           body: Container(
-            decoration: const BoxDecoration(gradient: DashboardColors.backgroundGradient),
+            decoration: const BoxDecoration(
+                gradient: DashboardColors.backgroundGradient),
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -170,7 +175,8 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
           const SizedBox(width: 12),
           Text(
             'Vendor: ${bill.vendorName}',
-            style: DashboardTypography.poppins(fontSize: 15, fontWeight: FontWeight.w600),
+            style: DashboardTypography.poppins(
+                fontSize: 15, fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -228,11 +234,15 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
             ),
             child: Text(
               'Draft Bill',
-              style: DashboardTypography.inter(fontSize: 11, fontWeight: FontWeight.bold, color: DashboardColors.neonOrange),
+              style: DashboardTypography.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: DashboardColors.neonOrange),
             ),
           ),
         IconButton(
-          icon: const Icon(Icons.edit_note_rounded, color: DashboardColors.neonOrange),
+          icon: const Icon(Icons.edit_note_rounded,
+              color: DashboardColors.neonOrange),
           tooltip: 'Edit Purchase Bill',
           onPressed: () => _editBill(bill),
         ),
@@ -245,7 +255,8 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
   // HEADER CARD
   // ---------------------------------------------------------------------------
 
-  Widget _buildHeaderCard(PurchaseBill bill, Color statusColor, IconData statusIcon) {
+  Widget _buildHeaderCard(
+      PurchaseBill bill, Color statusColor, IconData statusIcon) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: DashboardColors.glassCard(
@@ -267,11 +278,15 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                       children: [
                         Text(
                           bill.vendorName,
-                          style: DashboardTypography.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                          style: DashboardTypography.poppins(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white),
                         ),
                         const SizedBox(width: 10),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
                             color: const Color(0x2600D4FF),
                             borderRadius: BorderRadius.circular(6),
@@ -279,7 +294,10 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                           ),
                           child: Text(
                             'Vendor Inv: ${bill.vendorInvoiceNumber}',
-                            style: DashboardTypography.inter(fontSize: 11.5, fontWeight: FontWeight.bold, color: DashboardColors.neonBlue),
+                            style: DashboardTypography.inter(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.bold,
+                                color: DashboardColors.neonBlue),
                           ),
                         ),
                       ],
@@ -287,13 +305,15 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                     const SizedBox(height: 6),
                     Text(
                       'Phone: ${bill.vendorPhone}  •  Purchase Date: ${_dateFormat.format(bill.purchaseDate)}  •  Uploaded: ${_dateFormat.format(bill.uploadTimestamp)}',
-                      style: DashboardTypography.inter(fontSize: 12.5, color: DashboardColors.textLight),
+                      style: DashboardTypography.inter(
+                          fontSize: 12.5, color: DashboardColors.textLight),
                     ),
                     if (bill.notes != null && bill.notes!.isNotEmpty) ...[
                       const SizedBox(height: 6),
                       Text(
                         'Notes: ${bill.notes}',
-                        style: DashboardTypography.inter(fontSize: 12, color: DashboardColors.textMuted),
+                        style: DashboardTypography.inter(
+                            fontSize: 12, color: DashboardColors.textMuted),
                       ),
                     ],
                   ],
@@ -301,11 +321,13 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
               ),
               // Status Badge
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: statusColor.withValues(alpha: 0.6), width: 1.2),
+                  border: Border.all(
+                      color: statusColor.withValues(alpha: 0.6), width: 1.2),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -327,7 +349,8 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                           bill.balanceDue > 0
                               ? 'Due: ₹${bill.balanceDue.toStringAsFixed(2)}'
                               : 'Settled in Full',
-                          style: DashboardTypography.inter(fontSize: 10.5, color: Colors.white70),
+                          style: DashboardTypography.inter(
+                              fontSize: 10.5, color: Colors.white70),
                         ),
                       ],
                     ),
@@ -356,12 +379,16 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
             FilledButton.icon(
               style: FilledButton.styleFrom(
                 backgroundColor: DashboardColors.primaryBlue,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               ),
               onPressed: () => _showAddPaymentDialog(bill, auth),
               icon: const Icon(Icons.payment_rounded, size: 16),
-              label: Text('Record Payment', style: DashboardTypography.poppins(fontSize: 12, fontWeight: FontWeight.bold)),
+              label: Text('Record Payment',
+                  style: DashboardTypography.poppins(
+                      fontSize: 12, fontWeight: FontWeight.bold)),
             ),
             const SizedBox(width: 10),
           ],
@@ -371,7 +398,8 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
             style: OutlinedButton.styleFrom(
               foregroundColor: DashboardColors.neonBlue,
               side: const BorderSide(color: DashboardColors.neonBlue),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             ),
             onPressed: () {
@@ -386,7 +414,9 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
               );
             },
             icon: const Icon(Icons.account_balance_wallet_rounded, size: 16),
-            label: Text('View Vendor Ledger', style: DashboardTypography.inter(fontSize: 12, fontWeight: FontWeight.w600)),
+            label: Text('View Vendor Ledger',
+                style: DashboardTypography.inter(
+                    fontSize: 12, fontWeight: FontWeight.w600)),
           ),
 
           const SizedBox(width: 10),
@@ -397,12 +427,16 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: DashboardColors.neonPurple,
                 side: const BorderSide(color: DashboardColors.neonPurple),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               ),
               onPressed: () => _showAttachmentViewerDialog(bill),
               icon: const Icon(Icons.receipt_long_rounded, size: 16),
-              label: Text('View Bill Attachment', style: DashboardTypography.inter(fontSize: 12, fontWeight: FontWeight.w600)),
+              label: Text('View Bill Attachment',
+                  style: DashboardTypography.inter(
+                      fontSize: 12, fontWeight: FontWeight.w600)),
             ),
             const SizedBox(width: 10),
           ],
@@ -412,14 +446,20 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
             style: FilledButton.styleFrom(
               backgroundColor: DashboardColors.neonGreen,
               foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             ),
-            onPressed: () => BarcodePrintDialog.showForPurchaseBill(context, bill),
-            icon: const Icon(Icons.qr_code_2_rounded, size: 16, color: Colors.black),
+            onPressed: () =>
+                BarcodePrintDialog.showForPurchaseBill(context, bill),
+            icon: const Icon(Icons.qr_code_2_rounded,
+                size: 16, color: Colors.black),
             label: Text(
               'Print Barcode Labels (38×25mm)',
-              style: DashboardTypography.poppins(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+              style: DashboardTypography.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black),
             ),
           ),
 
@@ -430,12 +470,15 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
             style: OutlinedButton.styleFrom(
               foregroundColor: DashboardColors.neonOrange,
               side: const BorderSide(color: DashboardColors.neonOrange),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             ),
             onPressed: () => _editBill(bill),
             icon: const Icon(Icons.edit_note_rounded, size: 16),
-            label: Text('Edit Bill', style: DashboardTypography.poppins(fontSize: 12, fontWeight: FontWeight.bold)),
+            label: Text('Edit Bill',
+                style: DashboardTypography.poppins(
+                    fontSize: 12, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -456,17 +499,22 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
             child: Row(
               children: [
-                const Icon(Icons.inventory_2_rounded, color: DashboardColors.neonBlue, size: 18),
+                const Icon(Icons.inventory_2_rounded,
+                    color: DashboardColors.neonBlue, size: 18),
                 const SizedBox(width: 8),
                 Text(
                   'Purchased Items (${bill.items.length})',
-                  style: DashboardTypography.poppins(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                  style: DashboardTypography.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white),
                 ),
               ],
             ),
           ),
           ClipRRect(
-            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+            borderRadius:
+                const BorderRadius.vertical(bottom: Radius.circular(16)),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: DataTable(
@@ -474,17 +522,22 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                 columnSpacing: 20,
                 headingRowHeight: 44,
                 dataRowMaxHeight: 60,
-                headingRowColor: WidgetStateProperty.all(const Color(0xFF0C1236)),
+                headingRowColor:
+                    WidgetStateProperty.all(const Color(0xFF0C1236)),
                 columns: [
                   DataColumn(label: Text('ITEM NAME', style: _colHeaderStyle)),
-                  DataColumn(label: Text('SERIAL / IMEI', style: _colHeaderStyle)),
+                  DataColumn(
+                      label: Text('SERIAL / IMEI', style: _colHeaderStyle)),
                   DataColumn(label: Text('QTY', style: _colHeaderStyle)),
-                  DataColumn(label: Text('PURCHASE RATE', style: _colHeaderStyle)),
+                  DataColumn(
+                      label: Text('PURCHASE RATE', style: _colHeaderStyle)),
                   DataColumn(label: Text('DISCOUNT', style: _colHeaderStyle)),
                   DataColumn(label: Text('TAX', style: _colHeaderStyle)),
                   DataColumn(label: Text('LINE TOTAL', style: _colHeaderStyle)),
-                  DataColumn(label: Text('WARRANTY TERM', style: _colHeaderStyle)),
-                  DataColumn(label: Text('WARRANTY EXPIRY', style: _colHeaderStyle)),
+                  DataColumn(
+                      label: Text('WARRANTY TERM', style: _colHeaderStyle)),
+                  DataColumn(
+                      label: Text('WARRANTY EXPIRY', style: _colHeaderStyle)),
                   DataColumn(label: Text('BARCODE', style: _colHeaderStyle)),
                 ],
                 rows: bill.items.map((it) {
@@ -496,9 +549,16 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(it.name, style: DashboardTypography.inter(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
+                            Text(it.name,
+                                style: DashboardTypography.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white)),
                             if (it.brand.isNotEmpty || it.model.isNotEmpty)
-                              Text('${it.brand} ${it.model}'.trim(), style: DashboardTypography.inter(fontSize: 11, color: DashboardColors.textMuted)),
+                              Text('${it.brand} ${it.model}'.trim(),
+                                  style: DashboardTypography.inter(
+                                      fontSize: 11,
+                                      color: DashboardColors.textMuted)),
                           ],
                         ),
                       ),
@@ -509,38 +569,63 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                           it.imeiOrSerial.isNotEmpty ? it.imeiOrSerial : '—',
                           style: DashboardTypography.inter(
                             fontSize: 12,
-                            fontWeight: it.imeiOrSerial.isNotEmpty ? FontWeight.bold : FontWeight.normal,
-                            color: it.imeiOrSerial.isNotEmpty ? DashboardColors.neonBlue : DashboardColors.textMuted,
+                            fontWeight: it.imeiOrSerial.isNotEmpty
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            color: it.imeiOrSerial.isNotEmpty
+                                ? DashboardColors.neonBlue
+                                : DashboardColors.textMuted,
                           ),
                         ),
                       ),
 
                       // Qty
-                      DataCell(Text('${it.quantity}', style: DashboardTypography.inter(fontSize: 13, color: Colors.white))),
+                      DataCell(Text('${it.quantity}',
+                          style: DashboardTypography.inter(
+                              fontSize: 13, color: Colors.white))),
 
                       // Rate
-                      DataCell(Text('₹${it.purchaseRate.toStringAsFixed(2)}', style: DashboardTypography.inter(fontSize: 12.5, color: Colors.white))),
+                      DataCell(Text('₹${it.purchaseRate.toStringAsFixed(2)}',
+                          style: DashboardTypography.inter(
+                              fontSize: 12.5, color: Colors.white))),
 
                       // Discount
-                      DataCell(Text(it.discount > 0 ? '₹${it.discount.toStringAsFixed(2)}' : '—', style: DashboardTypography.inter(fontSize: 12, color: DashboardColors.textMuted))),
+                      DataCell(Text(
+                          it.discount > 0
+                              ? '₹${it.discount.toStringAsFixed(2)}'
+                              : '—',
+                          style: DashboardTypography.inter(
+                              fontSize: 12, color: DashboardColors.textMuted))),
 
                       // Tax
-                      DataCell(Text(it.taxAmount > 0 ? '₹${it.taxAmount.toStringAsFixed(2)} (${it.taxPercent}%)' : '—', style: DashboardTypography.inter(fontSize: 12, color: DashboardColors.textMuted))),
+                      DataCell(Text(
+                          it.taxAmount > 0
+                              ? '₹${it.taxAmount.toStringAsFixed(2)} (${it.taxPercent}%)'
+                              : '—',
+                          style: DashboardTypography.inter(
+                              fontSize: 12, color: DashboardColors.textMuted))),
 
                       // Line Total
-                      DataCell(Text('₹${it.lineTotal.toStringAsFixed(2)}', style: DashboardTypography.poppins(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white))),
+                      DataCell(Text('₹${it.lineTotal.toStringAsFixed(2)}',
+                          style: DashboardTypography.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white))),
 
                       // Warranty Term
                       DataCell(
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
                             color: it.warrantyAvailable
                                 ? const Color(0x2610B981)
                                 : const Color(0x1AFFFFFF),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
-                              color: it.warrantyAvailable ? const Color(0x6610B981) : const Color(0x26FFFFFF),
+                              color: it.warrantyAvailable
+                                  ? const Color(0x6610B981)
+                                  : const Color(0x26FFFFFF),
                             ),
                           ),
                           child: Text(
@@ -548,7 +633,9 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                             style: DashboardTypography.inter(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
-                              color: it.warrantyAvailable ? DashboardColors.neonGreen : DashboardColors.textMuted,
+                              color: it.warrantyAvailable
+                                  ? DashboardColors.neonGreen
+                                  : DashboardColors.textMuted,
                             ),
                           ),
                         ),
@@ -557,16 +644,21 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                       // Warranty Expiry
                       DataCell(
                         Text(
-                          it.warrantyExpiryDate != null ? _shortDateFormat.format(it.warrantyExpiryDate!) : 'No Expiry',
-                          style: DashboardTypography.inter(fontSize: 12, color: DashboardColors.textLight),
+                          it.warrantyExpiryDate != null
+                              ? _shortDateFormat.format(it.warrantyExpiryDate!)
+                              : 'No Expiry',
+                          style: DashboardTypography.inter(
+                              fontSize: 12, color: DashboardColors.textLight),
                         ),
                       ),
 
                       // Barcode Sticker Action
                       DataCell(
                         IconButton(
-                          icon: const Icon(Icons.qr_code_2_rounded, color: DashboardColors.neonGreen, size: 20),
-                          tooltip: 'Print ${it.quantity} Barcode Stickers (38×25mm)',
+                          icon: const Icon(Icons.qr_code_2_rounded,
+                              color: DashboardColors.neonGreen, size: 20),
+                          tooltip:
+                              'Print ${it.quantity} Barcode Stickers (38×25mm)',
                           onPressed: () {
                             BarcodePrintDialog.showForSingleProduct(
                               context,
@@ -574,7 +666,8 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                               name: it.name,
                               model: it.model,
                               brand: it.brand,
-                              existingBarcode: it.sku.isNotEmpty ? it.sku : null,
+                              existingBarcode:
+                                  it.sku.isNotEmpty ? it.sku : null,
                               initialQuantity: it.quantity,
                             );
                           },
@@ -607,18 +700,25 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.history_edu_rounded, color: DashboardColors.neonPurple, size: 20),
+                  const Icon(Icons.history_edu_rounded,
+                      color: DashboardColors.neonPurple, size: 20),
                   const SizedBox(width: 8),
                   Text(
                     'Bill Payment History (${bill.payments.length})',
-                    style: DashboardTypography.poppins(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: DashboardTypography.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white),
                   ),
                 ],
               ),
               if (bill.balanceDue > 0)
                 Text(
                   'Remaining Balance Due: ₹${bill.balanceDue.toStringAsFixed(2)}',
-                  style: DashboardTypography.inter(fontSize: 12, fontWeight: FontWeight.bold, color: DashboardColors.alertOrange),
+                  style: DashboardTypography.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: DashboardColors.alertOrange),
                 ),
             ],
           ),
@@ -629,7 +729,8 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
               child: Center(
                 child: Text(
                   'No payments recorded yet against this purchase bill.',
-                  style: DashboardTypography.inter(fontSize: 13, color: DashboardColors.textMuted),
+                  style: DashboardTypography.inter(
+                      fontSize: 13, color: DashboardColors.textMuted),
                 ),
               ),
             )
@@ -638,7 +739,8 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: bill.payments.length,
-              separatorBuilder: (_, __) => const Divider(height: 16, color: Color(0x14FFFFFF)),
+              separatorBuilder: (_, __) =>
+                  const Divider(height: 16, color: Color(0x14FFFFFF)),
               itemBuilder: (context, idx) {
                 final p = bill.payments[idx];
                 return Row(
@@ -649,7 +751,8 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                         color: const Color(0x1F10B981),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(Icons.check_rounded, color: DashboardColors.neonGreen, size: 16),
+                      child: const Icon(Icons.check_rounded,
+                          color: DashboardColors.neonGreen, size: 16),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -660,21 +763,30 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                             children: [
                               Text(
                                 p.paymentMethod,
-                                style: DashboardTypography.poppins(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
+                                style: DashboardTypography.poppins(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white),
                               ),
                               const SizedBox(width: 8),
                               Text(
                                 '•  Ref: ${p.transactionReference}',
-                                style: DashboardTypography.inter(fontSize: 11.5, color: DashboardColors.neonBlue),
+                                style: DashboardTypography.inter(
+                                    fontSize: 11.5,
+                                    color: DashboardColors.neonBlue),
                               ),
                             ],
                           ),
                           Text(
                             '${_dateFormat.format(p.paymentDate)}  •  Recorded by: ${p.recordedByName}',
-                            style: DashboardTypography.inter(fontSize: 11, color: DashboardColors.textMuted),
+                            style: DashboardTypography.inter(
+                                fontSize: 11, color: DashboardColors.textMuted),
                           ),
                           if (p.notes != null && p.notes!.isNotEmpty)
-                            Text('Note: ${p.notes}', style: DashboardTypography.inter(fontSize: 11, color: DashboardColors.textLight)),
+                            Text('Note: ${p.notes}',
+                                style: DashboardTypography.inter(
+                                    fontSize: 11,
+                                    color: DashboardColors.textLight)),
                         ],
                       ),
                     ),
@@ -708,24 +820,35 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
         children: [
           Text(
             'Purchase Bill Financials',
-            style: DashboardTypography.poppins(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+            style: DashboardTypography.poppins(
+                fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
           ),
           const SizedBox(height: 14),
           _buildSummaryLine('Subtotal', '₹${bill.subtotal.toStringAsFixed(2)}'),
           _buildSummaryLine('Total Quantity', '${bill.totalQuantity} items'),
           if (bill.totalDiscount > 0)
-            _buildSummaryLine('Total Discount', '-₹${bill.totalDiscount.toStringAsFixed(2)}', color: DashboardColors.neonGreen),
+            _buildSummaryLine(
+                'Total Discount', '-₹${bill.totalDiscount.toStringAsFixed(2)}',
+                color: DashboardColors.neonGreen),
           if (bill.totalTax > 0)
-            _buildSummaryLine('Tax / GST', '+₹${bill.totalTax.toStringAsFixed(2)}'),
+            _buildSummaryLine(
+                'Tax / GST', '+₹${bill.totalTax.toStringAsFixed(2)}'),
           if (bill.otherCharges > 0)
-            _buildSummaryLine('Other Charges', '+₹${bill.otherCharges.toStringAsFixed(2)}'),
+            _buildSummaryLine(
+                'Other Charges', '+₹${bill.otherCharges.toStringAsFixed(2)}'),
           const Divider(height: 18, color: Color(0x26FFFFFF)),
-          _buildSummaryLine('Grand Total Purchase', '₹${bill.grandTotal.toStringAsFixed(2)}', highlight: true, fontSize: 16),
-          _buildSummaryLine('Amount Paid', '₹${bill.paidAmount.toStringAsFixed(2)}', color: DashboardColors.neonGreen),
+          _buildSummaryLine(
+              'Grand Total Purchase', '₹${bill.grandTotal.toStringAsFixed(2)}',
+              highlight: true, fontSize: 16),
+          _buildSummaryLine(
+              'Amount Paid', '₹${bill.paidAmount.toStringAsFixed(2)}',
+              color: DashboardColors.neonGreen),
           _buildSummaryLine(
             'Remaining Balance Due',
             '₹${bill.balanceDue.toStringAsFixed(2)}',
-            color: bill.balanceDue > 0 ? DashboardColors.alertOrange : DashboardColors.neonGreen,
+            color: bill.balanceDue > 0
+                ? DashboardColors.alertOrange
+                : DashboardColors.neonGreen,
             highlight: true,
           ),
         ],
@@ -784,18 +907,25 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
             children: [
               Text(
                 'Bill Document Attachment',
-                style: DashboardTypography.poppins(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                style: DashboardTypography.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white),
               ),
               if (att != null)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     color: const Color(0x3300D4FF),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     att.fileType.toUpperCase(),
-                    style: DashboardTypography.inter(fontSize: 10, fontWeight: FontWeight.bold, color: DashboardColors.neonBlue),
+                    style: DashboardTypography.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: DashboardColors.neonBlue),
                   ),
                 ),
             ],
@@ -807,11 +937,13 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
               child: Center(
                 child: Column(
                   children: [
-                    const Icon(Icons.attachment_rounded, size: 36, color: DashboardColors.textMuted),
+                    const Icon(Icons.attachment_rounded,
+                        size: 36, color: DashboardColors.textMuted),
                     const SizedBox(height: 8),
                     Text(
                       'No bill image or PDF attached to this record.',
-                      style: DashboardTypography.inter(fontSize: 12, color: DashboardColors.textMuted),
+                      style: DashboardTypography.inter(
+                          fontSize: 12, color: DashboardColors.textMuted),
                     ),
                   ],
                 ),
@@ -841,8 +973,12 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
-                        att.fileType == 'pdf' ? Icons.picture_as_pdf_rounded : Icons.image_rounded,
-                        color: att.fileType == 'pdf' ? const Color(0xFFEF4444) : DashboardColors.neonBlue,
+                        att.fileType == 'pdf'
+                            ? Icons.picture_as_pdf_rounded
+                            : Icons.image_rounded,
+                        color: att.fileType == 'pdf'
+                            ? const Color(0xFFEF4444)
+                            : DashboardColors.neonBlue,
                         size: 24,
                       ),
                     ),
@@ -855,16 +991,21 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                             att.fileName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: DashboardTypography.inter(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.white),
+                            style: DashboardTypography.inter(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white),
                           ),
                           Text(
                             'Uploaded ${_dateFormat.format(att.uploadedAt)}',
-                            style: DashboardTypography.inter(fontSize: 11, color: DashboardColors.textMuted),
+                            style: DashboardTypography.inter(
+                                fontSize: 11, color: DashboardColors.textMuted),
                           ),
                         ],
                       ),
                     ),
-                    const Icon(Icons.visibility_rounded, color: DashboardColors.neonBlue, size: 20),
+                    const Icon(Icons.visibility_rounded,
+                        color: DashboardColors.neonBlue, size: 20),
                   ],
                 ),
               ),
@@ -886,7 +1027,11 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Audit Information', style: DashboardTypography.poppins(fontSize: 12.5, fontWeight: FontWeight.bold, color: DashboardColors.textLight)),
+          Text('Audit Information',
+              style: DashboardTypography.poppins(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.bold,
+                  color: DashboardColors.textLight)),
           const SizedBox(height: 8),
           _buildAuditRow('Created By', bill.createdByName),
           _buildAuditRow('Created At', _dateFormat.format(bill.createdAt)),
@@ -904,21 +1049,29 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: DashboardTypography.inter(fontSize: 11, color: DashboardColors.textMuted)),
-          Text(value, style: DashboardTypography.inter(fontSize: 11.5, color: Colors.white70)),
+          Text(label,
+              style: DashboardTypography.inter(
+                  fontSize: 11, color: DashboardColors.textMuted)),
+          Text(value,
+              style: DashboardTypography.inter(
+                  fontSize: 11.5, color: Colors.white70)),
         ],
       ),
     );
   }
 
-  TextStyle get _colHeaderStyle => DashboardTypography.poppins(fontSize: 11, fontWeight: FontWeight.bold, color: DashboardColors.textLight);
+  TextStyle get _colHeaderStyle => DashboardTypography.poppins(
+      fontSize: 11,
+      fontWeight: FontWeight.bold,
+      color: DashboardColors.textLight);
 
   // ---------------------------------------------------------------------------
   // DIALOGS: ADD PAYMENT & ATTACHMENT VIEWER
   // ---------------------------------------------------------------------------
 
   void _showAddPaymentDialog(PurchaseBill bill, AuthController auth) {
-    final amountCtrl = TextEditingController(text: bill.balanceDue.toStringAsFixed(0));
+    final amountCtrl =
+        TextEditingController(text: bill.balanceDue.toStringAsFixed(0));
     final refCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
     String method = 'UPI';
@@ -931,14 +1084,19 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setD) => AlertDialog(
           backgroundColor: const Color(0xFF0F172A),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Row(
             children: [
-              const Icon(Icons.payment_rounded, color: DashboardColors.neonGreen),
+              const Icon(Icons.payment_rounded,
+                  color: DashboardColors.neonGreen),
               const SizedBox(width: 10),
               Text(
                 'Record Payment for ${bill.billNumber}',
-                style: DashboardTypography.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                style: DashboardTypography.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white),
               ),
             ],
           ),
@@ -950,25 +1108,33 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
               children: [
                 Text(
                   'Outstanding Bill Balance: ₹${bill.balanceDue.toStringAsFixed(2)}',
-                  style: DashboardTypography.inter(fontSize: 13, fontWeight: FontWeight.bold, color: DashboardColors.alertOrange),
+                  style: DashboardTypography.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: DashboardColors.alertOrange),
                 ),
                 const SizedBox(height: 14),
                 TextField(
                   controller: amountCtrl,
                   keyboardType: TextInputType.number,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold),
                   decoration: const InputDecoration(
                     labelText: 'Amount (₹) *',
                     labelStyle: TextStyle(color: Colors.white70),
                     prefixText: '₹ ',
-                    prefixStyle: TextStyle(color: DashboardColors.neonGreen, fontWeight: FontWeight.bold),
+                    prefixStyle: TextStyle(
+                        color: DashboardColors.neonGreen,
+                        fontWeight: FontWeight.bold),
                     filled: true,
                     fillColor: Color(0x26000000),
                     border: OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 12),
-                Text('Payment Method *', style: DashboardTypography.inter(fontSize: 12, color: DashboardColors.textLight)),
+                Text('Payment Method *',
+                    style: DashboardTypography.inter(
+                        fontSize: 12, color: DashboardColors.textLight)),
                 const SizedBox(height: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -982,8 +1148,18 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                       isExpanded: true,
                       dropdownColor: const Color(0xFF1E293B),
                       value: method,
-                      items: ['Cash', 'UPI', 'Bank Transfer', 'Card', 'Cheque', 'Other'].map((m) {
-                        return DropdownMenuItem(value: m, child: Text(m, style: const TextStyle(color: Colors.white)));
+                      items: [
+                        'Cash',
+                        'UPI',
+                        'Bank Transfer',
+                        'Card',
+                        'Cheque',
+                        'Other'
+                      ].map((m) {
+                        return DropdownMenuItem(
+                            value: m,
+                            child: Text(m,
+                                style: const TextStyle(color: Colors.white)));
                       }).toList(),
                       onChanged: (val) => setD(() => method = val ?? 'UPI'),
                     ),
@@ -1019,20 +1195,26 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
           actions: [
             TextButton(
               onPressed: submitting ? null : () => Navigator.pop(ctx),
-              child: Text('Cancel', style: DashboardTypography.inter(color: Colors.white70)),
+              child: Text('Cancel',
+                  style: DashboardTypography.inter(color: Colors.white70)),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: DashboardColors.neonGreen),
+              style: FilledButton.styleFrom(
+                  backgroundColor: DashboardColors.neonGreen),
               onPressed: submitting
                   ? null
                   : () async {
-                      final amt = double.tryParse(amountCtrl.text.trim()) ?? 0.0;
+                      final amt =
+                          double.tryParse(amountCtrl.text.trim()) ?? 0.0;
                       if (amt <= 0) {
-                        toast(context, 'Please enter a valid amount', error: true);
+                        toast(context, 'Please enter a valid amount',
+                            error: true);
                         return;
                       }
                       if (refCtrl.text.trim().isEmpty) {
-                        toast(context, 'Please enter transaction reference / UTR', error: true);
+                        toast(
+                            context, 'Please enter transaction reference / UTR',
+                            error: true);
                         return;
                       }
 
@@ -1044,9 +1226,12 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                           paymentDate: payDate,
                           paymentMethod: method,
                           transactionReference: refCtrl.text.trim(),
-                          notes: notesCtrl.text.trim().isNotEmpty ? notesCtrl.text.trim() : null,
+                          notes: notesCtrl.text.trim().isNotEmpty
+                              ? notesCtrl.text.trim()
+                              : null,
                           staffId: auth.uid,
-                          staffName: auth.name.isNotEmpty ? auth.name : 'Staff User',
+                          staffName:
+                              auth.name.isNotEmpty ? auth.name : 'Staff User',
                         );
                         if (ctx.mounted) {
                           Navigator.pop(ctx);
@@ -1054,12 +1239,19 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                         }
                       } catch (e) {
                         setD(() => submitting = false);
-                        if (ctx.mounted) toast(context, 'Failed: $e', error: true);
+                        if (ctx.mounted)
+                          toast(context, 'Failed: $e', error: true);
                       }
                     },
               child: submitting
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
-                  : Text('Confirm Payment', style: DashboardTypography.inter(fontWeight: FontWeight.bold, color: Colors.black)),
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          color: Colors.black, strokeWidth: 2))
+                  : Text('Confirm Payment',
+                      style: DashboardTypography.inter(
+                          fontWeight: FontWeight.bold, color: Colors.black)),
             ),
           ],
         ),
@@ -1079,7 +1271,11 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
         title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(att.fileName, style: DashboardTypography.poppins(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+            Text(att.fileName,
+                style: DashboardTypography.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white)),
             IconButton(
               icon: const Icon(Icons.close_rounded, color: Colors.white70),
               onPressed: () => Navigator.pop(ctx),
@@ -1104,14 +1300,21 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        att.fileType == 'pdf' ? Icons.picture_as_pdf_rounded : Icons.image_rounded,
+                        att.fileType == 'pdf'
+                            ? Icons.picture_as_pdf_rounded
+                            : Icons.image_rounded,
                         size: 64,
                         color: DashboardColors.neonBlue,
                       ),
                       const SizedBox(height: 12),
-                      Text(att.fileName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      Text(att.fileName,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold)),
                       const SizedBox(height: 4),
-                      Text('Size: ${(att.fileSizeBytes / 1024).toStringAsFixed(1)} KB', style: const TextStyle(color: Colors.white60)),
+                      Text(
+                          'Size: ${(att.fileSizeBytes / 1024).toStringAsFixed(1)} KB',
+                          style: const TextStyle(color: Colors.white60)),
                     ],
                   ),
                 ),

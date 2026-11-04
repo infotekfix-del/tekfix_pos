@@ -8,7 +8,8 @@ void main() {
   group('1. Malayalam Typography & Design Tokens Audit', () {
     test('TekTypography includes Noto Sans Malayalam in fallback stack', () {
       expect(TekTypography.malayalamFallback, contains('Noto Sans Malayalam'));
-      expect(TekTypography.malayalamFallback.first, equals('Noto Sans Malayalam'));
+      expect(
+          TekTypography.malayalamFallback.first, equals('Noto Sans Malayalam'));
 
       final titleStyle = TekTypography.titleLarge;
       expect(titleStyle.fontFamilyFallback, contains('Noto Sans Malayalam'));
@@ -73,7 +74,9 @@ void main() {
   });
 
   group('3. Payment Reminders Zero-Balance Deduction Verification', () {
-    test('Simulating reminder update does NOT deduct or mutate customer balance', () {
+    test(
+        'Simulating reminder update does NOT deduct or mutate customer balance',
+        () {
       final customer = <String, dynamic>{
         'id': 'cust_001',
         'name': 'Anil Kumar (അനിൽ കുമാർ)',

@@ -101,7 +101,9 @@ class WindowsUpdateBanner extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 12,
-                        color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                        color: isDark
+                            ? const Color(0xFFCBD5E1)
+                            : const Color(0xFF475569),
                       ),
                     ),
                   ],
@@ -122,7 +124,8 @@ class WindowsUpdateBanner extends StatelessWidget {
                   backgroundColor: const Color(0xFF3B82F6),
                   foregroundColor: Colors.white,
                   visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),

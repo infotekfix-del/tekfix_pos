@@ -33,7 +33,8 @@ class AddExpenseDialog extends StatefulWidget {
         barrierDismissible: false,
         builder: (ctx) => Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 580),
             child: AddExpenseDialog(
@@ -185,7 +186,8 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
 
     final double amount = double.tryParse(_amountCtrl.text.trim()) ?? 0.0;
     if (amount <= 0) {
-      setState(() => _errorMessage = 'സാധുതയുള്ള തുക നൽകുക (Enter a valid amount)');
+      setState(
+          () => _errorMessage = 'സാധുതയുള്ള തുക നൽകുക (Enter a valid amount)');
       return;
     }
 
@@ -196,8 +198,12 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
 
     try {
       final auth = context.read<AuthController>();
-      final shopId = auth.shopId.isNotEmpty ? auth.shopId : Db.setting('shop_id', 'tekfix');
-      final uid = auth.uid.isNotEmpty ? auth.uid : Db.setting('staff_logged_id', 'staff');
+      final shopId = auth.shopId.isNotEmpty
+          ? auth.shopId
+          : Db.setting('shop_id', 'tekfix');
+      final uid = auth.uid.isNotEmpty
+          ? auth.uid
+          : Db.setting('staff_logged_id', 'staff');
       final name = auth.name.isNotEmpty
           ? auth.name
           : Db.setting('staff_logged_name', 'Staff');
@@ -324,7 +330,8 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, color: TekColors.textSecondary),
+                    icon: const Icon(Icons.close_rounded,
+                        color: TekColors.textSecondary),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
@@ -335,11 +342,13 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
               // Error banner if any
               if (_errorMessage != null) ...[
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: TekColors.error.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: TekColors.error.withValues(alpha: 0.5)),
+                    border: Border.all(
+                        color: TekColors.error.withValues(alpha: 0.5)),
                   ),
                   child: Row(
                     children: [
@@ -381,8 +390,10 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                             } else if (s.contains('Electricity')) {
                               _category = ExpenseCategory.electricityAndUtility;
                             } else if (s.contains('Travel')) {
-                              _category = ExpenseCategory.transportationAndTravel;
-                            } else if (s.contains('Packing') || s.contains('Pen')) {
+                              _category =
+                                  ExpenseCategory.transportationAndTravel;
+                            } else if (s.contains('Packing') ||
+                                s.contains('Pen')) {
                               _category = ExpenseCategory.stationeryAndPacking;
                             }
                           });
@@ -399,11 +410,13 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
               TextFormField(
                 controller: _titleCtrl,
                 autofocus: true,
-                style: const TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                    color: TekColors.textPrimary, fontWeight: FontWeight.w600),
                 decoration: const InputDecoration(
                   labelText: 'Expense Title (ചിലവിന്റെ പേര്) *',
                   hintText: 'ഉദാ: Packing Covers, Tea & Snacks',
-                  prefixIcon: Icon(Icons.edit_note_rounded, color: TekColors.secondary),
+                  prefixIcon:
+                      Icon(Icons.edit_note_rounded, color: TekColors.secondary),
                 ),
                 validator: (v) {
                   if (v == null || v.trim().isEmpty) {
@@ -419,10 +432,12 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
               DropdownButtonFormField<String>(
                 value: _category,
                 dropdownColor: TekColors.bgCard,
-                style: const TextStyle(color: TekColors.textPrimary, fontSize: 13.5),
+                style: const TextStyle(
+                    color: TekColors.textPrimary, fontSize: 13.5),
                 decoration: const InputDecoration(
                   labelText: 'Category (വിഭാഗം) *',
-                  prefixIcon: Icon(Icons.category_rounded, color: TekColors.secondary),
+                  prefixIcon:
+                      Icon(Icons.category_rounded, color: TekColors.secondary),
                 ),
                 items: ExpenseCategory.all.map((c) {
                   return DropdownMenuItem(
@@ -430,7 +445,8 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                     child: Text(
                       '$c (${ExpenseCategory.toMalayalam(c)})',
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontFamilyFallback: TekTypography.malayalamFallback),
+                      style: const TextStyle(
+                          fontFamilyFallback: TekTypography.malayalamFallback),
                     ),
                   );
                 }).toList(),
@@ -444,7 +460,8 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
               // Field 3: Amount in INR
               TextFormField(
                 controller: _amountCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
                 style: const TextStyle(
                   color: TekColors.textPrimary,
                   fontSize: 18,
@@ -519,7 +536,8 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                       borderRadius: BorderRadius.circular(12),
                       onTap: _pickDateTime,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 12),
                         decoration: BoxDecoration(
                           color: TekColors.bgSecondary,
                           borderRadius: BorderRadius.circular(12),
@@ -527,7 +545,8 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.calendar_today_rounded, size: 16, color: TekColors.secondary),
+                            const Icon(Icons.calendar_today_rounded,
+                                size: 16, color: TekColors.secondary),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Column(
@@ -535,11 +554,17 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                                 children: [
                                   const Text(
                                     'Expense Date',
-                                    style: TextStyle(fontSize: 11, color: TekColors.textSecondary),
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        color: TekColors.textSecondary),
                                   ),
                                   Text(
-                                    DateFormat('dd MMM yyyy, hh:mm a').format(_expenseDate),
-                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: TekColors.textPrimary),
+                                    DateFormat('dd MMM yyyy, hh:mm a')
+                                        .format(_expenseDate),
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: TekColors.textPrimary),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -554,7 +579,8 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 12),
                       decoration: BoxDecoration(
                         color: TekColors.bgSecondary,
                         borderRadius: BorderRadius.circular(12),
@@ -562,7 +588,8 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.person_outline_rounded, size: 16, color: TekColors.secondary),
+                          const Icon(Icons.person_outline_rounded,
+                              size: 16, color: TekColors.secondary),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Column(
@@ -570,11 +597,16 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                               children: [
                                 const Text(
                                   'Recorded By',
-                                  style: TextStyle(fontSize: 11, color: TekColors.textSecondary),
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      color: TekColors.textSecondary),
                                 ),
                                 Text(
                                   recordedName,
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: TekColors.textPrimary),
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: TekColors.textPrimary),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -594,11 +626,13 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
               TextFormField(
                 controller: _notesCtrl,
                 maxLines: 2,
-                style: const TextStyle(color: TekColors.textPrimary, fontSize: 13),
+                style:
+                    const TextStyle(color: TekColors.textPrimary, fontSize: 13),
                 decoration: const InputDecoration(
                   labelText: 'Notes (ഓപ്ഷണൽ കുറിപ്പ്)',
                   hintText: 'കൂടുതൽ വിവരങ്ങൾ...',
-                  prefixIcon: Icon(Icons.notes_rounded, color: TekColors.secondary),
+                  prefixIcon:
+                      Icon(Icons.notes_rounded, color: TekColors.secondary),
                 ),
               ),
 
@@ -615,8 +649,12 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                 child: Row(
                   children: [
                     Icon(
-                      _pickedFile != null ? Icons.check_circle_rounded : Icons.attach_file_rounded,
-                      color: _pickedFile != null ? TekColors.success : TekColors.secondary,
+                      _pickedFile != null
+                          ? Icons.check_circle_rounded
+                          : Icons.attach_file_rounded,
+                      color: _pickedFile != null
+                          ? TekColors.success
+                          : TekColors.secondary,
                       size: 20,
                     ),
                     const SizedBox(width: 10),
@@ -630,8 +668,12 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                                 : 'Attach Bill / Receipt (ബിൽ അറ്റാച്ച് ചെയ്യുക)',
                             style: TextStyle(
                               fontSize: 12.5,
-                              fontWeight: _pickedFile != null ? FontWeight.bold : FontWeight.normal,
-                              color: _pickedFile != null ? TekColors.textPrimary : TekColors.textSecondary,
+                              fontWeight: _pickedFile != null
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              color: _pickedFile != null
+                                  ? TekColors.textPrimary
+                                  : TekColors.textSecondary,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -639,14 +681,16 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                           if (_pickedFile != null)
                             Text(
                               '${(_pickedFile!.size / 1024).toStringAsFixed(1)} KB',
-                              style: const TextStyle(fontSize: 11, color: TekColors.textMuted),
+                              style: const TextStyle(
+                                  fontSize: 11, color: TekColors.textMuted),
                             ),
                         ],
                       ),
                     ),
                     if (_pickedFile != null)
                       IconButton(
-                        icon: const Icon(Icons.clear_rounded, size: 18, color: TekColors.error),
+                        icon: const Icon(Icons.clear_rounded,
+                            size: 18, color: TekColors.error),
                         onPressed: () => setState(() {
                           _pickedFile = null;
                           _fileBytes = null;
@@ -655,12 +699,14 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                     else
                       OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 8),
                           side: const BorderSide(color: TekColors.border),
                         ),
                         onPressed: _pickAttachment,
                         icon: const Icon(Icons.upload_file_rounded, size: 16),
-                        label: const Text('Browse', style: TextStyle(fontSize: 12)),
+                        label: const Text('Browse',
+                            style: TextStyle(fontSize: 12)),
                       ),
                   ],
                 ),
@@ -675,7 +721,8 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFF43F5E),
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
                     elevation: 0,
                   ),
                   onPressed: _isSubmitting ? null : _submit,
@@ -683,11 +730,15 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2),
                         )
-                      : const Icon(Icons.check_circle_outline_rounded, size: 20),
+                      : const Icon(Icons.check_circle_outline_rounded,
+                          size: 20),
                   label: Text(
-                    _isSubmitting ? 'ചിലവ് രേഖപ്പെടുത്തുന്നു...' : 'Save Expense (ചിലവ് രേഖപ്പെടുത്തുക)',
+                    _isSubmitting
+                        ? 'ചിലവ് രേഖപ്പെടുത്തുന്നു...'
+                        : 'Save Expense (ചിലവ് രേഖപ്പെടുത്തുക)',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
@@ -718,7 +769,9 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? activeColor.withValues(alpha: 0.12) : TekColors.bgSecondary,
+          color: isSelected
+              ? activeColor.withValues(alpha: 0.12)
+              : TekColors.bgSecondary,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected ? activeColor : TekColors.border,
@@ -727,7 +780,9 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
         ),
         child: Row(
           children: [
-            Icon(icon, size: 20, color: isSelected ? activeColor : TekColors.textSecondary),
+            Icon(icon,
+                size: 20,
+                color: isSelected ? activeColor : TekColors.textSecondary),
             const SizedBox(width: 8),
             Expanded(
               child: Column(
@@ -737,7 +792,8 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                     title,
                     style: TextStyle(
                       fontSize: 12.5,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.w500,
                       color: isSelected ? activeColor : TekColors.textPrimary,
                     ),
                   ),
@@ -758,4 +814,3 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
     );
   }
 }
-

@@ -3,7 +3,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 void main() {
-  test('Barcode Code 128 Generation and 38x25mm Label Dimensions Test', () async {
+  test('Barcode Code 128 Generation and 38x25mm Label Dimensions Test',
+      () async {
     const widthMm = 38.0;
     const heightMm = 25.0;
 
@@ -41,7 +42,8 @@ void main() {
                 'Fast Charger 65W GaN',
                 maxLines: 1,
                 overflow: pw.TextOverflow.clip,
-                style: pw.TextStyle(fontSize: 5.5, fontWeight: pw.FontWeight.bold),
+                style:
+                    pw.TextStyle(fontSize: 5.5, fontWeight: pw.FontWeight.bold),
               ),
               pw.Text(
                 'Model: FC-65W',
@@ -66,7 +68,8 @@ void main() {
               // Selling Price
               pw.Text(
                 'MRP: Rs. 1,499.00',
-                style: pw.TextStyle(fontSize: 6.0, fontWeight: pw.FontWeight.bold),
+                style:
+                    pw.TextStyle(fontSize: 6.0, fontWeight: pw.FontWeight.bold),
               ),
             ],
           );

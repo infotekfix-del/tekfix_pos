@@ -36,7 +36,8 @@ class DailyRentPaymentDialog extends StatefulWidget {
         barrierDismissible: false,
         builder: (_) => Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 580),
             child: DailyRentPaymentDialog(
@@ -121,7 +122,8 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
     final sId = widget.shopId ?? Db.setting('shop_id', 'tekfix');
     final settings = await RentService.instance.getSettings(shopId: sId);
     final dateKey = RentService.toDateKey(_selectedDate);
-    final existing = await RentService.instance.getRentRecordForDate(dateKey, shopId: sId);
+    final existing =
+        await RentService.instance.getRentRecordForDate(dateKey, shopId: sId);
 
     if (mounted) {
       setState(() {
@@ -152,7 +154,8 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
     });
     final sId = widget.shopId ?? Db.setting('shop_id', 'tekfix');
     final dateKey = RentService.toDateKey(newDate);
-    final existing = await RentService.instance.getRentRecordForDate(dateKey, shopId: sId);
+    final existing =
+        await RentService.instance.getRentRecordForDate(dateKey, shopId: sId);
     final expected = _settings?.getRentForDate(newDate) ?? 300.0;
 
     if (mounted) {
@@ -167,7 +170,8 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
           _notesCtrl.text = existing.notes;
         } else {
           _amountCtrl.text = expected > 0 ? expected.toStringAsFixed(0) : '300';
-          _paymentMode = _settings?.defaultPaymentMode ?? ExpensePaymentMode.cash;
+          _paymentMode =
+              _settings?.defaultPaymentMode ?? ExpensePaymentMode.cash;
         }
       });
     }
@@ -203,7 +207,8 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
 
     final amt = double.tryParse(_amountCtrl.text.trim()) ?? 0.0;
     if (amt <= 0) {
-      toast(context, 'ശരിയായ തുക നൽകുക (Enter a valid positive amount)', error: true);
+      toast(context, 'ശരിയായ തുക നൽകുക (Enter a valid positive amount)',
+          error: true);
       return;
     }
 
@@ -275,7 +280,8 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
           children: [
             Icon(Icons.warning_amber_rounded, color: TekColors.error, size: 22),
             SizedBox(width: 8),
-            Text('Void Daily Rent Payment?', style: TextStyle(color: TekColors.textPrimary, fontSize: 16)),
+            Text('Void Daily Rent Payment?',
+                style: TextStyle(color: TekColors.textPrimary, fontSize: 16)),
           ],
         ),
         content: Column(
@@ -284,12 +290,14 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
           children: [
             Text(
               'Are you sure you want to void and reverse the rent payment of ₹${_existingRecord!.paidAmount.toStringAsFixed(0)} for ${_existingRecord!.dateKey}? This will restore the ${_existingRecord!.paymentMode} balance.',
-              style: const TextStyle(color: TekColors.textSecondary, fontSize: 13),
+              style:
+                  const TextStyle(color: TekColors.textSecondary, fontSize: 13),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: reasonCtrl,
-              style: const TextStyle(color: TekColors.textPrimary, fontSize: 13),
+              style:
+                  const TextStyle(color: TekColors.textPrimary, fontSize: 13),
               decoration: const InputDecoration(
                 labelText: 'Void Reason (നിർബന്ധമാണ്)',
                 labelStyle: TextStyle(color: TekColors.textMuted, fontSize: 12),
@@ -300,12 +308,14 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: TekColors.textMuted)),
+            child: const Text('Cancel',
+                style: TextStyle(color: TekColors.textMuted)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: TekColors.error),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Confirm Void', style: TextStyle(color: Colors.white)),
+            child: const Text('Confirm Void',
+                style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -320,10 +330,13 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
           dateKey: _existingRecord!.dateKey,
           voidedByUid: auth.uid.isNotEmpty ? auth.uid : 'staff',
           voidedByName: auth.name.isNotEmpty ? auth.name : 'Staff',
-          voidReason: reasonCtrl.text.trim().isNotEmpty ? reasonCtrl.text.trim() : 'Voided by user',
+          voidReason: reasonCtrl.text.trim().isNotEmpty
+              ? reasonCtrl.text.trim()
+              : 'Voided by user',
         );
         if (mounted) {
-          toast(context, 'Rent payment reversed and balance restored successfully!');
+          toast(context,
+              'Rent payment reversed and balance restored successfully!');
           widget.onPaymentSuccess?.call();
           Navigator.pop(context, true);
         }
@@ -376,7 +389,10 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
                                   gradient: const LinearGradient(
-                                    colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+                                    colors: [
+                                      Color(0xFFF59E0B),
+                                      Color(0xFFD97706)
+                                    ],
                                   ),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -403,7 +419,8 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
                                     style: TextStyle(
                                       color: TekColors.textSecondary,
                                       fontSize: 12,
-                                      fontFamilyFallback: TekTypography.malayalamFallback,
+                                      fontFamilyFallback:
+                                          TekTypography.malayalamFallback,
                                     ),
                                   ),
                                 ],
@@ -411,7 +428,8 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
                             ],
                           ),
                           IconButton(
-                            icon: const Icon(Icons.close_rounded, color: TekColors.textSecondary),
+                            icon: const Icon(Icons.close_rounded,
+                                color: TekColors.textSecondary),
                             onPressed: () => Navigator.pop(context),
                           ),
                         ],
@@ -424,13 +442,15 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                            color:
+                                const Color(0xFF10B981).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: const Color(0xFF10B981)),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 18),
+                              const Icon(Icons.check_circle_rounded,
+                                  color: Color(0xFF10B981), size: 18),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Column(
@@ -461,18 +481,25 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
                         )
                       else
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                            color:
+                                const Color(0xFFF59E0B).withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.4)),
+                            border: Border.all(
+                                color: const Color(0xFFF59E0B)
+                                    .withValues(alpha: 0.4)),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.info_outline_rounded, color: Color(0xFFF59E0B), size: 16),
+                              const Icon(Icons.info_outline_rounded,
+                                  color: Color(0xFFF59E0B), size: 16),
                               const SizedBox(width: 8),
                               Text(
-                                isToday ? 'Rent Pending for Today ($displayDate)' : 'Rent Pending for $displayDate',
+                                isToday
+                                    ? 'Rent Pending for Today ($displayDate)'
+                                    : 'Rent Pending for $displayDate',
                                 style: const TextStyle(
                                   color: Color(0xFFF59E0B),
                                   fontSize: 12,
@@ -494,7 +521,8 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
                                   context: context,
                                   initialDate: _selectedDate,
                                   firstDate: DateTime(2025, 1, 1),
-                                  lastDate: DateTime.now().add(const Duration(days: 1)),
+                                  lastDate: DateTime.now()
+                                      .add(const Duration(days: 1)),
                                 );
                                 if (picked != null) {
                                   _onDateChanged(picked);
@@ -502,7 +530,8 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
                               },
                         borderRadius: BorderRadius.circular(12),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
                           decoration: BoxDecoration(
                             color: TekColors.bgSecondary,
                             borderRadius: BorderRadius.circular(12),
@@ -513,16 +542,24 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
                             children: [
                               Row(
                                 children: [
-                                  const Icon(Icons.calendar_today_rounded, size: 16, color: TekColors.textSecondary),
+                                  const Icon(Icons.calendar_today_rounded,
+                                      size: 16, color: TekColors.textSecondary),
                                   const SizedBox(width: 8),
                                   Text(
                                     'Business Date: $displayDate',
-                                    style: const TextStyle(color: TekColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+                                    style: const TextStyle(
+                                        color: TekColors.textPrimary,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600),
                                   ),
                                 ],
                               ),
                               if (!isAlreadyPaid)
-                                const Text('Change', style: TextStyle(color: TekColors.primary, fontSize: 12, fontWeight: FontWeight.bold)),
+                                const Text('Change',
+                                    style: TextStyle(
+                                        color: TekColors.primary,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold)),
                             ],
                           ),
                         ),
@@ -534,21 +571,36 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
                       TextFormField(
                         controller: _amountCtrl,
                         enabled: !isAlreadyPaid,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        style: const TextStyle(color: TekColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        style: const TextStyle(
+                            color: TekColors.textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold),
                         decoration: InputDecoration(
                           labelText: 'Rent Amount (വാടക തുക) *',
-                          labelStyle: const TextStyle(color: TekColors.textSecondary, fontSize: 13),
+                          labelStyle: const TextStyle(
+                              color: TekColors.textSecondary, fontSize: 13),
                           prefixText: '₹ ',
-                          prefixStyle: const TextStyle(color: TekColors.primary, fontSize: 18, fontWeight: FontWeight.bold),
+                          prefixStyle: const TextStyle(
+                              color: TekColors.primary,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold),
                           filled: true,
                           fillColor: TekColors.bgSecondary,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TekColors.border)),
-                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TekColors.border)),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide:
+                                  const BorderSide(color: TekColors.border)),
+                          enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide:
+                                  const BorderSide(color: TekColors.border)),
                         ),
                         validator: (v) {
                           final n = double.tryParse(v?.trim() ?? '');
-                          if (n == null || n <= 0) return 'Valid positive amount required';
+                          if (n == null || n <= 0)
+                            return 'Valid positive amount required';
                           return null;
                         },
                       ),
@@ -561,36 +613,51 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
                         children: [
                           const Text(
                             'Payment Mode (പേയ്‌മെന്റ് രീതി) *',
-                            style: TextStyle(color: TekColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                                color: TekColors.textSecondary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(height: 8),
                           Row(
                             children: [
                               Expanded(
                                 child: InkWell(
-                                  onTap: isAlreadyPaid ? null : () => setState(() => _paymentMode = ExpensePaymentMode.cash),
+                                  onTap: isAlreadyPaid
+                                      ? null
+                                      : () => setState(() => _paymentMode =
+                                          ExpensePaymentMode.cash),
                                   borderRadius: BorderRadius.circular(12),
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 12),
                                     decoration: BoxDecoration(
-                                      color: _paymentMode == ExpensePaymentMode.cash
-                                          ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
+                                      color: _paymentMode ==
+                                              ExpensePaymentMode.cash
+                                          ? const Color(0xFFF59E0B)
+                                              .withValues(alpha: 0.15)
                                           : TekColors.bgSecondary,
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                        color: _paymentMode == ExpensePaymentMode.cash
+                                        color: _paymentMode ==
+                                                ExpensePaymentMode.cash
                                             ? const Color(0xFFF59E0B)
                                             : TekColors.border,
-                                        width: _paymentMode == ExpensePaymentMode.cash ? 1.5 : 1,
+                                        width: _paymentMode ==
+                                                ExpensePaymentMode.cash
+                                            ? 1.5
+                                            : 1,
                                       ),
                                     ),
                                     child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         Icon(
                                           Icons.payments_rounded,
                                           size: 18,
-                                          color: _paymentMode == ExpensePaymentMode.cash
+                                          color: _paymentMode ==
+                                                  ExpensePaymentMode.cash
                                               ? const Color(0xFFF59E0B)
                                               : TekColors.textSecondary,
                                         ),
@@ -598,7 +665,8 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
                                         Text(
                                           'Cash in Hand',
                                           style: TextStyle(
-                                            color: _paymentMode == ExpensePaymentMode.cash
+                                            color: _paymentMode ==
+                                                    ExpensePaymentMode.cash
                                                 ? const Color(0xFFF59E0B)
                                                 : TekColors.textSecondary,
                                             fontWeight: FontWeight.bold,
@@ -613,29 +681,41 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
                               const SizedBox(width: 10),
                               Expanded(
                                 child: InkWell(
-                                  onTap: isAlreadyPaid ? null : () => setState(() => _paymentMode = ExpensePaymentMode.bank),
+                                  onTap: isAlreadyPaid
+                                      ? null
+                                      : () => setState(() => _paymentMode =
+                                          ExpensePaymentMode.bank),
                                   borderRadius: BorderRadius.circular(12),
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 12),
                                     decoration: BoxDecoration(
-                                      color: _paymentMode == ExpensePaymentMode.bank
-                                          ? TekColors.secondary.withValues(alpha: 0.15)
+                                      color: _paymentMode ==
+                                              ExpensePaymentMode.bank
+                                          ? TekColors.secondary
+                                              .withValues(alpha: 0.15)
                                           : TekColors.bgSecondary,
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                        color: _paymentMode == ExpensePaymentMode.bank
+                                        color: _paymentMode ==
+                                                ExpensePaymentMode.bank
                                             ? TekColors.secondary
                                             : TekColors.border,
-                                        width: _paymentMode == ExpensePaymentMode.bank ? 1.5 : 1,
+                                        width: _paymentMode ==
+                                                ExpensePaymentMode.bank
+                                            ? 1.5
+                                            : 1,
                                       ),
                                     ),
                                     child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         Icon(
                                           Icons.account_balance_rounded,
                                           size: 18,
-                                          color: _paymentMode == ExpensePaymentMode.bank
+                                          color: _paymentMode ==
+                                                  ExpensePaymentMode.bank
                                               ? TekColors.secondary
                                               : TekColors.textSecondary,
                                         ),
@@ -643,7 +723,8 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
                                         Text(
                                           'Bank / UPI',
                                           style: TextStyle(
-                                            color: _paymentMode == ExpensePaymentMode.bank
+                                            color: _paymentMode ==
+                                                    ExpensePaymentMode.bank
                                                 ? TekColors.secondary
                                                 : TekColors.textSecondary,
                                             fontWeight: FontWeight.bold,
@@ -669,13 +750,19 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
                             child: TextFormField(
                               controller: _landlordCtrl,
                               enabled: !isAlreadyPaid,
-                              style: const TextStyle(color: TekColors.textPrimary, fontSize: 13),
+                              style: const TextStyle(
+                                  color: TekColors.textPrimary, fontSize: 13),
                               decoration: InputDecoration(
                                 labelText: 'Landlord Name (കെട്ടിട ഉടമ)',
-                                labelStyle: const TextStyle(color: TekColors.textSecondary, fontSize: 12),
+                                labelStyle: const TextStyle(
+                                    color: TekColors.textSecondary,
+                                    fontSize: 12),
                                 filled: true,
                                 fillColor: TekColors.bgSecondary,
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TekColors.border)),
+                                border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                        color: TekColors.border)),
                               ),
                             ),
                           ),
@@ -684,13 +771,19 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
                             child: TextFormField(
                               controller: _refCtrl,
                               enabled: !isAlreadyPaid,
-                              style: const TextStyle(color: TekColors.textPrimary, fontSize: 13),
+                              style: const TextStyle(
+                                  color: TekColors.textPrimary, fontSize: 13),
                               decoration: InputDecoration(
                                 labelText: 'UPI Ref / Txn ID',
-                                labelStyle: const TextStyle(color: TekColors.textSecondary, fontSize: 12),
+                                labelStyle: const TextStyle(
+                                    color: TekColors.textSecondary,
+                                    fontSize: 12),
                                 filled: true,
                                 fillColor: TekColors.bgSecondary,
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TekColors.border)),
+                                border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                        color: TekColors.border)),
                               ),
                             ),
                           ),
@@ -704,13 +797,18 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
                         controller: _notesCtrl,
                         enabled: !isAlreadyPaid,
                         maxLines: 2,
-                        style: const TextStyle(color: TekColors.textPrimary, fontSize: 13),
+                        style: const TextStyle(
+                            color: TekColors.textPrimary, fontSize: 13),
                         decoration: InputDecoration(
                           labelText: 'Notes / Remarks (കുറിപ്പ്)',
-                          labelStyle: const TextStyle(color: TekColors.textSecondary, fontSize: 12),
+                          labelStyle: const TextStyle(
+                              color: TekColors.textSecondary, fontSize: 12),
                           filled: true,
                           fillColor: TekColors.bgSecondary,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: TekColors.border)),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide:
+                                  const BorderSide(color: TekColors.border)),
                         ),
                       ),
 
@@ -721,16 +819,19 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
                         OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: TekColors.border),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
                             padding: const EdgeInsets.symmetric(vertical: 11),
                           ),
                           onPressed: _pickAttachment,
-                          icon: const Icon(Icons.attach_file_rounded, size: 16, color: TekColors.primary),
+                          icon: const Icon(Icons.attach_file_rounded,
+                              size: 16, color: TekColors.primary),
                           label: Text(
                             _attachedFileName != null
                                 ? 'Receipt: $_attachedFileName'
                                 : 'Attach Rent Slip / Receipt (ഓപ്ഷണൽ)',
-                            style: const TextStyle(fontSize: 12.5, color: TekColors.textPrimary),
+                            style: const TextStyle(
+                                fontSize: 12.5, color: TekColors.textPrimary),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -744,9 +845,12 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
                             Expanded(
                               child: OutlinedButton.icon(
                                 style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(color: TekColors.border),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  side:
+                                      const BorderSide(color: TekColors.border),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12)),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
                                 ),
                                 onPressed: () => Navigator.pop(context),
                                 icon: const Icon(Icons.close_rounded, size: 16),
@@ -759,8 +863,10 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: TekColors.error,
                                   foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12)),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
                                 ),
                                 onPressed: _confirmVoidPayment,
                                 icon: const Icon(Icons.undo_rounded, size: 16),
@@ -775,7 +881,8 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
                             backgroundColor: const Color(0xFFF59E0B),
                             foregroundColor: Colors.black,
                             elevation: 0,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14)),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
                           onPressed: _isSubmitting ? null : _submitPayment,
@@ -783,12 +890,17 @@ class _DailyRentPaymentDialogState extends State<DailyRentPaymentDialog>
                               ? const SizedBox(
                                   width: 18,
                                   height: 18,
-                                  child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2),
+                                  child: CircularProgressIndicator(
+                                      color: Colors.black, strokeWidth: 2),
                                 )
-                              : const Icon(Icons.check_circle_rounded, size: 20),
+                              : const Icon(Icons.check_circle_rounded,
+                                  size: 20),
                           label: Text(
-                            _isSubmitting ? 'Recording Rent...' : 'Record Rent Payment (വാടക നൽകുക)',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                            _isSubmitting
+                                ? 'Recording Rent...'
+                                : 'Record Rent Payment (വാടക നൽകുക)',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 14),
                           ),
                         ),
                       ],

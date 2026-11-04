@@ -68,6 +68,7 @@ class WindowsUpdateService extends ChangeNotifier {
     debugPrint('WindowsUpdateService: $message');
     notifyListeners();
   }
+
   bool get isUpdateAvailable =>
       _status == WindowsUpdateStatus.updateAvailable ||
       _status == WindowsUpdateStatus.downloading ||
@@ -145,9 +146,14 @@ class WindowsUpdateService extends ChangeNotifier {
 
     final httpClient = client ?? http.Client();
     try {
-      final owner = _settings.githubOwner.trim().isEmpty ? defaultOwner : _settings.githubOwner.trim();
-      final repo = _settings.githubRepo.trim().isEmpty ? defaultRepo : _settings.githubRepo.trim();
-      final url = Uri.parse('https://api.github.com/repos/$owner/$repo/releases/latest');
+      final owner = _settings.githubOwner.trim().isEmpty
+          ? defaultOwner
+          : _settings.githubOwner.trim();
+      final repo = _settings.githubRepo.trim().isEmpty
+          ? defaultRepo
+          : _settings.githubRepo.trim();
+      final url = Uri.parse(
+          'https://api.github.com/repos/$owner/$repo/releases/latest');
 
       _log('Querying GitHub Releases API: $url');
       final response = await httpClient.get(
@@ -188,7 +194,8 @@ class WindowsUpdateService extends ChangeNotifier {
           if (!isManual &&
               _settings.postponedVersion == release.tagName &&
               _settings.lastDismissedAt != null &&
-              DateTime.now().difference(_settings.lastDismissedAt!).inHours < 24) {
+              DateTime.now().difference(_settings.lastDismissedAt!).inHours <
+                  24) {
             _log('Update postponed by user for 24h.');
             _status = WindowsUpdateStatus.idle;
           } else {
@@ -205,7 +212,8 @@ class WindowsUpdateService extends ChangeNotifier {
         }
       } else if (response.statusCode == 403) {
         _lastFetchedRemoteVersion = 'Unknown';
-        _errorMessage = 'GitHub API rate limit exceeded (HTTP 403). Please check again later.';
+        _errorMessage =
+            'GitHub API rate limit exceeded (HTTP 403). Please check again later.';
         _checkStatusSummary = 'API Error: HTTP 403 Rate Limited';
         _log('Status: API Error: HTTP 403 (Rate Limited)');
         _status = WindowsUpdateStatus.failed;
@@ -213,7 +221,8 @@ class WindowsUpdateService extends ChangeNotifier {
         return null;
       } else if (response.statusCode == 404) {
         _lastFetchedRemoteVersion = 'None';
-        _errorMessage = 'No releases found on GitHub for repository $owner/$repo (HTTP 404).';
+        _errorMessage =
+            'No releases found on GitHub for repository $owner/$repo (HTTP 404).';
         _checkStatusSummary = 'API Error: HTTP 404 (No Releases Found)';
         _log('Status: API Error: HTTP 404 (No Releases Found)');
         _status = WindowsUpdateStatus.upToDate;
@@ -221,7 +230,8 @@ class WindowsUpdateService extends ChangeNotifier {
         return null;
       } else {
         _lastFetchedRemoteVersion = 'Error';
-        _errorMessage = 'GitHub API returned HTTP ${response.statusCode}: ${response.reasonPhrase}';
+        _errorMessage =
+            'GitHub API returned HTTP ${response.statusCode}: ${response.reasonPhrase}';
         _checkStatusSummary = 'API Error: HTTP ${response.statusCode}';
         _log('Status: API Error: HTTP ${response.statusCode}');
         _status = WindowsUpdateStatus.failed;
@@ -230,7 +240,8 @@ class WindowsUpdateService extends ChangeNotifier {
       }
     } on SocketException catch (e) {
       _lastFetchedRemoteVersion = 'Network Error';
-      _errorMessage = 'ഇന്റർനെറ്റ് കണക്ഷൻ ലഭ്യമല്ല (No internet connection: ${e.message})';
+      _errorMessage =
+          'ഇന്റർനെറ്റ് കണക്ഷൻ ലഭ്യമല്ല (No internet connection: ${e.message})';
       _checkStatusSummary = 'Network Error: SocketException';
       _log('Status: Network Error: SocketException (${e.message})');
       _status = WindowsUpdateStatus.failed;
@@ -238,7 +249,8 @@ class WindowsUpdateService extends ChangeNotifier {
       return null;
     } on HandshakeException catch (e) {
       _lastFetchedRemoteVersion = 'SSL Error';
-      _errorMessage = 'സുരക്ഷിത കണക്ഷൻ പരാജയപ്പെട്ടു (HandshakeException: ${e.message})';
+      _errorMessage =
+          'സുരക്ഷിത കണക്ഷൻ പരാജയപ്പെട്ടു (HandshakeException: ${e.message})';
       _checkStatusSummary = 'Security Error: HandshakeException';
       _log('Status: Security Error: HandshakeException (${e.message})');
       _status = WindowsUpdateStatus.failed;
@@ -282,7 +294,8 @@ class WindowsUpdateService extends ChangeNotifier {
 
     final installerAsset = release.windowsInstallerAsset;
     if (installerAsset == null) {
-      _errorMessage = 'ഈ റിലീസിൽ Windows Installer (.exe) കണ്ടെത്തിയില്ല.\n(Windows installer asset not found in release).';
+      _errorMessage =
+          'ഈ റിലീസിൽ Windows Installer (.exe) കണ്ടെത്തിയില്ല.\n(Windows installer asset not found in release).';
       _status = WindowsUpdateStatus.failed;
       notifyListeners();
       return false;
@@ -302,7 +315,8 @@ class WindowsUpdateService extends ChangeNotifier {
     File? tempFile;
 
     try {
-      final tempDir = Directory(p.join(Directory.systemTemp.path, 'tekfix_updates'));
+      final tempDir =
+          Directory(p.join(Directory.systemTemp.path, 'tekfix_updates'));
       if (!await tempDir.exists()) {
         await tempDir.create(recursive: true);
       }
@@ -317,15 +331,18 @@ class WindowsUpdateService extends ChangeNotifier {
 
       fileSink = tempFile.openWrite();
 
-      final request = http.Request('GET', Uri.parse(installerAsset.downloadUrl));
+      final request =
+          http.Request('GET', Uri.parse(installerAsset.downloadUrl));
       request.headers['User-Agent'] = 'TekFix-ERP-Updater/1.0';
 
       final streamedResponse = await _activeDownloadClient!.send(request);
       if (streamedResponse.statusCode != 200) {
-        throw Exception('Download failed with HTTP ${streamedResponse.statusCode}');
+        throw Exception(
+            'Download failed with HTTP ${streamedResponse.statusCode}');
       }
 
-      final totalBytes = streamedResponse.contentLength ?? installerAsset.sizeBytes;
+      final totalBytes =
+          streamedResponse.contentLength ?? installerAsset.sizeBytes;
       int downloadedBytes = 0;
       final stopwatch = Stopwatch()..start();
       DateTime lastSpeedUpdate = DateTime.now();
@@ -347,13 +364,15 @@ class WindowsUpdateService extends ChangeNotifier {
             bytesSinceLastSpeed = 0;
             lastSpeedUpdate = now;
 
-            final progress = totalBytes > 0 ? (downloadedBytes / totalBytes) : 0.0;
+            final progress =
+                totalBytes > 0 ? (downloadedBytes / totalBytes) : 0.0;
             _downloadProgress = DownloadProgressInfo(
               downloadedBytes: downloadedBytes,
               totalBytes: totalBytes,
               progress: progress,
               speedBytesPerSec: currentSpeed,
-              statusText: 'ഡൗൺലോഡ് ചെയ്യുന്നു... (${_downloadProgress.percentage}%)',
+              statusText:
+                  'ഡൗൺലോഡ് ചെയ്യുന്നു... (${_downloadProgress.percentage}%)',
             );
             notifyListeners();
           }
@@ -374,8 +393,11 @@ class WindowsUpdateService extends ChangeNotifier {
       stopwatch.stop();
 
       // Download complete: validate file
-      final downloadedHash = (await sha256.bind(tempFile.openRead()).first).toString().toLowerCase();
-      debugPrint('WindowsUpdateService: Downloaded file SHA-256: $downloadedHash');
+      final downloadedHash = (await sha256.bind(tempFile.openRead()).first)
+          .toString()
+          .toLowerCase();
+      debugPrint(
+          'WindowsUpdateService: Downloaded file SHA-256: $downloadedHash');
 
       // Verify file size
       final actualSize = await tempFile.length();
@@ -411,7 +433,8 @@ class WindowsUpdateService extends ChangeNotifier {
         totalBytes: actualSize,
         progress: 1.0,
         speedBytesPerSec: 0,
-        statusText: 'ഡൗൺലോഡ് പൂർത്തിയായി! ഇൻസ്റ്റാളേഷൻ തയ്യാർ (Download Complete).',
+        statusText:
+            'ഡൗൺലോഡ് പൂർത്തിയായി! ഇൻസ്റ്റാളേഷൻ തയ്യാർ (Download Complete).',
       );
       _status = WindowsUpdateStatus.downloadComplete;
       notifyListeners();
@@ -515,7 +538,8 @@ class WindowsUpdateService extends ChangeNotifier {
     try {
       final isExe = installerPath.toLowerCase().endsWith('.exe');
       if (isExe) {
-        _log('Launching Windows Installer (.exe) detached: $installerPath with /SILENT');
+        _log(
+            'Launching Windows Installer (.exe) detached: $installerPath with /SILENT');
         await Process.start(
           installerPath,
           ['/SILENT'],

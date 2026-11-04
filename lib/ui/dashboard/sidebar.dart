@@ -340,7 +340,8 @@ class TekSidebar extends StatelessWidget {
               boxShadow: isActive
                   ? [
                       BoxShadow(
-                        color: DashboardColors.primaryBlue.withValues(alpha: 0.45),
+                        color:
+                            DashboardColors.primaryBlue.withValues(alpha: 0.45),
                         blurRadius: 14,
                         offset: const Offset(0, 4),
                       ),
@@ -367,7 +368,8 @@ class TekSidebar extends StatelessWidget {
                 ),
                 if (badgeCount > 0)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                     decoration: BoxDecoration(
                       color: badgeColor,
                       borderRadius: BorderRadius.circular(10),

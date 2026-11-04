@@ -84,7 +84,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _email = TextEditingController();
   final _pass = TextEditingController();
 
-  int _mode = 1; // Default to Staff Login for the Staff Portal (0 = Owner, 1 = Staff)
+  int _mode =
+      1; // Default to Staff Login for the Staff Portal (0 = Owner, 1 = Staff)
   bool _create = false, _busy = false, _hide = true;
   String? _err;
 
@@ -165,7 +166,8 @@ class _LoginScreenState extends State<LoginScreen> {
             await FirebaseAuth.instance.signOut();
             setState(() {
               _busy = false;
-              _err = 'ഈ അക്കൗണ്ടിന് സ്റ്റാഫ് അനുമതിയില്ല (Not authorized as staff role)';
+              _err =
+                  'ഈ അക്കൗണ്ടിന് സ്റ്റാഫ് അനുമതിയില്ല (Not authorized as staff role)';
             });
             return;
           }
@@ -217,8 +219,8 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       // 3. Offline Verification: Validate against cached owner-approved staff records
-      final approvedList = List<String>.from(Db.settings
-          .get('approved_staff_emails', defaultValue: <String>[]));
+      final approvedList = List<String>.from(
+          Db.settings.get('approved_staff_emails', defaultValue: <String>[]));
 
       Map<String, dynamic>? localStaff;
       for (final v in Db.staff.values) {
@@ -259,7 +261,8 @@ class _LoginScreenState extends State<LoginScreen> {
     // OWNER LOGIN FLOW
     // -------------------------------------------------------------------------
     if (_email.text.trim().isEmpty || _pass.text.isEmpty) {
-      setState(() => _err = 'എല്ലാ വിവരങ്ങളും നൽകുക (Please fill in all fields)');
+      setState(
+          () => _err = 'എല്ലാ വിവരങ്ങളും നൽകുക (Please fill in all fields)');
       return;
     }
     setState(() {
@@ -343,7 +346,8 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Center(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 420),
                   child: Column(
@@ -357,12 +361,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           gradient: TekColors.heroGradient,
                           borderRadius: BorderRadius.circular(24),
                           border: Border.all(
-                            color: TekColors.electricCyan.withValues(alpha: 0.4),
+                            color:
+                                TekColors.electricCyan.withValues(alpha: 0.4),
                             width: 1.5,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: TekColors.primaryBlue.withValues(alpha: 0.35),
+                              color:
+                                  TekColors.primaryBlue.withValues(alpha: 0.35),
                               blurRadius: 20,
                               offset: const Offset(0, 6),
                             ),
@@ -424,7 +430,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         decoration: BoxDecoration(
                           color: TekColors.bgSecondary,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: TekColors.border, width: 1.2),
+                          border:
+                              Border.all(color: TekColors.border, width: 1.2),
                         ),
                         child: Row(
                           children: [
@@ -455,7 +462,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         decoration: BoxDecoration(
                           color: TekColors.bgCard,
                           borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: TekColors.border, width: 1.2),
+                          border:
+                              Border.all(color: TekColors.border, width: 1.2),
                           boxShadow: TekColors.cardShadow,
                         ),
                         child: Column(
@@ -584,9 +592,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 14, vertical: 12),
                                 decoration: BoxDecoration(
-                                  color: TekColors.error.withValues(alpha: 0.12),
+                                  color:
+                                      TekColors.error.withValues(alpha: 0.12),
                                   border: Border.all(
-                                    color: TekColors.error.withValues(alpha: 0.5),
+                                    color:
+                                        TekColors.error.withValues(alpha: 0.5),
                                     width: 1.2,
                                   ),
                                   borderRadius: BorderRadius.circular(12),
@@ -627,12 +637,12 @@ class _LoginScreenState extends State<LoginScreen> {
                               child: Container(
                                 height: 50,
                                 decoration: BoxDecoration(
-                                  gradient: _busy
-                                      ? null
-                                      : TekColors.primaryGradient,
+                                  gradient:
+                                      _busy ? null : TekColors.primaryGradient,
                                   color: _busy ? TekColors.primaryDark : null,
                                   borderRadius: BorderRadius.circular(14),
-                                  boxShadow: _busy ? null : TekColors.primaryGlow,
+                                  boxShadow:
+                                      _busy ? null : TekColors.primaryGlow,
                                 ),
                                 child: Center(
                                   child: _busy
@@ -663,7 +673,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                                   fontWeight: FontWeight.bold,
                                                   letterSpacing: 0.3,
                                                   fontFamilyFallback:
-                                                      TekTypography.malayalamFallback,
+                                                      TekTypography
+                                                          .malayalamFallback,
                                                 ),
                                               ),
                                             ),

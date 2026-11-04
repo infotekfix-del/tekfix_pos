@@ -137,7 +137,8 @@ class SyncEngine extends ChangeNotifier {
   final _uidToKey = <String, dynamic>{}; // 'box|uid' -> key
   final _hashes = <String, String>{}; // 'box|uid' -> content hash
   final _remoteDel = <String>{};
-  final _remoteApplying = <String>{}; // 'box|uid' -> actively being applied from remote
+  final _remoteApplying =
+      <String>{}; // 'box|uid' -> actively being applied from remote
 
   SyncState get state => _state;
   int get pending => _boxesOpen ? _outbox.length : 0;
@@ -155,7 +156,8 @@ class SyncEngine extends ChangeNotifier {
           : await Hive.openBox('tek_sync_outbox');
       _boxesOpen = true;
     } catch (e) {
-      debugPrint('[TekFix SyncEngine] openBoxes error ($e). Auto-recovering sync boxes...');
+      debugPrint(
+          '[TekFix SyncEngine] openBoxes error ($e). Auto-recovering sync boxes...');
       try {
         await Hive.deleteBoxFromDisk('tek_sync_meta');
         await Hive.deleteBoxFromDisk('tek_sync_outbox');
@@ -163,7 +165,8 @@ class SyncEngine extends ChangeNotifier {
         _outbox = await Hive.openBox('tek_sync_outbox');
         _boxesOpen = true;
       } catch (e2) {
-        debugPrint('[TekFix SyncEngine] Fatal: could not recover sync boxes: $e2');
+        debugPrint(
+            '[TekFix SyncEngine] Fatal: could not recover sync boxes: $e2');
       }
     }
   }
@@ -580,10 +583,12 @@ class SyncEngine extends ChangeNotifier {
           restoreLs
               .forEach((k, v) => v == null ? _meta.delete(k) : _meta.put(k, v));
           if (_isPermDenied(e)) {
-            debugPrint('[SyncEngine] Batch failed with permission-denied. Resolving items individually to unblock outbox...');
+            debugPrint(
+                '[SyncEngine] Batch failed with permission-denied. Resolving items individually to unblock outbox...');
             final dropped = await _flushIndividually(keys, seen);
             if (dropped > 0) {
-              debugPrint('[SyncEngine] Cleared $dropped unpermitted items from outbox to prevent persistent sync failure.');
+              debugPrint(
+                  '[SyncEngine] Cleared $dropped unpermitted items from outbox to prevent persistent sync failure.');
             }
             continue;
           }
@@ -638,7 +643,8 @@ class SyncEngine extends ChangeNotifier {
             if (_asMap(_outbox.get(k))['t'] == seen[k]) await _outbox.delete(k);
           } catch (e) {
             if (_isPermDenied(e)) {
-              debugPrint('[SyncEngine] Permission denied for $k -> dropping from outbox.');
+              debugPrint(
+                  '[SyncEngine] Permission denied for $k -> dropping from outbox.');
               await _outbox.delete(k);
               droppedCount++;
             }
@@ -667,7 +673,8 @@ class SyncEngine extends ChangeNotifier {
             if (_asMap(_outbox.get(k))['t'] == seen[k]) await _outbox.delete(k);
           } catch (e) {
             if (_isPermDenied(e)) {
-              debugPrint('[SyncEngine] Permission denied for $k -> dropping from outbox.');
+              debugPrint(
+                  '[SyncEngine] Permission denied for $k -> dropping from outbox.');
               await _outbox.delete(k);
               droppedCount++;
             }
@@ -701,7 +708,8 @@ class SyncEngine extends ChangeNotifier {
           if (_asMap(_outbox.get(k))['t'] == seen[k]) await _outbox.delete(k);
         } catch (e) {
           if (_isPermDenied(e)) {
-            debugPrint('[SyncEngine] Permission denied for delete $kk -> dropping.');
+            debugPrint(
+                '[SyncEngine] Permission denied for delete $kk -> dropping.');
             await _outbox.delete(k);
             droppedCount++;
           }
@@ -748,7 +756,8 @@ class SyncEngine extends ChangeNotifier {
         if (_asMap(_outbox.get(k))['t'] == seen[k]) await _outbox.delete(k);
       } catch (e) {
         if (_isPermDenied(e)) {
-          debugPrint('[SyncEngine] Permission denied for write $kk -> dropping.');
+          debugPrint(
+              '[SyncEngine] Permission denied for write $kk -> dropping.');
           await _outbox.delete(k);
           droppedCount++;
         }

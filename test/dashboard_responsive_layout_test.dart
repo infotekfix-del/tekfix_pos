@@ -52,7 +52,9 @@ void main() {
     ];
 
     for (final resolution in resolutions) {
-      testWidgets('TekSalesOverviewChart renders without overflow on ${resolution.width}x${resolution.height}', (tester) async {
+      testWidgets(
+          'TekSalesOverviewChart renders without overflow on ${resolution.width}x${resolution.height}',
+          (tester) async {
         tester.view.physicalSize = Size(resolution.width, resolution.height);
         tester.view.devicePixelRatio = 1.0;
         addTearDown(() => tester.view.resetPhysicalSize());
@@ -74,7 +76,9 @@ void main() {
         expect(tester.takeException(), isNull);
       });
 
-      testWidgets('Stat Cards Grid renders without overflow on ${resolution.width}x${resolution.height}', (tester) async {
+      testWidgets(
+          'Stat Cards Grid renders without overflow on ${resolution.width}x${resolution.height}',
+          (tester) async {
         tester.view.physicalSize = Size(resolution.width, resolution.height);
         tester.view.devicePixelRatio = 1.0;
         addTearDown(() => tester.view.resetPhysicalSize());
@@ -151,7 +155,9 @@ void main() {
         expect(tester.takeException(), isNull);
       });
 
-      testWidgets('TekQuickActionsGrid renders without overflow on ${resolution.width}x${resolution.height}', (tester) async {
+      testWidgets(
+          'TekQuickActionsGrid renders without overflow on ${resolution.width}x${resolution.height}',
+          (tester) async {
         tester.view.physicalSize = Size(resolution.width, resolution.height);
         tester.view.devicePixelRatio = 1.0;
         addTearDown(() => tester.view.resetPhysicalSize());
@@ -181,7 +187,9 @@ void main() {
         expect(tester.takeException(), isNull);
       });
 
-      testWidgets('TekHeroBanner renders without overflow on ${resolution.width}x${resolution.height}', (tester) async {
+      testWidgets(
+          'TekHeroBanner renders without overflow on ${resolution.width}x${resolution.height}',
+          (tester) async {
         tester.view.physicalSize = Size(resolution.width, resolution.height);
         tester.view.devicePixelRatio = 1.0;
         addTearDown(() => tester.view.resetPhysicalSize());
@@ -204,7 +212,9 @@ void main() {
         expect(tester.takeException(), isNull);
       });
 
-      testWidgets('TekTopBar renders without overflow on ${resolution.width}x${resolution.height}', (tester) async {
+      testWidgets(
+          'TekTopBar renders without overflow on ${resolution.width}x${resolution.height}',
+          (tester) async {
         tester.view.physicalSize = Size(resolution.width, resolution.height);
         tester.view.devicePixelRatio = 1.0;
         addTearDown(() => tester.view.resetPhysicalSize());
@@ -234,7 +244,8 @@ void main() {
       expect(style.height, greaterThanOrEqualTo(1.3));
     });
 
-    test('DashboardTypography.malayalam returns style with line-height >= 1.3', () {
+    test('DashboardTypography.malayalam returns style with line-height >= 1.3',
+        () {
       final style = DashboardTypography.malayalam(fontSize: 11);
       expect(style.height, greaterThanOrEqualTo(1.3));
     });

@@ -52,13 +52,23 @@ class DailySalesLedgerView extends StatefulWidget {
       shopId: resolvedShop,
     );
     final dateKey = RentService.toDateKey(targetDate);
-    final rentRec = await RentService.instance.getRentRecordForDate(dateKey, shopId: resolvedShop);
-    final rentSettings = await RentService.instance.getSettings(shopId: resolvedShop);
-    final double cashRent = (rentRec != null && rentRec.isPaid && rentRec.isCash) ? rentRec.paidAmount : 0.0;
-    final double bankRent = (rentRec != null && rentRec.isPaid && rentRec.isBank) ? rentRec.paidAmount : 0.0;
-    final bool rentPending = rentSettings.isScheduledForDate(targetDate) && (rentRec == null || !rentRec.isPaid);
+    final rentRec = await RentService.instance
+        .getRentRecordForDate(dateKey, shopId: resolvedShop);
+    final rentSettings =
+        await RentService.instance.getSettings(shopId: resolvedShop);
+    final double cashRent =
+        (rentRec != null && rentRec.isPaid && rentRec.isCash)
+            ? rentRec.paidAmount
+            : 0.0;
+    final double bankRent =
+        (rentRec != null && rentRec.isPaid && rentRec.isBank)
+            ? rentRec.paidAmount
+            : 0.0;
+    final bool rentPending = rentSettings.isScheduledForDate(targetDate) &&
+        (rentRec == null || !rentRec.isPaid);
 
-    final ownerWth = await OwnerFinanceService.instance.computeDailyOwnerWithdrawals(targetDate, shopId: resolvedShop);
+    final ownerWth = await OwnerFinanceService.instance
+        .computeDailyOwnerWithdrawals(targetDate, shopId: resolvedShop);
 
     double cExp = 0.0;
     double bExp = 0.0;
@@ -81,8 +91,10 @@ class DailySalesLedgerView extends StatefulWidget {
     }
     if (!rentInExpenses && cashRent > 0) cExp += cashRent;
     if (!rentInExpenses && bankRent > 0) bExp += bankRent;
-    if (!ownerSalInExpenses && ownerWth.cashSalary > 0) cExp += ownerWth.cashSalary;
-    if (!ownerSalInExpenses && ownerWth.bankSalary > 0) bExp += ownerWth.bankSalary;
+    if (!ownerSalInExpenses && ownerWth.cashSalary > 0)
+      cExp += ownerWth.cashSalary;
+    if (!ownerSalInExpenses && ownerWth.bankSalary > 0)
+      bExp += ownerWth.bankSalary;
 
     final summary = closed ??
         DailyRegisterService.instance.computeDailySummary(
@@ -126,7 +138,7 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
   DateTime _selectedDate = DateTime.now();
   String _searchQuery = '';
   final TextEditingController _searchCtrl = TextEditingController();
-  
+
   bool _loading = false;
   List<Map<String, dynamic>> _sales = [];
   DailyRegisterSummary? _closedRegister;
@@ -135,7 +147,8 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
   double _cashRent = 0.0;
   double _bankRent = 0.0;
   bool _rentPending = false;
-  DailyOwnerWithdrawalBreakdown _ownerWth = const DailyOwnerWithdrawalBreakdown();
+  DailyOwnerWithdrawalBreakdown _ownerWth =
+      const DailyOwnerWithdrawalBreakdown();
 
   @override
   void initState() {
@@ -167,13 +180,21 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
         shopId: widget.shopId,
       );
       final dateKey = RentService.toDateKey(_selectedDate);
-      final rentRec = await RentService.instance.getRentRecordForDate(dateKey, shopId: widget.shopId);
-      final rentSettings = await RentService.instance.getSettings(shopId: widget.shopId);
-      final double cRent = (rentRec != null && rentRec.isPaid && rentRec.isCash) ? rentRec.paidAmount : 0.0;
-      final double bRent = (rentRec != null && rentRec.isPaid && rentRec.isBank) ? rentRec.paidAmount : 0.0;
-      final bool rPending = rentSettings.isScheduledForDate(_selectedDate) && (rentRec == null || !rentRec.isPaid);
+      final rentRec = await RentService.instance
+          .getRentRecordForDate(dateKey, shopId: widget.shopId);
+      final rentSettings =
+          await RentService.instance.getSettings(shopId: widget.shopId);
+      final double cRent = (rentRec != null && rentRec.isPaid && rentRec.isCash)
+          ? rentRec.paidAmount
+          : 0.0;
+      final double bRent = (rentRec != null && rentRec.isPaid && rentRec.isBank)
+          ? rentRec.paidAmount
+          : 0.0;
+      final bool rPending = rentSettings.isScheduledForDate(_selectedDate) &&
+          (rentRec == null || !rentRec.isPaid);
 
-      final ownerWth = await OwnerFinanceService.instance.computeDailyOwnerWithdrawals(_selectedDate, shopId: widget.shopId);
+      final ownerWth = await OwnerFinanceService.instance
+          .computeDailyOwnerWithdrawals(_selectedDate, shopId: widget.shopId);
 
       double cExp = 0.0;
       double bExp = 0.0;
@@ -196,8 +217,10 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
       }
       if (!rentInExpenses && cRent > 0) cExp += cRent;
       if (!rentInExpenses && bRent > 0) bExp += bRent;
-      if (!ownerSalInExpenses && ownerWth.cashSalary > 0) cExp += ownerWth.cashSalary;
-      if (!ownerSalInExpenses && ownerWth.bankSalary > 0) bExp += ownerWth.bankSalary;
+      if (!ownerSalInExpenses && ownerWth.cashSalary > 0)
+        cExp += ownerWth.cashSalary;
+      if (!ownerSalInExpenses && ownerWth.bankSalary > 0)
+        bExp += ownerWth.bankSalary;
 
       if (mounted) {
         setState(() {
@@ -248,7 +271,7 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
       final cust = s['customerName']?.toString().toLowerCase() ?? '';
       final phone = s['customerPhone']?.toString().toLowerCase() ?? '';
       final staff = s['staffName']?.toString().toLowerCase() ?? '';
-      
+
       bool itemMatch = false;
       final items = (s['items'] as List?) ?? [];
       for (final it in items) {
@@ -390,7 +413,8 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                         const SizedBox(height: 6),
                         const Text(
                           'No sales orders recorded for the selected date filter',
-                          style: TextStyle(fontSize: 12.5, color: TekColors.textSecondary),
+                          style: TextStyle(
+                              fontSize: 12.5, color: TekColors.textSecondary),
                         ),
                       ],
                     ),
@@ -430,9 +454,11 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
               decoration: BoxDecoration(
                 color: TekColors.primary.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: TekColors.primary.withValues(alpha: 0.3)),
+                border:
+                    Border.all(color: TekColors.primary.withValues(alpha: 0.3)),
               ),
-              child: const Icon(Icons.receipt_long_rounded, color: TekColors.primary, size: 22),
+              child: const Icon(Icons.receipt_long_rounded,
+                  color: TekColors.primary, size: 22),
             ),
             const SizedBox(width: 12),
             Column(
@@ -466,7 +492,8 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
             decoration: BoxDecoration(
               gradient: isClosed
-                  ? const LinearGradient(colors: [Color(0xFF0F766E), Color(0xFF0D9488)])
+                  ? const LinearGradient(
+                      colors: [Color(0xFF0F766E), Color(0xFF0D9488)])
                   : TekColors.primaryGradient,
               borderRadius: BorderRadius.circular(12),
               boxShadow: isClosed ? null : TekColors.primaryGlow,
@@ -481,7 +508,9 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  isClosed ? 'EOD Closed (ക്ലോസ്ഡ്)' : 'End of Day (EOD) Close (10 PM)',
+                  isClosed
+                      ? 'EOD Closed (ക്ലോസ്ഡ്)'
+                      : 'End of Day (EOD) Close (10 PM)',
                   style: const TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.bold,
@@ -521,7 +550,8 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
             label: 'ഇന്നലെ (Yesterday)',
             isSelected: _isYesterday,
             onTap: () {
-              setState(() => _selectedDate = DateTime.now().subtract(const Duration(days: 1)));
+              setState(() => _selectedDate =
+                  DateTime.now().subtract(const Duration(days: 1)));
               _loadData();
             },
           ),
@@ -539,7 +569,8 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.calendar_month_rounded, size: 16, color: TekColors.secondary),
+                  const Icon(Icons.calendar_month_rounded,
+                      size: 16, color: TekColors.secondary),
                   const SizedBox(width: 8),
                   Text(
                     DailyRegisterService.toDisplayDate(_selectedDate),
@@ -550,7 +581,8 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                     ),
                   ),
                   const SizedBox(width: 4),
-                  const Icon(Icons.arrow_drop_down, size: 18, color: TekColors.textSecondary),
+                  const Icon(Icons.arrow_drop_down,
+                      size: 18, color: TekColors.textSecondary),
                 ],
               ),
             ),
@@ -571,7 +603,9 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? TekColors.primary.withValues(alpha: 0.18) : Colors.transparent,
+          color: isSelected
+              ? TekColors.primary.withValues(alpha: 0.18)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isSelected ? TekColors.primary : Colors.transparent,
@@ -591,7 +625,8 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
   }
 
   // Summary Metrics Bar (Revenue, Orders, Cash, UPI, Card, Due)
-  Widget _buildSummaryMetricsGrid(DailyRegisterSummary summary, bool isDesktop) {
+  Widget _buildSummaryMetricsGrid(
+      DailyRegisterSummary summary, bool isDesktop) {
     final metrics = [
       _MetricItem(
         label: 'Net Revenue (തുക)',
@@ -610,7 +645,9 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
       _MetricItem(
         label: 'Cash in Register',
         value: '₹${summary.totalCash.toStringAsFixed(0)}',
-        sub: summary.isClosed ? 'Counted: ₹${summary.physicalCashCount.toStringAsFixed(0)}' : 'System Cash',
+        sub: summary.isClosed
+            ? 'Counted: ₹${summary.physicalCashCount.toStringAsFixed(0)}'
+            : 'System Cash',
         icon: Icons.payments_rounded,
         color: Colors.amber,
       ),
@@ -727,11 +764,15 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
       style: const TextStyle(color: TekColors.textPrimary, fontSize: 13.5),
       decoration: InputDecoration(
         hintText: 'Search by Invoice #, Customer, Phone, or Item name...',
-        hintStyle: TextStyle(color: TekColors.textSecondary.withValues(alpha: 0.6), fontSize: 13),
-        prefixIcon: const Icon(Icons.search_rounded, color: TekColors.textSecondary, size: 20),
+        hintStyle: TextStyle(
+            color: TekColors.textSecondary.withValues(alpha: 0.6),
+            fontSize: 13),
+        prefixIcon: const Icon(Icons.search_rounded,
+            color: TekColors.textSecondary, size: 20),
         suffixIcon: _searchQuery.isNotEmpty
             ? IconButton(
-                icon: const Icon(Icons.close_rounded, size: 18, color: TekColors.textSecondary),
+                icon: const Icon(Icons.close_rounded,
+                    size: 18, color: TekColors.textSecondary),
                 onPressed: () {
                   _searchCtrl.clear();
                   setState(() => _searchQuery = '');
@@ -766,7 +807,9 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
     final isReturned = sale['status'] == 'RETURNED';
 
     final custName = sale['customerName']?.toString().trim();
-    final displayCust = (custName != null && custName.isNotEmpty) ? custName : 'Walk-in Customer';
+    final displayCust = (custName != null && custName.isNotEmpty)
+        ? custName
+        : 'Walk-in Customer';
     final custPhone = sale['customerPhone']?.toString().trim() ?? '';
 
     final items = (sale['items'] as List?) ?? [];
@@ -785,7 +828,9 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
         color: TekColors.bgCard,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isReturned ? TekColors.error.withValues(alpha: 0.4) : TekColors.border,
+          color: isReturned
+              ? TekColors.error.withValues(alpha: 0.4)
+              : TekColors.border,
           width: 1.2,
         ),
         boxShadow: const [
@@ -811,7 +856,8 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: TekColors.primary.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(8),
@@ -828,12 +874,14 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                       const SizedBox(width: 8),
                       Text(
                         '| $timeStr',
-                        style: const TextStyle(fontSize: 12, color: TekColors.textSecondary),
+                        style: const TextStyle(
+                            fontSize: 12, color: TekColors.textSecondary),
                       ),
                     ],
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: isReturned
                           ? TekColors.error.withValues(alpha: 0.15)
@@ -869,7 +917,8 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                       color: TekColors.secondary.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.person_rounded, size: 20, color: TekColors.secondary),
+                    child: const Icon(Icons.person_rounded,
+                        size: 20, color: TekColors.secondary),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -887,21 +936,25 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                         if (custPhone.isNotEmpty)
                           Text(
                             custPhone,
-                            style: const TextStyle(fontSize: 12, color: TekColors.textSecondary),
+                            style: const TextStyle(
+                                fontSize: 12, color: TekColors.textSecondary),
                           ),
                       ],
                     ),
                   ),
                   if (custPhone.isNotEmpty) ...[
                     IconButton(
-                      icon: const Icon(Icons.phone_outlined, size: 18, color: TekColors.primary),
+                      icon: const Icon(Icons.phone_outlined,
+                          size: 18, color: TekColors.primary),
                       tooltip: 'Call Customer',
                       onPressed: () => launchUrl(Uri.parse('tel:$custPhone')),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18, color: Color(0xFF22C55E)),
+                      icon: const Icon(Icons.chat_bubble_outline_rounded,
+                          size: 18, color: Color(0xFF22C55E)),
                       tooltip: 'WhatsApp',
-                      onPressed: () => launchUrl(Uri.parse('https://wa.me/91$custPhone')),
+                      onPressed: () =>
+                          launchUrl(Uri.parse('https://wa.me/91$custPhone')),
                     ),
                   ],
                 ],
@@ -929,13 +982,17 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                   ...items.map((rawIt) {
                     if (rawIt is! Map) return const SizedBox.shrink();
                     final it = Map<String, dynamic>.from(rawIt);
-                    final name = it['name']?.toString() ?? it['itemName']?.toString() ?? 'Item';
+                    final name = it['name']?.toString() ??
+                        it['itemName']?.toString() ??
+                        'Item';
                     final cat = it['category']?.toString() ?? '';
                     final qty = (it['qty'] as num?)?.toInt() ?? 1;
                     final price = (it['price'] as num?)?.toDouble() ??
                         (it['unitPrice'] as num?)?.toDouble() ??
                         0.0;
-                    final imei = it['imei']?.toString() ?? it['serial']?.toString() ?? '';
+                    final imei = it['imei']?.toString() ??
+                        it['serial']?.toString() ??
+                        '';
 
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -971,15 +1028,20 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                                     if (cat.isNotEmpty)
                                       Container(
                                         margin: const EdgeInsets.only(left: 6),
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 6, vertical: 1.5),
                                         decoration: BoxDecoration(
                                           color: TekColors.bgSecondary,
-                                          borderRadius: BorderRadius.circular(6),
-                                          border: Border.all(color: TekColors.border),
+                                          borderRadius:
+                                              BorderRadius.circular(6),
+                                          border: Border.all(
+                                              color: TekColors.border),
                                         ),
                                         child: Text(
                                           cat,
-                                          style: const TextStyle(fontSize: 9.5, color: TekColors.textSecondary),
+                                          style: const TextStyle(
+                                              fontSize: 9.5,
+                                              color: TekColors.textSecondary),
                                         ),
                                       ),
                                   ],
@@ -987,7 +1049,9 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                                 if (imei.isNotEmpty)
                                   Text(
                                     'IMEI / SN: $imei',
-                                    style: const TextStyle(fontSize: 10.5, color: TekColors.secondary),
+                                    style: const TextStyle(
+                                        fontSize: 10.5,
+                                        color: TekColors.secondary),
                                   ),
                               ],
                             ),
@@ -1030,7 +1094,8 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                       if (due > 0)
                         _buildPaymentBadge('Due', due, TekColors.error),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 3),
                         decoration: BoxDecoration(
                           color: TekColors.bgSecondary,
                           borderRadius: BorderRadius.circular(8),
@@ -1038,7 +1103,8 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                         ),
                         child: Text(
                           '👤 $staff',
-                          style: const TextStyle(fontSize: 10, color: TekColors.textSecondary),
+                          style: const TextStyle(
+                              fontSize: 10, color: TekColors.textSecondary),
                         ),
                       ),
                     ],
@@ -1053,14 +1119,17 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: isReturned ? TekColors.error : TekColors.success,
-                          decoration: isReturned ? TextDecoration.lineThrough : null,
+                          color:
+                              isReturned ? TekColors.error : TekColors.success,
+                          decoration:
+                              isReturned ? TextDecoration.lineThrough : null,
                         ),
                       ),
                       if (discount > 0)
                         Text(
                           'Disc: -₹${discount.toStringAsFixed(0)}',
-                          style: const TextStyle(fontSize: 10.5, color: TekColors.textSecondary),
+                          style: const TextStyle(
+                              fontSize: 10.5, color: TekColors.textSecondary),
                         ),
                     ],
                   ),
@@ -1079,13 +1148,16 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         side: const BorderSide(color: TekColors.border),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
                       ),
                       onPressed: () => _viewInvoiceReceiptModal(sale),
-                      icon: const Icon(Icons.remove_red_eye_outlined, size: 14, color: TekColors.textPrimary),
+                      icon: const Icon(Icons.remove_red_eye_outlined,
+                          size: 14, color: TekColors.textPrimary),
                       label: const Text(
                         'View Receipt',
-                        style: TextStyle(fontSize: 11.5, color: TekColors.textPrimary),
+                        style: TextStyle(
+                            fontSize: 11.5, color: TekColors.textPrimary),
                       ),
                     ),
                   ),
@@ -1095,13 +1167,16 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         side: const BorderSide(color: TekColors.primary),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
                       ),
                       onPressed: () => printInvoice(context, sale, a4: false),
-                      icon: const Icon(Icons.print_outlined, size: 14, color: TekColors.primary),
+                      icon: const Icon(Icons.print_outlined,
+                          size: 14, color: TekColors.primary),
                       label: const Text(
                         'Thermal Bill',
-                        style: TextStyle(fontSize: 11.5, color: TekColors.primary),
+                        style:
+                            TextStyle(fontSize: 11.5, color: TekColors.primary),
                       ),
                     ),
                   ),
@@ -1111,14 +1186,18 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                       child: OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 8),
-                          side: BorderSide(color: TekColors.error.withValues(alpha: 0.6)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          side: BorderSide(
+                              color: TekColors.error.withValues(alpha: 0.6)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
                         ),
                         onPressed: () => _handleReturnItem(sale),
-                        icon: const Icon(Icons.assignment_return_outlined, size: 14, color: TekColors.error),
+                        icon: const Icon(Icons.assignment_return_outlined,
+                            size: 14, color: TekColors.error),
                         label: const Text(
                           'Return',
-                          style: TextStyle(fontSize: 11.5, color: TekColors.error),
+                          style:
+                              TextStyle(fontSize: 11.5, color: TekColors.error),
                         ),
                       ),
                     ),
@@ -1142,7 +1221,8 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
       ),
       child: Text(
         '$mode: ₹${amount.toStringAsFixed(0)}',
-        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color),
+        style:
+            TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color),
       ),
     );
   }
@@ -1188,22 +1268,32 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                 children: [
                   Text(
                     'Invoice #$inv',
-                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: TekColors.textPrimary),
+                    style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: TekColors.textPrimary),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, color: TekColors.textSecondary),
+                    icon: const Icon(Icons.close_rounded,
+                        color: TekColors.textSecondary),
                     onPressed: () => Navigator.pop(ctx),
                   ),
                 ],
               ),
               const Divider(color: TekColors.border),
               const SizedBox(height: 8),
-              _receiptRow('Customer:', sale['customerName']?.toString() ?? 'Walk-in Customer'),
+              _receiptRow('Customer:',
+                  sale['customerName']?.toString() ?? 'Walk-in Customer'),
               if (phone.isNotEmpty) _receiptRow('Phone:', phone),
               _receiptRow('Date:', sale['createdAt']?.toString() ?? ''),
-              _receiptRow('Billed By:', sale['staffName']?.toString() ?? 'Staff'),
+              _receiptRow(
+                  'Billed By:', sale['staffName']?.toString() ?? 'Staff'),
               const SizedBox(height: 12),
-              const Text('Items Sold:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: TekColors.textSecondary)),
+              const Text('Items Sold:',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: TekColors.textSecondary)),
               const SizedBox(height: 6),
               ...items.map((raw) {
                 if (raw is! Map) return const SizedBox.shrink();
@@ -1216,12 +1306,16 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                       Expanded(
                         child: Text(
                           '${it['name']} x ${it['qty']}',
-                          style: const TextStyle(fontSize: 12.5, color: TekColors.textPrimary),
+                          style: const TextStyle(
+                              fontSize: 12.5, color: TekColors.textPrimary),
                         ),
                       ),
                       Text(
                         '₹${((it['price'] ?? 0) * (it['qty'] ?? 1)).toStringAsFixed(0)}',
-                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: TekColors.textPrimary),
+                        style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.bold,
+                            color: TekColors.textPrimary),
                       ),
                     ],
                   ),
@@ -1229,8 +1323,10 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
               }),
               const Divider(color: TekColors.border),
               _receiptRow('Subtotal:', '₹${subtotal.toStringAsFixed(2)}'),
-              if (discount > 0) _receiptRow('Discount:', '-₹${discount.toStringAsFixed(2)}'),
-              _receiptRow('Total Billed:', '₹${total.toStringAsFixed(2)}', isBold: true),
+              if (discount > 0)
+                _receiptRow('Discount:', '-₹${discount.toStringAsFixed(2)}'),
+              _receiptRow('Total Billed:', '₹${total.toStringAsFixed(2)}',
+                  isBold: true),
               const SizedBox(height: 18),
               Row(
                 children: [
@@ -1238,7 +1334,8 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                     child: OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: () {
                         Navigator.pop(ctx);
@@ -1253,7 +1350,8 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                     child: OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: () {
                         Navigator.pop(ctx);
@@ -1267,8 +1365,10 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                     const SizedBox(width: 8),
                     IconButton(
                       style: IconButton.styleFrom(
-                        backgroundColor: const Color(0xFF22C55E).withValues(alpha: 0.15),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        backgroundColor:
+                            const Color(0xFF22C55E).withValues(alpha: 0.15),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                       icon: const Icon(Icons.share, color: Color(0xFF22C55E)),
                       onPressed: () {
@@ -1292,8 +1392,17 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(k, style: TextStyle(fontSize: 12.5, color: isBold ? TekColors.textPrimary : TekColors.textSecondary, fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
-          Text(v, style: TextStyle(fontSize: 12.5, color: isBold ? TekColors.primary : TekColors.textPrimary, fontWeight: isBold ? FontWeight.bold : FontWeight.w600)),
+          Text(k,
+              style: TextStyle(
+                  fontSize: 12.5,
+                  color:
+                      isBold ? TekColors.textPrimary : TekColors.textSecondary,
+                  fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
+          Text(v,
+              style: TextStyle(
+                  fontSize: 12.5,
+                  color: isBold ? TekColors.primary : TekColors.textPrimary,
+                  fontWeight: isBold ? FontWeight.bold : FontWeight.w600)),
         ],
       ),
     );
@@ -1305,7 +1414,8 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => CustomerReturnsScreen(initialPhone: phone.isNotEmpty ? phone : null),
+        builder: (_) => CustomerReturnsScreen(
+            initialPhone: phone.isNotEmpty ? phone : null),
       ),
     ).then((_) => _loadData());
   }
@@ -1418,9 +1528,11 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
   @override
   Widget build(BuildContext context) {
     final summary = widget.initialSummary;
-    final expectedClosingCash =
-        (_openingCash + summary.cashCollection - summary.refunds - summary.totalCashExpenses)
-            .clamp(0.0, double.infinity);
+    final expectedClosingCash = (_openingCash +
+            summary.cashCollection -
+            summary.refunds -
+            summary.totalCashExpenses)
+        .clamp(0.0, double.infinity);
     final liveDiscrepancy = _enteredCash - expectedClosingCash;
     final closedByDisplay = summary.closedBy.isNotEmpty
         ? summary.closedBy
@@ -1617,15 +1729,21 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
               ),
               child: Column(
                 children: [
-                  _sheetRow('Total Orders:', '${summary.totalOrdersCount} completed orders'),
-                  _sheetRow('Gross Sales:', '₹${summary.grossSales.toStringAsFixed(2)}'),
-                  _sheetRow('Discounts:', '-₹${summary.totalDiscounts.toStringAsFixed(2)}'),
-                  _sheetRow('Refunds / Returns:', '-₹${summary.refunds.toStringAsFixed(2)}',
+                  _sheetRow('Total Orders:',
+                      '${summary.totalOrdersCount} completed orders'),
+                  _sheetRow('Gross Sales:',
+                      '₹${summary.grossSales.toStringAsFixed(2)}'),
+                  _sheetRow('Discounts:',
+                      '-₹${summary.totalDiscounts.toStringAsFixed(2)}'),
+                  _sheetRow('Refunds / Returns:',
+                      '-₹${summary.refunds.toStringAsFixed(2)}',
                       valueColor: summary.refunds > 0 ? TekColors.error : null),
                   const Divider(color: TekColors.border),
-                  _sheetRow('Net Sales Revenue:', '₹${summary.netSales.toStringAsFixed(2)}',
+                  _sheetRow('Net Sales Revenue:',
+                      '₹${summary.netSales.toStringAsFixed(2)}',
                       isBold: true, valueColor: TekColors.success),
-                  _sheetRow('Closed By (Staff/User):', closedByDisplay, isBold: true),
+                  _sheetRow('Closed By (Staff/User):', closedByDisplay,
+                      isBold: true),
                 ],
               ),
             ),
@@ -1652,20 +1770,28 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  _sheetRow('Cash Collection:', '₹${summary.cashCollection.toStringAsFixed(2)}',
+                  _sheetRow('Cash Collection:',
+                      '₹${summary.cashCollection.toStringAsFixed(2)}',
                       valueColor: Colors.amber),
-                  _sheetRow('UPI Collection:', '₹${summary.upiCollection.toStringAsFixed(2)}',
+                  _sheetRow('UPI Collection:',
+                      '₹${summary.upiCollection.toStringAsFixed(2)}',
                       valueColor: TekColors.secondary),
-                  _sheetRow('Card Collection:', '₹${summary.cardCollection.toStringAsFixed(2)}',
+                  _sheetRow('Card Collection:',
+                      '₹${summary.cardCollection.toStringAsFixed(2)}',
                       valueColor: TekColors.info),
                   if (summary.bankRentPaid > 0)
-                    _sheetRow('Daily Rent Paid (Bank/UPI):', '₹${summary.bankRentPaid.toStringAsFixed(2)}',
+                    _sheetRow('Daily Rent Paid (Bank/UPI):',
+                        '₹${summary.bankRentPaid.toStringAsFixed(2)}',
                         valueColor: const Color(0xFFF59E0B)),
                   if (summary.totalBankExpenses > 0)
-                    _sheetRow('Bank Expenses Paid:', '-₹${summary.totalBankExpenses.toStringAsFixed(2)}',
+                    _sheetRow('Bank Expenses Paid:',
+                        '-₹${summary.totalBankExpenses.toStringAsFixed(2)}',
                         valueColor: TekColors.error),
-                  _sheetRow('Credit / Due Sales:', '₹${summary.creditSales.toStringAsFixed(2)}',
-                      valueColor: summary.creditSales > 0 ? TekColors.warning : TekColors.textSecondary),
+                  _sheetRow('Credit / Due Sales:',
+                      '₹${summary.creditSales.toStringAsFixed(2)}',
+                      valueColor: summary.creditSales > 0
+                          ? TekColors.warning
+                          : TekColors.textSecondary),
                 ],
               ),
             ),
@@ -1706,25 +1832,33 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  _sheetRow('Opening Cash:', '₹${_openingCash.toStringAsFixed(2)}'),
-                  _sheetRow('Cash Inflow (Sales):', '+₹${summary.cashCollection.toStringAsFixed(2)}',
+                  _sheetRow(
+                      'Opening Cash:', '₹${_openingCash.toStringAsFixed(2)}'),
+                  _sheetRow('Cash Inflow (Sales):',
+                      '+₹${summary.cashCollection.toStringAsFixed(2)}',
                       valueColor: TekColors.success),
                   if (summary.cashRentPaid > 0)
-                    _sheetRow('Daily Rent Paid (കട വാടക):', '-₹${summary.cashRentPaid.toStringAsFixed(2)}',
+                    _sheetRow('Daily Rent Paid (കട വാടക):',
+                        '-₹${summary.cashRentPaid.toStringAsFixed(2)}',
                         valueColor: const Color(0xFFF59E0B)),
                   if (summary.ownerSalaryDrawnToday > 0)
-                    _sheetRow('Owner Salary Drawn (ശമ്പളം):', '-₹${summary.ownerSalaryDrawnToday.toStringAsFixed(2)}',
+                    _sheetRow('Owner Salary Drawn (ശമ്പളം):',
+                        '-₹${summary.ownerSalaryDrawnToday.toStringAsFixed(2)}',
                         valueColor: const Color(0xFF8B5CF6)),
                   if (summary.ownerExcessDrawingsToday > 0)
-                    _sheetRow('Owner Excess Drawings (പിൻവലിക്കൽ):', '-₹${summary.ownerExcessDrawingsToday.toStringAsFixed(2)}',
+                    _sheetRow('Owner Excess Drawings (പിൻവലിക്കൽ):',
+                        '-₹${summary.ownerExcessDrawingsToday.toStringAsFixed(2)}',
                         valueColor: const Color(0xFFA78BFA)),
                   if (summary.otherCashExpenses > 0)
-                    _sheetRow('Other Cash Expenses:', '-₹${summary.otherCashExpenses.toStringAsFixed(2)}',
+                    _sheetRow('Other Cash Expenses:',
+                        '-₹${summary.otherCashExpenses.toStringAsFixed(2)}',
                         valueColor: TekColors.error),
                   if (summary.refunds > 0)
-                    _sheetRow('Refunds / Returns:', '-₹${summary.refunds.toStringAsFixed(2)}',
+                    _sheetRow('Refunds / Returns:',
+                        '-₹${summary.refunds.toStringAsFixed(2)}',
                         valueColor: TekColors.error),
-                  _sheetRow('Total Cash Outflows:', '-₹${summary.totalCashOutflows.toStringAsFixed(2)}',
+                  _sheetRow('Total Cash Outflows:',
+                      '-₹${summary.totalCashOutflows.toStringAsFixed(2)}',
                       valueColor: TekColors.error),
                   const Divider(color: TekColors.border),
                   _sheetRow('Expected Closing Cash:',
@@ -1964,4 +2098,3 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
     );
   }
 }
-

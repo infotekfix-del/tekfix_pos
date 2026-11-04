@@ -125,7 +125,8 @@ class AttendanceService {
   }
 
   /// Computes sales summary made by this staff member since checkIn time today.
-  Map<String, dynamic> computeShiftSalesSummary(String staffId, DateTime checkInTime) {
+  Map<String, dynamic> computeShiftSalesSummary(
+      String staffId, DateTime checkInTime) {
     double cash = 0.0;
     double upi = 0.0;
     double card = 0.0;
@@ -183,7 +184,8 @@ class AttendanceService {
     final now = DateTime.now();
     final today = _dateKey.format(now);
     final authUid = FirebaseAuth.instance.currentUser?.uid;
-    final effectiveStaffId = (authUid != null && authUid.isNotEmpty) ? authUid : staffId;
+    final effectiveStaffId =
+        (authUid != null && authUid.isNotEmpty) ? authUid : staffId;
     final docId = '${effectiveStaffId}_$today';
     final ref = FirebaseFirestore.instance
         .collection('shops')
@@ -204,8 +206,9 @@ class AttendanceService {
     }
 
     final existingData = snap?.data();
-    final existing =
-        existingData != null ? AttendanceRecord.fromMap(docId, existingData) : null;
+    final existing = existingData != null
+        ? AttendanceRecord.fromMap(docId, existingData)
+        : null;
 
     if (existing != null &&
         existing.checkIn != null &&
@@ -227,8 +230,9 @@ class AttendanceService {
     try {
       if (isCheckIn) {
         // Late calculation: 8:30 AM + 15m = 8:45 AM
-        final lateThresholdMinutes =
-            shiftConfig.startHour * 60 + shiftConfig.startMinute + shiftConfig.lateGraceMinutes;
+        final lateThresholdMinutes = shiftConfig.startHour * 60 +
+            shiftConfig.startMinute +
+            shiftConfig.lateGraceMinutes;
         final currentMinutes = now.hour * 60 + now.minute;
         final isLate = currentMinutes > lateThresholdMinutes;
 
@@ -251,7 +255,8 @@ class AttendanceService {
           updatedAt: now,
         );
 
-        await ref.set(newRecord.toMap(useServerTimestamp: true), SetOptions(merge: true));
+        await ref.set(
+            newRecord.toMap(useServerTimestamp: true), SetOptions(merge: true));
         await _cacheLocalAttendance(effectiveStaffId, newRecord);
         return (isCheckIn: true, record: newRecord);
       } else {
@@ -331,8 +336,10 @@ class AttendanceService {
         checkIn: isCheckIn ? now : existing.checkIn,
         checkInLat: isCheckIn ? loc.position.latitude : existing.checkInLat,
         checkInLng: isCheckIn ? loc.position.longitude : existing.checkInLng,
-        checkInAccuracy: isCheckIn ? loc.position.accuracy : existing.checkInAccuracy,
-        checkInMocked: isCheckIn ? loc.position.isMocked : existing.checkInMocked,
+        checkInAccuracy:
+            isCheckIn ? loc.position.accuracy : existing.checkInAccuracy,
+        checkInMocked:
+            isCheckIn ? loc.position.isMocked : existing.checkInMocked,
         checkInStatus: isCheckIn ? loc.locationStatus : existing.checkInStatus,
         checkOut: isCheckIn ? null : now,
         checkOutLat: isCheckIn ? null : loc.position.latitude,
@@ -375,7 +382,8 @@ class AttendanceService {
           await doc.reference.update({
             'checkOut': Timestamp.fromDate(autoOut),
             'dutyStage': 'Needs review',
-            'manualEditNote': 'Auto-closed by system due to forgotten check-out',
+            'manualEditNote':
+                'Auto-closed by system due to forgotten check-out',
             'updatedAt': FieldValue.serverTimestamp(),
           });
         }
@@ -387,7 +395,8 @@ class AttendanceService {
 
   Future<void> _cacheLocalAttendance(String staffId, AttendanceRecord r) async {
     try {
-      await Db.settings.put('today_attendance_$staffId', r.toMap(useServerTimestamp: false));
+      await Db.settings
+          .put('today_attendance_$staffId', r.toMap(useServerTimestamp: false));
     } catch (_) {}
   }
 
@@ -409,7 +418,8 @@ class AttendanceService {
     if (!Hive.isAdapterRegistered(42)) {
       Hive.registerAdapter(TimestampAdapter());
     }
-    final list = (Db.settings.get('offline_attendance_queue') as List?)?.toList() ?? [];
+    final list =
+        (Db.settings.get('offline_attendance_queue') as List?)?.toList() ?? [];
     list.add({
       'shopId': shopId,
       'data': r.toMap(useServerTimestamp: false),
@@ -419,7 +429,8 @@ class AttendanceService {
 
   /// Syncs any queued offline attendance records when internet is restored.
   Future<void> syncOfflineQueue() async {
-    final list = (Db.settings.get('offline_attendance_queue') as List?)?.toList();
+    final list =
+        (Db.settings.get('offline_attendance_queue') as List?)?.toList();
     if (list == null || list.isEmpty) return;
 
     final remaining = <dynamic>[];
@@ -444,7 +455,8 @@ class AttendanceService {
   }
 
   /// Stream of today's attendance record for a specific staff member.
-  Stream<AttendanceRecord?> streamTodayAttendance(String shopId, String staffId) {
+  Stream<AttendanceRecord?> streamTodayAttendance(
+      String shopId, String staffId) {
     final today = _dateKey.format(DateTime.now());
     final docId = '${staffId}_$today';
     return FirebaseFirestore.instance
@@ -462,10 +474,13 @@ class AttendanceService {
   }
 
   /// Real-time stream of recent attendance records for a specific staff member.
-  Stream<List<AttendanceRecord>> streamStaffAttendanceHistory(String shopId, String staffId, {int limit = 14}) {
+  Stream<List<AttendanceRecord>> streamStaffAttendanceHistory(
+      String shopId, String staffId,
+      {int limit = 14}) {
     if (shopId.isEmpty || staffId.isEmpty) return Stream.value([]);
     final authUid = FirebaseAuth.instance.currentUser?.uid;
-    final effectiveStaffId = (authUid != null && authUid.isNotEmpty) ? authUid : staffId;
+    final effectiveStaffId =
+        (authUid != null && authUid.isNotEmpty) ? authUid : staffId;
     return FirebaseFirestore.instance
         .collection('shops')
         .doc(shopId)
@@ -498,8 +513,9 @@ class AttendanceService {
         .where('approvalStatus', isEqualTo: 'pending_approval')
         .snapshots()
         .map((snap) {
-      final list =
-          snap.docs.map((d) => AttendanceRecord.fromMap(d.id, d.data())).toList();
+      final list = snap.docs
+          .map((d) => AttendanceRecord.fromMap(d.id, d.data()))
+          .toList();
       list.sort((a, b) => (b.checkIn ?? DateTime.fromMillisecondsSinceEpoch(0))
           .compareTo(a.checkIn ?? DateTime.fromMillisecondsSinceEpoch(0)));
       return list;
@@ -550,7 +566,8 @@ class AttendanceService {
     required String reason,
   }) async {
     if (reason.trim().isEmpty) {
-      throw Exception('മാറ്റം വരുത്താനുള്ള കാരണം നൽകുക (Reason is required for adjustment).');
+      throw Exception(
+          'മാറ്റം വരുത്താനുള്ള കാരണം നൽകുക (Reason is required for adjustment).');
     }
 
     final ref = FirebaseFirestore.instance
@@ -579,7 +596,8 @@ class AttendanceService {
       'originalCheckIn': before['originalCheckIn'] ?? before['checkIn'],
       'originalCheckOut': before['originalCheckOut'] ?? before['checkOut'],
       'checkIn': Timestamp.fromDate(inDate),
-      'checkOut': outDate != null ? Timestamp.fromDate(outDate) : before['checkOut'],
+      'checkOut':
+          outDate != null ? Timestamp.fromDate(outDate) : before['checkOut'],
       'workedHours': workedHours,
       'dutyStage': stage,
       'isLate': isLate,
@@ -613,7 +631,8 @@ class AttendanceService {
     bool revokeAccess = false,
   }) async {
     if (reason.trim().isEmpty) {
-      throw Exception('നിരസിക്കാനുള്ള കാരണം നൽകുക (Reason is required for rejection).');
+      throw Exception(
+          'നിരസിക്കാനുള്ള കാരണം നൽകുക (Reason is required for rejection).');
     }
 
     final ref = FirebaseFirestore.instance
@@ -700,7 +719,8 @@ class AttendanceService {
       updatedAt: DateTime.now(),
     );
 
-    await ref.set(record.toMap(useServerTimestamp: true), SetOptions(merge: true));
+    await ref.set(
+        record.toMap(useServerTimestamp: true), SetOptions(merge: true));
     await _logAudit(
       shopId: shopId,
       action: 'MANUAL_ENTRY',
@@ -782,12 +802,14 @@ class AttendanceService {
         .collection('attendance')
         .where('date', isEqualTo: today)
         .snapshots()
-        .map((snap) =>
-            snap.docs.map((d) => AttendanceRecord.fromMap(d.id, d.data())).toList());
+        .map((snap) => snap.docs
+            .map((d) => AttendanceRecord.fromMap(d.id, d.data()))
+            .toList());
   }
 
   /// Stream monthly attendance records for the shop.
-  Stream<List<AttendanceRecord>> streamMonthAttendance(String shopId, String yearMonth) {
+  Stream<List<AttendanceRecord>> streamMonthAttendance(
+      String shopId, String yearMonth) {
     return FirebaseFirestore.instance
         .collection('shops')
         .doc(shopId)
@@ -795,7 +817,8 @@ class AttendanceService {
         .where('date', isGreaterThanOrEqualTo: '$yearMonth-01')
         .where('date', isLessThanOrEqualTo: '$yearMonth-31')
         .snapshots()
-        .map((snap) =>
-            snap.docs.map((d) => AttendanceRecord.fromMap(d.id, d.data())).toList());
+        .map((snap) => snap.docs
+            .map((d) => AttendanceRecord.fromMap(d.id, d.data()))
+            .toList());
   }
 }

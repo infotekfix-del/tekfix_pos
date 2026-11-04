@@ -9,7 +9,9 @@ import 'package:tekfix_erp_pos/pos/daily_register_service.dart';
 import 'package:tekfix_erp_pos/pos/daily_sales_ledger_view.dart';
 
 void main() {
-  group('Daily Sales Dashboard, Shift Reconciliation & EOD Closing Report Tests', () {
+  group(
+      'Daily Sales Dashboard, Shift Reconciliation & EOD Closing Report Tests',
+      () {
     late Directory tempDir;
 
     setUpAll(() async {
@@ -37,7 +39,9 @@ void main() {
       } catch (_) {}
     });
 
-    test('1. computeDailySummary computes gross, net, payment modes, and cash discrepancy', () {
+    test(
+        '1. computeDailySummary computes gross, net, payment modes, and cash discrepancy',
+        () {
       final today = DateTime(2026, 11, 2, 14, 30);
       final testSales = [
         // Sale 1: Cash sale for Gadgets
@@ -169,9 +173,16 @@ void main() {
       expect(summaryExact.cashDiscrepancyPaise, 0);
 
       // Verify Category Breakdown
-      expect(summaryExact.categoryBreakdown.containsKey('Phone / Hardware Service'), isTrue);
-      expect(summaryExact.categoryBreakdown['Phone / Hardware Service']!.totalAmount, 4000.0);
-      expect(summaryExact.categoryBreakdown.containsKey('Photostat / Printing'), isTrue);
+      expect(
+          summaryExact.categoryBreakdown
+              .containsKey('Phone / Hardware Service'),
+          isTrue);
+      expect(
+          summaryExact
+              .categoryBreakdown['Phone / Hardware Service']!.totalAmount,
+          4000.0);
+      expect(summaryExact.categoryBreakdown.containsKey('Photostat / Printing'),
+          isTrue);
       expect(summaryExact.categoryBreakdown['Photostat / Printing']!.units, 50);
 
       // Verify Cash Shortage detection
@@ -193,7 +204,9 @@ void main() {
       expect(summaryOver.cashDiscrepancyPaise, 5000);
     });
 
-    test('2. getSalesForDate properly filters sales by date boundary (00:00 to 23:59:59)', () async {
+    test(
+        '2. getSalesForDate properly filters sales by date boundary (00:00 to 23:59:59)',
+        () async {
       await Db.sales.clear();
 
       const todayStr = '2026-11-02T10:30:00';
@@ -233,7 +246,8 @@ void main() {
       });
 
       final queryDate = DateTime(2026, 11, 2);
-      final todaySales = await DailyRegisterService.instance.getSalesForDate(queryDate);
+      final todaySales =
+          await DailyRegisterService.instance.getSalesForDate(queryDate);
 
       expect(todaySales.length, 2);
       expect(todaySales.any((s) => s['invoice'] == 'INV-TODAY-1'), isTrue);
@@ -242,7 +256,9 @@ void main() {
       expect(todaySales.any((s) => s['invoice'] == 'INV-TOMO-1'), isFalse);
     });
 
-    test('3. closeDailyRegister and getClosedRegister persist and retrieve immutable summary', () async {
+    test(
+        '3. closeDailyRegister and getClosedRegister persist and retrieve immutable summary',
+        () async {
       final date = DateTime(2026, 11, 2);
       final summary = DailyRegisterSummary(
         dateString: '2026_11_02',
@@ -270,7 +286,8 @@ void main() {
         staffName: 'Shahal',
       );
 
-      final retrieved = await DailyRegisterService.instance.getClosedRegister('2026_11_02', shopId: 'shop_test_eod');
+      final retrieved = await DailyRegisterService.instance
+          .getClosedRegister('2026_11_02', shopId: 'shop_test_eod');
       expect(retrieved, isNotNull);
       expect(retrieved!.isClosed, isTrue);
       expect(retrieved.netRevenue, 34500.0);
@@ -279,7 +296,9 @@ void main() {
       expect(retrieved.closedByStaffName, 'Shahal');
     });
 
-    testWidgets('4. DailySalesLedgerView renders title, date chips, metrics and search', (tester) async {
+    testWidgets(
+        '4. DailySalesLedgerView renders title, date chips, metrics and search',
+        (tester) async {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
@@ -302,4 +321,3 @@ void main() {
     });
   });
 }
-

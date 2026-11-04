@@ -117,7 +117,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                 gradient: DashboardColors.activePillGradient,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.assignment_return_rounded, color: Colors.white, size: 20),
+              child: const Icon(Icons.assignment_return_rounded,
+                  color: Colors.white, size: 20),
             ),
             const SizedBox(width: 12),
             Column(
@@ -197,7 +198,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.phone_in_talk_rounded, color: DashboardColors.neonBlue, size: 22),
+              const Icon(Icons.phone_in_talk_rounded,
+                  color: DashboardColors.neonBlue, size: 22),
               const SizedBox(width: 10),
               Text(
                 '1. SEARCH CUSTOMER BY PHONE NUMBER',
@@ -224,14 +226,19 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                   child: TextField(
                     controller: _phoneCtrl,
                     keyboardType: TextInputType.phone,
-                    style: DashboardTypography.inter(color: Colors.white, fontSize: 15),
+                    style: DashboardTypography.inter(
+                        color: Colors.white, fontSize: 15),
                     decoration: InputDecoration(
-                      hintText: 'Enter Customer Mobile Number (e.g. 9876543210)',
-                      hintStyle: DashboardTypography.inter(color: DashboardColors.textMuted, fontSize: 13.5),
-                      prefixIcon: const Icon(Icons.search_rounded, color: DashboardColors.neonBlue),
+                      hintText:
+                          'Enter Customer Mobile Number (e.g. 9876543210)',
+                      hintStyle: DashboardTypography.inter(
+                          color: DashboardColors.textMuted, fontSize: 13.5),
+                      prefixIcon: const Icon(Icons.search_rounded,
+                          color: DashboardColors.neonBlue),
                       suffixIcon: _phoneCtrl.text.isNotEmpty
                           ? IconButton(
-                              icon: const Icon(Icons.clear_rounded, color: DashboardColors.textMuted, size: 18),
+                              icon: const Icon(Icons.clear_rounded,
+                                  color: DashboardColors.textMuted, size: 18),
                               onPressed: () {
                                 _phoneCtrl.clear();
                                 _performSearch('');
@@ -239,7 +246,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                             )
                           : null,
                       border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
                     ),
                     onSubmitted: _performSearch,
                     onChanged: (val) {
@@ -254,20 +262,24 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
               FilledButton.icon(
                 style: FilledButton.styleFrom(
                   backgroundColor: DashboardColors.primaryBlue,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
                 ),
                 onPressed: () => _performSearch(_phoneCtrl.text),
                 icon: _searching
                     ? const SizedBox(
                         width: 18,
                         height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
                       )
                     : const Icon(Icons.search_rounded, size: 20),
                 label: Text(
                   'Search',
-                  style: DashboardTypography.poppins(fontWeight: FontWeight.w600),
+                  style:
+                      DashboardTypography.poppins(fontWeight: FontWeight.w600),
                 ),
               ),
             ],
@@ -292,7 +304,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.people_alt_rounded, color: DashboardColors.neonPurple, size: 20),
+              const Icon(Icons.people_alt_rounded,
+                  color: DashboardColors.neonPurple, size: 20),
               const SizedBox(width: 8),
               Text(
                 'Multiple Customer Matches Found - Please Select One',
@@ -315,7 +328,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                 onTap: () => _selectCustomer(cust),
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? DashboardColors.neonPurple.withValues(alpha: 0.25)
@@ -332,8 +346,12 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        isSelected ? Icons.check_circle_rounded : Icons.person_rounded,
-                        color: isSelected ? DashboardColors.neonPurple : DashboardColors.textMuted,
+                        isSelected
+                            ? Icons.check_circle_rounded
+                            : Icons.person_rounded,
+                        color: isSelected
+                            ? DashboardColors.neonPurple
+                            : DashboardColors.textMuted,
                         size: 18,
                       ),
                       const SizedBox(width: 8),
@@ -387,7 +405,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
           CircleAvatar(
             radius: 26,
             backgroundColor: DashboardColors.neonBlue.withValues(alpha: 0.2),
-            child: const Icon(Icons.person_outline_rounded, color: DashboardColors.neonBlue, size: 28),
+            child: const Icon(Icons.person_outline_rounded,
+                color: DashboardColors.neonBlue, size: 28),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -406,7 +425,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                     ),
                     const SizedBox(width: 10),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: const Color(0x3310B981),
                         borderRadius: BorderRadius.circular(6),
@@ -446,7 +466,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
               children: [
                 Text(
                   'Purchased Items',
-                  style: DashboardTypography.inter(fontSize: 11, color: DashboardColors.textMuted),
+                  style: DashboardTypography.inter(
+                      fontSize: 11, color: DashboardColors.textMuted),
                 ),
                 Text(
                   '${_purchasedProducts.length} Items',
@@ -476,7 +497,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
         decoration: DashboardColors.glassCard(),
         child: Column(
           children: [
-            const Icon(Icons.remove_shopping_cart_rounded, size: 54, color: DashboardColors.textMuted),
+            const Icon(Icons.remove_shopping_cart_rounded,
+                size: 54, color: DashboardColors.textMuted),
             const SizedBox(height: 14),
             Text(
               'No Purchase Records Found For This Number',
@@ -490,7 +512,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
             Text(
               'Please check the mobile number or verify if the invoice was registered under a different phone number.',
               textAlign: TextAlign.center,
-              style: DashboardTypography.inter(fontSize: 12.5, color: DashboardColors.textMuted),
+              style: DashboardTypography.inter(
+                  fontSize: 12.5, color: DashboardColors.textMuted),
             ),
           ],
         ),
@@ -505,7 +528,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
           children: [
             Row(
               children: [
-                const Icon(Icons.devices_other_rounded, color: DashboardColors.neonGreen, size: 22),
+                const Icon(Icons.devices_other_rounded,
+                    color: DashboardColors.neonGreen, size: 22),
                 const SizedBox(width: 8),
                 Text(
                   '2. PURCHASED PRODUCTS & WARRANTY ELIGIBILITY',
@@ -520,7 +544,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
             ),
             Text(
               'Showing ${_purchasedProducts.length} items',
-              style: DashboardTypography.inter(fontSize: 12, color: DashboardColors.textMuted),
+              style: DashboardTypography.inter(
+                  fontSize: 12, color: DashboardColors.textMuted),
             ),
           ],
         ),
@@ -554,8 +579,10 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
   // ---------------------------------------------------------------------------
 
   Widget _buildProductCard(PurchasedProductItem item) {
-    final warrantyColor = CustomerWarrantyStatus.getColor(item.calculatedWarrantyStatus);
-    final warrantyIcon = CustomerWarrantyStatus.getIcon(item.calculatedWarrantyStatus);
+    final warrantyColor =
+        CustomerWarrantyStatus.getColor(item.calculatedWarrantyStatus);
+    final warrantyIcon =
+        CustomerWarrantyStatus.getIcon(item.calculatedWarrantyStatus);
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -599,11 +626,13 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: warrantyColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: warrantyColor.withValues(alpha: 0.6)),
+                  border:
+                      Border.all(color: warrantyColor.withValues(alpha: 0.6)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -634,11 +663,17 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildProductDetailRow('Invoice Number', item.invoiceNumber, Icons.receipt_long_rounded),
-                _buildProductDetailRow('Purchase Date', _shortDateFormat.format(item.purchaseDate), Icons.event_rounded),
+                _buildProductDetailRow('Invoice Number', item.invoiceNumber,
+                    Icons.receipt_long_rounded),
+                _buildProductDetailRow(
+                    'Purchase Date',
+                    _shortDateFormat.format(item.purchaseDate),
+                    Icons.event_rounded),
                 _buildProductDetailRow(
                   'Serial / IMEI',
-                  item.serialNumber.isNotEmpty ? item.serialNumber : 'Not Recorded',
+                  item.serialNumber.isNotEmpty
+                      ? item.serialNumber
+                      : 'Not Recorded',
                   Icons.qr_code_rounded,
                   highlight: item.serialNumber.isNotEmpty,
                 ),
@@ -650,8 +685,10 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                   Icons.shield_rounded,
                   valueColor: warrantyColor,
                 ),
-                if (item.originalVendorName != null && item.originalVendorName!.isNotEmpty)
-                  _buildProductDetailRow('Original Vendor', item.originalVendorName!, Icons.store_rounded),
+                if (item.originalVendorName != null &&
+                    item.originalVendorName!.isNotEmpty)
+                  _buildProductDetailRow('Original Vendor',
+                      item.originalVendorName!, Icons.store_rounded),
                 if (item.previousReturnCount > 0)
                   _buildProductDetailRow(
                     'Previous Returns',
@@ -673,13 +710,15 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: DashboardColors.textLight,
                     side: const BorderSide(color: Color(0x33FFFFFF)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                   ),
                   onPressed: () => _showProductDetailsDialog(item),
                   child: Text(
                     'View Details',
-                    style: DashboardTypography.inter(fontSize: 11.5, fontWeight: FontWeight.w600),
+                    style: DashboardTypography.inter(
+                        fontSize: 11.5, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -688,14 +727,17 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                 child: OutlinedButton(
                   style: OutlinedButton.styleFrom(
                     foregroundColor: warrantyColor,
-                    side: BorderSide(color: warrantyColor.withValues(alpha: 0.5)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    side:
+                        BorderSide(color: warrantyColor.withValues(alpha: 0.5)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                   ),
                   onPressed: () => _showWarrantyCheckDialog(item),
                   child: Text(
                     'Check Warranty',
-                    style: DashboardTypography.inter(fontSize: 11.5, fontWeight: FontWeight.w600),
+                    style: DashboardTypography.inter(
+                        fontSize: 11.5, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -704,13 +746,15 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                 child: FilledButton(
                   style: FilledButton.styleFrom(
                     backgroundColor: DashboardColors.primaryBlue,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                   ),
                   onPressed: () => _showRegisterReturnDialog(item),
                   child: Text(
                     'Register Return',
-                    style: DashboardTypography.poppins(fontSize: 11.5, fontWeight: FontWeight.w600),
+                    style: DashboardTypography.poppins(
+                        fontSize: 11.5, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -734,7 +778,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
         const SizedBox(width: 6),
         Text(
           '$label: ',
-          style: DashboardTypography.inter(fontSize: 11.5, color: DashboardColors.textMuted),
+          style: DashboardTypography.inter(
+              fontSize: 11.5, color: DashboardColors.textMuted),
         ),
         Expanded(
           child: Text(
@@ -744,7 +789,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
             style: DashboardTypography.inter(
               fontSize: 11.5,
               fontWeight: highlight ? FontWeight.w700 : FontWeight.w500,
-              color: valueColor ?? (highlight ? DashboardColors.neonBlue : Colors.white),
+              color: valueColor ??
+                  (highlight ? DashboardColors.neonBlue : Colors.white),
             ),
           ),
         ),
@@ -769,9 +815,11 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
             decoration: BoxDecoration(
               color: DashboardColors.neonBlue.withValues(alpha: 0.1),
               shape: BoxShape.circle,
-              border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.3)),
+              border: Border.all(
+                  color: DashboardColors.neonBlue.withValues(alpha: 0.3)),
             ),
-            child: const Icon(Icons.manage_search_rounded, size: 36, color: DashboardColors.neonBlue),
+            child: const Icon(Icons.manage_search_rounded,
+                size: 36, color: DashboardColors.neonBlue),
           ),
           const SizedBox(height: 18),
           Text(
@@ -815,11 +863,15 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
         ),
         title: Row(
           children: [
-            const Icon(Icons.info_outline_rounded, color: DashboardColors.neonBlue),
+            const Icon(Icons.info_outline_rounded,
+                color: DashboardColors.neonBlue),
             const SizedBox(width: 10),
             Text(
               'Purchased Product Details',
-              style: DashboardTypography.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+              style: DashboardTypography.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white),
             ),
           ],
         ),
@@ -830,33 +882,49 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildModalRow('Product Name', item.productName),
-              _buildModalRow('Brand / Model', '${item.brand} ${item.model}'.trim()),
+              _buildModalRow(
+                  'Brand / Model', '${item.brand} ${item.model}'.trim()),
               _buildModalRow('Original Invoice #', item.invoiceNumber),
-              _buildModalRow('Purchase Date', _dateFormat.format(item.purchaseDate)),
-              _buildModalRow('Serial Number / IMEI', item.serialNumber.isNotEmpty ? item.serialNumber : 'Not Specified'),
+              _buildModalRow(
+                  'Purchase Date', _dateFormat.format(item.purchaseDate)),
+              _buildModalRow(
+                  'Serial Number / IMEI',
+                  item.serialNumber.isNotEmpty
+                      ? item.serialNumber
+                      : 'Not Specified'),
               _buildModalRow('Sale Price', '₹${item.price.toStringAsFixed(2)}'),
               _buildModalRow('Quantity', '${item.quantity}'),
               _buildModalRow('Warranty Term', item.warrantyPeriod),
-              _buildModalRow('Warranty Expiry Date', item.warrantyExpiryDate != null ? _dateFormat.format(item.warrantyExpiryDate!) : 'No Expiry'),
-              _buildModalRow('Calculated Status', item.calculatedWarrantyStatus),
-              _buildModalRow('Original Vendor', item.originalVendorName ?? 'Not Linked In Purchase Records'),
+              _buildModalRow(
+                  'Warranty Expiry Date',
+                  item.warrantyExpiryDate != null
+                      ? _dateFormat.format(item.warrantyExpiryDate!)
+                      : 'No Expiry'),
+              _buildModalRow(
+                  'Calculated Status', item.calculatedWarrantyStatus),
+              _buildModalRow('Original Vendor',
+                  item.originalVendorName ?? 'Not Linked In Purchase Records'),
               _buildModalRow('Vendor Phone', item.originalVendorPhone ?? 'N/A'),
-              _buildModalRow('Previous Return Count', '${item.previousReturnCount} times'),
+              _buildModalRow(
+                  'Previous Return Count', '${item.previousReturnCount} times'),
             ],
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Close', style: DashboardTypography.inter(color: Colors.white70)),
+            child: Text('Close',
+                style: DashboardTypography.inter(color: Colors.white70)),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: DashboardColors.primaryBlue),
+            style: FilledButton.styleFrom(
+                backgroundColor: DashboardColors.primaryBlue),
             onPressed: () {
               Navigator.pop(ctx);
               _showRegisterReturnDialog(item);
             },
-            child: Text('Proceed to Return', style: DashboardTypography.inter(fontWeight: FontWeight.w600)),
+            child: Text('Proceed to Return',
+                style: DashboardTypography.inter(fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -885,7 +953,10 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
             const SizedBox(width: 10),
             Text(
               'Customer Warranty Evaluation',
-              style: DashboardTypography.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+              style: DashboardTypography.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white),
             ),
           ],
         ),
@@ -905,7 +976,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                 ),
                 child: Row(
                   children: [
-                    Icon(CustomerWarrantyStatus.getIcon(status), color: color, size: 28),
+                    Icon(CustomerWarrantyStatus.getIcon(status),
+                        color: color, size: 28),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -923,7 +995,9 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                             item.warrantyExpiryDate != null
                                 ? 'Coverage ends on ${_dateFormat.format(item.warrantyExpiryDate!)}'
                                 : 'No active warranty period specified on invoice',
-                            style: DashboardTypography.inter(fontSize: 11.5, color: DashboardColors.textLight),
+                            style: DashboardTypography.inter(
+                                fontSize: 11.5,
+                                color: DashboardColors.textLight),
                           ),
                         ],
                       ),
@@ -934,7 +1008,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
               const SizedBox(height: 16),
               _buildModalRow('Product', item.productName),
               _buildModalRow('Invoice Number', item.invoiceNumber),
-              _buildModalRow('Purchase Date', _shortDateFormat.format(item.purchaseDate)),
+              _buildModalRow(
+                  'Purchase Date', _shortDateFormat.format(item.purchaseDate)),
               _buildModalRow('Specified Warranty', item.warrantyPeriod),
               const SizedBox(height: 12),
               Container(
@@ -945,7 +1020,10 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                 ),
                 child: Text(
                   'Note: Customer warranty terms are evaluated strictly from the customer purchase invoice. Vendor claim terms are evaluated separately and will be tracked after vendor handover.',
-                  style: DashboardTypography.inter(fontSize: 11, color: DashboardColors.textMuted, height: 1.4),
+                  style: DashboardTypography.inter(
+                      fontSize: 11,
+                      color: DashboardColors.textMuted,
+                      height: 1.4),
                 ),
               ),
             ],
@@ -954,7 +1032,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Done', style: DashboardTypography.inter(color: Colors.white70)),
+            child: Text('Done',
+                style: DashboardTypography.inter(color: Colors.white70)),
           ),
         ],
       ),
@@ -971,8 +1050,10 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
     final accessoriesCtrl = TextEditingController(text: 'Product only');
     final notesCtrl = TextEditingController();
     final photoNoteCtrl = TextEditingController();
-    final vendorNameCtrl = TextEditingController(text: item.originalVendorName ?? '');
-    final vendorPhoneCtrl = TextEditingController(text: item.originalVendorPhone ?? '');
+    final vendorNameCtrl =
+        TextEditingController(text: item.originalVendorName ?? '');
+    final vendorPhoneCtrl =
+        TextEditingController(text: item.originalVendorPhone ?? '');
     final vendorRefCtrl = TextEditingController();
 
     String selectedReason = ReturnReason.productNotWorking;
@@ -1001,7 +1082,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                   gradient: DashboardColors.activePillGradient,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.assignment_return_rounded, color: Colors.white, size: 20),
+                child: const Icon(Icons.assignment_return_rounded,
+                    color: Colors.white, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1010,11 +1092,15 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                   children: [
                     Text(
                       'Register Customer Return',
-                      style: DashboardTypography.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: DashboardTypography.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white),
                     ),
                     Text(
                       'Links return to Invoice ${item.invoiceNumber} without altering original sales',
-                      style: DashboardTypography.inter(fontSize: 11.5, color: DashboardColors.textMuted),
+                      style: DashboardTypography.inter(
+                          fontSize: 11.5, color: DashboardColors.textMuted),
                     ),
                   ],
                 ),
@@ -1037,11 +1123,18 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                     ),
                     child: Column(
                       children: [
-                        _buildAutoPopulatedField('Customer', '${item.customerName} (${item.customerPhone})'),
-                        _buildAutoPopulatedField('Product', '${item.productName} (IMEI: ${item.serialNumber.isNotEmpty ? item.serialNumber : "N/A"})'),
-                        _buildAutoPopulatedField('Invoice & Date', '${item.invoiceNumber} • ${_shortDateFormat.format(item.purchaseDate)}'),
-                        _buildAutoPopulatedField('Warranty', '${item.warrantyPeriod} • $selectedWarrantyStatus'),
-                        _buildAutoPopulatedField('Original Vendor', item.originalVendorName ?? 'Not in records (manual entry below)'),
+                        _buildAutoPopulatedField('Customer',
+                            '${item.customerName} (${item.customerPhone})'),
+                        _buildAutoPopulatedField('Product',
+                            '${item.productName} (IMEI: ${item.serialNumber.isNotEmpty ? item.serialNumber : "N/A"})'),
+                        _buildAutoPopulatedField('Invoice & Date',
+                            '${item.invoiceNumber} • ${_shortDateFormat.format(item.purchaseDate)}'),
+                        _buildAutoPopulatedField('Warranty',
+                            '${item.warrantyPeriod} • $selectedWarrantyStatus'),
+                        _buildAutoPopulatedField(
+                            'Original Vendor',
+                            item.originalVendorName ??
+                                'Not in records (manual entry below)'),
                       ],
                     ),
                   ),
@@ -1051,7 +1144,10 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                   // Return Reason Dropdown
                   Text(
                     'Return Reason *',
-                    style: DashboardTypography.inter(fontSize: 12, fontWeight: FontWeight.w600, color: DashboardColors.textLight),
+                    style: DashboardTypography.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: DashboardColors.textLight),
                   ),
                   const SizedBox(height: 6),
                   Container(
@@ -1069,7 +1165,9 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                         items: ReturnReason.all.map((r) {
                           return DropdownMenuItem(
                             value: r,
-                            child: Text(r, style: DashboardTypography.inter(color: Colors.white, fontSize: 13.5)),
+                            child: Text(r,
+                                style: DashboardTypography.inter(
+                                    color: Colors.white, fontSize: 13.5)),
                           );
                         }).toList(),
                         onChanged: (val) {
@@ -1084,14 +1182,19 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                   // Customer Complaint
                   Text(
                     'Customer Complaint *',
-                    style: DashboardTypography.inter(fontSize: 12, fontWeight: FontWeight.w600, color: DashboardColors.textLight),
+                    style: DashboardTypography.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: DashboardColors.textLight),
                   ),
                   const SizedBox(height: 6),
                   TextField(
                     controller: complaintCtrl,
                     maxLines: 2,
-                    style: DashboardTypography.inter(color: Colors.white, fontSize: 13),
-                    decoration: _buildInputDecoration('Describe problem reported by customer...'),
+                    style: DashboardTypography.inter(
+                        color: Colors.white, fontSize: 13),
+                    decoration: _buildInputDecoration(
+                        'Describe problem reported by customer...'),
                   ),
 
                   const SizedBox(height: 14),
@@ -1105,13 +1208,18 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                           children: [
                             Text(
                               'Product Condition',
-                              style: DashboardTypography.inter(fontSize: 12, fontWeight: FontWeight.w600, color: DashboardColors.textLight),
+                              style: DashboardTypography.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: DashboardColors.textLight),
                             ),
                             const SizedBox(height: 6),
                             TextField(
                               controller: conditionCtrl,
-                              style: DashboardTypography.inter(color: Colors.white, fontSize: 13),
-                              decoration: _buildInputDecoration('e.g. Scratched, Good, etc.'),
+                              style: DashboardTypography.inter(
+                                  color: Colors.white, fontSize: 13),
+                              decoration: _buildInputDecoration(
+                                  'e.g. Scratched, Good, etc.'),
                             ),
                           ],
                         ),
@@ -1123,13 +1231,18 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                           children: [
                             Text(
                               'Accessories Received',
-                              style: DashboardTypography.inter(fontSize: 12, fontWeight: FontWeight.w600, color: DashboardColors.textLight),
+                              style: DashboardTypography.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: DashboardColors.textLight),
                             ),
                             const SizedBox(height: 6),
                             TextField(
                               controller: accessoriesCtrl,
-                              style: DashboardTypography.inter(color: Colors.white, fontSize: 13),
-                              decoration: _buildInputDecoration('e.g. Box, Charger, Bill, None'),
+                              style: DashboardTypography.inter(
+                                  color: Colors.white, fontSize: 13),
+                              decoration: _buildInputDecoration(
+                                  'e.g. Box, Charger, Bill, None'),
                             ),
                           ],
                         ),
@@ -1142,7 +1255,10 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                   // Original Vendor Information
                   Text(
                     'Original Vendor Information',
-                    style: DashboardTypography.inter(fontSize: 12, fontWeight: FontWeight.w600, color: DashboardColors.neonBlue),
+                    style: DashboardTypography.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: DashboardColors.neonBlue),
                   ),
                   const SizedBox(height: 6),
                   Row(
@@ -1150,8 +1266,10 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                       Expanded(
                         child: TextField(
                           controller: vendorNameCtrl,
-                          style: DashboardTypography.inter(color: Colors.white, fontSize: 13),
-                          decoration: _buildInputDecoration('Vendor Name (Auto/Manual)'),
+                          style: DashboardTypography.inter(
+                              color: Colors.white, fontSize: 13),
+                          decoration: _buildInputDecoration(
+                              'Vendor Name (Auto/Manual)'),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -1159,7 +1277,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                         child: TextField(
                           controller: vendorPhoneCtrl,
                           keyboardType: TextInputType.phone,
-                          style: DashboardTypography.inter(color: Colors.white, fontSize: 13),
+                          style: DashboardTypography.inter(
+                              color: Colors.white, fontSize: 13),
                           decoration: _buildInputDecoration('Vendor Phone'),
                         ),
                       ),
@@ -1171,13 +1290,18 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                   // Internal Notes
                   Text(
                     'Internal Notes',
-                    style: DashboardTypography.inter(fontSize: 12, fontWeight: FontWeight.w600, color: DashboardColors.textLight),
+                    style: DashboardTypography.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: DashboardColors.textLight),
                   ),
                   const SizedBox(height: 6),
                   TextField(
                     controller: notesCtrl,
-                    style: DashboardTypography.inter(color: Colors.white, fontSize: 13),
-                    decoration: _buildInputDecoration('Optional staff internal notes...'),
+                    style: DashboardTypography.inter(
+                        color: Colors.white, fontSize: 13),
+                    decoration: _buildInputDecoration(
+                        'Optional staff internal notes...'),
                   ),
                 ],
               ),
@@ -1186,19 +1310,23 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
           actions: [
             TextButton(
               onPressed: submitting ? null : () => Navigator.pop(ctx),
-              child: Text('Cancel', style: DashboardTypography.inter(color: Colors.white70)),
+              child: Text('Cancel',
+                  style: DashboardTypography.inter(color: Colors.white70)),
             ),
             FilledButton.icon(
               style: FilledButton.styleFrom(
                 backgroundColor: DashboardColors.primaryBlue,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               ),
               onPressed: submitting
                   ? null
                   : () async {
                       if (complaintCtrl.text.trim().isEmpty) {
-                        toast(context, 'Please enter the customer complaint', error: true);
+                        toast(context, 'Please enter the customer complaint',
+                            error: true);
                         return;
                       }
 
@@ -1223,19 +1351,23 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                           customerWarrantyExpiryDate: item.warrantyExpiryDate,
                           customerWarrantyStatus: item.calculatedWarrantyStatus,
                           originalVendorKey: item.originalVendorKey,
-                          originalVendorName: vendorNameCtrl.text.trim().isNotEmpty
-                              ? vendorNameCtrl.text.trim()
-                              : item.originalVendorName,
-                          originalVendorPhone: vendorPhoneCtrl.text.trim().isNotEmpty
-                              ? vendorPhoneCtrl.text.trim()
-                              : item.originalVendorPhone,
+                          originalVendorName:
+                              vendorNameCtrl.text.trim().isNotEmpty
+                                  ? vendorNameCtrl.text.trim()
+                                  : item.originalVendorName,
+                          originalVendorPhone:
+                              vendorPhoneCtrl.text.trim().isNotEmpty
+                                  ? vendorPhoneCtrl.text.trim()
+                                  : item.originalVendorPhone,
                           returnReason: selectedReason,
                           customerComplaint: complaintCtrl.text.trim(),
                           productCondition: conditionCtrl.text.trim(),
                           accessoriesReceived: accessoriesCtrl.text.trim(),
                           assignedStaffId: auth.uid,
                           assignedStaffName: assignedStaff,
-                          internalNotes: notesCtrl.text.trim().isNotEmpty ? notesCtrl.text.trim() : null,
+                          internalNotes: notesCtrl.text.trim().isNotEmpty
+                              ? notesCtrl.text.trim()
+                              : null,
                           actorId: auth.uid,
                           actorName: assignedStaff,
                           actorRole: auth.isOwner ? 'Owner' : 'Staff',
@@ -1248,13 +1380,15 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => ReturnDetailsScreen(returnKey: ret.key),
+                            builder: (_) =>
+                                ReturnDetailsScreen(returnKey: ret.key),
                           ),
                         );
                       } catch (e) {
                         setD(() => submitting = false);
                         if (mounted) {
-                          toast(context, 'Failed to register return: $e', error: true);
+                          toast(context, 'Failed to register return: $e',
+                              error: true);
                         }
                       }
                     },
@@ -1262,7 +1396,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
                   ? const SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
                     )
                   : const Icon(Icons.check_circle_rounded, size: 18),
               label: Text(
@@ -1286,7 +1421,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
             width: 110,
             child: Text(
               '$label:',
-              style: DashboardTypography.inter(fontSize: 11.5, color: DashboardColors.textMuted),
+              style: DashboardTypography.inter(
+                  fontSize: 11.5, color: DashboardColors.textMuted),
             ),
           ),
           Expanded(
@@ -1307,7 +1443,8 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
   InputDecoration _buildInputDecoration(String hint) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: DashboardTypography.inter(color: DashboardColors.textMuted, fontSize: 12),
+      hintStyle: DashboardTypography.inter(
+          color: DashboardColors.textMuted, fontSize: 12),
       filled: true,
       fillColor: const Color(0x26000000),
       isDense: true,
@@ -1337,13 +1474,17 @@ class _CustomerReturnsScreenState extends State<CustomerReturnsScreen> {
             width: 140,
             child: Text(
               '$label:',
-              style: DashboardTypography.inter(fontSize: 12, color: DashboardColors.textMuted),
+              style: DashboardTypography.inter(
+                  fontSize: 12, color: DashboardColors.textMuted),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: DashboardTypography.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.white),
+              style: DashboardTypography.inter(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white),
             ),
           ),
         ],

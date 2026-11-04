@@ -151,12 +151,20 @@ class DailyRegisterSummary {
   double get creditSales => totalDue;
   double get actualCashCount => physicalCashCount;
   double get otherCashExpenses =>
-      (totalCashExpenses - cashRentPaid - ownerCashSalaryDrawn).clamp(0.0, double.infinity);
-  double get totalCashOutflows =>
-      cashRentPaid + otherCashExpenses + ownerCashSalaryDrawn + ownerCashDrawingsDrawn + refunds;
-  double get expectedClosingCash =>
-      (openingCash + totalCash - refunds - totalCashExpenses - ownerCashDrawingsDrawn)
+      (totalCashExpenses - cashRentPaid - ownerCashSalaryDrawn)
           .clamp(0.0, double.infinity);
+  double get totalCashOutflows =>
+      cashRentPaid +
+      otherCashExpenses +
+      ownerCashSalaryDrawn +
+      ownerCashDrawingsDrawn +
+      refunds;
+  double get expectedClosingCash => (openingCash +
+          totalCash -
+          refunds -
+          totalCashExpenses -
+          ownerCashDrawingsDrawn)
+      .clamp(0.0, double.infinity);
   double get cashOverOrShort => physicalCashCount - expectedClosingCash;
   String get closedBy => closedByStaffName.isNotEmpty
       ? closedByStaffName
@@ -206,12 +214,16 @@ class DailyRegisterSummary {
       cashRentPaid: cashRentPaid ?? this.cashRentPaid,
       bankRentPaid: bankRentPaid ?? this.bankRentPaid,
       rentPendingWarning: rentPendingWarning ?? this.rentPendingWarning,
-      ownerSalaryDrawnToday: ownerSalaryDrawnToday ?? this.ownerSalaryDrawnToday,
-      ownerExcessDrawingsToday: ownerExcessDrawingsToday ?? this.ownerExcessDrawingsToday,
+      ownerSalaryDrawnToday:
+          ownerSalaryDrawnToday ?? this.ownerSalaryDrawnToday,
+      ownerExcessDrawingsToday:
+          ownerExcessDrawingsToday ?? this.ownerExcessDrawingsToday,
       ownerCashSalaryDrawn: ownerCashSalaryDrawn ?? this.ownerCashSalaryDrawn,
-      ownerCashDrawingsDrawn: ownerCashDrawingsDrawn ?? this.ownerCashDrawingsDrawn,
+      ownerCashDrawingsDrawn:
+          ownerCashDrawingsDrawn ?? this.ownerCashDrawingsDrawn,
       ownerBankSalaryDrawn: ownerBankSalaryDrawn ?? this.ownerBankSalaryDrawn,
-      ownerBankDrawingsDrawn: ownerBankDrawingsDrawn ?? this.ownerBankDrawingsDrawn,
+      ownerBankDrawingsDrawn:
+          ownerBankDrawingsDrawn ?? this.ownerBankDrawingsDrawn,
       physicalCashCount: physicalCashCount ?? this.physicalCashCount,
       cashDiscrepancy: cashDiscrepancy ?? this.cashDiscrepancy,
       categoryBreakdown: categoryBreakdown,
@@ -267,7 +279,8 @@ class DailyRegisterSummary {
         'physicalCashPaise': physicalCashPaise,
         'cashDiscrepancy': cashDiscrepancy,
         'cashDiscrepancyPaise': cashDiscrepancyPaise,
-        'categoryBreakdown': categoryBreakdown.map((k, v) => MapEntry(k, v.toMap())),
+        'categoryBreakdown':
+            categoryBreakdown.map((k, v) => MapEntry(k, v.toMap())),
         'topSellingProducts': topSellingProducts.map((p) => p.toMap()).toList(),
         'closedByStaffId': closedByStaffId,
         'closedByStaffName': closedByStaffName,
@@ -330,12 +343,18 @@ class DailyRegisterSummary {
 
     final double ownSal = (map['ownerSalaryDrawnToday'] as num?)?.toDouble() ??
         (((map['ownerSalaryDrawnPaise'] as num?)?.toDouble() ?? 0.0) / 100.0);
-    final double ownDraw = (map['ownerExcessDrawingsToday'] as num?)?.toDouble() ??
-        (((map['ownerExcessDrawingsPaise'] as num?)?.toDouble() ?? 0.0) / 100.0);
-    final double ownCashSal = (map['ownerCashSalaryDrawn'] as num?)?.toDouble() ?? 0.0;
-    final double ownCashDraw = (map['ownerCashDrawingsDrawn'] as num?)?.toDouble() ?? 0.0;
-    final double ownBankSal = (map['ownerBankSalaryDrawn'] as num?)?.toDouble() ?? 0.0;
-    final double ownBankDraw = (map['ownerBankDrawingsDrawn'] as num?)?.toDouble() ?? 0.0;
+    final double ownDraw =
+        (map['ownerExcessDrawingsToday'] as num?)?.toDouble() ??
+            (((map['ownerExcessDrawingsPaise'] as num?)?.toDouble() ?? 0.0) /
+                100.0);
+    final double ownCashSal =
+        (map['ownerCashSalaryDrawn'] as num?)?.toDouble() ?? 0.0;
+    final double ownCashDraw =
+        (map['ownerCashDrawingsDrawn'] as num?)?.toDouble() ?? 0.0;
+    final double ownBankSal =
+        (map['ownerBankSalaryDrawn'] as num?)?.toDouble() ?? 0.0;
+    final double ownBankDraw =
+        (map['ownerBankDrawingsDrawn'] as num?)?.toDouble() ?? 0.0;
 
     return DailyRegisterSummary(
       dateString: dStr,
@@ -378,4 +397,3 @@ class DailyRegisterSummary {
     );
   }
 }
-

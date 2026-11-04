@@ -142,8 +142,10 @@ class VendorStatus {
   static const String repairedByVendor = 'Repaired by Vendor';
   static const String replacementApproved = 'Replacement Approved';
   static const String replacementDispatched = 'Replacement Dispatched';
-  static const String replacementReceivedAtShop = 'Replacement Received at Shop';
-  static const String warrantyClaimRejectedByVendor = 'Warranty Claim Rejected by Vendor';
+  static const String replacementReceivedAtShop =
+      'Replacement Received at Shop';
+  static const String warrantyClaimRejectedByVendor =
+      'Warranty Claim Rejected by Vendor';
   static const String returnedUnrepaired = 'Returned Unrepaired';
   static const String vendorFollowUpRequired = 'Vendor Follow-up Required';
 
@@ -315,7 +317,8 @@ class ReturnTimelineEvent {
   factory ReturnTimelineEvent.fromMap(Map<dynamic, dynamic> m) {
     return ReturnTimelineEvent(
       id: m['id']?.toString() ?? '',
-      timestamp: DateTime.tryParse(m['timestamp']?.toString() ?? '') ?? DateTime.now(),
+      timestamp:
+          DateTime.tryParse(m['timestamp']?.toString() ?? '') ?? DateTime.now(),
       title: m['title']?.toString() ?? '',
       description: m['description']?.toString() ?? '',
       actorId: m['actorId']?.toString() ?? '',
@@ -323,7 +326,9 @@ class ReturnTimelineEvent {
       actorRole: m['actorRole']?.toString() ?? 'Staff',
       status: m['status']?.toString() ?? '',
       notes: m['notes']?.toString(),
-      metadata: (m['metadata'] is Map) ? Map<String, dynamic>.from(m['metadata']) : {},
+      metadata: (m['metadata'] is Map)
+          ? Map<String, dynamic>.from(m['metadata'])
+          : {},
     );
   }
 }
@@ -382,7 +387,8 @@ class VendorHandoverRecord {
   factory VendorHandoverRecord.fromMap(Map<dynamic, dynamic> m) {
     return VendorHandoverRecord(
       handoverReference: m['handoverReference']?.toString() ?? '',
-      handoverDate: DateTime.tryParse(m['handoverDate']?.toString() ?? '') ?? DateTime.now(),
+      handoverDate: DateTime.tryParse(m['handoverDate']?.toString() ?? '') ??
+          DateTime.now(),
       vendorKey: m['vendorKey'],
       vendorName: m['vendorName']?.toString() ?? '',
       vendorPhone: m['vendorPhone']?.toString() ?? '',
@@ -461,7 +467,8 @@ class VendorStatusHistoryItem {
     return VendorStatusHistoryItem(
       previousStatus: m['previousStatus']?.toString() ?? '',
       newStatus: m['newStatus']?.toString() ?? '',
-      timestamp: DateTime.tryParse(m['timestamp']?.toString() ?? '') ?? DateTime.now(),
+      timestamp:
+          DateTime.tryParse(m['timestamp']?.toString() ?? '') ?? DateTime.now(),
       updatedById: m['updatedById']?.toString() ?? '',
       updatedByName: m['updatedByName']?.toString() ?? '',
       vendorReferenceNumber: m['vendorReferenceNumber']?.toString(),
@@ -524,7 +531,8 @@ class VendorResolution {
   factory VendorResolution.fromMap(Map<dynamic, dynamic> m) {
     return VendorResolution(
       decision: m['decision']?.toString() ?? VendorResolutionType.repaired,
-      decisionDate: DateTime.tryParse(m['decisionDate']?.toString() ?? '') ?? DateTime.now(),
+      decisionDate: DateTime.tryParse(m['decisionDate']?.toString() ?? '') ??
+          DateTime.now(),
       repairDetails: m['repairDetails']?.toString(),
       isReplacement: m['isReplacement'] == true,
       replacementProduct: m['replacementProduct']?.toString(),
@@ -571,7 +579,8 @@ class CustomerDeliveryRecord {
 
   factory CustomerDeliveryRecord.fromMap(Map<dynamic, dynamic> m) {
     return CustomerDeliveryRecord(
-      deliveryDate: DateTime.tryParse(m['deliveryDate']?.toString() ?? '') ?? DateTime.now(),
+      deliveryDate: DateTime.tryParse(m['deliveryDate']?.toString() ?? '') ??
+          DateTime.now(),
       deliveredById: m['deliveredById']?.toString() ?? '',
       deliveredByName: m['deliveredByName']?.toString() ?? '',
       customerConfirmation: m['customerConfirmation']?.toString() ?? '',
@@ -745,7 +754,8 @@ class CustomerReturn {
         'serialNumber': serialNumber,
         'salePrice': salePrice,
         'customerWarrantyPeriod': customerWarrantyPeriod,
-        'customerWarrantyExpiryDate': customerWarrantyExpiryDate?.toIso8601String(),
+        'customerWarrantyExpiryDate':
+            customerWarrantyExpiryDate?.toIso8601String(),
         'customerWarrantyStatus': customerWarrantyStatus,
         'warrantyInspectionNotes': warrantyInspectionNotes,
         'warrantyVerifiedById': warrantyVerifiedById,
@@ -754,9 +764,11 @@ class CustomerReturn {
         'originalVendorName': originalVendorName,
         'originalVendorPhone': originalVendorPhone,
         'originalVendorInvoice': originalVendorInvoice,
-        'originalVendorPurchaseDate': originalVendorPurchaseDate?.toIso8601String(),
+        'originalVendorPurchaseDate':
+            originalVendorPurchaseDate?.toIso8601String(),
         'originalVendorWarrantyPeriod': originalVendorWarrantyPeriod,
-        'originalVendorWarrantyExpiry': originalVendorWarrantyExpiry?.toIso8601String(),
+        'originalVendorWarrantyExpiry':
+            originalVendorWarrantyExpiry?.toIso8601String(),
         'originalVendorReference': originalVendorReference,
         'returnReason': returnReason,
         'customerComplaint': customerComplaint,
@@ -769,7 +781,8 @@ class CustomerReturn {
         'customerReturnStatus': customerReturnStatus,
         'vendorStatus': vendorStatus,
         'handoverRecord': handoverRecord?.toMap(),
-        'vendorStatusHistory': vendorStatusHistory.map((e) => e.toMap()).toList(),
+        'vendorStatusHistory':
+            vendorStatusHistory.map((e) => e.toMap()).toList(),
         'vendorResolution': vendorResolution?.toMap(),
         'shopReceiptDate': shopReceiptDate?.toIso8601String(),
         'shopReceivedById': shopReceivedById,
@@ -786,7 +799,8 @@ class CustomerReturn {
     return CustomerReturn(
       key: key ?? m['key'],
       returnId: m['returnId']?.toString() ?? '',
-      createdAt: DateTime.tryParse(m['createdAt']?.toString() ?? '') ?? DateTime.now(),
+      createdAt:
+          DateTime.tryParse(m['createdAt']?.toString() ?? '') ?? DateTime.now(),
       customerKey: m['customerKey'],
       customerId: m['customerId']?.toString(),
       customerName: m['customerName']?.toString() ?? '',
@@ -794,17 +808,21 @@ class CustomerReturn {
       originalInvoiceNumber: m['originalInvoiceNumber']?.toString() ?? '',
       originalSaleKey: m['originalSaleKey'],
       originalItemKey: m['originalItemKey'],
-      originalPurchaseDate: DateTime.tryParse(m['originalPurchaseDate']?.toString() ?? '') ?? DateTime.now(),
+      originalPurchaseDate:
+          DateTime.tryParse(m['originalPurchaseDate']?.toString() ?? '') ??
+              DateTime.now(),
       productName: m['productName']?.toString() ?? '',
       productBrand: m['productBrand']?.toString(),
       productModel: m['productModel']?.toString(),
       serialNumber: m['serialNumber']?.toString(),
       salePrice: (m['salePrice'] as num?)?.toDouble() ?? 0.0,
-      customerWarrantyPeriod: m['customerWarrantyPeriod']?.toString() ?? 'No Warranty',
+      customerWarrantyPeriod:
+          m['customerWarrantyPeriod']?.toString() ?? 'No Warranty',
       customerWarrantyExpiryDate: m['customerWarrantyExpiryDate'] != null
           ? DateTime.tryParse(m['customerWarrantyExpiryDate'].toString())
           : null,
-      customerWarrantyStatus: m['customerWarrantyStatus']?.toString() ?? CustomerWarrantyStatus.noWarranty,
+      customerWarrantyStatus: m['customerWarrantyStatus']?.toString() ??
+          CustomerWarrantyStatus.noWarranty,
       warrantyInspectionNotes: m['warrantyInspectionNotes']?.toString(),
       warrantyVerifiedById: m['warrantyVerifiedById']?.toString(),
       warrantyVerifiedByName: m['warrantyVerifiedByName']?.toString(),
@@ -815,7 +833,8 @@ class CustomerReturn {
       originalVendorPurchaseDate: m['originalVendorPurchaseDate'] != null
           ? DateTime.tryParse(m['originalVendorPurchaseDate'].toString())
           : null,
-      originalVendorWarrantyPeriod: m['originalVendorWarrantyPeriod']?.toString(),
+      originalVendorWarrantyPeriod:
+          m['originalVendorWarrantyPeriod']?.toString(),
       originalVendorWarrantyExpiry: m['originalVendorWarrantyExpiry'] != null
           ? DateTime.tryParse(m['originalVendorWarrantyExpiry'].toString())
           : null,
@@ -830,7 +849,8 @@ class CustomerReturn {
       assignedStaffId: m['assignedStaffId']?.toString(),
       assignedStaffName: m['assignedStaffName']?.toString(),
       internalNotes: m['internalNotes']?.toString(),
-      customerReturnStatus: m['customerReturnStatus']?.toString() ?? CustomerReturnStatus.registered,
+      customerReturnStatus: m['customerReturnStatus']?.toString() ??
+          CustomerReturnStatus.registered,
       vendorStatus: m['vendorStatus']?.toString() ?? VendorStatus.notHandedOver,
       handoverRecord: (m['handoverRecord'] is Map)
           ? VendorHandoverRecord.fromMap(m['handoverRecord'])
@@ -859,7 +879,8 @@ class CustomerReturn {
               .toList()
           : [],
       isCompleted: m['isCompleted'] == true,
-      updatedAt: DateTime.tryParse(m['updatedAt']?.toString() ?? '') ?? DateTime.now(),
+      updatedAt:
+          DateTime.tryParse(m['updatedAt']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 
@@ -911,18 +932,26 @@ class CustomerReturn {
       salePrice: salePrice,
       customerWarrantyPeriod: customerWarrantyPeriod,
       customerWarrantyExpiryDate: customerWarrantyExpiryDate,
-      customerWarrantyStatus: customerWarrantyStatus ?? this.customerWarrantyStatus,
-      warrantyInspectionNotes: warrantyInspectionNotes ?? this.warrantyInspectionNotes,
+      customerWarrantyStatus:
+          customerWarrantyStatus ?? this.customerWarrantyStatus,
+      warrantyInspectionNotes:
+          warrantyInspectionNotes ?? this.warrantyInspectionNotes,
       warrantyVerifiedById: warrantyVerifiedById ?? this.warrantyVerifiedById,
-      warrantyVerifiedByName: warrantyVerifiedByName ?? this.warrantyVerifiedByName,
+      warrantyVerifiedByName:
+          warrantyVerifiedByName ?? this.warrantyVerifiedByName,
       originalVendorKey: originalVendorKey ?? this.originalVendorKey,
       originalVendorName: originalVendorName ?? this.originalVendorName,
       originalVendorPhone: originalVendorPhone ?? this.originalVendorPhone,
-      originalVendorInvoice: originalVendorInvoice ?? this.originalVendorInvoice,
-      originalVendorPurchaseDate: originalVendorPurchaseDate ?? this.originalVendorPurchaseDate,
-      originalVendorWarrantyPeriod: originalVendorWarrantyPeriod ?? this.originalVendorWarrantyPeriod,
-      originalVendorWarrantyExpiry: originalVendorWarrantyExpiry ?? this.originalVendorWarrantyExpiry,
-      originalVendorReference: originalVendorReference ?? this.originalVendorReference,
+      originalVendorInvoice:
+          originalVendorInvoice ?? this.originalVendorInvoice,
+      originalVendorPurchaseDate:
+          originalVendorPurchaseDate ?? this.originalVendorPurchaseDate,
+      originalVendorWarrantyPeriod:
+          originalVendorWarrantyPeriod ?? this.originalVendorWarrantyPeriod,
+      originalVendorWarrantyExpiry:
+          originalVendorWarrantyExpiry ?? this.originalVendorWarrantyExpiry,
+      originalVendorReference:
+          originalVendorReference ?? this.originalVendorReference,
       returnReason: returnReason,
       customerComplaint: customerComplaint,
       productCondition: productCondition,
@@ -941,7 +970,8 @@ class CustomerReturn {
       shopReceivedByName: shopReceivedByName ?? this.shopReceivedByName,
       shopInspectionNotes: shopInspectionNotes ?? this.shopInspectionNotes,
       isReadyForCustomer: isReadyForCustomer ?? this.isReadyForCustomer,
-      customerDeliveryRecord: customerDeliveryRecord ?? this.customerDeliveryRecord,
+      customerDeliveryRecord:
+          customerDeliveryRecord ?? this.customerDeliveryRecord,
       timeline: timeline ?? this.timeline,
       isCompleted: isCompleted ?? this.isCompleted,
       updatedAt: updatedAt ?? DateTime.now(),

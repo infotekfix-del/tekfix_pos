@@ -126,13 +126,14 @@ void main() {
       test('3a. Flat rupee discount reduces taxable correctly', () {
         final engine = PurchaseCalculationEngine(isInterState: false);
         // Item: 10 units × ₹100 = ₹1000 gross, ₹50 flat discount
-        final item = _item(qty: 10, rate: 100.0, discount: 50.0, taxPercent: 18);
+        final item =
+            _item(qty: 10, rate: 100.0, discount: 50.0, taxPercent: 18);
         final lr = engine.calcLine(item);
 
-        expect(lr.grossPaise, equals(100000));    // 10 × 10000
-        expect(lr.discountPaise, equals(5000));   // ₹50 = 5000 paise
-        expect(lr.taxablePaise, equals(95000));   // 100000 - 5000
-        expect(lr.gstPaise, equals(17100));       // 18% of 95000 = 17100
+        expect(lr.grossPaise, equals(100000)); // 10 × 10000
+        expect(lr.discountPaise, equals(5000)); // ₹50 = 5000 paise
+        expect(lr.taxablePaise, equals(95000)); // 100000 - 5000
+        expect(lr.gstPaise, equals(17100)); // 18% of 95000 = 17100
         expect(lr.lineTotalPaise, equals(112100));
       });
 
@@ -152,7 +153,8 @@ void main() {
       test('3c. Discount cannot exceed gross (clamped to gross)', () {
         final engine = PurchaseCalculationEngine(isInterState: false);
         // Discount > gross: discount ₹2000 on ₹100 item
-        final item = _item(qty: 1, rate: 100.0, discount: 200.0, taxPercent: 18);
+        final item =
+            _item(qty: 1, rate: 100.0, discount: 200.0, taxPercent: 18);
         final lr = engine.calcLine(item);
 
         // Discount clamped to gross (10000 paise)
@@ -165,8 +167,18 @@ void main() {
       test('3d. Mixed discounts in one bill, no double-counting', () {
         final engine = PurchaseCalculationEngine(isInterState: false);
         final items = [
-          _item(id: 'A', qty: 2, rate: 300.0, discount: 20.0, taxPercent: 18), // flat Rs discount
-          _item(id: 'B', qty: 5, rate: 100.0, discount: 0.0, taxPercent: 5),   // no discount
+          _item(
+              id: 'A',
+              qty: 2,
+              rate: 300.0,
+              discount: 20.0,
+              taxPercent: 18), // flat Rs discount
+          _item(
+              id: 'B',
+              qty: 5,
+              rate: 100.0,
+              discount: 0.0,
+              taxPercent: 5), // no discount
         ];
         final result = engine.calculate(items: items);
 
@@ -188,7 +200,8 @@ void main() {
       test('4a. Shipping with 18% GST', () {
         final engine = PurchaseCalculationEngine(isInterState: false);
         final item = _item(qty: 1, rate: 1000.0, discount: 0, taxPercent: 18);
-        final shipping = BillCharge(label: 'Shipping', amount: 100.0, gstRate: 18.0);
+        final shipping =
+            BillCharge(label: 'Shipping', amount: 100.0, gstRate: 18.0);
         final result = engine.calculate(items: [item], charges: [shipping]);
 
         // Charge: ₹100 = 10000 paise, GST 18% = 1800 paise
@@ -203,7 +216,8 @@ void main() {
       test('4b. Handling charge without GST', () {
         final engine = PurchaseCalculationEngine(isInterState: false);
         final item = _item(qty: 1, rate: 1000.0, discount: 0, taxPercent: 0);
-        final handling = BillCharge(label: 'Handling', amount: 50.0, gstRate: 0.0);
+        final handling =
+            BillCharge(label: 'Handling', amount: 50.0, gstRate: 0.0);
         final result = engine.calculate(items: [item], charges: [handling]);
 
         expect(result.chargesGrossPaise, equals(5000));
@@ -313,11 +327,13 @@ void main() {
     // 7. Mismatch with printed bill total
     // -------------------------------------------------------------------------
     group('7. Printed total mismatch', () {
-      test('7a. No mismatch when within tolerance (default ₹1 = 100 paise)', () {
+      test('7a. No mismatch when within tolerance (default ₹1 = 100 paise)',
+          () {
         final engine = PurchaseCalculationEngine(isInterState: false);
         final item = _item(qty: 1, rate: 1000.0, taxPercent: 18);
         // Grand = 1180.00 = 118000 paise. Printed = 118050 paise → diff = 50 < 100
-        final result = engine.calculate(items: [item], printedTotalPaise: 118050);
+        final result =
+            engine.calculate(items: [item], printedTotalPaise: 118050);
         expect(result.hasMismatch, isFalse);
         expect(result.mismatchPaise, isNull);
       });
@@ -326,9 +342,11 @@ void main() {
         final engine = PurchaseCalculationEngine(isInterState: false);
         final item = _item(qty: 1, rate: 1000.0, taxPercent: 18);
         // Computed = 118000, printed = 119500 → diff 1500 > 100 → mismatch
-        final result = engine.calculate(items: [item], printedTotalPaise: 119500);
+        final result =
+            engine.calculate(items: [item], printedTotalPaise: 119500);
         expect(result.hasMismatch, isTrue);
-        expect(result.mismatchPaise, equals(118000 - 119500)); // negative = computed < printed
+        expect(result.mismatchPaise,
+            equals(118000 - 119500)); // negative = computed < printed
       });
 
       test('7c. Custom tolerance', () {
@@ -338,7 +356,8 @@ void main() {
         );
         final item = _item(qty: 1, rate: 1000.0, taxPercent: 18);
         // Diff = 400 paise = ₹4, within ₹5 tolerance → no mismatch
-        final result = engine.calculate(items: [item], printedTotalPaise: 118400);
+        final result =
+            engine.calculate(items: [item], printedTotalPaise: 118400);
         expect(result.hasMismatch, isFalse);
       });
     });
@@ -352,7 +371,8 @@ void main() {
         final result = engine.calculate(items: []);
         expect(result.subtotalPaise, equals(0));
         expect(result.grandTotalPaise, equals(0));
-        expect(result.paymentStatus, equals(BillPaymentStatus.paid)); // 0 total → paid
+        expect(result.paymentStatus,
+            equals(BillPaymentStatus.paid)); // 0 total → paid
       });
 
       test('8b. Zero tax rate', () {
@@ -377,7 +397,8 @@ void main() {
         );
       });
 
-      test('8e. deriveInterState: empty GSTIN → intra-state (safe default)', () {
+      test('8e. deriveInterState: empty GSTIN → intra-state (safe default)',
+          () {
         expect(
           PurchaseCalculationEngine.deriveInterState('', '32'),
           isFalse,
@@ -386,4 +407,3 @@ void main() {
     });
   });
 }
-

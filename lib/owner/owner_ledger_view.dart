@@ -20,10 +20,12 @@ class OwnerLedgerView extends StatefulWidget {
 }
 
 class _OwnerLedgerViewState extends State<OwnerLedgerView> {
-  DateTime _selectedMonth = DateTime(DateTime.now().year, DateTime.now().month, 1);
+  DateTime _selectedMonth =
+      DateTime(DateTime.now().year, DateTime.now().month, 1);
   bool _loading = true;
   OwnerSalarySettings? _settings;
-  OwnerMonthlyQuotaMetrics _metrics = OwnerMonthlyQuotaMetrics.empty(DateTime.now());
+  OwnerMonthlyQuotaMetrics _metrics =
+      OwnerMonthlyQuotaMetrics.empty(DateTime.now());
   List<OwnerWithdrawalItem> _withdrawals = [];
 
   @override
@@ -63,7 +65,8 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
 
   void _changeMonth(int offset) {
     setState(() {
-      _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month + offset, 1);
+      _selectedMonth =
+          DateTime(_selectedMonth.year, _selectedMonth.month + offset, 1);
       _loading = true;
     });
     _loadData();
@@ -72,7 +75,9 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
   Future<void> _showSettingsDialog() async {
     final auth = context.read<AuthController>();
     if (!auth.isOwner) {
-      toast(context, 'ഉടമയ്ക്ക് മാത്രമേ സെറ്റിംഗ്സ് മാറ്റാൻ അനുവാദമുള്ളൂ (Owner permission required)', error: true);
+      toast(context,
+          'ഉടമയ്ക്ക് മാത്രമേ സെറ്റിംഗ്സ് മാറ്റാൻ അനുവാദമുള്ളൂ (Owner permission required)',
+          error: true);
       return;
     }
 
@@ -106,15 +111,19 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
             const SizedBox(height: 14),
             TextField(
               controller: limitCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.bold),
               decoration: InputDecoration(
                 labelText: 'Monthly Salary Cap (മാസ ശമ്പള പരിധി)',
                 prefixText: '₹ ',
-                prefixStyle: const TextStyle(color: Color(0xFF8B5CF6), fontWeight: FontWeight.bold),
+                prefixStyle: const TextStyle(
+                    color: Color(0xFF8B5CF6), fontWeight: FontWeight.bold),
                 filled: true,
                 fillColor: TekColors.cardBg,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               ),
             ),
           ],
@@ -122,13 +131,17 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: TekColors.textSecondary)),
+            child: const Text('Cancel',
+                style: TextStyle(color: TekColors.textSecondary)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF8B5CF6)),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF8B5CF6)),
             onPressed: () async {
-              final newLimit = double.tryParse(limitCtrl.text.trim()) ?? 20000.0;
-              final current = _settings ?? OwnerSalarySettings(effectiveDate: DateTime.now());
+              final newLimit =
+                  double.tryParse(limitCtrl.text.trim()) ?? 20000.0;
+              final current = _settings ??
+                  OwnerSalarySettings(effectiveDate: DateTime.now());
               final toSave = current.copyWith(
                 monthlySalaryLimit: newLimit,
                 monthlySalaryLimitPaise: (newLimit * 100).round(),
@@ -158,14 +171,16 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: TekColors.mainBg,
-        title: const Text('Void Owner Withdrawal', style: TextStyle(color: Colors.white)),
+        title: const Text('Void Owner Withdrawal',
+            style: TextStyle(color: Colors.white)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Are you sure you want to void this withdrawal of ₹${item.totalAmount.toStringAsFixed(0)}?',
-              style: const TextStyle(color: TekColors.textSecondary, fontSize: 13),
+              style:
+                  const TextStyle(color: TekColors.textSecondary, fontSize: 13),
             ),
             const SizedBox(height: 10),
             Text(
@@ -186,7 +201,8 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: TekColors.textSecondary)),
+            child: const Text('Cancel',
+                style: TextStyle(color: TekColors.textSecondary)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: TekColors.error),
@@ -205,10 +221,13 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
           withdrawalId: item.id,
           voidedByUid: auth.uid,
           voidedByName: auth.name,
-          voidReason: reasonCtrl.text.trim().isNotEmpty ? reasonCtrl.text.trim() : 'Voided by user',
+          voidReason: reasonCtrl.text.trim().isNotEmpty
+              ? reasonCtrl.text.trim()
+              : 'Voided by user',
         );
         if (mounted) {
-          toast(context, 'Withdrawal reversed and balance restored successfully!');
+          toast(context,
+              'Withdrawal reversed and balance restored successfully!');
           _loadData();
         }
       } catch (e) {
@@ -232,7 +251,10 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
           children: [
             Text(
               'Owner Salary & Drawings Ledger',
-              style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.bold, color: Colors.white),
+              style: TextStyle(
+                  fontSize: 16.5,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white),
             ),
             Text(
               'ഉടമയുടെ ശമ്പളവും പിൻവലിക്കലുകളും • Base ₹20,000 Quota',
@@ -259,12 +281,14 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
         icon: const Icon(Icons.add_rounded),
         label: const Text('New Withdrawal (പിൻവലിക്കൽ)'),
         onPressed: () async {
-          final res = await OwnerWithdrawalDialog.show(context, shopId: widget.shopId);
+          final res =
+              await OwnerWithdrawalDialog.show(context, shopId: widget.shopId);
           if (res == true) _loadData();
         },
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF8B5CF6)))
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF8B5CF6)))
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -323,11 +347,14 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
                         child: Column(
                           children: [
                             Icon(Icons.account_balance_wallet_outlined,
-                                size: 48, color: TekColors.textSecondary.withValues(alpha: 0.5)),
+                                size: 48,
+                                color: TekColors.textSecondary
+                                    .withValues(alpha: 0.5)),
                             const SizedBox(height: 10),
                             Text(
                               '$monthDisplay-ൽ പിൻവലിക്കലുകൾ ഒന്നും രേഖപ്പെടുത്തിയിട്ടില്ല.',
-                              style: const TextStyle(color: TekColors.textSecondary, fontSize: 13),
+                              style: const TextStyle(
+                                  color: TekColors.textSecondary, fontSize: 13),
                             ),
                           ],
                         ),
@@ -339,7 +366,8 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: _withdrawals.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (ctx, i) => _buildWithdrawalCard(_withdrawals[i]),
+                      itemBuilder: (ctx, i) =>
+                          _buildWithdrawalCard(_withdrawals[i]),
                     ),
 
                   const SizedBox(height: 80), // Padding for FAB
@@ -366,7 +394,8 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
           ),
           Row(
             children: [
-              const Icon(Icons.calendar_month_rounded, size: 18, color: Color(0xFF8B5CF6)),
+              const Icon(Icons.calendar_month_rounded,
+                  size: 18, color: Color(0xFF8B5CF6)),
               const SizedBox(width: 8),
               Text(
                 monthDisplay,
@@ -417,9 +446,13 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
           title: 'Remaining Quota',
           subtitle: '₹${_metrics.remainingSalaryThisMonth.toStringAsFixed(0)}',
           badgeText: _metrics.isQuotaFull ? 'Exhausted' : 'Available',
-          badgeColor: _metrics.isQuotaFull ? const Color(0xFFF59E0B) : const Color(0xFF00D4FF),
+          badgeColor: _metrics.isQuotaFull
+              ? const Color(0xFFF59E0B)
+              : const Color(0xFF00D4FF),
           icon: Icons.hourglass_bottom_rounded,
-          color: _metrics.isQuotaFull ? const Color(0xFFF59E0B) : const Color(0xFF00D4FF),
+          color: _metrics.isQuotaFull
+              ? const Color(0xFFF59E0B)
+              : const Color(0xFF00D4FF),
         ),
         _metricCard(
           title: 'Excess Drawings (Equity)',
@@ -455,17 +488,24 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(title, style: const TextStyle(fontSize: 11.5, color: TekColors.textSecondary)),
+              Text(title,
+                  style: const TextStyle(
+                      fontSize: 11.5, color: TekColors.textSecondary)),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                 decoration: BoxDecoration(
                   color: badgeColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: badgeColor.withValues(alpha: 0.4), width: 0.8),
+                  border: Border.all(
+                      color: badgeColor.withValues(alpha: 0.4), width: 0.8),
                 ),
                 child: Text(
                   badgeText,
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: badgeColor),
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: badgeColor),
                 ),
               ),
             ],
@@ -495,11 +535,13 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
       decoration: BoxDecoration(
         color: TekColors.cardBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.3)),
+        border:
+            Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.auto_graph_rounded, color: Color(0xFF8B5CF6), size: 24),
+          const Icon(Icons.auto_graph_rounded,
+              color: Color(0xFF8B5CF6), size: 24),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -507,25 +549,39 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
               children: [
                 const Text(
                   'Financial Accounting Classification (അക്കൗണ്ടിംഗ് തരംതിരിവ്)',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Colors.white),
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12.5,
+                      color: Colors.white),
                 ),
                 const SizedBox(height: 3),
                 RichText(
                   text: TextSpan(
-                    style: const TextStyle(fontSize: 11, color: TekColors.textSecondary),
+                    style: const TextStyle(
+                        fontSize: 11, color: TekColors.textSecondary),
                     children: [
                       const TextSpan(text: '• '),
                       TextSpan(
-                        text: '₹${_metrics.usedSalaryThisMonth.toStringAsFixed(0)} Owner Salary: ',
-                        style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.w600),
+                        text:
+                            '₹${_metrics.usedSalaryThisMonth.toStringAsFixed(0)} Owner Salary: ',
+                        style: const TextStyle(
+                            color: Color(0xFF10B981),
+                            fontWeight: FontWeight.w600),
                       ),
-                      const TextSpan(text: 'Included in P&L as Operating Expense (OPEX).\n'),
+                      const TextSpan(
+                          text:
+                              'Included in P&L as Operating Expense (OPEX).\n'),
                       const TextSpan(text: '• '),
                       TextSpan(
-                        text: '₹${_metrics.excessDrawingsThisMonth.toStringAsFixed(0)} Excess Drawings: ',
-                        style: const TextStyle(color: Color(0xFFA78BFA), fontWeight: FontWeight.w600),
+                        text:
+                            '₹${_metrics.excessDrawingsThisMonth.toStringAsFixed(0)} Excess Drawings: ',
+                        style: const TextStyle(
+                            color: Color(0xFFA78BFA),
+                            fontWeight: FontWeight.w600),
                       ),
-                      const TextSpan(text: 'Treated as Owner Equity withdrawal (does NOT reduce Store Net Profit).'),
+                      const TextSpan(
+                          text:
+                              'Treated as Owner Equity withdrawal (does NOT reduce Store Net Profit).'),
                     ],
                   ),
                 ),
@@ -547,7 +603,9 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
         color: TekColors.cardBg,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isVoided ? TekColors.error.withValues(alpha: 0.4) : TekColors.border,
+          color: isVoided
+              ? TekColors.error.withValues(alpha: 0.4)
+              : TekColors.border,
         ),
       ),
       child: Column(
@@ -567,9 +625,13 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
-                      item.isCash ? Icons.money_rounded : Icons.account_balance_rounded,
+                      item.isCash
+                          ? Icons.money_rounded
+                          : Icons.account_balance_rounded,
                       size: 16,
-                      color: item.isCash ? const Color(0xFF10B981) : const Color(0xFF00D4FF),
+                      color: item.isCash
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFF00D4FF),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -578,11 +640,17 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
                     children: [
                       Text(
                         dateDisplay,
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+                        style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white),
                       ),
                       Text(
-                        item.isCash ? 'Cash in Hand (ക്യാഷ്)' : 'Bank / UPI (ബാങ്ക്)',
-                        style: const TextStyle(fontSize: 10.5, color: TekColors.textSecondary),
+                        item.isCash
+                            ? 'Cash in Hand (ക്യാഷ്)'
+                            : 'Bank / UPI (ബാങ്ക്)',
+                        style: const TextStyle(
+                            fontSize: 10.5, color: TekColors.textSecondary),
                       ),
                     ],
                   ),
@@ -602,7 +670,8 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
                   if (!isVoided) ...[
                     const SizedBox(width: 8),
                     IconButton(
-                      icon: const Icon(Icons.delete_outline_rounded, size: 18, color: TekColors.textSecondary),
+                      icon: const Icon(Icons.delete_outline_rounded,
+                          size: 18, color: TekColors.textSecondary),
                       tooltip: 'Void Withdrawal',
                       onPressed: () => _voidWithdrawal(item),
                     ),
@@ -622,19 +691,28 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
               if (item.hasSalary)
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: const Color(0xFF10B981).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+                      border: Border.all(
+                          color:
+                              const Color(0xFF10B981).withValues(alpha: 0.3)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text('Owner Salary (OPEX)',
-                            style: TextStyle(fontSize: 9.5, color: Color(0xFF10B981), fontWeight: FontWeight.bold)),
+                            style: TextStyle(
+                                fontSize: 9.5,
+                                color: Color(0xFF10B981),
+                                fontWeight: FontWeight.bold)),
                         Text('₹${item.salaryPortion.toStringAsFixed(0)}',
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
+                            style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white)),
                       ],
                     ),
                   ),
@@ -643,19 +721,28 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
               if (item.hasDrawings)
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: const Color(0xFFA78BFA).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFA78BFA).withValues(alpha: 0.3)),
+                      border: Border.all(
+                          color:
+                              const Color(0xFFA78BFA).withValues(alpha: 0.3)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text('Owner Excess Drawings',
-                            style: TextStyle(fontSize: 9.5, color: Color(0xFFA78BFA), fontWeight: FontWeight.bold)),
+                            style: TextStyle(
+                                fontSize: 9.5,
+                                color: Color(0xFFA78BFA),
+                                fontWeight: FontWeight.bold)),
                         Text('₹${item.drawingsPortion.toStringAsFixed(0)}',
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
+                            style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white)),
                       ],
                     ),
                   ),
@@ -667,7 +754,10 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
             const SizedBox(height: 8),
             Text(
               'Notes: ${item.notes}',
-              style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: TekColors.textSecondary),
+              style: const TextStyle(
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                  color: TekColors.textSecondary),
             ),
           ],
 
@@ -681,7 +771,10 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
               ),
               child: Text(
                 'VOIDED: ${item.voidReason ?? "Reversed"}',
-                style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: TekColors.error),
+                style: const TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.bold,
+                    color: TekColors.error),
               ),
             ),
           ],
@@ -690,4 +783,3 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
     );
   }
 }
-

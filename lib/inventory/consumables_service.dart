@@ -10,7 +10,8 @@ class ConsumableItemConfig {
   final String baseUnit; // e.g. 'Sheet'
   final int conversionFactor; // e.g. 500 sheets per bundle
   final double purchaseRate; // e.g. 207.0 per bundle
-  final double costPrice; // dynamic WAC cost per base unit, e.g. 0.414 per sheet
+  final double
+      costPrice; // dynamic WAC cost per base unit, e.g. 0.414 per sheet
   final int stock; // stock in base units (sheets)
   final int minStock; // low stock threshold in base units, e.g. 200 sheets
 
@@ -27,7 +28,8 @@ class ConsumableItemConfig {
   });
 
   /// Bundle equivalent of current base stock
-  double get purchaseUnitsCount => conversionFactor > 0 ? stock / conversionFactor : stock.toDouble();
+  double get purchaseUnitsCount =>
+      conversionFactor > 0 ? stock / conversionFactor : stock.toDouble();
 
   /// Formatted stock string (e.g. "1,240 Sheets (~2.5 Bundles)")
   String get formattedStock => ConsumablesService.formatStockDisplay(
@@ -45,7 +47,8 @@ class ConsumablesService {
   static final ConsumablesService instance = ConsumablesService._();
 
   static const String defaultA4Name = 'A4 Paper 75 GSM';
-  static const int defaultPaperThreshold = 200; // Warning threshold in sheets (~0.4 bundle)
+  static const int defaultPaperThreshold =
+      200; // Warning threshold in sheets (~0.4 bundle)
   static const int defaultConversionFactor = 500; // 500 sheets per bundle
 
   /// Calculates Weighted Average Cost (WAC) per base unit when new stock is purchased.
@@ -128,7 +131,8 @@ class ConsumablesService {
   }) {
     final cost = paperCostPerSheet ?? getEffectivePaperCost();
     final profit = (sellingPrice - cost).clamp(0.0, double.infinity);
-    final marginPercent = sellingPrice > 0 ? (profit / sellingPrice) * 100 : 0.0;
+    final marginPercent =
+        sellingPrice > 0 ? (profit / sellingPrice) * 100 : 0.0;
     return {
       'sellingPrice': sellingPrice,
       'costPerSheet': cost,
@@ -158,7 +162,8 @@ class ConsumablesService {
         final m = Map<String, dynamic>.from(raw);
         final name = (m['name'] ?? '').toString().toLowerCase();
         final type = (m['itemType'] ?? '').toString().toLowerCase();
-        if (name.contains('a4 paper') || (type.contains('consumable') && name.contains('a4'))) {
+        if (name.contains('a4 paper') ||
+            (type.contains('consumable') && name.contains('a4'))) {
           m['_key'] = k;
           return m;
         }
@@ -171,7 +176,8 @@ class ConsumablesService {
         final m = Map<String, dynamic>.from(raw);
         if (m['isMultiUnit'] == true &&
             (m['baseUnit']?.toString().toLowerCase() == 'sheet' ||
-             m['name']?.toString().toLowerCase().contains('paper') == true)) {
+                m['name']?.toString().toLowerCase().contains('paper') ==
+                    true)) {
           m['_key'] = k;
           return m;
         }
@@ -205,7 +211,8 @@ class ConsumablesService {
 
     final newKey = await Db.items.add(defaultItem);
     defaultItem['_key'] = newKey;
-    await Db.stockMove(newKey, defaultA4Name, 1500, 'Initial Consumable Opening Stock (3 Bundles)');
+    await Db.stockMove(newKey, defaultA4Name, 1500,
+        'Initial Consumable Opening Stock (3 Bundles)');
     return defaultItem;
   }
 
@@ -275,7 +282,9 @@ class ConsumablesService {
       if (line is Map) {
         name = '${line['name'] ?? ''}';
         category = '${line['category'] ?? ''}';
-        qty = (line['qty'] as num?)?.toInt() ?? (line['quantity'] as num?)?.toInt() ?? 1;
+        qty = (line['qty'] as num?)?.toInt() ??
+            (line['quantity'] as num?)?.toInt() ??
+            1;
       } else {
         // e.g. PosCartItem
         try {

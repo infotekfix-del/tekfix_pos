@@ -76,11 +76,14 @@ void main() {
       int totalTaxPaise = item1.taxAmountPaise + item2.taxAmountPaise;
       int otherChargesPaise = (250.50 * 100).round(); // ₹250.50 freight charge
 
-      int grandTotalPaise =
-          subtotalPaise - totalDiscountPaise + totalTaxPaise + otherChargesPaise;
+      int grandTotalPaise = subtotalPaise -
+          totalDiscountPaise +
+          totalTaxPaise +
+          otherChargesPaise;
 
       // Ensure exact integer math with zero floating-point inaccuracy
-      expect(subtotalPaise, equals(735225 + 249750)); // 984975 paise = ₹9,849.75
+      expect(
+          subtotalPaise, equals(735225 + 249750)); // 984975 paise = ₹9,849.75
       expect(totalDiscountPaise, equals(15025)); // ₹150.25
       expect(grandTotalPaise, isA<int>());
       expect(grandTotalPaise > 0, isTrue);
@@ -99,7 +102,8 @@ void main() {
 
       // Scenario A: Unpaid bill (₹0 paid)
       double safePaidUnpaid = 0.0;
-      double remainingBillUnpaid = (grandTotal - safePaidUnpaid).clamp(0.0, grandTotal);
+      double remainingBillUnpaid =
+          (grandTotal - safePaidUnpaid).clamp(0.0, grandTotal);
       double updatedTotalUnpaid = prevVendorBalance + remainingBillUnpaid;
 
       expect(remainingBillUnpaid, equals(25000.00));
@@ -107,7 +111,8 @@ void main() {
 
       // Scenario B: Partial payment (₹10,000 paid)
       double safePaidPartial = 10000.00;
-      double remainingBillPartial = (grandTotal - safePaidPartial).clamp(0.0, grandTotal);
+      double remainingBillPartial =
+          (grandTotal - safePaidPartial).clamp(0.0, grandTotal);
       double updatedTotalPartial = prevVendorBalance + remainingBillPartial;
 
       expect(remainingBillPartial, equals(15000.00));
@@ -115,11 +120,13 @@ void main() {
 
       // Scenario C: Full payment (₹25,000 paid)
       double safePaidFull = 25000.00;
-      double remainingBillFull = (grandTotal - safePaidFull).clamp(0.0, grandTotal);
+      double remainingBillFull =
+          (grandTotal - safePaidFull).clamp(0.0, grandTotal);
       double updatedTotalFull = prevVendorBalance + remainingBillFull;
 
       expect(remainingBillFull, equals(0.00));
-      expect(updatedTotalFull, equals(15000.00)); // Only previous balance remains
+      expect(
+          updatedTotalFull, equals(15000.00)); // Only previous balance remains
     });
 
     test('3. Payment Status Transitions', () {
@@ -136,11 +143,13 @@ void main() {
       }
 
       expect(getPaymentStatus(10000, 10000), equals(BillPaymentStatus.paid));
-      expect(getPaymentStatus(10000, 5000), equals(BillPaymentStatus.partiallyPaid));
+      expect(getPaymentStatus(10000, 5000),
+          equals(BillPaymentStatus.partiallyPaid));
       expect(getPaymentStatus(10000, 0), equals(BillPaymentStatus.unpaid));
     });
 
-    test('4. Chronological Vendor Ledger & Running Balance Audit Trail', () async {
+    test('4. Chronological Vendor Ledger & Running Balance Audit Trail',
+        () async {
       // 1. Create a mock vendor in Db.parties
       final vendorKey = await Db.parties.add({
         'name': 'Supreme Mobile Spares',
@@ -160,7 +169,8 @@ void main() {
         purchaseDate: DateTime(2026, 1, 10),
         uploadTimestamp: DateTime(2026, 1, 10),
         items: [
-          PurchaseBillItem(name: 'Display Combo', quantity: 5, purchaseRate: 2000.0),
+          PurchaseBillItem(
+              name: 'Display Combo', quantity: 5, purchaseRate: 2000.0),
         ],
         subtotal: 10000.0,
         totalQuantity: 5,
@@ -189,7 +199,8 @@ void main() {
         recordedById: 'STAFF_1',
         recordedByName: 'Staff Unaise',
       );
-      await Hive.box(boxVendorPayments).add(payment1.toMap()..['billKey'] = 'PB-2026-001');
+      await Hive.box(boxVendorPayments)
+          .add(payment1.toMap()..['billKey'] = 'PB-2026-001');
 
       // 4. Add a second purchase bill for ₹5,000 on Jan 20
       final bill2 = PurchaseBill(
@@ -201,7 +212,8 @@ void main() {
         purchaseDate: DateTime(2026, 1, 20),
         uploadTimestamp: DateTime(2026, 1, 20),
         items: [
-          PurchaseBillItem(name: 'Battery Original', quantity: 10, purchaseRate: 500.0),
+          PurchaseBillItem(
+              name: 'Battery Original', quantity: 10, purchaseRate: 500.0),
         ],
         subtotal: 5000.0,
         totalQuantity: 10,
@@ -281,7 +293,8 @@ void main() {
           staffId: 'STAFF1',
           staffName: 'Staff Member',
         ),
-        throwsA(predicate((e) => e.toString().contains('must be registered first'))),
+        throwsA(predicate(
+            (e) => e.toString().contains('must be registered first'))),
       );
 
       // 3. Mismatched IMEI count rejection
@@ -305,7 +318,8 @@ void main() {
           staffId: 'STAFF1',
           staffName: 'Staff Member',
         ),
-        throwsA(predicate((e) => e.toString().contains('requires exactly 2 IMEIs'))),
+        throwsA(predicate(
+            (e) => e.toString().contains('requires exactly 2 IMEIs'))),
       );
 
       // 4. Duplicate IMEIs in entered line item rejection
@@ -323,17 +337,22 @@ void main() {
               quantity: 2,
               purchaseRate: 12000.0,
               imeiRequired: true,
-              serialNumbers: ['352099001761481', '352099001761481'], // Duplicate
+              serialNumbers: [
+                '352099001761481',
+                '352099001761481'
+              ], // Duplicate
             ),
           ],
           staffId: 'STAFF1',
           staffName: 'Staff Member',
         ),
-        throwsA(predicate((e) => e.toString().contains('contains duplicate IMEIs'))),
+        throwsA(predicate(
+            (e) => e.toString().contains('contains duplicate IMEIs'))),
       );
     });
 
-    test('6. End-to-End Atomic Confirmation with Dual-Write & Local Mirroring', () async {
+    test('6. End-to-End Atomic Confirmation with Dual-Write & Local Mirroring',
+        () async {
       final service = PurchaseBillService.instance;
 
       // Create vendor in Db.parties
@@ -385,12 +404,14 @@ void main() {
       expect(confirmedBill.grandTotal, equals(22200.0));
       expect(confirmedBill.paidAmount, equals(10000.0));
       expect(confirmedBill.balanceDue, equals(12200.0));
-      expect(confirmedBill.paymentStatus, equals(BillPaymentStatus.partiallyPaid));
+      expect(
+          confirmedBill.paymentStatus, equals(BillPaymentStatus.partiallyPaid));
 
       // 1. Verify bill saved in _billsBox
       final savedBillRaw = Hive.box(boxPurchaseBills).get('PB_2026_088');
       expect(savedBillRaw, isNotNull);
-      expect(savedBillRaw['paymentStatus'], equals(BillPaymentStatus.partiallyPaid));
+      expect(savedBillRaw['paymentStatus'],
+          equals(BillPaymentStatus.partiallyPaid));
 
       // 2. Verify payment recorded in _paymentsBox
       final payments = Hive.box(boxVendorPayments).values.toList();
@@ -401,8 +422,14 @@ void main() {
       // 3. Verify stock updated in Db.items & stock movement recorded
       expect(Db.items.length, greaterThanOrEqualTo(2));
       final stockMoves = Db.stockMoves.values.toList();
-      expect(stockMoves.any((m) => m['itemName'] == 'OnePlus Nord CE 3' && m['delta'] == 1), isTrue);
-      expect(stockMoves.any((m) => m['itemName'] == 'Original 80W Warp Charger' && m['delta'] == 3), isTrue);
+      expect(
+          stockMoves.any(
+              (m) => m['itemName'] == 'OnePlus Nord CE 3' && m['delta'] == 1),
+          isTrue);
+      expect(
+          stockMoves.any((m) =>
+              m['itemName'] == 'Original 80W Warp Charger' && m['delta'] == 3),
+          isTrue);
 
       // 4. Verify vendor balance in Db.parties updated (negative balance = we owe)
       final vendorRecord = Db.parties.get(vendorKey);
@@ -413,7 +440,8 @@ void main() {
 
       // 6. Verify Db.audit logged confirmation
       final auditLogs = Db.audit.values.toList();
-      expect(auditLogs.any((a) => a['action'] == 'Purchase Bill Confirmed'), isTrue);
+      expect(auditLogs.any((a) => a['action'] == 'Purchase Bill Confirmed'),
+          isTrue);
     });
   });
 }

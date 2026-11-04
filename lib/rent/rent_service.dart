@@ -111,7 +111,8 @@ class RentService {
             .add({
           'action': 'RENT_SETTINGS_UPDATED',
           'category': 'RENT',
-          'details': 'Updated daily rent to ₹${toSave.dailyRentAmount} (Paise: ${toSave.dailyRentAmountPaise})',
+          'details':
+              'Updated daily rent to ₹${toSave.dailyRentAmount} (Paise: ${toSave.dailyRentAmountPaise})',
           'staffId': staffId,
           'staffName': staffName,
           'timestamp': FieldValue.serverTimestamp(),
@@ -135,7 +136,8 @@ class RentService {
     // 1. Hive local check (from general expenses or rent box)
     final localDoc = Db.settings.get('rent_rec_$dateKey');
     if (localDoc != null && localDoc is Map) {
-      return DailyRentRecord.fromMap(Map<String, dynamic>.from(localDoc), dateKey);
+      return DailyRentRecord.fromMap(
+          Map<String, dynamic>.from(localDoc), dateKey);
     }
 
     // 2. Check general expenses box for linked rent record
@@ -150,7 +152,8 @@ class RentService {
         expectedRentPaise: (expMap['amountPaise'] as num?)?.toInt() ?? 0,
         paidAmount: (expMap['amount'] as num?)?.toDouble() ?? 0.0,
         paidAmountPaise: (expMap['amountPaise'] as num?)?.toInt() ?? 0,
-        paymentMode: expMap['paymentMode']?.toString() ?? ExpensePaymentMode.cash,
+        paymentMode:
+            expMap['paymentMode']?.toString() ?? ExpensePaymentMode.cash,
         status: expMap['isVoided'] == true ? 'VOIDED' : 'PAID',
         landlordName: expMap['notes']?.toString() ?? '',
         notes: expMap['notes']?.toString() ?? '',
@@ -207,7 +210,8 @@ class RentService {
     final paidPaise = (paidAmount * 100).round();
 
     if (paidAmount <= 0) {
-      throw ArgumentError('ശരിയായ വാടക തുക നൽകുക (Valid positive rent amount is required)');
+      throw ArgumentError(
+          'ശരിയായ വാടക തുക നൽകുക (Valid positive rent amount is required)');
     }
 
     // 1. DUPLICATE CHECK: verify if active payment already exists
@@ -258,7 +262,8 @@ class RentService {
       'expenseDate': dt.toIso8601String(),
       'recordedByUid': recordedByUid,
       'recordedByName': recordedByName,
-      'notes': landlordName.isNotEmpty ? 'Landlord: $landlordName. $notes' : notes,
+      'notes':
+          landlordName.isNotEmpty ? 'Landlord: $landlordName. $notes' : notes,
       'receiptUrl': receiptUrl,
       'isVoided': false,
       'isDailyRent': true,
@@ -306,18 +311,16 @@ class RentService {
           .collection('accounting_cash_bank')
           .doc(ledgerTxId);
 
-      final auditDocRef = firestore
-          .collection('shops')
-          .doc(sId)
-          .collection('audit_logs')
-          .doc();
+      final auditDocRef =
+          firestore.collection('shops').doc(sId).collection('audit_logs').doc();
 
       try {
         await firestore.runTransaction((tx) async {
           final snapshot = await tx.get(rentDocRef);
           if (snapshot.exists && !forceAllowCorrection) {
             final data = snapshot.data();
-            final isAlreadyPaid = data?['status'] == 'PAID' && data?['isVoided'] != true;
+            final isAlreadyPaid =
+                data?['status'] == 'PAID' && data?['isVoided'] != true;
             if (isAlreadyPaid) {
               throw DuplicateRentPaymentException(
                 'Daily rent has already been recorded for today by another session.',
@@ -337,7 +340,8 @@ class RentService {
           tx.set(auditDocRef, {
             'action': 'RENT_PAYMENT_RECORDED',
             'category': 'DAILY_RENT',
-            'details': 'Recorded rent of ₹$paidAmount via $paymentMode for $dateKey',
+            'details':
+                'Recorded rent of ₹$paidAmount via $paymentMode for $dateKey',
             'dateKey': dateKey,
             'paidAmount': paidAmount,
             'paidAmountPaise': paidPaise,
@@ -355,7 +359,8 @@ class RentService {
     }
 
     // 3. UPDATE LOCAL HIVE STATE & LEDGER (Instant Offline Availability)
-    await Db.settings.put('rent_rec_$dateKey', rentRecord.toMap(forFirestore: false));
+    await Db.settings
+        .put('rent_rec_$dateKey', rentRecord.toMap(forFirestore: false));
     await Db.expenses.put(expenseId, expenseMap);
 
     final ledgerMode = rentRecord.isCash ? 'Cash' : 'Bank';
@@ -471,13 +476,15 @@ class RentService {
           'createdByUid': voidedByUid,
           'createdByName': voidedByName,
           'createdAt': FieldValue.serverTimestamp(),
-          'description': 'REVERSAL: Voided Daily Rent for $dateKey ($voidReason)',
+          'description':
+              'REVERSAL: Voided Daily Rent for $dateKey ($voidReason)',
         });
 
         batch.set(auditRef, {
           'action': 'RENT_PAYMENT_VOIDED',
           'category': 'DAILY_RENT',
-          'details': 'Voided rent of ₹${existing.paidAmount} for $dateKey: $voidReason',
+          'details':
+              'Voided rent of ₹${existing.paidAmount} for $dateKey: $voidReason',
           'staffId': voidedByUid,
           'staffName': voidedByName,
           'timestamp': FieldValue.serverTimestamp(),
@@ -491,7 +498,8 @@ class RentService {
     }
 
     // 2. Update local Hive & restore drawer / bank balance
-    await Db.settings.put('rent_rec_$dateKey', updatedRecord.toMap(forFirestore: false));
+    await Db.settings
+        .put('rent_rec_$dateKey', updatedRecord.toMap(forFirestore: false));
 
     if (Db.expenses.containsKey('EXP_RENT_$dateKey')) {
       final exp = tekM(Db.expenses.get('EXP_RENT_$dateKey'));
@@ -502,7 +510,8 @@ class RentService {
       await Db.expenses.put('EXP_RENT_$dateKey', exp);
     }
 
-    await Db.moveMoney(ledgerMode, existing.paidAmount, 'REVERSAL: Daily Rent $dateKey');
+    await Db.moveMoney(
+        ledgerMode, existing.paidAmount, 'REVERSAL: Daily Rent $dateKey');
 
     await Db.logAction(
       action: 'Daily Rent Voided',
@@ -528,7 +537,8 @@ class RentService {
         .ref()
         .child('shops/$sId/rent_receipts/${dateKey}_$cleanName');
 
-    final task = await ref.putData(bytes, SettableMetadata(contentType: mimeType));
+    final task =
+        await ref.putData(bytes, SettableMetadata(contentType: mimeType));
     return await task.ref.getDownloadURL();
   }
 
@@ -570,7 +580,8 @@ class RentService {
       if (!paidMap.containsKey(k)) {
         final local = Db.settings.get('rent_rec_$k');
         if (local != null && local is Map) {
-          paidMap[k] = DailyRentRecord.fromMap(Map<String, dynamic>.from(local), k);
+          paidMap[k] =
+              DailyRentRecord.fromMap(Map<String, dynamic>.from(local), k);
         } else if (Db.expenses.containsKey('EXP_RENT_$k')) {
           final exp = tekM(Db.expenses.get('EXP_RENT_$k'));
           paidMap[k] = DailyRentRecord(
@@ -581,7 +592,8 @@ class RentService {
             expectedRentPaise: (settings.getRentForDate(curDate) * 100).round(),
             paidAmount: (exp['amount'] as num?)?.toDouble() ?? 0.0,
             paidAmountPaise: (exp['amountPaise'] as num?)?.toInt() ?? 0,
-            paymentMode: exp['paymentMode']?.toString() ?? ExpensePaymentMode.cash,
+            paymentMode:
+                exp['paymentMode']?.toString() ?? ExpensePaymentMode.cash,
             status: exp['isVoided'] == true ? 'VOIDED' : 'PAID',
             recordedByUid: exp['recordedByUid']?.toString() ?? '',
             recordedByName: exp['recordedByName']?.toString() ?? '',
@@ -644,7 +656,8 @@ class RentService {
     final String todayStatus = (todayRecord != null && todayRecord.isPaid)
         ? 'PAID'
         : (settings.isScheduledForDate(target) ? 'PENDING' : 'NOT_SCHEDULED');
-    final String todayMode = todayRecord?.paymentMode ?? settings.defaultPaymentMode;
+    final String todayMode =
+        todayRecord?.paymentMode ?? settings.defaultPaymentMode;
 
     // Month metrics: from 1st of month to today (or end of month)
     final startOfMonth = DateTime(target.year, target.month, 1);

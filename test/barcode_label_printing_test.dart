@@ -8,7 +8,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 1: Default label size 38x25 mm with 16-dot safe margins & DENSITY 8
     // -------------------------------------------------------------------------
-    test('TEST 1: Default label size 38x25 mm, 304x200 dots, 16-dot safe margins, DENSITY 8', () {
+    test(
+        'TEST 1: Default label size 38x25 mm, 304x200 dots, 16-dot safe margins, DENSITY 8',
+        () {
       const config = PrinterConfig();
 
       expect(config.widthMm, equals(38.0));
@@ -64,7 +66,8 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 3: Print only primary code (TKF... / IMEI) - Remove ITEM_... line
     // -------------------------------------------------------------------------
-    test('TEST 3: Print only primary code (TKF... / IMEI) and no ITEM_... line', () {
+    test('TEST 3: Print only primary code (TKF... / IMEI) and no ITEM_... line',
+        () {
       final item = BarcodeLabelItem(
         itemId: 'ITEM_INTERNAL_9999',
         itemCode: 'ITEM_CODE_8888',
@@ -90,9 +93,11 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 4: Item name wraps to at most 2 lines without overflowing
     // -------------------------------------------------------------------------
-    test('TEST 4: Item name wraps to max 2 lines inside 272-dot safe width', () {
+    test('TEST 4: Item name wraps to max 2 lines inside 272-dot safe width',
+        () {
       final item = BarcodeLabelItem(
-        name: 'Super AMOLED Display Combo With Touch Screen Digitizer Assembly Replacement',
+        name:
+            'Super AMOLED Display Combo With Touch Screen Digitizer Assembly Replacement',
         barcode: 'TKF777888',
         mrp: 3200.0,
         quantity: 1,
@@ -115,7 +120,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 5: Auto-reduce bar width if barcode is too wide
     // -------------------------------------------------------------------------
-    test('TEST 5: Code 128 auto-reduces narrow module width to 1 for long barcodes', () {
+    test(
+        'TEST 5: Code 128 auto-reduces narrow module width to 1 for long barcodes',
+        () {
       final longItem = BarcodeLabelItem(
         name: 'Motherboard',
         barcode: '890123456789012345', // 18-digit barcode
@@ -136,7 +143,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 6: Print 3 labels produces 3 separate labels each with PRINT 1,1
     // -------------------------------------------------------------------------
-    test('TEST 6: Print 3 labels generates 3 separate labels each with PRINT 1,1 and no drift', () {
+    test(
+        'TEST 6: Print 3 labels generates 3 separate labels each with PRINT 1,1 and no drift',
+        () {
       final item = BarcodeLabelItem(
         name: 'Screen Protector Guard',
         barcode: 'TKF555444',
@@ -154,14 +163,18 @@ void main() {
       final clsMatches = RegExp(r'\bCLS\b').allMatches(tspl);
       final printMatches = RegExp(r'PRINT 1,1').allMatches(tspl);
 
-      expect(clsMatches.length, equals(3), reason: 'Each label must reset buffer with CLS');
-      expect(printMatches.length, equals(3), reason: 'Each label must end with PRINT 1,1');
+      expect(clsMatches.length, equals(3),
+          reason: 'Each label must reset buffer with CLS');
+      expect(printMatches.length, equals(3),
+          reason: 'Each label must end with PRINT 1,1');
     });
 
     // -------------------------------------------------------------------------
     // TEST 7: MRP toggle and Missing / ₹0 price handling
     // -------------------------------------------------------------------------
-    test('TEST 7: MRP printed when toggle ON & price > 0; omitted when 0 or toggle OFF', () {
+    test(
+        'TEST 7: MRP printed when toggle ON & price > 0; omitted when 0 or toggle OFF',
+        () {
       final itemWithPrice = BarcodeLabelItem(
         name: 'USB-C Cable',
         barcode: 'TKF123',
@@ -178,15 +191,18 @@ void main() {
       );
 
       // Case A: Toggle ON with valid price -> Prints MRP: Rs.299
-      final tsplA = TsplGenerator.generateSingleLabel(item: itemWithPrice, showPrice: true);
+      final tsplA = TsplGenerator.generateSingleLabel(
+          item: itemWithPrice, showPrice: true);
       expect(tsplA, contains('MRP: Rs.299'));
 
       // Case B: Toggle OFF with valid price -> Does not print MRP
-      final tsplB = TsplGenerator.generateSingleLabel(item: itemWithPrice, showPrice: false);
+      final tsplB = TsplGenerator.generateSingleLabel(
+          item: itemWithPrice, showPrice: false);
       expect(tsplB, isNot(contains('MRP:')));
 
       // Case C: Toggle ON but price is 0 -> Does NOT print Rs.0
-      final tsplC = TsplGenerator.generateSingleLabel(item: itemZeroPrice, showPrice: true);
+      final tsplC = TsplGenerator.generateSingleLabel(
+          item: itemZeroPrice, showPrice: true);
       expect(tsplC, isNot(contains('MRP:')));
       expect(tsplC, isNot(contains('Rs.0')));
       expect(itemZeroPrice.hasValidPrice, isFalse);
@@ -195,9 +211,12 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 8: Border Test Command generates rectangular box at 16-dot margin edge
     // -------------------------------------------------------------------------
-    test('TEST 8: Print Border Test generates BOX rectangle at 16-dot safe margins', () {
+    test(
+        'TEST 8: Print Border Test generates BOX rectangle at 16-dot safe margins',
+        () {
       const config = PrinterConfig();
-      final borderTspl = TsplGenerator.generateBorderTestCommand(config: config);
+      final borderTspl =
+          TsplGenerator.generateBorderTestCommand(config: config);
 
       expect(borderTspl, contains('SIZE 38 mm,25 mm'));
       expect(borderTspl, contains('GAP 3 mm,0 mm'));
@@ -212,7 +231,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 9: DENSITY (1-15) and X/Y Offset settings
     // -------------------------------------------------------------------------
-    test('TEST 9: DENSITY and X/Y Offset settings dynamically alter TSPL header', () {
+    test(
+        'TEST 9: DENSITY and X/Y Offset settings dynamically alter TSPL header',
+        () {
       final config = const PrinterConfig().copyWith(
         darkness: 12,
         xOffsetMm: 1.5,
@@ -230,7 +251,8 @@ void main() {
         quantity: 1,
       );
 
-      final tspl = TsplGenerator.generateSingleLabel(item: item, config: config);
+      final tspl =
+          TsplGenerator.generateSingleLabel(item: item, config: config);
       expect(tspl, contains('DENSITY 12'));
       expect(tspl, contains('REFERENCE 12,-4'));
     });
@@ -238,7 +260,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 10: Presets 38x25 / 50x25 / Custom
     // -------------------------------------------------------------------------
-    test('TEST 10: Presets 38x25, 50x25, and Custom configure dimensions correctly', () {
+    test(
+        'TEST 10: Presets 38x25, 50x25, and Custom configure dimensions correctly',
+        () {
       const def = PrinterConfig();
       expect(def.preset, equals(LabelPreset.preset38x25));
       expect(def.widthMm, equals(38.0));
@@ -248,7 +272,8 @@ void main() {
       expect(p50.widthMm, equals(50.0));
       expect(p50.heightMm, equals(25.0));
 
-      final custom = def.withPreset(LabelPreset.custom, customWidth: 60.0, customHeight: 30.0);
+      final custom = def.withPreset(LabelPreset.custom,
+          customWidth: 60.0, customHeight: 30.0);
       expect(custom.preset, equals(LabelPreset.custom));
       expect(custom.widthMm, equals(60.0));
       expect(custom.heightMm, equals(30.0));
@@ -265,7 +290,9 @@ void main() {
     // -------------------------------------------------------------------------
     // TEST 12: BarcodePrintDialog Widget Test (1-up preview, actions & MRP display)
     // -------------------------------------------------------------------------
-    testWidgets('TEST 12: BarcodePrintDialog renders preview, Border Test, and MRP', (tester) async {
+    testWidgets(
+        'TEST 12: BarcodePrintDialog renders preview, Border Test, and MRP',
+        (tester) async {
       tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);

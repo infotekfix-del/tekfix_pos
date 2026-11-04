@@ -45,7 +45,8 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
     DateTime end;
     if (_dateFilterMode == 'THIS_MONTH') {
       start = DateTime(DateTime.now().year, DateTime.now().month, 1);
-      final lastDay = DateTime(DateTime.now().year, DateTime.now().month + 1, 0).day;
+      final lastDay =
+          DateTime(DateTime.now().year, DateTime.now().month + 1, 0).day;
       end = DateTime(DateTime.now().year, DateTime.now().month, lastDay);
     } else if (_dateFilterMode == 'PREV_MONTH') {
       final prev = DateTime(DateTime.now().year, DateTime.now().month - 1, 1);
@@ -53,7 +54,8 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
       final lastDay = DateTime(prev.year, prev.month + 1, 0).day;
       end = DateTime(prev.year, prev.month, lastDay);
     } else {
-      start = _customStartDate ?? DateTime(DateTime.now().year, DateTime.now().month, 1);
+      start = _customStartDate ??
+          DateTime(DateTime.now().year, DateTime.now().month, 1);
       end = _customEndDate ?? DateTime.now();
     }
 
@@ -76,7 +78,8 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
     return _records.where((r) {
       if (_selectedStatus != 'ALL') {
         if (_selectedStatus == 'PAID' && !r.isPaid) return false;
-        if (_selectedStatus == 'PENDING' && (r.isPaid || r.status != 'PENDING')) return false;
+        if (_selectedStatus == 'PENDING' && (r.isPaid || r.status != 'PENDING'))
+          return false;
       }
       if (_selectedMode != 'ALL') {
         if (_selectedMode == 'CASH' && !r.isCash) return false;
@@ -108,7 +111,8 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
     return Scaffold(
       backgroundColor: TekColors.mainBg,
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFF59E0B)))
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFFF59E0B)))
           : RefreshIndicator(
               onRefresh: _loadData,
               color: const Color(0xFFF59E0B),
@@ -170,24 +174,31 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: TekColors.border),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               ),
               onPressed: _openSettingsDialog,
-              icon: const Icon(Icons.settings_outlined, size: 16, color: TekColors.textPrimary),
-              label: const Text('Rent Settings', style: TextStyle(color: TekColors.textPrimary, fontSize: 13)),
+              icon: const Icon(Icons.settings_outlined,
+                  size: 16, color: TekColors.textPrimary),
+              label: const Text('Rent Settings',
+                  style: TextStyle(color: TekColors.textPrimary, fontSize: 13)),
             ),
             const SizedBox(width: 10),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFF59E0B),
                 foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
               onPressed: () => _openPaymentDialog(),
               icon: const Icon(Icons.add_circle_outline_rounded, size: 18),
-              label: const Text('Record Daily Rent', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              label: const Text('Record Daily Rent',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
             ),
           ],
         ),
@@ -215,7 +226,9 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
                 ? "Paid (₹${_metrics.todayPaid.toStringAsFixed(0)})"
                 : "Expected: ₹${_metrics.todayExpected.toStringAsFixed(0)}",
             badgeText: _metrics.todayStatus,
-            badgeColor: _metrics.todayStatus == 'PAID' ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+            badgeColor: _metrics.todayStatus == 'PAID'
+                ? const Color(0xFF10B981)
+                : const Color(0xFFF59E0B),
             icon: Icons.today_rounded,
             color: const Color(0xFFF59E0B),
           ),
@@ -242,9 +255,13 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
             title: "Unpaid Days",
             subtitle: "${_metrics.monthUnpaidDays} Days",
             badgeText: _metrics.monthUnpaidDays > 0 ? "Pending" : "Clear",
-            badgeColor: _metrics.monthUnpaidDays > 0 ? TekColors.warning : const Color(0xFF10B981),
+            badgeColor: _metrics.monthUnpaidDays > 0
+                ? TekColors.warning
+                : const Color(0xFF10B981),
             icon: Icons.pending_actions_rounded,
-            color: _metrics.monthUnpaidDays > 0 ? TekColors.warning : const Color(0xFF10B981),
+            color: _metrics.monthUnpaidDays > 0
+                ? TekColors.warning
+                : const Color(0xFF10B981),
           ),
           // Card E: Total Outstanding Scheduled Rent
           _metricCard(
@@ -298,7 +315,10 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
                 ),
                 child: Text(
                   badgeText,
-                  style: TextStyle(color: badgeColor, fontSize: 10, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                      color: badgeColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -308,14 +328,20 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
             children: [
               Text(
                 title,
-                style: const TextStyle(color: TekColors.textSecondary, fontSize: 11.5, fontWeight: FontWeight.w500),
+                style: const TextStyle(
+                    color: TekColors.textSecondary,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 3),
               Text(
                 subtitle,
-                style: const TextStyle(color: TekColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                    color: TekColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -395,11 +421,14 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
                 value: _selectedStatus,
                 dropdownColor: TekColors.bgCard,
                 underline: const SizedBox.shrink(),
-                style: const TextStyle(color: TekColors.textPrimary, fontSize: 13),
+                style:
+                    const TextStyle(color: TekColors.textPrimary, fontSize: 13),
                 items: const [
                   DropdownMenuItem(value: 'ALL', child: Text('Status: All')),
-                  DropdownMenuItem(value: 'PAID', child: Text('Status: Paid Only')),
-                  DropdownMenuItem(value: 'PENDING', child: Text('Status: Pending Only')),
+                  DropdownMenuItem(
+                      value: 'PAID', child: Text('Status: Paid Only')),
+                  DropdownMenuItem(
+                      value: 'PENDING', child: Text('Status: Pending Only')),
                 ],
                 onChanged: (v) {
                   if (v != null) setState(() => _selectedStatus = v);
@@ -410,11 +439,14 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
                 value: _selectedMode,
                 dropdownColor: TekColors.bgCard,
                 underline: const SizedBox.shrink(),
-                style: const TextStyle(color: TekColors.textPrimary, fontSize: 13),
+                style:
+                    const TextStyle(color: TekColors.textPrimary, fontSize: 13),
                 items: const [
                   DropdownMenuItem(value: 'ALL', child: Text('Mode: All')),
-                  DropdownMenuItem(value: 'CASH', child: Text('Mode: Cash Only')),
-                  DropdownMenuItem(value: 'BANK', child: Text('Mode: Bank/UPI Only')),
+                  DropdownMenuItem(
+                      value: 'CASH', child: Text('Mode: Cash Only')),
+                  DropdownMenuItem(
+                      value: 'BANK', child: Text('Mode: Bank/UPI Only')),
                 ],
                 onChanged: (v) {
                   if (v != null) setState(() => _selectedMode = v);
@@ -435,7 +467,8 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
         alignment: Alignment.center,
         child: Column(
           children: [
-            const Icon(Icons.event_available_rounded, size: 48, color: TekColors.textMuted),
+            const Icon(Icons.event_available_rounded,
+                size: 48, color: TekColors.textMuted),
             const SizedBox(height: 12),
             const Text(
               'No rent records found for this period',
@@ -444,7 +477,10 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
             const SizedBox(height: 6),
             Text(
               'തീയതി ഫിൽട്ടറുകൾ മാറ്റുകയോ പുതിയ വാടക രേഖപ്പെടുത്തുകയോ ചെയ്യുക',
-              style: TextStyle(color: TekColors.textMuted, fontSize: 12, fontFamilyFallback: TekTypography.malayalamFallback),
+              style: TextStyle(
+                  color: TekColors.textMuted,
+                  fontSize: 12,
+                  fontFamilyFallback: TekTypography.malayalamFallback),
             ),
           ],
         ),
@@ -487,7 +523,9 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
             color: TekColors.bgCard,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: isToday ? const Color(0xFFF59E0B).withValues(alpha: 0.6) : TekColors.border,
+              color: isToday
+                  ? const Color(0xFFF59E0B).withValues(alpha: 0.6)
+                  : TekColors.border,
               width: isToday ? 1.5 : 1,
             ),
           ),
@@ -506,11 +544,17 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
                   children: [
                     Text(
                       DateFormat('MMM').format(r.date).toUpperCase(),
-                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: TekColors.textMuted),
+                      style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: TekColors.textMuted),
                     ),
                     Text(
                       DateFormat('dd').format(r.date),
-                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: TekColors.textPrimary),
+                      style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: TekColors.textPrimary),
                     ),
                   ],
                 ),
@@ -527,17 +571,25 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
                       children: [
                         Text(
                           DateFormat('EEEE, dd MMM yyyy').format(r.date),
-                          style: const TextStyle(color: TekColors.textPrimary, fontSize: 14, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                              color: TekColors.textPrimary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold),
                         ),
                         if (isToday) ...[
                           const SizedBox(width: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 1.5),
                             decoration: BoxDecoration(
                               color: const Color(0xFFF59E0B),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: const Text('TODAY', style: TextStyle(color: Colors.black, fontSize: 9.5, fontWeight: FontWeight.bold)),
+                            child: const Text('TODAY',
+                                style: TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.bold)),
                           ),
                         ],
                       ],
@@ -548,12 +600,17 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
                         Text(
                           r.isPaid
                               ? 'Paid via ${r.paymentMode}${r.recordedByName.isNotEmpty ? " by ${r.recordedByName}" : ""}'
-                              : (r.status == 'NOT_SCHEDULED' ? 'Shop Closed / Day Off' : 'Scheduled Daily Rent: ₹${r.expectedRent.toStringAsFixed(0)}'),
-                          style: const TextStyle(color: TekColors.textSecondary, fontSize: 12),
+                              : (r.status == 'NOT_SCHEDULED'
+                                  ? 'Shop Closed / Day Off'
+                                  : 'Scheduled Daily Rent: ₹${r.expectedRent.toStringAsFixed(0)}'),
+                          style: const TextStyle(
+                              color: TekColors.textSecondary, fontSize: 12),
                         ),
                         if (r.paymentReference.isNotEmpty) ...[
                           const SizedBox(width: 6),
-                          Text('• Ref: ${r.paymentReference}', style: const TextStyle(color: TekColors.textMuted, fontSize: 11.5)),
+                          Text('• Ref: ${r.paymentReference}',
+                              style: const TextStyle(
+                                  color: TekColors.textMuted, fontSize: 11.5)),
                         ],
                       ],
                     ),
@@ -566,23 +623,33 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    r.isPaid ? '₹${r.paidAmount.toStringAsFixed(0)}' : '₹${r.expectedRent.toStringAsFixed(0)}',
+                    r.isPaid
+                        ? '₹${r.paidAmount.toStringAsFixed(0)}'
+                        : '₹${r.expectedRent.toStringAsFixed(0)}',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: r.isPaid ? const Color(0xFF10B981) : (r.status == 'PENDING' ? const Color(0xFFF59E0B) : TekColors.textMuted),
+                      color: r.isPaid
+                          ? const Color(0xFF10B981)
+                          : (r.status == 'PENDING'
+                              ? const Color(0xFFF59E0B)
+                              : TekColors.textMuted),
                     ),
                   ),
                   const SizedBox(height: 4),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: badgeBg,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       badgeText,
-                      style: TextStyle(color: badgeFg, fontSize: 10.5, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                          color: badgeFg,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.bold),
                     ),
                   ),
                 ],
@@ -594,7 +661,8 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
               if (r.isPaid)
                 IconButton(
                   tooltip: 'View Payment Details / Reversal',
-                  icon: const Icon(Icons.remove_red_eye_rounded, size: 20, color: TekColors.textSecondary),
+                  icon: const Icon(Icons.remove_red_eye_rounded,
+                      size: 20, color: TekColors.textSecondary),
                   onPressed: () => _openPaymentDialog(r.date),
                 )
               else if (r.status == 'PENDING')
@@ -602,12 +670,16 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFF59E0B),
                     foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     minimumSize: Size.zero,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
                   ),
                   onPressed: () => _openPaymentDialog(r.date),
-                  child: const Text('Pay', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  child: const Text('Pay',
+                      style:
+                          TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 )
               else
                 const SizedBox(width: 12),

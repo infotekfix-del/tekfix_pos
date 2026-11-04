@@ -47,4 +47,3 @@ class SalaryCalculator {
     return double.parse((dailyRate * daysWorked).toStringAsFixed(2));
   }
 }
-

@@ -25,7 +25,8 @@ class ExpenseManagementScreen extends StatefulWidget {
 class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
 
-  String _dateFilter = 'This Month'; // Today, Yesterday, This Week, This Month, Custom
+  String _dateFilter =
+      'This Month'; // Today, Yesterday, This Week, This Month, Custom
   DateTimeRange? _customDateRange;
   String _selectedCategory = 'All';
   String _selectedPaymentMode = 'All'; // All, CASH, BANK
@@ -50,9 +51,12 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final sId = widget.shopId.isNotEmpty ? widget.shopId : Db.setting('shop_id', 'tekfix');
+      final sId = widget.shopId.isNotEmpty
+          ? widget.shopId
+          : Db.setting('shop_id', 'tekfix');
       final list = await ExpenseService.instance.getAllExpenses(sId);
-      final metrics = await ExpenseService.instance.computeExpenseMetrics(shopId: sId);
+      final metrics =
+          await ExpenseService.instance.computeExpenseMetrics(shopId: sId);
 
       if (mounted) {
         setState(() {
@@ -72,20 +76,32 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
     final now = DateTime.now();
     switch (_dateFilter) {
       case 'Today':
-        return dt.year == now.year && dt.month == now.month && dt.day == now.day;
+        return dt.year == now.year &&
+            dt.month == now.month &&
+            dt.day == now.day;
       case 'Yesterday':
         final yest = now.subtract(const Duration(days: 1));
-        return dt.year == yest.year && dt.month == yest.month && dt.day == yest.day;
+        return dt.year == yest.year &&
+            dt.month == yest.month &&
+            dt.day == yest.day;
       case 'This Week':
         final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-        final start = DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day);
+        final start =
+            DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day);
         return !dt.isBefore(start);
       case 'This Month':
         return dt.year == now.year && dt.month == now.month;
       case 'Custom':
         if (_customDateRange != null) {
-          final start = DateTime(_customDateRange!.start.year, _customDateRange!.start.month, _customDateRange!.start.day);
-          final end = DateTime(_customDateRange!.end.year, _customDateRange!.end.month, _customDateRange!.end.day, 23, 59, 59);
+          final start = DateTime(_customDateRange!.start.year,
+              _customDateRange!.start.month, _customDateRange!.start.day);
+          final end = DateTime(
+              _customDateRange!.end.year,
+              _customDateRange!.end.month,
+              _customDateRange!.end.day,
+              23,
+              59,
+              59);
           return !dt.isBefore(start) && !dt.isAfter(end);
         }
         return true;
@@ -106,7 +122,8 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
       }
 
       // Payment Mode filter
-      if (_selectedPaymentMode != 'All' && exp.paymentMode != _selectedPaymentMode) {
+      if (_selectedPaymentMode != 'All' &&
+          exp.paymentMode != _selectedPaymentMode) {
         return false;
       }
 
@@ -196,22 +213,29 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
                               color: exp.isVoided
                                   ? TekColors.error.withValues(alpha: 0.15)
                                   : TekColors.primary.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(6),
                               border: Border.all(
-                                color: exp.isVoided ? TekColors.error : TekColors.primary,
+                                color: exp.isVoided
+                                    ? TekColors.error
+                                    : TekColors.primary,
                               ),
                             ),
                             child: Text(
-                              exp.isVoided ? 'VOIDED / CANCELLED' : exp.category,
+                              exp.isVoided
+                                  ? 'VOIDED / CANCELLED'
+                                  : exp.category,
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
-                                color: exp.isVoided ? TekColors.error : TekColors.primary,
+                                color: exp.isVoided
+                                    ? TekColors.error
+                                    : TekColors.primary,
                               ),
                             ),
                           ),
@@ -221,7 +245,8 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                             style: const TextStyle(
                               fontSize: 11.5,
                               color: TekColors.textSecondary,
-                              fontFamilyFallback: TekTypography.malayalamFallback,
+                              fontFamilyFallback:
+                                  TekTypography.malayalamFallback,
                             ),
                           ),
                         ],
@@ -233,7 +258,8 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                           color: TekColors.textPrimary,
-                          decoration: exp.isVoided ? TextDecoration.lineThrough : null,
+                          decoration:
+                              exp.isVoided ? TextDecoration.lineThrough : null,
                         ),
                       ),
                     ],
@@ -244,7 +270,9 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w900,
-                    color: exp.isVoided ? TekColors.textMuted : const Color(0xFFF43F5E),
+                    color: exp.isVoided
+                        ? TekColors.textMuted
+                        : const Color(0xFFF43F5E),
                   ),
                 ),
               ],
@@ -252,12 +280,18 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
             const SizedBox(height: 16),
             const Divider(color: TekColors.border),
             const SizedBox(height: 10),
-            _detailRow('Payment Mode:', ExpensePaymentMode.toDisplay(exp.paymentMode)),
-            _detailRow('Expense Date:', DateFormat('dd MMMM yyyy, hh:mm a').format(exp.expenseDate)),
+            _detailRow(
+                'Payment Mode:', ExpensePaymentMode.toDisplay(exp.paymentMode)),
+            _detailRow('Expense Date:',
+                DateFormat('dd MMMM yyyy, hh:mm a').format(exp.expenseDate)),
             _detailRow('Recorded By:', exp.recordedByName),
             if (exp.notes.isNotEmpty) _detailRow('Notes:', exp.notes),
             if (exp.isVoided) ...[
-              _detailRow('Voided Date:', exp.voidedAt != null ? DateFormat('dd MMM yyyy, hh:mm a').format(exp.voidedAt!) : '—'),
+              _detailRow(
+                  'Voided Date:',
+                  exp.voidedAt != null
+                      ? DateFormat('dd MMM yyyy, hh:mm a').format(exp.voidedAt!)
+                      : '—'),
               _detailRow('Void Reason:', exp.voidReason ?? 'Voided by user'),
             ],
             if (exp.receiptUrl != null && exp.receiptUrl!.isNotEmpty) ...[
@@ -269,10 +303,13 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                 ),
                 onPressed: () async {
                   final uri = Uri.tryParse(exp.receiptUrl!);
-                  if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  if (uri != null)
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
                 },
-                icon: const Icon(Icons.receipt_rounded, size: 18, color: TekColors.primary),
-                label: const Text('View Attached Receipt / Bill', style: TextStyle(color: TekColors.primary)),
+                icon: const Icon(Icons.receipt_rounded,
+                    size: 18, color: TekColors.primary),
+                label: const Text('View Attached Receipt / Bill',
+                    style: TextStyle(color: TekColors.primary)),
               ),
             ],
             const SizedBox(height: 16),
@@ -282,7 +319,8 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                   backgroundColor: TekColors.error,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: () {
                   Navigator.pop(ctx);
@@ -308,13 +346,17 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
             width: 120,
             child: Text(
               label,
-              style: const TextStyle(fontSize: 12.5, color: TekColors.textSecondary),
+              style: const TextStyle(
+                  fontSize: 12.5, color: TekColors.textSecondary),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: TekColors.textPrimary),
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: TekColors.textPrimary),
             ),
           ),
         ],
@@ -345,7 +387,8 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
           children: [
             Text(
               'Are you sure you want to void "${exp.title}" (₹${exp.amount.toStringAsFixed(2)})?\n\nThis will automatically reverse the ${exp.paymentMode} debit in your accounting ledger and restore the balance.',
-              style: const TextStyle(color: TekColors.textSecondary, fontSize: 13),
+              style:
+                  const TextStyle(color: TekColors.textSecondary, fontSize: 13),
             ),
             const SizedBox(height: 14),
             TextField(
@@ -360,7 +403,8 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: TekColors.textSecondary)),
+            child: const Text('Cancel',
+                style: TextStyle(color: TekColors.textSecondary)),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: TekColors.error),
@@ -374,7 +418,9 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
     if (confirm == true) {
       try {
         final auth = context.read<AuthController>();
-        final sId = widget.shopId.isNotEmpty ? widget.shopId : Db.setting('shop_id', 'tekfix');
+        final sId = widget.shopId.isNotEmpty
+            ? widget.shopId
+            : Db.setting('shop_id', 'tekfix');
         await ExpenseService.instance.voidExpense(
           shopId: sId,
           expenseId: exp.id,
@@ -407,7 +453,8 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: const Color(0xFFF43F5E),
         foregroundColor: Colors.white,
-        onPressed: () => AddExpenseDialog.show(context, onExpenseSaved: _loadData),
+        onPressed: () =>
+            AddExpenseDialog.show(context, onExpenseSaved: _loadData),
         icon: const Icon(Icons.add_rounded),
         label: const Text(
           'Add Expense (ചിലവ് ചേർക്കുക)',
@@ -438,7 +485,8 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                             ),
                             borderRadius: BorderRadius.circular(14),
                           ),
-                          child: const Icon(Icons.receipt_long_rounded, color: Colors.white, size: 22),
+                          child: const Icon(Icons.receipt_long_rounded,
+                              color: Colors.white, size: 22),
                         ),
                         const SizedBox(width: 14),
                         const Column(
@@ -458,7 +506,8 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                               style: TextStyle(
                                 fontSize: 12,
                                 color: TekColors.textSecondary,
-                                fontFamilyFallback: TekTypography.malayalamFallback,
+                                fontFamilyFallback:
+                                    TekTypography.malayalamFallback,
                               ),
                             ),
                           ],
@@ -470,18 +519,22 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                         OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: Color(0xFFF59E0B)),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
                           ),
                           onPressed: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => DailyRentHistoryView(shopId: widget.shopId),
+                                builder: (_) =>
+                                    DailyRentHistoryView(shopId: widget.shopId),
                               ),
                             ).then((_) => _loadData());
                           },
-                          icon: const Icon(Icons.store_mall_directory_rounded, size: 16, color: Color(0xFFF59E0B)),
+                          icon: const Icon(Icons.store_mall_directory_rounded,
+                              size: 16, color: Color(0xFFF59E0B)),
                           label: const Text(
                             'Daily Rent (കട വാടക)',
                             style: TextStyle(
@@ -493,7 +546,8 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                         ),
                         const SizedBox(width: 8),
                         IconButton(
-                          icon: const Icon(Icons.refresh_rounded, color: TekColors.secondary),
+                          icon: const Icon(Icons.refresh_rounded,
+                              color: TekColors.secondary),
                           onPressed: _loadData,
                           tooltip: 'Refresh Expenses',
                         ),
@@ -514,13 +568,38 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                     if (isWide) {
                       return Row(
                         children: [
-                          Expanded(child: _buildMetricCard("Today's Expenses", '₹${_metrics.todayTotal.toStringAsFixed(2)}', '${_metrics.todayCount} entries today', Icons.today_rounded, const Color(0xFFF43F5E))),
+                          Expanded(
+                              child: _buildMetricCard(
+                                  "Today's Expenses",
+                                  '₹${_metrics.todayTotal.toStringAsFixed(2)}',
+                                  '${_metrics.todayCount} entries today',
+                                  Icons.today_rounded,
+                                  const Color(0xFFF43F5E))),
                           const SizedBox(width: 12),
-                          Expanded(child: _buildMetricCard("This Month's Expenses", '₹${_metrics.thisMonthTotal.toStringAsFixed(2)}', DateFormat('MMMM yyyy').format(DateTime.now()), Icons.calendar_month_rounded, const Color(0xFF8B5CF6))),
+                          Expanded(
+                              child: _buildMetricCard(
+                                  "This Month's Expenses",
+                                  '₹${_metrics.thisMonthTotal.toStringAsFixed(2)}',
+                                  DateFormat('MMMM yyyy')
+                                      .format(DateTime.now()),
+                                  Icons.calendar_month_rounded,
+                                  const Color(0xFF8B5CF6))),
                           const SizedBox(width: 12),
-                          Expanded(child: _buildMetricCard('Cash Expenses Today', '₹${_metrics.todayCashTotal.toStringAsFixed(2)}', 'Paid from Drawer', Icons.payments_rounded, Colors.amber)),
+                          Expanded(
+                              child: _buildMetricCard(
+                                  'Cash Expenses Today',
+                                  '₹${_metrics.todayCashTotal.toStringAsFixed(2)}',
+                                  'Paid from Drawer',
+                                  Icons.payments_rounded,
+                                  Colors.amber)),
                           const SizedBox(width: 12),
-                          Expanded(child: _buildMetricCard('Bank/UPI Expenses Today', '₹${_metrics.todayBankTotal.toStringAsFixed(2)}', 'Paid via Account/UPI', Icons.account_balance_rounded, const Color(0xFF00D4FF))),
+                          Expanded(
+                              child: _buildMetricCard(
+                                  'Bank/UPI Expenses Today',
+                                  '₹${_metrics.todayBankTotal.toStringAsFixed(2)}',
+                                  'Paid via Account/UPI',
+                                  Icons.account_balance_rounded,
+                                  const Color(0xFF00D4FF))),
                         ],
                       );
                     } else {
@@ -528,17 +607,42 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                         children: [
                           Row(
                             children: [
-                              Expanded(child: _buildMetricCard("Today's Expenses", '₹${_metrics.todayTotal.toStringAsFixed(2)}', '${_metrics.todayCount} entries', Icons.today_rounded, const Color(0xFFF43F5E))),
+                              Expanded(
+                                  child: _buildMetricCard(
+                                      "Today's Expenses",
+                                      '₹${_metrics.todayTotal.toStringAsFixed(2)}',
+                                      '${_metrics.todayCount} entries',
+                                      Icons.today_rounded,
+                                      const Color(0xFFF43F5E))),
                               const SizedBox(width: 10),
-                              Expanded(child: _buildMetricCard("This Month", '₹${_metrics.thisMonthTotal.toStringAsFixed(2)}', DateFormat('MMM yyyy').format(DateTime.now()), Icons.calendar_month_rounded, const Color(0xFF8B5CF6))),
+                              Expanded(
+                                  child: _buildMetricCard(
+                                      "This Month",
+                                      '₹${_metrics.thisMonthTotal.toStringAsFixed(2)}',
+                                      DateFormat('MMM yyyy')
+                                          .format(DateTime.now()),
+                                      Icons.calendar_month_rounded,
+                                      const Color(0xFF8B5CF6))),
                             ],
                           ),
                           const SizedBox(height: 10),
                           Row(
                             children: [
-                              Expanded(child: _buildMetricCard('Cash Expenses Today', '₹${_metrics.todayCashTotal.toStringAsFixed(2)}', 'Drawer Cash', Icons.payments_rounded, Colors.amber)),
+                              Expanded(
+                                  child: _buildMetricCard(
+                                      'Cash Expenses Today',
+                                      '₹${_metrics.todayCashTotal.toStringAsFixed(2)}',
+                                      'Drawer Cash',
+                                      Icons.payments_rounded,
+                                      Colors.amber)),
                               const SizedBox(width: 10),
-                              Expanded(child: _buildMetricCard('Bank/UPI Expenses', '₹${_metrics.todayBankTotal.toStringAsFixed(2)}', 'Bank Account', Icons.account_balance_rounded, const Color(0xFF00D4FF))),
+                              Expanded(
+                                  child: _buildMetricCard(
+                                      'Bank/UPI Expenses',
+                                      '₹${_metrics.todayBankTotal.toStringAsFixed(2)}',
+                                      'Bank Account',
+                                      Icons.account_balance_rounded,
+                                      const Color(0xFF00D4FF))),
                             ],
                           ),
                         ],
@@ -562,10 +666,13 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                     TextField(
                       controller: _searchCtrl,
                       onChanged: (_) => setState(() {}),
-                      style: const TextStyle(color: TekColors.textPrimary, fontSize: 13.5),
+                      style: const TextStyle(
+                          color: TekColors.textPrimary, fontSize: 13.5),
                       decoration: InputDecoration(
-                        hintText: 'Search expenses by title, category, staff or notes...',
-                        prefixIcon: const Icon(Icons.search_rounded, color: TekColors.secondary),
+                        hintText:
+                            'Search expenses by title, category, staff or notes...',
+                        prefixIcon: const Icon(Icons.search_rounded,
+                            color: TekColors.secondary),
                         suffixIcon: _searchCtrl.text.isNotEmpty
                             ? IconButton(
                                 icon: const Icon(Icons.clear_rounded, size: 18),
@@ -584,17 +691,23 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                       scrollDirection: Axis.horizontal,
                       child: Row(
                         children: [
-                          ...['Today', 'Yesterday', 'This Week', 'This Month'].map((d) {
+                          ...['Today', 'Yesterday', 'This Week', 'This Month']
+                              .map((d) {
                             final isSelected = _dateFilter == d;
                             return Padding(
                               padding: const EdgeInsets.only(right: 6),
                               child: ChoiceChip(
                                 label: Text(d),
                                 selected: isSelected,
-                                selectedColor: TekColors.primary.withValues(alpha: 0.25),
+                                selectedColor:
+                                    TekColors.primary.withValues(alpha: 0.25),
                                 labelStyle: TextStyle(
-                                  color: isSelected ? TekColors.primary : TekColors.textSecondary,
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: isSelected
+                                      ? TekColors.primary
+                                      : TekColors.textSecondary,
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
                                   fontSize: 12,
                                 ),
                                 onSelected: (sel) {
@@ -604,10 +717,12 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                             );
                           }),
                           ActionChip(
-                            label: Text(_dateFilter == 'Custom' && _customDateRange != null
+                            label: Text(_dateFilter == 'Custom' &&
+                                    _customDateRange != null
                                 ? '${DateFormat('dd MMM').format(_customDateRange!.start)} - ${DateFormat('dd MMM').format(_customDateRange!.end)}'
                                 : 'Custom Range...'),
-                            avatar: const Icon(Icons.date_range_rounded, size: 14),
+                            avatar:
+                                const Icon(Icons.date_range_rounded, size: 14),
                             onPressed: _pickCustomRange,
                           ),
                         ],
@@ -622,7 +737,8 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                         children: [
                           // Category Filter
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 2),
                             decoration: BoxDecoration(
                               color: TekColors.bgSecondary,
                               borderRadius: BorderRadius.circular(10),
@@ -632,12 +748,17 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                               child: DropdownButton<String>(
                                 value: _selectedCategory,
                                 dropdownColor: TekColors.bgCard,
-                                style: const TextStyle(color: TekColors.textPrimary, fontSize: 12),
+                                style: const TextStyle(
+                                    color: TekColors.textPrimary, fontSize: 12),
                                 items: ['All', ...ExpenseCategory.all].map((c) {
-                                  return DropdownMenuItem(value: c, child: Text(c == 'All' ? 'All Categories' : c));
+                                  return DropdownMenuItem(
+                                      value: c,
+                                      child: Text(
+                                          c == 'All' ? 'All Categories' : c));
                                 }).toList(),
                                 onChanged: (v) {
-                                  if (v != null) setState(() => _selectedCategory = v);
+                                  if (v != null)
+                                    setState(() => _selectedCategory = v);
                                 },
                               ),
                             ),
@@ -646,7 +767,8 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
 
                           // Mode Filter
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 2),
                             decoration: BoxDecoration(
                               color: TekColors.bgSecondary,
                               borderRadius: BorderRadius.circular(10),
@@ -656,14 +778,20 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                               child: DropdownButton<String>(
                                 value: _selectedPaymentMode,
                                 dropdownColor: TekColors.bgCard,
-                                style: const TextStyle(color: TekColors.textPrimary, fontSize: 12),
+                                style: const TextStyle(
+                                    color: TekColors.textPrimary, fontSize: 12),
                                 items: const [
-                                  DropdownMenuItem(value: 'All', child: Text('All Modes')),
-                                  DropdownMenuItem(value: 'CASH', child: Text('Cash in Hand')),
-                                  DropdownMenuItem(value: 'BANK', child: Text('Bank / UPI')),
+                                  DropdownMenuItem(
+                                      value: 'All', child: Text('All Modes')),
+                                  DropdownMenuItem(
+                                      value: 'CASH',
+                                      child: Text('Cash in Hand')),
+                                  DropdownMenuItem(
+                                      value: 'BANK', child: Text('Bank / UPI')),
                                 ],
                                 onChanged: (v) {
-                                  if (v != null) setState(() => _selectedPaymentMode = v);
+                                  if (v != null)
+                                    setState(() => _selectedPaymentMode = v);
                                 },
                               ),
                             ),
@@ -672,7 +800,8 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
 
                           // Staff Filter
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 2),
                             decoration: BoxDecoration(
                               color: TekColors.bgSecondary,
                               borderRadius: BorderRadius.circular(10),
@@ -682,12 +811,17 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                               child: DropdownButton<String>(
                                 value: _selectedStaff,
                                 dropdownColor: TekColors.bgCard,
-                                style: const TextStyle(color: TekColors.textPrimary, fontSize: 12),
+                                style: const TextStyle(
+                                    color: TekColors.textPrimary, fontSize: 12),
                                 items: _staffOptions.map((s) {
-                                  return DropdownMenuItem(value: s, child: Text(s == 'All' ? 'All Staff' : s));
+                                  return DropdownMenuItem(
+                                      value: s,
+                                      child:
+                                          Text(s == 'All' ? 'All Staff' : s));
                                 }).toList(),
                                 onChanged: (v) {
-                                  if (v != null) setState(() => _selectedStaff = v);
+                                  if (v != null)
+                                    setState(() => _selectedStaff = v);
                                 },
                               ),
                             ),
@@ -707,7 +841,8 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: TekColors.bgSecondary,
                     borderRadius: BorderRadius.circular(12),
@@ -718,7 +853,8 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                     children: [
                       Text(
                         'Showing ${filtered.length} expenses ($_dateFilter)',
-                        style: const TextStyle(fontSize: 12.5, color: TekColors.textSecondary),
+                        style: const TextStyle(
+                            fontSize: 12.5, color: TekColors.textSecondary),
                       ),
                       Text(
                         'Total: ₹${totalAmount.toStringAsFixed(2)}',
@@ -757,7 +893,8 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                           shape: BoxShape.circle,
                           border: Border.all(color: TekColors.border),
                         ),
-                        child: const Icon(Icons.receipt_long_rounded, size: 48, color: TekColors.textMuted),
+                        child: const Icon(Icons.receipt_long_rounded,
+                            size: 48, color: TekColors.textMuted),
                       ),
                       const SizedBox(height: 14),
                       const Text(
@@ -772,12 +909,15 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                       const SizedBox(height: 4),
                       const Text(
                         'No expenses found for the selected filters.',
-                        style: TextStyle(fontSize: 12.5, color: TekColors.textSecondary),
+                        style: TextStyle(
+                            fontSize: 12.5, color: TekColors.textSecondary),
                       ),
                       const SizedBox(height: 16),
                       FilledButton.icon(
-                        style: FilledButton.styleFrom(backgroundColor: const Color(0xFFF43F5E)),
-                        onPressed: () => AddExpenseDialog.show(context, onExpenseSaved: _loadData),
+                        style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFFF43F5E)),
+                        onPressed: () => AddExpenseDialog.show(context,
+                            onExpenseSaved: _loadData),
                         icon: const Icon(Icons.add_rounded),
                         label: const Text('Add First Expense'),
                       ),
@@ -804,7 +944,8 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
     );
   }
 
-  Widget _buildMetricCard(String label, String value, String sub, IconData icon, Color color) {
+  Widget _buildMetricCard(
+      String label, String value, String sub, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -824,7 +965,10 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, color: TekColors.textSecondary, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                      fontSize: 12,
+                      color: TekColors.textSecondary,
+                      fontWeight: FontWeight.w500),
                 ),
               ),
               Container(
@@ -840,7 +984,10 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
           const SizedBox(height: 8),
           Text(
             value,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: TekColors.textPrimary),
+            style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: TekColors.textPrimary),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -866,7 +1013,9 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
         color: TekColors.bgCard,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: item.isVoided ? TekColors.error.withValues(alpha: 0.4) : TekColors.border,
+          color: item.isVoided
+              ? TekColors.error.withValues(alpha: 0.4)
+              : TekColors.border,
         ),
         boxShadow: TekColors.cardShadow,
       ),
@@ -890,7 +1039,9 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                 child: Icon(
                   item.isVoided
                       ? Icons.block_rounded
-                      : (isCash ? Icons.payments_rounded : Icons.account_balance_rounded),
+                      : (isCash
+                          ? Icons.payments_rounded
+                          : Icons.account_balance_rounded),
                   color: item.isVoided ? TekColors.error : modeColor,
                   size: 20,
                 ),
@@ -910,8 +1061,12 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                             style: TextStyle(
                               fontSize: 14.5,
                               fontWeight: FontWeight.bold,
-                              color: item.isVoided ? TekColors.textMuted : TekColors.textPrimary,
-                              decoration: item.isVoided ? TextDecoration.lineThrough : null,
+                              color: item.isVoided
+                                  ? TekColors.textMuted
+                                  : TekColors.textPrimary,
+                              decoration: item.isVoided
+                                  ? TextDecoration.lineThrough
+                                  : null,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -919,7 +1074,8 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                         ),
                         if (item.receiptUrl != null) ...[
                           const SizedBox(width: 6),
-                          const Icon(Icons.attach_file_rounded, size: 14, color: TekColors.secondary),
+                          const Icon(Icons.attach_file_rounded,
+                              size: 14, color: TekColors.secondary),
                         ],
                       ],
                     ),
@@ -928,21 +1084,27 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                       children: [
                         Text(
                           item.category,
-                          style: const TextStyle(fontSize: 11.5, color: TekColors.textSecondary),
+                          style: const TextStyle(
+                              fontSize: 11.5, color: TekColors.textSecondary),
                         ),
                         const SizedBox(width: 6),
-                        const Text('•', style: TextStyle(color: TekColors.textMuted, fontSize: 10)),
+                        const Text('•',
+                            style: TextStyle(
+                                color: TekColors.textMuted, fontSize: 10)),
                         const SizedBox(width: 6),
                         Text(
-                          DateFormat('dd MMM, hh:mm a').format(item.expenseDate),
-                          style: const TextStyle(fontSize: 11, color: TekColors.textMuted),
+                          DateFormat('dd MMM, hh:mm a')
+                              .format(item.expenseDate),
+                          style: const TextStyle(
+                              fontSize: 11, color: TekColors.textMuted),
                         ),
                       ],
                     ),
                     const SizedBox(height: 2),
                     Text(
                       'By ${item.recordedByName}',
-                      style: const TextStyle(fontSize: 11, color: TekColors.textMuted),
+                      style: const TextStyle(
+                          fontSize: 11, color: TekColors.textMuted),
                     ),
                   ],
                 ),
@@ -957,17 +1119,22 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: item.isVoided ? TekColors.textMuted : const Color(0xFFF43F5E),
-                      decoration: item.isVoided ? TextDecoration.lineThrough : null,
+                      color: item.isVoided
+                          ? TekColors.textMuted
+                          : const Color(0xFFF43F5E),
+                      decoration:
+                          item.isVoided ? TextDecoration.lineThrough : null,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                     decoration: BoxDecoration(
                       color: modeColor.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: modeColor.withValues(alpha: 0.5)),
+                      border:
+                          Border.all(color: modeColor.withValues(alpha: 0.5)),
                     ),
                     child: Text(
                       item.isVoided ? 'VOID' : (isCash ? 'CASH' : 'BANK/UPI'),
@@ -987,4 +1154,3 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
     );
   }
 }
-

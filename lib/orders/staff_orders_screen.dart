@@ -70,14 +70,17 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
   void _initStreams() {
     _catalogStream = PosService.instance.streamCatalogItems(widget.shopId);
     final authUid = FirebaseAuth.instance.currentUser?.uid;
-    final effectiveStaffId = (authUid != null && authUid.isNotEmpty) ? authUid : widget.staffId;
-    _ordersStream = OrderService.instance.streamStaffOrders(widget.shopId, effectiveStaffId);
+    final effectiveStaffId =
+        (authUid != null && authUid.isNotEmpty) ? authUid : widget.staffId;
+    _ordersStream = OrderService.instance
+        .streamStaffOrders(widget.shopId, effectiveStaffId);
   }
 
   @override
   void didUpdateWidget(StaffOrdersScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.shopId != widget.shopId || oldWidget.staffId != widget.staffId) {
+    if (oldWidget.shopId != widget.shopId ||
+        oldWidget.staffId != widget.staffId) {
       _initStreams();
     }
   }
@@ -94,28 +97,42 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
 
   IconData _getCategoryIcon(String cat) {
     final lower = cat.toLowerCase();
-    if (lower.contains('screen') || lower.contains('display')) return Icons.phone_android_rounded;
+    if (lower.contains('screen') || lower.contains('display'))
+      return Icons.phone_android_rounded;
     if (lower.contains('battery')) return Icons.battery_charging_full_rounded;
-    if (lower.contains('charge') || lower.contains('flex')) return Icons.power_rounded;
-    if (lower.contains('glass') || lower.contains('tempered')) return Icons.shield_rounded;
-    if (lower.contains('case') || lower.contains('cover')) return Icons.phone_iphone_rounded;
-    if (lower.contains('charger') || lower.contains('cable')) return Icons.cable_rounded;
-    if (lower.contains('earbud') || lower.contains('audio')) return Icons.headphones_rounded;
-    if (lower.contains('spare') || lower.contains('part')) return Icons.build_rounded;
+    if (lower.contains('charge') || lower.contains('flex'))
+      return Icons.power_rounded;
+    if (lower.contains('glass') || lower.contains('tempered'))
+      return Icons.shield_rounded;
+    if (lower.contains('case') || lower.contains('cover'))
+      return Icons.phone_iphone_rounded;
+    if (lower.contains('charger') || lower.contains('cable'))
+      return Icons.cable_rounded;
+    if (lower.contains('earbud') || lower.contains('audio'))
+      return Icons.headphones_rounded;
+    if (lower.contains('spare') || lower.contains('part'))
+      return Icons.build_rounded;
     if (cat == 'All') return Icons.grid_view_rounded;
     return Icons.inventory_2_rounded;
   }
 
   Color _getCategoryColor(String cat) {
     final lower = cat.toLowerCase();
-    if (lower.contains('screen') || lower.contains('display')) return const Color(0xFF38BDF8); // Sky
+    if (lower.contains('screen') || lower.contains('display'))
+      return const Color(0xFF38BDF8); // Sky
     if (lower.contains('battery')) return const Color(0xFF34D399); // Emerald
-    if (lower.contains('charge') || lower.contains('flex')) return const Color(0xFFA78BFA); // Purple
-    if (lower.contains('glass') || lower.contains('tempered')) return const Color(0xFF2DD4BF); // Teal
-    if (lower.contains('case') || lower.contains('cover')) return const Color(0xFFF472B6); // Pink
-    if (lower.contains('charger') || lower.contains('cable')) return const Color(0xFFFBBF24); // Amber
-    if (lower.contains('earbud') || lower.contains('audio')) return const Color(0xFF818CF8); // Indigo
-    if (lower.contains('spare') || lower.contains('part')) return const Color(0xFFFB923C); // Orange
+    if (lower.contains('charge') || lower.contains('flex'))
+      return const Color(0xFFA78BFA); // Purple
+    if (lower.contains('glass') || lower.contains('tempered'))
+      return const Color(0xFF2DD4BF); // Teal
+    if (lower.contains('case') || lower.contains('cover'))
+      return const Color(0xFFF472B6); // Pink
+    if (lower.contains('charger') || lower.contains('cable'))
+      return const Color(0xFFFBBF24); // Amber
+    if (lower.contains('earbud') || lower.contains('audio'))
+      return const Color(0xFF818CF8); // Indigo
+    if (lower.contains('spare') || lower.contains('part'))
+      return const Color(0xFFFB923C); // Orange
     return const Color(0xFF94A3B8); // Slate
   }
 
@@ -192,107 +209,121 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
     try {
       await showDialog(
         context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          item.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: modelCtrl,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: 'മോഡൽ (Model, e.g. iPhone 13)',
-                  labelStyle: const TextStyle(color: Colors.white70),
-                  prefixIcon: const Icon(Icons.phone_android_rounded, color: Color(0xFF38BDF8)),
-                  filled: true,
-                  fillColor: const Color(0xFF0F172A),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: variantCtrl,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: 'വേരിയൻ്റ് / കളർ (Variant / Color)',
-                  labelStyle: const TextStyle(color: Colors.white70),
-                  prefixIcon: const Icon(Icons.palette_outlined, color: Color(0xFF818CF8)),
-                  filled: true,
-                  fillColor: const Color(0xFF0F172A),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: unitCtrl,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: 'യൂണിറ്റ് (Unit: Pcs, Box, Set)',
-                  labelStyle: const TextStyle(color: Colors.white70),
-                  prefixIcon: const Icon(Icons.straighten_rounded, color: Color(0xFF34D399)),
-                  filled: true,
-                  fillColor: const Color(0xFF0F172A),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: remarksCtrl,
-                maxLines: 2,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: 'പ്രത്യേക കുറിപ്പ് (Item Remarks)',
-                  labelStyle: const TextStyle(color: Colors.white70),
-                  prefixIcon: const Icon(Icons.note_alt_outlined, color: Color(0xFFFBBF24)),
-                  filled: true,
-                  fillColor: const Color(0xFF0F172A),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ],
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(
+            item.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.bold),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('റദ്ദാക്കുക (Cancel)', style: TextStyle(color: Colors.white70)),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF2563EB),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: modelCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'മോഡൽ (Model, e.g. iPhone 13)',
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    prefixIcon: const Icon(Icons.phone_android_rounded,
+                        color: Color(0xFF38BDF8)),
+                    filled: true,
+                    fillColor: const Color(0xFF0F172A),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: variantCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'വേരിയൻ്റ് / കളർ (Variant / Color)',
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    prefixIcon: const Icon(Icons.palette_outlined,
+                        color: Color(0xFF818CF8)),
+                    filled: true,
+                    fillColor: const Color(0xFF0F172A),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: unitCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'യൂണിറ്റ് (Unit: Pcs, Box, Set)',
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    prefixIcon: const Icon(Icons.straighten_rounded,
+                        color: Color(0xFF34D399)),
+                    filled: true,
+                    fillColor: const Color(0xFF0F172A),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: remarksCtrl,
+                  maxLines: 2,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'പ്രത്യേക കുറിപ്പ് (Item Remarks)',
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    prefixIcon: const Icon(Icons.note_alt_outlined,
+                        color: Color(0xFFFBBF24)),
+                    filled: true,
+                    fillColor: const Color(0xFF0F172A),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
             ),
-            onPressed: () {
-              setState(() {
-                _cart[index] = StaffOrderProduct(
-                  id: item.id,
-                  productId: item.productId,
-                  name: item.name,
-                  sku: item.sku,
-                  category: item.category,
-                  model: modelCtrl.text.trim(),
-                  variant: variantCtrl.text.trim(),
-                  quantity: item.quantity,
-                  unit: unitCtrl.text.trim().isEmpty ? 'Pcs' : unitCtrl.text.trim(),
-                  remarks: remarksCtrl.text.trim(),
-                  isCustom: item.isCustom,
-                );
-              });
-              Navigator.pop(ctx);
-            },
-            child: const Text('സേവ് ചെയ്യുക (Save)'),
           ),
-        ],
-      ),
-    );
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('റദ്ദാക്കുക (Cancel)',
+                  style: TextStyle(color: Colors.white70)),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () {
+                setState(() {
+                  _cart[index] = StaffOrderProduct(
+                    id: item.id,
+                    productId: item.productId,
+                    name: item.name,
+                    sku: item.sku,
+                    category: item.category,
+                    model: modelCtrl.text.trim(),
+                    variant: variantCtrl.text.trim(),
+                    quantity: item.quantity,
+                    unit: unitCtrl.text.trim().isEmpty
+                        ? 'Pcs'
+                        : unitCtrl.text.trim(),
+                    remarks: remarksCtrl.text.trim(),
+                    isCustom: item.isCustom,
+                  );
+                });
+                Navigator.pop(ctx);
+              },
+              child: const Text('സേവ് ചെയ്യുക (Save)'),
+            ),
+          ],
+        ),
+      );
     } finally {
       modelCtrl.dispose();
       variantCtrl.dispose();
@@ -313,172 +344,192 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
     try {
       await showDialog(
         context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setD) => AlertDialog(
-          backgroundColor: const Color(0xFF1E293B),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Row(
-            children: [
-              Icon(Icons.add_shopping_cart_rounded, color: Color(0xFF38BDF8)),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'കസ്റ്റം പ്രോഡക്റ്റ് ചേർക്കുക (Add Custom Item)',
-                  style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setD) => AlertDialog(
+            backgroundColor: const Color(0xFF1E293B),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Row(
               children: [
-                TextField(
-                  controller: nameCtrl,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'ഉൽപ്പന്നത്തിന്റെ പേര് (Product Name) *',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    hintText: 'e.g. Display Combo, Speaker, Back Panel',
-                    prefixIcon: const Icon(Icons.shopping_bag_outlined, color: Color(0xFF38BDF8)),
-                    filled: true,
-                    fillColor: const Color(0xFF0F172A),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: modelCtrl,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'മോഡൽ / ബ്രാൻഡ് (Model / Brand)',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    hintText: 'e.g. Samsung M31, Redmi Note 10',
-                    prefixIcon: const Icon(Icons.devices_rounded, color: Color(0xFF818CF8)),
-                    filled: true,
-                    fillColor: const Color(0xFF0F172A),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: TextField(
-                        controller: qtyCtrl,
-                        keyboardType: TextInputType.number,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                        decoration: InputDecoration(
-                          labelText: 'എണ്ണം (Qty) *',
-                          labelStyle: const TextStyle(color: Colors.white70),
-                          prefixIcon: const Icon(Icons.numbers_rounded, color: Color(0xFF34D399)),
-                          filled: true,
-                          fillColor: const Color(0xFF0F172A),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      flex: 2,
-                      child: TextField(
-                        controller: unitCtrl,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          labelText: 'യൂണിറ്റ് (Unit)',
-                          labelStyle: const TextStyle(color: Colors.white70),
-                          hintText: 'Pcs',
-                          filled: true,
-                          fillColor: const Color(0xFF0F172A),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: customCategory,
-                  dropdownColor: const Color(0xFF1E293B),
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'വിഭാഗം (Category)',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    prefixIcon: const Icon(Icons.category_outlined, color: Color(0xFFFBBF24)),
-                    filled: true,
-                    fillColor: const Color(0xFF0F172A),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  items: _categories
-                      .where((c) => c != 'All')
-                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                      .toList(),
-                  onChanged: (v) {
-                    if (v != null) setD(() => customCategory = v);
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: remarksCtrl,
-                  maxLines: 2,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'കുറിപ്പ് (Remarks / Specifics)',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    hintText: 'e.g. Original quality only, Customer waiting',
-                    prefixIcon: const Icon(Icons.edit_note_rounded, color: Color(0xFFFB923C)),
-                    filled: true,
-                    fillColor: const Color(0xFF0F172A),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                Icon(Icons.add_shopping_cart_rounded, color: Color(0xFF38BDF8)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'കസ്റ്റം പ്രോഡക്റ്റ് ചേർക്കുക (Add Custom Item)',
+                    style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold),
                   ),
                 ),
               ],
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('റദ്ദാക്കുക (Cancel)', style: TextStyle(color: Colors.white70)),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: nameCtrl,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'ഉൽപ്പന്നത്തിന്റെ പേര് (Product Name) *',
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      hintText: 'e.g. Display Combo, Speaker, Back Panel',
+                      prefixIcon: const Icon(Icons.shopping_bag_outlined,
+                          color: Color(0xFF38BDF8)),
+                      filled: true,
+                      fillColor: const Color(0xFF0F172A),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: modelCtrl,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'മോഡൽ / ബ്രാൻഡ് (Model / Brand)',
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      hintText: 'e.g. Samsung M31, Redmi Note 10',
+                      prefixIcon: const Icon(Icons.devices_rounded,
+                          color: Color(0xFF818CF8)),
+                      filled: true,
+                      fillColor: const Color(0xFF0F172A),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: TextField(
+                          controller: qtyCtrl,
+                          keyboardType: TextInputType.number,
+                          style: const TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.bold),
+                          decoration: InputDecoration(
+                            labelText: 'എണ്ണം (Qty) *',
+                            labelStyle: const TextStyle(color: Colors.white70),
+                            prefixIcon: const Icon(Icons.numbers_rounded,
+                                color: Color(0xFF34D399)),
+                            filled: true,
+                            fillColor: const Color(0xFF0F172A),
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        flex: 2,
+                        child: TextField(
+                          controller: unitCtrl,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            labelText: 'യൂണിറ്റ് (Unit)',
+                            labelStyle: const TextStyle(color: Colors.white70),
+                            hintText: 'Pcs',
+                            filled: true,
+                            fillColor: const Color(0xFF0F172A),
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: customCategory,
+                    dropdownColor: const Color(0xFF1E293B),
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'വിഭാഗം (Category)',
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      prefixIcon: const Icon(Icons.category_outlined,
+                          color: Color(0xFFFBBF24)),
+                      filled: true,
+                      fillColor: const Color(0xFF0F172A),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    items: _categories
+                        .where((c) => c != 'All')
+                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) setD(() => customCategory = v);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: remarksCtrl,
+                    maxLines: 2,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'കുറിപ്പ് (Remarks / Specifics)',
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      hintText: 'e.g. Original quality only, Customer waiting',
+                      prefixIcon: const Icon(Icons.edit_note_rounded,
+                          color: Color(0xFFFB923C)),
+                      filled: true,
+                      fillColor: const Color(0xFF0F172A),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ],
               ),
-              onPressed: () {
-                final name = nameCtrl.text.trim();
-                final qty = int.tryParse(qtyCtrl.text.trim()) ?? 1;
-                if (name.isEmpty) {
-                  toast(context, 'ഉൽപ്പന്നത്തിന്റെ പേര് നൽകുക', error: true);
-                  return;
-                }
-                if (qty <= 0) {
-                  toast(context, 'സാധുവായ എണ്ണം നൽകുക', error: true);
-                  return;
-                }
-
-                setState(() {
-                  _cart.add(StaffOrderProduct(
-                    id: DateTime.now().millisecondsSinceEpoch.toString(),
-                    name: name,
-                    category: customCategory,
-                    model: modelCtrl.text.trim(),
-                    quantity: qty,
-                    unit: unitCtrl.text.trim().isEmpty ? 'Pcs' : unitCtrl.text.trim(),
-                    remarks: remarksCtrl.text.trim(),
-                    isCustom: true,
-                  ));
-                });
-                Navigator.pop(ctx);
-                toast(context, '$name ഓർഡറിൽ ചേർത്തു');
-              },
-              child: const Text('ചേർക്കുക (Add to Order)'),
             ),
-          ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('റദ്ദാക്കുക (Cancel)',
+                    style: TextStyle(color: Colors.white70)),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () {
+                  final name = nameCtrl.text.trim();
+                  final qty = int.tryParse(qtyCtrl.text.trim()) ?? 1;
+                  if (name.isEmpty) {
+                    toast(context, 'ഉൽപ്പന്നത്തിന്റെ പേര് നൽകുക', error: true);
+                    return;
+                  }
+                  if (qty <= 0) {
+                    toast(context, 'സാധുവായ എണ്ണം നൽകുക', error: true);
+                    return;
+                  }
+
+                  setState(() {
+                    _cart.add(StaffOrderProduct(
+                      id: DateTime.now().millisecondsSinceEpoch.toString(),
+                      name: name,
+                      category: customCategory,
+                      model: modelCtrl.text.trim(),
+                      quantity: qty,
+                      unit: unitCtrl.text.trim().isEmpty
+                          ? 'Pcs'
+                          : unitCtrl.text.trim(),
+                      remarks: remarksCtrl.text.trim(),
+                      isCustom: true,
+                    ));
+                  });
+                  Navigator.pop(ctx);
+                  toast(context, '$name ഓർഡറിൽ ചേർത്തു');
+                },
+                child: const Text('ചേർക്കുക (Add to Order)'),
+              ),
+            ],
+          ),
         ),
-      ),
-    );
+      );
     } finally {
       nameCtrl.dispose();
       modelCtrl.dispose();
@@ -496,8 +547,10 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: const Color(0xFF1E293B),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          icon: const Icon(Icons.qr_code_scanner_rounded, size: 40, color: Color(0xFF38BDF8)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          icon: const Icon(Icons.qr_code_scanner_rounded,
+              size: 40, color: Color(0xFF38BDF8)),
           title: const Text(
             'ബാർകോഡ് സ്കാനർ (Barcode Search)',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
@@ -513,13 +566,16 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
               TextField(
                 controller: barcodeCtrl,
                 autofocus: true,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold),
                 decoration: InputDecoration(
                   hintText: 'ബാർകോഡ് ഇവിടെ നൽകുക (Barcode)...',
-                  prefixIcon: const Icon(Icons.barcode_reader, color: Color(0xFF38BDF8)),
+                  prefixIcon: const Icon(Icons.barcode_reader,
+                      color: Color(0xFF38BDF8)),
                   filled: true,
                   fillColor: const Color(0xFF0F172A),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
                 onSubmitted: (val) {
                   if (val.trim().isNotEmpty) {
@@ -534,10 +590,12 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('റദ്ദാക്കുക', style: TextStyle(color: Colors.white70)),
+              child: const Text('റദ്ദാക്കുക',
+                  style: TextStyle(color: Colors.white70)),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
+              style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB)),
               onPressed: () {
                 final val = barcodeCtrl.text.trim();
                 if (val.isNotEmpty) {
@@ -565,266 +623,312 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
-      backgroundColor: const Color(0xFF1E293B),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) {
-          final totalTypes = _cart.length;
-          final totalQty = _totalCartQty;
+        backgroundColor: const Color(0xFF1E293B),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setS) {
+            final totalTypes = _cart.length;
+            final totalQty = _totalCartQty;
 
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom,
-              top: 16,
-              left: 16,
-              right: 16,
-            ),
-            child: SizedBox(
-              height: MediaQuery.of(ctx).size.height * 0.80,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Row(
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+                top: 16,
+                left: 16,
+                right: 16,
+              ),
+              child: SizedBox(
+                height: MediaQuery.of(ctx).size.height * 0.80,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.shopping_cart_checkout_rounded,
+                                color: Color(0xFF38BDF8), size: 26),
+                            SizedBox(width: 8),
+                            Text(
+                              'ഓർഡർ അവലോകനം (Review Order)',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded,
+                              color: Colors.white70),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Summary Pill
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF334155)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
-                          Icon(Icons.shopping_cart_checkout_rounded, color: Color(0xFF38BDF8), size: 26),
-                          SizedBox(width: 8),
                           Text(
-                            'ഓർഡർ അവലോകനം (Review Order)',
-                            style: TextStyle(
-                              fontSize: 16,
+                            'ആകെ ഇനങ്ങൾ: $totalTypes Types',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white70),
+                          ),
+                          const Text('•',
+                              style: TextStyle(color: Colors.white38)),
+                          Text(
+                            'ആകെ എണ്ണം: $totalQty Pcs',
+                            style: const TextStyle(
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: Color(0xFF38BDF8),
                             ),
                           ),
                         ],
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Summary Pill
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFF334155)),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        Text(
-                          'ആകെ ഇനങ്ങൾ: $totalTypes Types',
-                          style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.white70),
-                        ),
-                        const Text('•', style: TextStyle(color: Colors.white38)),
-                        Text(
-                          'ആകെ എണ്ണം: $totalQty Pcs',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF38BDF8),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 18, color: Color(0xFF334155)),
+                    const Divider(height: 18, color: Color(0xFF334155)),
 
-                  Expanded(
-                    child: _cart.isEmpty
-                        ? const Center(
-                            child: Text(
-                              'ലിസ്റ്റിൽ ഉൽപ്പന്നങ്ങളൊന്നുമില്ല',
-                              style: TextStyle(color: Colors.white54),
-                            ),
-                          )
-                        : ListView.separated(
-                            itemCount: _cart.length,
-                            separatorBuilder: (_, __) => const Divider(height: 8, color: Color(0xFF334155)),
-                            itemBuilder: (ctx, i) {
-                              final item = _cart[i];
-                              return ListTile(
-                                dense: true,
-                                contentPadding: EdgeInsets.zero,
-                                leading: Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: item.isCustom
-                                        ? Colors.orange.withValues(alpha: 0.15)
-                                        : const Color(0xFF2563EB).withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Icon(
-                                    item.isCustom ? Icons.build_circle_outlined : Icons.inventory_2_outlined,
-                                    color: item.isCustom ? Colors.orange : const Color(0xFF38BDF8),
-                                    size: 20,
-                                  ),
-                                ),
-                                title: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        item.name,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 13.5,
-                                          color: Colors.white,
-                                        ),
-                                      ),
+                    Expanded(
+                      child: _cart.isEmpty
+                          ? const Center(
+                              child: Text(
+                                'ലിസ്റ്റിൽ ഉൽപ്പന്നങ്ങളൊന്നുമില്ല',
+                                style: TextStyle(color: Colors.white54),
+                              ),
+                            )
+                          : ListView.separated(
+                              itemCount: _cart.length,
+                              separatorBuilder: (_, __) => const Divider(
+                                  height: 8, color: Color(0xFF334155)),
+                              itemBuilder: (ctx, i) {
+                                final item = _cart[i];
+                                return ListTile(
+                                  dense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: item.isCustom
+                                          ? Colors.orange
+                                              .withValues(alpha: 0.15)
+                                          : const Color(0xFF2563EB)
+                                              .withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(10),
                                     ),
-                                    if (item.isCustom)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                                        decoration: BoxDecoration(
-                                          color: Colors.orange.withValues(alpha: 0.2),
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: const Text(
-                                          'Custom',
-                                          style: TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.bold),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      [
-                                        if (item.category.isNotEmpty) item.category,
-                                        if (item.model.isNotEmpty) 'Model: ${item.model}',
-                                        if (item.remarks.isNotEmpty) 'Note: ${item.remarks}',
-                                      ].join(' • '),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(fontSize: 11.5, color: Colors.white60),
+                                    child: Icon(
+                                      item.isCustom
+                                          ? Icons.build_circle_outlined
+                                          : Icons.inventory_2_outlined,
+                                      color: item.isCustom
+                                          ? Colors.orange
+                                          : const Color(0xFF38BDF8),
+                                      size: 20,
                                     ),
-                                    const SizedBox(height: 3),
-                                    InkWell(
-                                      onTap: () async {
-                                        await _editCartItemDetails(i);
-                                        setS(() {});
-                                      },
-                                      child: const Text(
-                                        'വിശദാംശങ്ങൾ മാറ്റുക (Edit details)',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: Color(0xFF38BDF8),
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                trailing: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF0F172A),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: const Color(0xFF334155)),
                                   ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
+                                  title: Row(
                                     children: [
-                                      IconButton(
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                                        icon: const Icon(Icons.remove_rounded, size: 18, color: Color(0xFFEF4444)),
-                                        onPressed: () {
-                                          _updateCartItemQty(i, item.quantity - 1);
-                                          setS(() {});
-                                        },
-                                      ),
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                                      Expanded(
                                         child: Text(
-                                          '${item.quantity}',
+                                          item.name,
                                           style: const TextStyle(
-                                            fontSize: 14,
                                             fontWeight: FontWeight.bold,
+                                            fontSize: 13.5,
                                             color: Colors.white,
                                           ),
                                         ),
                                       ),
-                                      IconButton(
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                                        icon: const Icon(Icons.add_rounded, size: 18, color: Color(0xFF10B981)),
-                                        onPressed: () {
-                                          _updateCartItemQty(i, item.quantity + 1);
+                                      if (item.isCustom)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 5, vertical: 1.5),
+                                          decoration: BoxDecoration(
+                                            color: Colors.orange
+                                                .withValues(alpha: 0.2),
+                                            borderRadius:
+                                                BorderRadius.circular(4),
+                                          ),
+                                          child: const Text(
+                                            'Custom',
+                                            style: TextStyle(
+                                                fontSize: 10,
+                                                color: Colors.orange,
+                                                fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        [
+                                          if (item.category.isNotEmpty)
+                                            item.category,
+                                          if (item.model.isNotEmpty)
+                                            'Model: ${item.model}',
+                                          if (item.remarks.isNotEmpty)
+                                            'Note: ${item.remarks}',
+                                        ].join(' • '),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                            fontSize: 11.5,
+                                            color: Colors.white60),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      InkWell(
+                                        onTap: () async {
+                                          await _editCartItemDetails(i);
                                           setS(() {});
                                         },
+                                        child: const Text(
+                                          'വിശദാംശങ്ങൾ മാറ്റുക (Edit details)',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Color(0xFF38BDF8),
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
                                       ),
                                     ],
                                   ),
-                                ),
-                              );
+                                  trailing: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 4, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF0F172A),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                          color: const Color(0xFF334155)),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(
+                                              minWidth: 28, minHeight: 28),
+                                          icon: const Icon(Icons.remove_rounded,
+                                              size: 18,
+                                              color: Color(0xFFEF4444)),
+                                          onPressed: () {
+                                            _updateCartItemQty(
+                                                i, item.quantity - 1);
+                                            setS(() {});
+                                          },
+                                        ),
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 6),
+                                          child: Text(
+                                            '${item.quantity}',
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                        IconButton(
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(
+                                              minWidth: 28, minHeight: 28),
+                                          icon: const Icon(Icons.add_rounded,
+                                              size: 18,
+                                              color: Color(0xFF10B981)),
+                                          onPressed: () {
+                                            _updateCartItemQty(
+                                                i, item.quantity + 1);
+                                            setS(() {});
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    TextField(
+                      controller: remarksCtrl,
+                      maxLines: 2,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText:
+                            'പൊതുവായ കുറിപ്പുകൾ (General Remarks / Note)',
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        hintText:
+                            'e.g. Urgent delivery required for customer repairs',
+                        prefixIcon: const Icon(Icons.notes_rounded,
+                            color: Color(0xFF38BDF8)),
+                        filled: true,
+                        fillColor: const Color(0xFF0F172A),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        backgroundColor: const Color(0xFF2563EB),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                      icon: _submitting
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2),
+                            )
+                          : const Icon(Icons.send_rounded),
+                      label: Text(
+                        _submitting
+                            ? 'ഓർഡർ സമർപ്പിക്കുന്നു...'
+                            : 'ഓർഡർ സമർപ്പിക്കുക (Submit Order)',
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.bold),
+                      ),
+                      onPressed: _submitting || _cart.isEmpty
+                          ? null
+                          : () async {
+                              Navigator.pop(ctx);
+                              await _handleOrderSubmission(
+                                  remarksCtrl.text.trim());
                             },
-                          ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  TextField(
-                    controller: remarksCtrl,
-                    maxLines: 2,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: 'പൊതുവായ കുറിപ്പുകൾ (General Remarks / Note)',
-                      labelStyle: const TextStyle(color: Colors.white70),
-                      hintText: 'e.g. Urgent delivery required for customer repairs',
-                      prefixIcon: const Icon(Icons.notes_rounded, color: Color(0xFF38BDF8)),
-                      filled: true,
-                      fillColor: const Color(0xFF0F172A),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      backgroundColor: const Color(0xFF2563EB),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                    icon: _submitting
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                          )
-                        : const Icon(Icons.send_rounded),
-                    label: Text(
-                      _submitting ? 'ഓർഡർ സമർപ്പിക്കുന്നു...' : 'ഓർഡർ സമർപ്പിക്കുക (Submit Order)',
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                    ),
-                    onPressed: _submitting || _cart.isEmpty
-                        ? null
-                        : () async {
-                            Navigator.pop(ctx);
-                            await _handleOrderSubmission(remarksCtrl.text.trim());
-                          },
-                  ),
-                  const SizedBox(height: 10),
-                ],
+                    const SizedBox(height: 10),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
-      ),
-    );
-  } finally {
-    remarksCtrl.dispose();
-  }
+            );
+          },
+        ),
+      );
+    } finally {
+      remarksCtrl.dispose();
+    }
   }
 
   // Handle Order Submission with Idempotency guard and post-submission modal
@@ -839,13 +943,16 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
       final timeStr = DateFormat('hh:mm a').format(now);
 
       // Generate sequential order ID
-      final orderId = await OrderService.instance.generateOrderId(widget.shopId);
+      final orderId =
+          await OrderService.instance.generateOrderId(widget.shopId);
 
       // Resolve effective staff ID (prefer current auth UID to guarantee rule matching)
       final authUid = FirebaseAuth.instance.currentUser?.uid;
       final effectiveStaffId = (authUid != null && authUid.isNotEmpty)
           ? authUid
-          : (widget.staffId.isNotEmpty ? widget.staffId : Db.setting('staff_logged_id'));
+          : (widget.staffId.isNotEmpty
+              ? widget.staffId
+              : Db.setting('staff_logged_id'));
 
       final order = StaffOrder(
         orderId: orderId,
@@ -883,13 +990,19 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
           context: context,
           builder: (ctx) => AlertDialog(
             backgroundColor: const Color(0xFF1E293B),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-            icon: const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 40),
-            title: const Text('ഓർഡർ പരാജയപ്പെട്ടു (Order Failed)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            content: Text(e.toString(), style: const TextStyle(color: Colors.white70)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            icon: const Icon(Icons.error_outline_rounded,
+                color: Colors.redAccent, size: 40),
+            title: const Text('ഓർഡർ പരാജയപ്പെട്ടു (Order Failed)',
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold)),
+            content: Text(e.toString(),
+                style: const TextStyle(color: Colors.white70)),
             actions: [
               FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
+                style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB)),
                 onPressed: () => Navigator.pop(ctx),
                 child: const Text('OK'),
               ),
@@ -905,7 +1018,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
   // Section 13 Post-Submission Modal
   void _showPostOrderActionDialog(StaffOrder order) {
     final formattedMessage = OrderService.instance.formatWhatsAppMessage(order);
-    const groupUrl = 'https://chat.whatsapp.com/GD5fTnnLRk9I0mPXdJ80n0?s=cl&p=a&mlu=4&ilr=4';
+    const groupUrl =
+        'https://chat.whatsapp.com/GD5fTnnLRk9I0mPXdJ80n0?s=cl&p=a&mlu=4&ilr=4';
 
     showDialog(
       context: context,
@@ -913,11 +1027,13 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1E293B),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        icon: const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 52),
+        icon: const Icon(Icons.check_circle_rounded,
+            color: Color(0xFF10B981), size: 52),
         title: const Text(
           'ഓർഡർ വിജയകരമായി സമർപ്പിച്ചു!',
           textAlign: TextAlign.center,
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Colors.white),
+          style: TextStyle(
+              fontWeight: FontWeight.bold, fontSize: 17, color: Colors.white),
         ),
         content: SingleChildScrollView(
           child: Column(
@@ -925,7 +1041,10 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
             children: [
               Text(
                 'Order ID: ${order.orderId}',
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8), fontSize: 15),
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF38BDF8),
+                    fontSize: 15),
               ),
               const SizedBox(height: 6),
               Text(
@@ -938,7 +1057,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                 decoration: BoxDecoration(
                   color: const Color(0xFF25D366).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF25D366).withValues(alpha: 0.35)),
+                  border: Border.all(
+                      color: const Color(0xFF25D366).withValues(alpha: 0.35)),
                 ),
                 child: const Text(
                   'ഈ ഓർഡർ കമ്പനിയുടെ ഔദ്യോഗിക WhatsApp ഗ്രൂപ്പിലേക്ക് അയക്കുക അല്ലെങ്കിൽ മെസ്സേജ് കോപ്പി ചെയ്യുക.',
@@ -955,7 +1075,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                     backgroundColor: const Color(0xFF25D366),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                   icon: const Icon(Icons.send_rounded),
                   label: const Text(
@@ -963,7 +1084,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   onPressed: () async {
-                    await OrderService.instance.copyOrderToClipboard(formattedMessage);
+                    await OrderService.instance
+                        .copyOrderToClipboard(formattedMessage);
                     await OrderService.instance.openWhatsAppGroup(groupUrl);
                     await OrderService.instance.updateWhatsAppStatus(
                       shopId: widget.shopId,
@@ -971,7 +1093,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                       status: WhatsAppDeliveryStatus.sentSuccessfully,
                     );
                     if (ctx.mounted) {
-                      toast(ctx, 'ഓർഡർ കോപ്പി ചെയ്തു, ഗ്രൂപ്പിൽ പേസ്റ്റ് ചെയ്യുക');
+                      toast(ctx,
+                          'ഓർഡർ കോപ്പി ചെയ്തു, ഗ്രൂപ്പിൽ പേസ്റ്റ് ചെയ്യുക');
                     }
                   },
                 ),
@@ -984,14 +1107,18 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     side: const BorderSide(color: Color(0xFF334155)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                   icon: const Icon(Icons.copy_rounded, color: Colors.white70),
-                  label: const Text('ഓർഡർ കോപ്പി ചെയ്യുക (Copy Text)', style: TextStyle(color: Colors.white)),
+                  label: const Text('ഓർഡർ കോപ്പി ചെയ്യുക (Copy Text)',
+                      style: TextStyle(color: Colors.white)),
                   onPressed: () async {
-                    await OrderService.instance.copyOrderToClipboard(formattedMessage);
+                    await OrderService.instance
+                        .copyOrderToClipboard(formattedMessage);
                     if (ctx.mounted) {
-                      toast(ctx, 'ഓർഡർ വിവരങ്ങൾ ക്ലിപ്ബോർഡിലേക്ക് കോപ്പി ചെയ്തു');
+                      toast(
+                          ctx, 'ഓർഡർ വിവരങ്ങൾ ക്ലിപ്ബോർഡിലേക്ക് കോപ്പി ചെയ്തു');
                     }
                   },
                 ),
@@ -1003,7 +1130,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFF2563EB),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
             onPressed: () {
               Navigator.pop(ctx);
@@ -1028,11 +1156,15 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
           children: [
             const Text(
               'TekFix Orders (ഓർഡറുകൾ)',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: TekColors.textPrimary),
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 17,
+                  color: TekColors.textPrimary),
             ),
             Text(
               'Staff: ${widget.staffName} • ${widget.shopId.toUpperCase()}',
-              style: const TextStyle(fontSize: 11.5, color: TekColors.textSecondary),
+              style: const TextStyle(
+                  fontSize: 11.5, color: TekColors.textSecondary),
             ),
           ],
         ),
@@ -1042,10 +1174,15 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
           indicatorWeight: 3,
           labelColor: TekColors.primary,
           unselectedLabelColor: TekColors.textSecondary,
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          labelStyle:
+              const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
           tabs: const [
-            Tab(icon: Icon(Icons.add_shopping_cart_rounded), text: 'New Order (പുതിയത്)'),
-            Tab(icon: Icon(Icons.history_rounded), text: 'Order History (ചരിത്രം)'),
+            Tab(
+                icon: Icon(Icons.add_shopping_cart_rounded),
+                text: 'New Order (പുതിയത്)'),
+            Tab(
+                icon: Icon(Icons.history_rounded),
+                text: 'Order History (ചരിത്രം)'),
           ],
         ),
       ),
@@ -1071,7 +1208,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeOutCubic,
               child: AnimatedOpacity(
-                opacity: (_cart.isNotEmpty && _tabController.index == 0) ? 1.0 : 0.0,
+                opacity:
+                    (_cart.isNotEmpty && _tabController.index == 0) ? 1.0 : 0.0,
                 duration: const Duration(milliseconds: 250),
                 child: _buildFloatingCartBar(),
               ),
@@ -1090,7 +1228,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
       decoration: BoxDecoration(
         color: const Color(0xFF0F172A).withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.6), width: 1.2),
+        border: Border.all(
+            color: const Color(0xFF3B82F6).withValues(alpha: 0.6), width: 1.2),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF1D4ED8).withValues(alpha: 0.35),
@@ -1114,7 +1253,10 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
             ),
             child: Text(
               '${_cart.length}',
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14),
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontSize: 14),
             ),
           ),
           const SizedBox(width: 14),
@@ -1127,7 +1269,10 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
               children: [
                 Text(
                   '${_cart.length} Types • $_totalCartQty Items',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Colors.white),
                 ),
                 const SizedBox(height: 2),
                 const Text(
@@ -1144,7 +1289,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
               backgroundColor: const Color(0xFF2563EB),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
               elevation: 4,
             ),
             icon: const Icon(Icons.shopping_cart_checkout_rounded, size: 18),
@@ -1166,21 +1312,22 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
     return StreamBuilder<List<PosItem>>(
       stream: _catalogStream,
       builder: (context, snapshot) {
-        final allItems = snapshot.data ?? () {
-          final list = <PosItem>[];
-          for (final v in Db.items.values) {
-            if (v is Map) {
-              final m = Map<String, dynamic>.from(v);
-              list.add(PosItem.fromMap(m['id']?.toString() ?? '', m));
-            }
-          }
-          return list;
-        }();
+        final allItems = snapshot.data ??
+            () {
+              final list = <PosItem>[];
+              for (final v in Db.items.values) {
+                if (v is Map) {
+                  final m = Map<String, dynamic>.from(v);
+                  list.add(PosItem.fromMap(m['id']?.toString() ?? '', m));
+                }
+              }
+              return list;
+            }();
 
         // Filter items by category & search query
         final filtered = allItems.where((it) {
-          final matchesCat =
-              _selectedCategory == 'All' || it.category.toLowerCase() == _selectedCategory.toLowerCase();
+          final matchesCat = _selectedCategory == 'All' ||
+              it.category.toLowerCase() == _selectedCategory.toLowerCase();
           final q = _searchQuery.toLowerCase();
           final matchesQuery = q.isEmpty ||
               it.name.toLowerCase().contains(q) ||
@@ -1190,424 +1337,488 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
         }).toList();
 
         return Column(
-      children: [
-        // Top Search and Add Custom Button
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF334155)),
-                  ),
-                  child: TextField(
-                    controller: _searchCtrl,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                    onChanged: (val) => setState(() => _searchQuery = val.trim()),
-                    decoration: InputDecoration(
-                      hintText: 'തിരയുക (Search products, SKU)...',
-                      hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
-                      prefixIcon: const Icon(Icons.search_rounded, color: Colors.white60),
-                      suffixIcon: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (_searchQuery.isNotEmpty)
-                            IconButton(
-                              icon: const Icon(Icons.clear_rounded, color: Colors.white60, size: 18),
-                              onPressed: () {
-                                _searchCtrl.clear();
-                                setState(() => _searchQuery = '');
-                              },
-                            ),
-                          IconButton(
-                            tooltip: 'Barcode Scanner',
-                            icon: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF38BDF8), size: 20),
-                            onPressed: () {
-                              HapticFeedback.lightImpact();
-                              _openQuickScannerDialog();
-                            },
-                          ),
-                        ],
-                      ),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              // + Custom Item Button
-              GestureDetector(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  _showAddCustomProductDialog();
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFF59E0B), Color(0xFFEA580C)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.add_circle_outline_rounded, size: 18, color: Colors.white),
-                      SizedBox(width: 6),
-                      Text(
-                        '+ Custom',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // Horizontal Category Filter Pills with Matching Icons
-        SizedBox(
-          height: 44,
-          child: ListView.separated(
-            cacheExtent: 300,
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _categories.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemBuilder: (ctx, i) {
-              final cat = _categories[i];
-              final isSel = _selectedCategory == cat;
-              final icon = _getCategoryIcon(cat);
-              final color = _getCategoryColor(cat);
-
-              return GestureDetector(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  setState(() => _selectedCategory = cat);
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    gradient: isSel
-                        ? const LinearGradient(
-                            colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          )
-                        : null,
-                    color: isSel ? null : const Color(0xFF1E293B),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: isSel ? const Color(0xFF3B82F6) : const Color(0xFF334155),
-                    ),
-                    boxShadow: isSel
-                        ? [
-                            BoxShadow(
-                              color: const Color(0xFF2563EB).withValues(alpha: 0.35),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(icon, size: 16, color: isSel ? Colors.white : color),
-                      const SizedBox(width: 6),
-                      Text(
-                        cat,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
-                          color: isSel ? Colors.white : Colors.white70,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-
-        const SizedBox(height: 8),
-
-        // Dynamic Stock Cards List
-        Expanded(
-          child: filtered.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.inventory_2_outlined, size: 52, color: Colors.white24),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'ഉൽപ്പന്നങ്ങളൊന്നും കണ്ടെത്തിയില്ല\n(No catalog products found)',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white54),
-                      ),
-                      const SizedBox(height: 14),
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('+ കസ്റ്റം ഉൽപ്പന്നം ചേർക്കുക'),
-                        onPressed: _showAddCustomProductDialog,
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.separated(
-                  cacheExtent: 300,
-                  padding: EdgeInsets.fromLTRB(16, 6, 16, _cart.isNotEmpty ? 90 : 20),
-                  itemCount: filtered.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (ctx, i) {
-                    final item = filtered[i];
-                    final cartIdx = _cart.indexWhere((c) => !c.isCustom && c.productId == item.id);
-                    final cartQty = cartIdx >= 0 ? _cart[cartIdx].quantity : 0;
-                    final catColor = _getCategoryColor(item.category);
-                    final catIcon = _getCategoryIcon(item.category);
-
-                    // Stock health styling
-                    final bool inStock = item.stock > 10;
-                    final bool lowStock = item.stock > 0 && item.stock <= 10;
-                    final healthColor = inStock
-                        ? const Color(0xFF10B981)
-                        : (lowStock ? const Color(0xFFF59E0B) : const Color(0xFFEF4444));
-                    final healthText = inStock
-                        ? 'In Stock (${item.stock})'
-                        : (lowStock ? 'Low Stock (${item.stock} left)' : 'Out of Stock');
-
-                    return Container(
+          children: [
+            // Top Search and Add Custom Button
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(
                       decoration: BoxDecoration(
                         color: const Color(0xFF1E293B),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: cartQty > 0
-                              ? const Color(0xFF3B82F6)
-                              : const Color(0xFF334155),
-                          width: cartQty > 0 ? 1.5 : 1.0,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFF334155)),
+                      ),
+                      child: TextField(
+                        controller: _searchCtrl,
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 14),
+                        onChanged: (val) =>
+                            setState(() => _searchQuery = val.trim()),
+                        decoration: InputDecoration(
+                          hintText: 'തിരയുക (Search products, SKU)...',
+                          hintStyle: const TextStyle(
+                              color: Colors.white38, fontSize: 13),
+                          prefixIcon: const Icon(Icons.search_rounded,
+                              color: Colors.white60),
+                          suffixIcon: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (_searchQuery.isNotEmpty)
+                                IconButton(
+                                  icon: const Icon(Icons.clear_rounded,
+                                      color: Colors.white60, size: 18),
+                                  onPressed: () {
+                                    _searchCtrl.clear();
+                                    setState(() => _searchQuery = '');
+                                  },
+                                ),
+                              IconButton(
+                                tooltip: 'Barcode Scanner',
+                                icon: const Icon(Icons.qr_code_scanner_rounded,
+                                    color: Color(0xFF38BDF8), size: 20),
+                                onPressed: () {
+                                  HapticFeedback.lightImpact();
+                                  _openQuickScannerDialog();
+                                },
+                              ),
+                            ],
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
                         ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  // + Custom Item Button
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      _showAddCustomProductDialog();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFF59E0B), Color(0xFFEA580C)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(14),
                         boxShadow: [
                           BoxShadow(
-                            color: cartQty > 0
-                                ? const Color(0xFF2563EB).withValues(alpha: 0.15)
-                                : Colors.black.withValues(alpha: 0.2),
+                            color:
+                                const Color(0xFFF59E0B).withValues(alpha: 0.3),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
                         ],
                       ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                            // Category-specific colored icon badge
-                            Container(
-                              width: 46,
-                              height: 46,
-                              decoration: BoxDecoration(
-                                color: catColor.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: catColor.withValues(alpha: 0.3)),
-                              ),
-                              child: Icon(catIcon, color: catColor, size: 22),
-                            ),
-                            const SizedBox(width: 12),
-
-                            // Item details
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item.name,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14.5,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    [
-                                      if (item.category.isNotEmpty) item.category,
-                                      if (item.sku.isNotEmpty) 'SKU: ${item.sku}',
-                                    ].join(' • '),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 11.5, color: Colors.white60),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Row(
-                                    children: [
-                                      // Price Tag
-                                      if (item.sellingPrice > 0) ...[
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF38BDF8).withValues(alpha: 0.15),
-                                            borderRadius: BorderRadius.circular(6),
-                                          ),
-                                          child: Text(
-                                            '₹${item.sellingPrice.toStringAsFixed(0)}',
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.bold,
-                                              color: Color(0xFF38BDF8),
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                      ],
-
-                                      // Stock Health Badge Pill
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: healthColor.withValues(alpha: 0.15),
-                                          borderRadius: BorderRadius.circular(6),
-                                          border: Border.all(color: healthColor.withValues(alpha: 0.4)),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Container(
-                                              width: 6,
-                                              height: 6,
-                                              decoration: BoxDecoration(
-                                                color: healthColor,
-                                                shape: BoxShape.circle,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 5),
-                                            Text(
-                                              healthText,
-                                              style: TextStyle(
-                                                fontSize: 10.5,
-                                                fontWeight: FontWeight.bold,
-                                                color: healthColor,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                            const SizedBox(width: 8),
-
-                            // Animated Incremental Counter / Add Button
-                            if (cartQty > 0)
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF0F172A),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: const Color(0xFF3B82F6)),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                                      icon: const Icon(Icons.remove_rounded, color: Color(0xFFEF4444), size: 18),
-                                      onPressed: () {
-                                        _updateCartItemQty(cartIdx, cartQty - 1);
-                                      },
-                                    ),
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                                      child: Text(
-                                        '$cartQty',
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                    IconButton(
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                                      icon: const Icon(Icons.add_rounded, color: Color(0xFF10B981), size: 18),
-                                      onPressed: () {
-                                        _updateCartItemQty(cartIdx, cartQty + 1);
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              )
-                            else
-                              GestureDetector(
-                                onTap: () => _addCatalogItemToCart(item),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    borderRadius: BorderRadius.circular(12),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: const Color(0xFF2563EB).withValues(alpha: 0.3),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 3),
-                                      ),
-                                    ],
-                                  ),
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(Icons.add_rounded, color: Colors.white, size: 18),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        '+ Add',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12.5,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.add_circle_outline_rounded,
+                              size: 18, color: Colors.white),
+                          SizedBox(width: 6),
+                          Text(
+                            '+ Custom',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: Colors.white),
+                          ),
+                        ],
                       ),
-                    );
-                  },
-                ),
-          ),
-        ],
-      );
-    },
-  );
-}
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Horizontal Category Filter Pills with Matching Icons
+            SizedBox(
+              height: 44,
+              child: ListView.separated(
+                cacheExtent: 300,
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _categories.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (ctx, i) {
+                  final cat = _categories[i];
+                  final isSel = _selectedCategory == cat;
+                  final icon = _getCategoryIcon(cat);
+                  final color = _getCategoryColor(cat);
+
+                  return GestureDetector(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      setState(() => _selectedCategory = cat);
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        gradient: isSel
+                            ? const LinearGradient(
+                                colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              )
+                            : null,
+                        color: isSel ? null : const Color(0xFF1E293B),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isSel
+                              ? const Color(0xFF3B82F6)
+                              : const Color(0xFF334155),
+                        ),
+                        boxShadow: isSel
+                            ? [
+                                BoxShadow(
+                                  color: const Color(0xFF2563EB)
+                                      .withValues(alpha: 0.35),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(icon,
+                              size: 16, color: isSel ? Colors.white : color),
+                          const SizedBox(width: 6),
+                          Text(
+                            cat,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight:
+                                  isSel ? FontWeight.bold : FontWeight.w500,
+                              color: isSel ? Colors.white : Colors.white70,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // Dynamic Stock Cards List
+            Expanded(
+              child: filtered.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.inventory_2_outlined,
+                              size: 52, color: Colors.white24),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'ഉൽപ്പന്നങ്ങളൊന്നും കണ്ടെത്തിയില്ല\n(No catalog products found)',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.white54),
+                          ),
+                          const SizedBox(height: 14),
+                          FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFF2563EB)),
+                            icon: const Icon(Icons.add_rounded),
+                            label: const Text('+ കസ്റ്റം ഉൽപ്പന്നം ചേർക്കുക'),
+                            onPressed: _showAddCustomProductDialog,
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.separated(
+                      cacheExtent: 300,
+                      padding: EdgeInsets.fromLTRB(
+                          16, 6, 16, _cart.isNotEmpty ? 90 : 20),
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (ctx, i) {
+                        final item = filtered[i];
+                        final cartIdx = _cart.indexWhere(
+                            (c) => !c.isCustom && c.productId == item.id);
+                        final cartQty =
+                            cartIdx >= 0 ? _cart[cartIdx].quantity : 0;
+                        final catColor = _getCategoryColor(item.category);
+                        final catIcon = _getCategoryIcon(item.category);
+
+                        // Stock health styling
+                        final bool inStock = item.stock > 10;
+                        final bool lowStock =
+                            item.stock > 0 && item.stock <= 10;
+                        final healthColor = inStock
+                            ? const Color(0xFF10B981)
+                            : (lowStock
+                                ? const Color(0xFFF59E0B)
+                                : const Color(0xFFEF4444));
+                        final healthText = inStock
+                            ? 'In Stock (${item.stock})'
+                            : (lowStock
+                                ? 'Low Stock (${item.stock} left)'
+                                : 'Out of Stock');
+
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E293B),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: cartQty > 0
+                                  ? const Color(0xFF3B82F6)
+                                  : const Color(0xFF334155),
+                              width: cartQty > 0 ? 1.5 : 1.0,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: cartQty > 0
+                                    ? const Color(0xFF2563EB)
+                                        .withValues(alpha: 0.15)
+                                    : Colors.black.withValues(alpha: 0.2),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                // Category-specific colored icon badge
+                                Container(
+                                  width: 46,
+                                  height: 46,
+                                  decoration: BoxDecoration(
+                                    color: catColor.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                        color: catColor.withValues(alpha: 0.3)),
+                                  ),
+                                  child:
+                                      Icon(catIcon, color: catColor, size: 22),
+                                ),
+                                const SizedBox(width: 12),
+
+                                // Item details
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item.name,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14.5,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        [
+                                          if (item.category.isNotEmpty)
+                                            item.category,
+                                          if (item.sku.isNotEmpty)
+                                            'SKU: ${item.sku}',
+                                        ].join(' • '),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                            fontSize: 11.5,
+                                            color: Colors.white60),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Row(
+                                        children: [
+                                          // Price Tag
+                                          if (item.sellingPrice > 0) ...[
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 6,
+                                                      vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF38BDF8)
+                                                    .withValues(alpha: 0.15),
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                              ),
+                                              child: Text(
+                                                '₹${item.sellingPrice.toStringAsFixed(0)}',
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Color(0xFF38BDF8),
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                          ],
+
+                                          // Stock Health Badge Pill
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 7, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: healthColor.withValues(
+                                                  alpha: 0.15),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                              border: Border.all(
+                                                  color: healthColor.withValues(
+                                                      alpha: 0.4)),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Container(
+                                                  width: 6,
+                                                  height: 6,
+                                                  decoration: BoxDecoration(
+                                                    color: healthColor,
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 5),
+                                                Text(
+                                                  healthText,
+                                                  style: TextStyle(
+                                                    fontSize: 10.5,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: healthColor,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                const SizedBox(width: 8),
+
+                                // Animated Incremental Counter / Add Button
+                                if (cartQty > 0)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 4, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF0F172A),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                          color: const Color(0xFF3B82F6)),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(
+                                              minWidth: 28, minHeight: 28),
+                                          icon: const Icon(Icons.remove_rounded,
+                                              color: Color(0xFFEF4444),
+                                              size: 18),
+                                          onPressed: () {
+                                            _updateCartItemQty(
+                                                cartIdx, cartQty - 1);
+                                          },
+                                        ),
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 6),
+                                          child: Text(
+                                            '$cartQty',
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                        IconButton(
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(
+                                              minWidth: 28, minHeight: 28),
+                                          icon: const Icon(Icons.add_rounded,
+                                              color: Color(0xFF10B981),
+                                              size: 18),
+                                          onPressed: () {
+                                            _updateCartItemQty(
+                                                cartIdx, cartQty + 1);
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                else
+                                  GestureDetector(
+                                    onTap: () => _addCatalogItemToCart(item),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 14, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [
+                                            Color(0xFF2563EB),
+                                            Color(0xFF1D4ED8)
+                                          ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                        borderRadius: BorderRadius.circular(12),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: const Color(0xFF2563EB)
+                                                .withValues(alpha: 0.3),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 3),
+                                          ),
+                                        ],
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.add_rounded,
+                                              color: Colors.white, size: 18),
+                                          SizedBox(width: 4),
+                                          Text(
+                                            '+ Add',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12.5,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   Widget _buildOrderHistoryTab() {
     final statusFilters = [
@@ -1624,7 +1835,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
       stream: _ordersStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: TekColors.primary));
+          return const Center(
+              child: CircularProgressIndicator(color: TekColors.primary));
         }
 
         if (snapshot.hasError) {
@@ -1634,7 +1846,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.error_outline_rounded, color: TekColors.error, size: 48),
+                  const Icon(Icons.error_outline_rounded,
+                      color: TekColors.error, size: 48),
                   const SizedBox(height: 12),
                   Text(
                     'ഓർഡറുകൾ ലോഡ് ചെയ്യുന്നതിൽ പിശക്: ${snapshot.error}',
@@ -1652,7 +1865,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
         // Apply Search & Status Filter
         final filteredOrders = allOrders.where((o) {
           if (_historyStatusFilter != 'All') {
-            if (o.status.name.toLowerCase() != _historyStatusFilter.toLowerCase()) {
+            if (o.status.name.toLowerCase() !=
+                _historyStatusFilter.toLowerCase()) {
               return false;
             }
           }
@@ -1661,7 +1875,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
             final q = _historySearchQuery.toLowerCase();
             final matchId = o.orderId.toLowerCase().contains(q);
             final matchRemarks = o.generalRemarks.toLowerCase().contains(q);
-            final matchItems = o.products.any((p) => p.name.toLowerCase().contains(q));
+            final matchItems =
+                o.products.any((p) => p.name.toLowerCase().contains(q));
             return matchId || matchRemarks || matchItems;
           }
 
@@ -1675,15 +1890,20 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
               child: TextField(
                 controller: _historySearchCtrl,
-                style: const TextStyle(color: TekColors.textPrimary, fontSize: 14),
-                onChanged: (val) => setState(() => _historySearchQuery = val.trim()),
+                style:
+                    const TextStyle(color: TekColors.textPrimary, fontSize: 14),
+                onChanged: (val) =>
+                    setState(() => _historySearchQuery = val.trim()),
                 decoration: InputDecoration(
                   hintText: 'Search Order ID or products...',
-                  hintStyle: const TextStyle(color: TekColors.textMuted, fontSize: 13),
-                  prefixIcon: const Icon(Icons.search_rounded, color: TekColors.secondary, size: 20),
+                  hintStyle:
+                      const TextStyle(color: TekColors.textMuted, fontSize: 13),
+                  prefixIcon: const Icon(Icons.search_rounded,
+                      color: TekColors.secondary, size: 20),
                   suffixIcon: _historySearchQuery.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear_rounded, size: 18, color: TekColors.textSecondary),
+                          icon: const Icon(Icons.clear_rounded,
+                              size: 18, color: TekColors.textSecondary),
                           onPressed: () {
                             _historySearchCtrl.clear();
                             setState(() => _historySearchQuery = '');
@@ -1692,7 +1912,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                       : null,
                   filled: true,
                   fillColor: TekColors.bgSecondary,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
                     borderSide: const BorderSide(color: TekColors.border),
@@ -1703,7 +1924,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: TekColors.primary, width: 1.5),
+                    borderSide:
+                        const BorderSide(color: TekColors.primary, width: 1.5),
                   ),
                 ),
               ),
@@ -1735,7 +1957,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                     backgroundColor: TekColors.bgSecondary,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(color: isSel ? TekColors.primary : TekColors.border),
+                      side: BorderSide(
+                          color: isSel ? TekColors.primary : TekColors.border),
                     ),
                     onSelected: (val) {
                       if (val) {
@@ -1757,19 +1980,25 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.shopping_bag_outlined, size: 54, color: TekColors.textMuted),
+                          const Icon(Icons.shopping_bag_outlined,
+                              size: 54, color: TekColors.textMuted),
                           const SizedBox(height: 12),
                           const Text(
                             'ഓർഡറുകളൊന്നും കണ്ടെത്തിയില്ല\n(No matching orders)',
                             textAlign: TextAlign.center,
-                            style: TextStyle(color: TekColors.textSecondary, fontFamilyFallback: TekTypography.malayalamFallback),
+                            style: TextStyle(
+                                color: TekColors.textSecondary,
+                                fontFamilyFallback:
+                                    TekTypography.malayalamFallback),
                           ),
                           const SizedBox(height: 16),
                           if (allOrders.isEmpty)
                             FilledButton.icon(
-                              style: FilledButton.styleFrom(backgroundColor: TekColors.primary),
+                              style: FilledButton.styleFrom(
+                                  backgroundColor: TekColors.primary),
                               icon: const Icon(Icons.add_rounded),
-                              label: const Text('പുതിയ ഓർഡർ ഉണ്ടാക്കുക (Create Order)'),
+                              label: const Text(
+                                  'പുതിയ ഓർഡർ ഉണ്ടാക്കുക (Create Order)'),
                               onPressed: () => _tabController.animateTo(0),
                             ),
                         ],
@@ -1810,14 +2039,18 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
               color: o.status.color.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(Icons.receipt_long_rounded, color: o.status.color, size: 22),
+            child: Icon(Icons.receipt_long_rounded,
+                color: o.status.color, size: 22),
           ),
           title: Row(
             children: [
               Expanded(
                 child: Text(
                   o.orderId,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5, color: TekColors.textPrimary),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14.5,
+                      color: TekColors.textPrimary),
                 ),
               ),
               Container(
@@ -1825,7 +2058,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                 decoration: BoxDecoration(
                   color: o.status.color.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: o.status.color.withValues(alpha: 0.4)),
+                  border:
+                      Border.all(color: o.status.color.withValues(alpha: 0.4)),
                 ),
                 child: Text(
                   '${o.status.label} (${o.status.labelMl})',
@@ -1842,16 +2076,21 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
             padding: const EdgeInsets.only(top: 4),
             child: Row(
               children: [
-                const Icon(Icons.access_time_rounded, size: 13, color: TekColors.textMuted),
+                const Icon(Icons.access_time_rounded,
+                    size: 13, color: TekColors.textMuted),
                 const SizedBox(width: 4),
                 Text(
                   '${o.createdDate} • ${o.createdTime}',
-                  style: const TextStyle(fontSize: 11.5, color: TekColors.textSecondary),
+                  style: const TextStyle(
+                      fontSize: 11.5, color: TekColors.textSecondary),
                 ),
                 const Spacer(),
                 Text(
                   '${o.totalTypes} Types (${o.totalQuantity} Units)',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: TekColors.secondary),
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: TekColors.secondary),
                 ),
               ],
             ),
@@ -1868,7 +2107,10 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                     children: [
                       const Text(
                         'ഓർഡർ ചെയ്ത ഉൽപ്പന്നങ്ങൾ:',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: TekColors.textPrimary),
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: TekColors.textPrimary),
                       ),
                       GestureDetector(
                         onTap: () => _showOrderBreakdownDialog(o),
@@ -1876,9 +2118,13 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                           children: [
                             Text(
                               'Detailed Breakdown',
-                              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: TekColors.secondary),
+                              style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: TekColors.secondary),
                             ),
-                            Icon(Icons.chevron_right_rounded, size: 16, color: TekColors.secondary),
+                            Icon(Icons.chevron_right_rounded,
+                                size: 16, color: TekColors.secondary),
                           ],
                         ),
                       ),
@@ -1891,7 +2137,10 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('• ', style: TextStyle(fontWeight: FontWeight.bold, color: TekColors.secondary)),
+                          const Text('• ',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: TekColors.secondary)),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1907,10 +2156,14 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                                 if (p.model.isNotEmpty || p.remarks.isNotEmpty)
                                   Text(
                                     [
-                                      if (p.model.isNotEmpty) 'Model: ${p.model}',
-                                      if (p.remarks.isNotEmpty) 'Note: ${p.remarks}',
+                                      if (p.model.isNotEmpty)
+                                        'Model: ${p.model}',
+                                      if (p.remarks.isNotEmpty)
+                                        'Note: ${p.remarks}',
                                     ].join(' • '),
-                                    style: const TextStyle(fontSize: 11.5, color: TekColors.textSecondary),
+                                    style: const TextStyle(
+                                        fontSize: 11.5,
+                                        color: TekColors.textSecondary),
                                   ),
                               ],
                             ),
@@ -1938,7 +2191,10 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                       ),
                       child: Text(
                         'Remarks: ${o.generalRemarks}',
-                        style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: TekColors.textSecondary),
+                        style: const TextStyle(
+                            fontSize: 12,
+                            fontStyle: FontStyle.italic,
+                            color: TekColors.textSecondary),
                       ),
                     ),
                   ],
@@ -1949,13 +2205,19 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                         child: OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: TekColors.border),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
                           ),
-                          icon: const Icon(Icons.copy_rounded, size: 16, color: TekColors.textSecondary),
-                          label: const Text('Copy Text', style: TextStyle(fontSize: 12, color: TekColors.textPrimary)),
+                          icon: const Icon(Icons.copy_rounded,
+                              size: 16, color: TekColors.textSecondary),
+                          label: const Text('Copy Text',
+                              style: TextStyle(
+                                  fontSize: 12, color: TekColors.textPrimary)),
                           onPressed: () async {
-                            final msg = OrderService.instance.formatWhatsAppMessage(o);
-                            await OrderService.instance.copyOrderToClipboard(msg);
+                            final msg =
+                                OrderService.instance.formatWhatsAppMessage(o);
+                            await OrderService.instance
+                                .copyOrderToClipboard(msg);
                             if (ctx.mounted) {
                               toast(ctx, 'ഓർഡർ മെസ്സേജ് കോപ്പി ചെയ്തു');
                             }
@@ -1968,13 +2230,18 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF22C55E),
                             foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
                           ),
                           icon: const Icon(Icons.send_rounded, size: 16),
-                          label: const Text('WhatsApp', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          label: const Text('WhatsApp',
+                              style: TextStyle(
+                                  fontSize: 12, fontWeight: FontWeight.bold)),
                           onPressed: () async {
-                            final msg = OrderService.instance.formatWhatsAppMessage(o);
-                            await OrderService.instance.copyOrderToClipboard(msg);
+                            final msg =
+                                OrderService.instance.formatWhatsAppMessage(o);
+                            await OrderService.instance
+                                .copyOrderToClipboard(msg);
                             await OrderService.instance.openWhatsAppGroup(
                               'https://chat.whatsapp.com/GD5fTnnLRk9I0mPXdJ80n0?s=cl&p=a&mlu=4&ilr=4',
                             );
@@ -1988,7 +2255,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                           backgroundColor: TekColors.bgSecondary,
                           side: const BorderSide(color: TekColors.border),
                         ),
-                        icon: const Icon(Icons.replay_rounded, size: 18, color: TekColors.secondary),
+                        icon: const Icon(Icons.replay_rounded,
+                            size: 18, color: TekColors.secondary),
                         onPressed: () {
                           setState(() {
                             _cart.clear();
@@ -2018,7 +2286,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
     ];
 
     int currentStepIndex = statusSteps.indexOf(o.status);
-    if (currentStepIndex < 0 && o.status == StaffOrderStatus.pending) currentStepIndex = 0;
+    if (currentStepIndex < 0 && o.status == StaffOrderStatus.pending)
+      currentStepIndex = 0;
 
     showDialog(
       context: context,
@@ -2034,18 +2303,23 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
             color: o.status.color.withValues(alpha: 0.15),
             shape: BoxShape.circle,
           ),
-          child: Icon(Icons.receipt_long_rounded, color: o.status.color, size: 30),
+          child:
+              Icon(Icons.receipt_long_rounded, color: o.status.color, size: 30),
         ),
         title: Column(
           children: [
             Text(
               o.orderId,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: TekColors.textPrimary),
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: TekColors.textPrimary),
             ),
             const SizedBox(height: 4),
             Text(
               '${o.createdDate} • ${o.createdTime}',
-              style: const TextStyle(fontSize: 12, color: TekColors.textSecondary),
+              style:
+                  const TextStyle(fontSize: 12, color: TekColors.textSecondary),
             ),
           ],
         ),
@@ -2058,7 +2332,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
               children: [
                 // Status Tracking Timeline Header
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   decoration: BoxDecoration(
                     color: TekColors.bgSecondary,
                     borderRadius: BorderRadius.circular(12),
@@ -2066,7 +2341,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.sync_rounded, size: 16, color: TekColors.secondary),
+                      const Icon(Icons.sync_rounded,
+                          size: 16, color: TekColors.secondary),
                       const SizedBox(width: 6),
                       Text(
                         'Status: ${o.status.label} (${o.status.labelMl})',
@@ -2080,7 +2356,8 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                         const Spacer(),
                         Text(
                           'By: ${o.updatedBy}',
-                          style: const TextStyle(fontSize: 11, color: TekColors.textSecondary),
+                          style: const TextStyle(
+                              fontSize: 11, color: TekColors.textSecondary),
                         ),
                       ],
                     ],
@@ -2104,17 +2381,24 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                             width: 28,
                             height: 28,
                             decoration: BoxDecoration(
-                              color: isPassed ? TekColors.primary : TekColors.bgSecondary,
+                              color: isPassed
+                                  ? TekColors.primary
+                                  : TekColors.bgSecondary,
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: isCurrent ? TekColors.secondary : (isPassed ? TekColors.primary : TekColors.border),
+                                color: isCurrent
+                                    ? TekColors.secondary
+                                    : (isPassed
+                                        ? TekColors.primary
+                                        : TekColors.border),
                                 width: isCurrent ? 2 : 1,
                               ),
                             ),
                             child: Icon(
                               isPassed ? Icons.check : Icons.circle,
                               size: isPassed ? 16 : 8,
-                              color: isPassed ? Colors.white : TekColors.textMuted,
+                              color:
+                                  isPassed ? Colors.white : TekColors.textMuted,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -2122,8 +2406,12 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                             st.label,
                             style: TextStyle(
                               fontSize: 9.5,
-                              fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                              color: isPassed ? TekColors.textPrimary : TekColors.textMuted,
+                              fontWeight: isCurrent
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              color: isPassed
+                                  ? TekColors.textPrimary
+                                  : TekColors.textMuted,
                             ),
                           ),
                         ],
@@ -2136,7 +2424,10 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                 // Products breakdown list
                 const Text(
                   'Ordered Products (ഉൽപ്പന്നങ്ങളുടെ വിവരം):',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: TekColors.textPrimary),
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: TekColors.textPrimary),
                 ),
                 const SizedBox(height: 8),
                 Container(
@@ -2147,43 +2438,63 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                     border: Border.all(color: TekColors.border),
                   ),
                   child: Column(
-                    children: o.products.map((p) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.circle, size: 6, color: TekColors.secondary),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  p.name,
-                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: TekColors.textPrimary),
-                                ),
-                                if (p.model.isNotEmpty || p.remarks.isNotEmpty)
-                                  Text(
-                                    [if (p.model.isNotEmpty) 'Model: ${p.model}', if (p.remarks.isNotEmpty) 'Note: ${p.remarks}'].join(' • '),
-                                    style: const TextStyle(fontSize: 11, color: TekColors.textSecondary),
+                    children: o.products
+                        .map((p) => Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(Icons.circle,
+                                      size: 6, color: TekColors.secondary),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          p.name,
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 13,
+                                              color: TekColors.textPrimary),
+                                        ),
+                                        if (p.model.isNotEmpty ||
+                                            p.remarks.isNotEmpty)
+                                          Text(
+                                            [
+                                              if (p.model.isNotEmpty)
+                                                'Model: ${p.model}',
+                                              if (p.remarks.isNotEmpty)
+                                                'Note: ${p.remarks}'
+                                            ].join(' • '),
+                                            style: const TextStyle(
+                                                fontSize: 11,
+                                                color: TekColors.textSecondary),
+                                          ),
+                                      ],
+                                    ),
                                   ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: TekColors.primary.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              '${p.quantity} ${p.unit}',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: TekColors.secondary),
-                            ),
-                          ),
-                        ],
-                      ),
-                    )).toList(),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: TekColors.primary
+                                          .withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      '${p.quantity} ${p.unit}',
+                                      style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: TekColors.secondary),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ))
+                        .toList(),
                   ),
                 ),
 
@@ -2198,7 +2509,10 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
                     ),
                     child: Text(
                       'Remarks: ${o.generalRemarks}',
-                      style: const TextStyle(fontSize: 12, color: TekColors.textSecondary, fontStyle: FontStyle.italic),
+                      style: const TextStyle(
+                          fontSize: 12,
+                          color: TekColors.textSecondary,
+                          fontStyle: FontStyle.italic),
                     ),
                   ),
                 ],
@@ -2208,14 +2522,17 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
         ),
         actions: [
           OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(side: const BorderSide(color: TekColors.border)),
+            style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: TekColors.border)),
             onPressed: () async {
               final msg = OrderService.instance.formatWhatsAppMessage(o);
               await OrderService.instance.copyOrderToClipboard(msg);
               if (ctx.mounted) toast(ctx, 'ഓർഡർ കോപ്പി ചെയ്തു');
             },
-            icon: const Icon(Icons.copy_rounded, size: 16, color: TekColors.textSecondary),
-            label: const Text('Copy', style: TextStyle(color: TekColors.textSecondary)),
+            icon: const Icon(Icons.copy_rounded,
+                size: 16, color: TekColors.textSecondary),
+            label: const Text('Copy',
+                style: TextStyle(color: TekColors.textSecondary)),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: TekColors.primary),

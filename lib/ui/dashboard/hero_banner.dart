@@ -108,12 +108,14 @@ class TekHeroBanner extends StatelessWidget {
                               crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 5),
                                   decoration: BoxDecoration(
                                     color: Colors.black.withValues(alpha: 0.25),
                                     borderRadius: BorderRadius.circular(20),
                                     border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.2),
+                                      color:
+                                          Colors.white.withValues(alpha: 0.2),
                                     ),
                                   ),
                                   child: Row(
@@ -137,16 +139,19 @@ class TekHeroBanner extends StatelessWidget {
                                   ),
                                 ),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 5),
                                   decoration: BoxDecoration(
                                     color: Colors.white.withValues(alpha: 0.14),
                                     borderRadius: BorderRadius.circular(20),
                                     border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.25),
+                                      color:
+                                          Colors.white.withValues(alpha: 0.25),
                                     ),
                                   ),
                                   child: Text(
-                                    customDateNote ?? '$tomorrowDay: 9:30 AM - 9:00 PM',
+                                    customDateNote ??
+                                        '$tomorrowDay: 9:30 AM - 9:00 PM',
                                     style: DashboardTypography.inter(
                                       fontSize: 10.5,
                                       fontWeight: FontWeight.w500,
@@ -228,7 +233,8 @@ class TekHeroBanner extends StatelessWidget {
               decoration: BoxDecoration(
                 color: const Color(0xFF1E293B),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: DashboardColors.neonPurple, width: 1.2),
+                border:
+                    Border.all(color: DashboardColors.neonPurple, width: 1.2),
                 boxShadow: [
                   BoxShadow(
                     color: DashboardColors.neonPurple.withValues(alpha: 0.4),
@@ -303,7 +309,8 @@ class TekHeroBanner extends StatelessWidget {
               decoration: BoxDecoration(
                 color: const Color(0xFF1E293B),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: DashboardColors.neonGreen, width: 1.2),
+                border:
+                    Border.all(color: DashboardColors.neonGreen, width: 1.2),
                 boxShadow: [
                   BoxShadow(
                     color: DashboardColors.neonGreen.withValues(alpha: 0.4),

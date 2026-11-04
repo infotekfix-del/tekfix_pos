@@ -71,7 +71,8 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
-      await tester.pumpWidget(_buildTestApp(const PurchaseBillsDashboardView()));
+      await tester
+          .pumpWidget(_buildTestApp(const PurchaseBillsDashboardView()));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
@@ -91,7 +92,8 @@ void main() {
     });
 
     // M13: Layout works at phone, tablet, and desktop widths with no overflow
-    testWidgets('M13. Responsive rendering at Phone, Tablet, and Desktop widths',
+    testWidgets(
+        'M13. Responsive rendering at Phone, Tablet, and Desktop widths',
         (tester) async {
       // 1. Phone width (390 x 844)
       await tester.pumpWidget(

@@ -85,7 +85,8 @@ class _EditableItem {
     List<String>? serialNumbers,
     this.imeiRequired = false,
     this.warrantyDuration = 'No Warranty',
-  })  : serialNumbers = serialNumbers != null ? List<String>.from(serialNumbers) : [],
+  })  : serialNumbers =
+            serialNumbers != null ? List<String>.from(serialNumbers) : [],
         rowId = rowId ?? 'ROW_${DateTime.now().microsecondsSinceEpoch}',
         sku = sku.trim().isNotEmpty
             ? sku.trim()
@@ -152,8 +153,7 @@ class ManualPurchaseEntryScreen extends StatefulWidget {
       _ManualPurchaseEntryScreenState();
 }
 
-class _ManualPurchaseEntryScreenState
-    extends State<ManualPurchaseEntryScreen> {
+class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
   bool get _isEditing => widget.editBill != null;
   // ---- Supplier ----
   dynamic _vendorKey;
@@ -204,7 +204,8 @@ class _ManualPurchaseEntryScreenState
   String? _parsedBillBanner;
 
   // ---- Calculation engine ----
-  PurchaseCalculationEngine _engine = const PurchaseCalculationEngine(isInterState: false);
+  PurchaseCalculationEngine _engine =
+      const PurchaseCalculationEngine(isInterState: false);
   late BillCalcResult _calc;
 
   // ---- Draft auto-save ----
@@ -234,15 +235,19 @@ class _ManualPurchaseEntryScreenState
       _invoiceNumCtrl.text = b.vendorInvoiceNumber;
       _invoiceDate = b.purchaseDate;
       _notesCtrl.text = b.notes ?? '';
-      _chargesCtrl.text = b.otherCharges > 0 ? b.otherCharges.toStringAsFixed(2) : '0';
+      _chargesCtrl.text =
+          b.otherCharges > 0 ? b.otherCharges.toStringAsFixed(2) : '0';
       _paidCtrl.text = b.paidAmount > 0 ? b.paidAmount.toStringAsFixed(2) : '0';
-      _paymentMethod = b.payments.isNotEmpty ? b.payments.first.paymentMethod : 'Cash';
+      _paymentMethod =
+          b.payments.isNotEmpty ? b.payments.first.paymentMethod : 'Cash';
       _attachment = b.attachment;
 
       _items.clear();
       for (final it in b.items) {
         _items.add(_EditableItem(
-          rowId: it.id.isNotEmpty ? it.id : 'ROW_${DateTime.now().microsecondsSinceEpoch}_${_items.length}',
+          rowId: it.id.isNotEmpty
+              ? it.id
+              : 'ROW_${DateTime.now().microsecondsSinceEpoch}_${_items.length}',
           itemKey: it.itemKey,
           name: it.name,
           brand: it.brand,
@@ -257,13 +262,16 @@ class _ManualPurchaseEntryScreenState
           taxPercent: it.taxPercent,
           isNewProduct: it.isNewProduct,
           isStagedReady: true,
-          matchedProductId: it.itemId.isNotEmpty ? it.itemId : it.matchedProductId,
+          matchedProductId:
+              it.itemId.isNotEmpty ? it.itemId : it.matchedProductId,
           matchedProductName: it.matchedProductName ?? it.name,
           matchStatus: it.matchStatusOverride ?? ProductMatchStatus.matched,
           category: it.category,
           serialNumbers: List<String>.from(it.serialNumbers),
           imeiRequired: it.imeiRequired,
-          warrantyDuration: it.warrantyDuration.isNotEmpty ? it.warrantyDuration : ItemWarrantyDuration.noWarranty,
+          warrantyDuration: it.warrantyDuration.isNotEmpty
+              ? it.warrantyDuration
+              : ItemWarrantyDuration.noWarranty,
         ));
       }
       _recalcState();
@@ -278,9 +286,11 @@ class _ManualPurchaseEntryScreenState
     if (widget.initialVendorKey != null) {
       final vendors = PurchaseBillService.instance.getVendors();
       final v = vendors.cast<Map<String, dynamic>?>().firstWhere(
-        (e) => e?['key'] == widget.initialVendorKey || '${e?['key']}' == '${widget.initialVendorKey}',
-        orElse: () => null,
-      );
+            (e) =>
+                e?['key'] == widget.initialVendorKey ||
+                '${e?['key']}' == '${widget.initialVendorKey}',
+            orElse: () => null,
+          );
       if (v != null) {
         await _applyVendorMap(v);
       } else if (widget.initialVendorName != null && mounted) {
@@ -290,7 +300,10 @@ class _ManualPurchaseEntryScreenState
 
     // Check for existing draft if no initial vendor
     final draft = ManualPurchaseDraftService.instance.load();
-    if (draft != null && draft.hasData && mounted && widget.initialVendorKey == null) {
+    if (draft != null &&
+        draft.hasData &&
+        mounted &&
+        widget.initialVendorKey == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
         final resume = await _showResumeDraftDialog(draft);
@@ -504,12 +517,13 @@ class _ManualPurchaseEntryScreenState
     final gstin = _vendorGst.trim().toUpperCase();
     if (gstin.length >= 2) {
       setState(() => _vendorState = gstin.substring(0, 2));
-      setState(() => _placeOfSupply = _vendorState == '32' ? 'Kerala' : _vendorState);
+      setState(() =>
+          _placeOfSupply = _vendorState == '32' ? 'Kerala' : _vendorState);
     }
 
     // Fetch real-time balance
-    final balPaise = await PurchaseBillService.instance
-        .fetchVendorBalancePaise(_vendorKey);
+    final balPaise =
+        await PurchaseBillService.instance.fetchVendorBalancePaise(_vendorKey);
     if (mounted) {
       setState(() {
         _vendorPrevBalance = balPaise / 100.0;
@@ -542,7 +556,9 @@ class _ManualPurchaseEntryScreenState
       final mime = ext == 'pdf' ? 'application/pdf' : 'image/$ext';
 
       Uint8List? fileBytes = file.bytes;
-      if (fileBytes == null && file.path != null && File(file.path!).existsSync()) {
+      if (fileBytes == null &&
+          file.path != null &&
+          File(file.path!).existsSync()) {
         fileBytes = await File(file.path!).readAsBytes();
       }
 
@@ -588,17 +604,24 @@ class _ManualPurchaseEntryScreenState
       Map<String, dynamic>? matchedVendor;
       if (parsed.vendorGst != null && parsed.vendorGst!.isNotEmpty) {
         matchedVendor = vendors.cast<Map<String, dynamic>?>().firstWhere(
-          (v) => v?['gst']?.toString().toUpperCase() == parsed.vendorGst!.toUpperCase(),
-          orElse: () => null,
-        );
+              (v) =>
+                  v?['gst']?.toString().toUpperCase() ==
+                  parsed.vendorGst!.toUpperCase(),
+              orElse: () => null,
+            );
       }
-      if (matchedVendor == null && parsed.vendorName != null && parsed.vendorName!.isNotEmpty) {
+      if (matchedVendor == null &&
+          parsed.vendorName != null &&
+          parsed.vendorName!.isNotEmpty) {
         final target = parsed.vendorName!.toLowerCase();
         matchedVendor = vendors.cast<Map<String, dynamic>?>().firstWhere(
-          (v) => (v?['name']?.toString().toLowerCase().contains(target) ?? false) ||
-                 target.contains(v?['name']?.toString().toLowerCase() ?? '---'),
-          orElse: () => null,
-        );
+              (v) =>
+                  (v?['name']?.toString().toLowerCase().contains(target) ??
+                      false) ||
+                  target
+                      .contains(v?['name']?.toString().toLowerCase() ?? '---'),
+              orElse: () => null,
+            );
       }
 
       if (matchedVendor != null) {
@@ -608,7 +631,8 @@ class _ManualPurchaseEntryScreenState
           _vendorName = parsed.vendorName!;
           if (parsed.vendorPhone != null) _vendorPhone = parsed.vendorPhone!;
           if (parsed.vendorGst != null) _vendorGst = parsed.vendorGst!;
-          if (parsed.vendorAddress != null) _vendorAddress = parsed.vendorAddress!;
+          if (parsed.vendorAddress != null)
+            _vendorAddress = parsed.vendorAddress!;
         });
       }
 
@@ -623,7 +647,9 @@ class _ManualPurchaseEntryScreenState
             quantity: pItem.quantity,
             purchaseRate: pItem.unitPrice,
             mrp: pItem.mrp,
-            sellingPrice: pItem.mrp > 0 ? pItem.mrp : (pItem.unitPrice * 1.20).roundToDouble(),
+            sellingPrice: pItem.mrp > 0
+                ? pItem.mrp
+                : (pItem.unitPrice * 1.20).roundToDouble(),
             discount: pItem.discount,
             taxPercent: pItem.taxPercent > 0 ? pItem.taxPercent : 18.0,
             isMatchLoading: true,
@@ -646,7 +672,8 @@ class _ManualPurchaseEntryScreenState
         TekFeedback.success('Extracted ${parsed.itemCount} items from bill!');
       } else {
         setState(() {
-          _parsedBillBanner = 'Bill attached (${file.name}). Enter items below.';
+          _parsedBillBanner =
+              'Bill attached (${file.name}). Enter items below.';
         });
         TekFeedback.toast('Bill attached: ${file.name}');
       }
@@ -689,11 +716,17 @@ class _ManualPurchaseEntryScreenState
     int existingIndex = -1;
     for (int i = 0; i < _items.length; i++) {
       final it = _items[i];
-      final sameId = (it.matchedProductId != null && it.matchedProductId == item.productId) ||
+      final sameId = (it.matchedProductId != null &&
+              it.matchedProductId == item.productId) ||
           (it.itemKey != null && it.itemKey == item.itemKey);
-      final sameSku = it.sku.isNotEmpty && item.sku.isNotEmpty && it.sku.toLowerCase() == item.sku.toLowerCase();
-      final sameBarcode = it.sku.isNotEmpty && item.barcode.isNotEmpty && it.sku.toLowerCase() == item.barcode.toLowerCase();
-      final sameName = it.name.trim().toLowerCase() == item.name.trim().toLowerCase();
+      final sameSku = it.sku.isNotEmpty &&
+          item.sku.isNotEmpty &&
+          it.sku.toLowerCase() == item.sku.toLowerCase();
+      final sameBarcode = it.sku.isNotEmpty &&
+          item.barcode.isNotEmpty &&
+          it.sku.toLowerCase() == item.barcode.toLowerCase();
+      final sameName =
+          it.name.trim().toLowerCase() == item.name.trim().toLowerCase();
 
       if (sameId || sameSku || sameBarcode || sameName) {
         existingIndex = i;
@@ -707,7 +740,8 @@ class _ManualPurchaseEntryScreenState
         existing.quantity += 1;
         existing.isStagedReady = true;
       });
-      TekFeedback.success('Updated quantity for "${existing.name}" to ${existing.quantity}');
+      TekFeedback.success(
+          'Updated quantity for "${existing.name}" to ${existing.quantity}');
       if (existing.imeiRequired) {
         _showImeiSerialEntryDialog(existingIndex);
       }
@@ -716,7 +750,11 @@ class _ManualPurchaseEntryScreenState
         name: item.name,
         brand: item.brand,
         model: item.model,
-        sku: item.sku.isNotEmpty ? item.sku : (item.barcode.isNotEmpty ? item.barcode : 'TKF${DateTime.now().millisecondsSinceEpoch}'),
+        sku: item.sku.isNotEmpty
+            ? item.sku
+            : (item.barcode.isNotEmpty
+                ? item.barcode
+                : 'TKF${DateTime.now().millisecondsSinceEpoch}'),
         category: item.category,
         hsnCode: item.hsn,
         quantity: 1,
@@ -725,7 +763,9 @@ class _ManualPurchaseEntryScreenState
         mrp: item.mrp,
         discount: 0.0,
         taxPercent: _isGstEnabled ? item.gst : 0.0,
-        warrantyDuration: item.warranty.isNotEmpty ? item.warranty : ItemWarrantyDuration.noWarranty,
+        warrantyDuration: item.warranty.isNotEmpty
+            ? item.warranty
+            : ItemWarrantyDuration.noWarranty,
         imeiRequired: item.trackImei,
         isNewProduct: false,
         isStagedReady: true,
@@ -737,7 +777,6 @@ class _ManualPurchaseEntryScreenState
 
       setState(() {
         _items.add(newRow);
-
       });
       TekFeedback.success('Added "${item.name}" to bill');
 
@@ -778,16 +817,21 @@ class _ManualPurchaseEntryScreenState
             backgroundColor: const Color(0xFF0B1030),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(18),
-              side: BorderSide(color: DashboardColors.neonBlue.withValues(alpha: 0.4)),
+              side: BorderSide(
+                  color: DashboardColors.neonBlue.withValues(alpha: 0.4)),
             ),
             title: Row(
               children: [
-                const Icon(Icons.pin_rounded, color: DashboardColors.neonBlue, size: 22),
+                const Icon(Icons.pin_rounded,
+                    color: DashboardColors.neonBlue, size: 22),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'IMEI / Serial Numbers — ${item.name}',
-                    style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -800,7 +844,8 @@ class _ManualPurchaseEntryScreenState
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: isComplete
                           ? DashboardColors.neonGreen.withValues(alpha: 0.12)
@@ -815,7 +860,9 @@ class _ManualPurchaseEntryScreenState
                     child: Text(
                       'Quantity: ${item.quantity}  |  Entered: ${entered.length} / ${item.quantity}',
                       style: TextStyle(
-                        color: isComplete ? DashboardColors.neonGreen : DashboardColors.neonOrange,
+                        color: isComplete
+                            ? DashboardColors.neonGreen
+                            : DashboardColors.neonOrange,
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
                       ),
@@ -827,27 +874,35 @@ class _ManualPurchaseEntryScreenState
                       Expanded(
                         child: TextField(
                           controller: imeiCtrl,
-                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 13),
                           decoration: InputDecoration(
                             hintText: 'Enter 15-digit IMEI or scan barcode...',
-                            hintStyle: const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
+                            hintStyle: const TextStyle(
+                                color: DashboardColors.textMuted, fontSize: 12),
                             filled: true,
                             fillColor: Colors.white.withValues(alpha: 0.05),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 10),
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8)),
                           ),
                           keyboardType: TextInputType.text,
                           onSubmitted: (val) {
                             final clean = val.trim().toUpperCase();
                             if (clean.isEmpty) return;
                             if (entered.contains(clean)) {
-                              TekFeedback.error('IMEI/Serial already added to this item');
+                              TekFeedback.error(
+                                  'IMEI/Serial already added to this item');
                             } else if (entered.length >= item.quantity) {
-                              TekFeedback.toast('Maximum ${item.quantity} IMEIs already entered');
+                              TekFeedback.toast(
+                                  'Maximum ${item.quantity} IMEIs already entered');
                             } else {
-                              final cat = ImeiValidator.categorizeIdentifier(clean);
+                              final cat =
+                                  ImeiValidator.categorizeIdentifier(clean);
                               if (cat == 'INVALID_LUHN_IMEI') {
-                                TekFeedback.toast('Warning: 15-digit IMEI check digit is invalid');
+                                TekFeedback.toast(
+                                    'Warning: 15-digit IMEI check digit is invalid');
                               }
                               setDialogState(() {
                                 entered.add(clean);
@@ -862,19 +917,24 @@ class _ManualPurchaseEntryScreenState
                         style: ElevatedButton.styleFrom(
                           backgroundColor: DashboardColors.neonBlue,
                           foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
                         ),
                         onPressed: () {
                           final clean = imeiCtrl.text.trim().toUpperCase();
                           if (clean.isEmpty) return;
                           if (entered.contains(clean)) {
-                            TekFeedback.error('IMEI/Serial already added to this item');
+                            TekFeedback.error(
+                                'IMEI/Serial already added to this item');
                           } else if (entered.length >= item.quantity) {
-                            TekFeedback.toast('Maximum ${item.quantity} IMEIs already entered');
+                            TekFeedback.toast(
+                                'Maximum ${item.quantity} IMEIs already entered');
                           } else {
-                            final cat = ImeiValidator.categorizeIdentifier(clean);
+                            final cat =
+                                ImeiValidator.categorizeIdentifier(clean);
                             if (cat == 'INVALID_LUHN_IMEI') {
-                              TekFeedback.toast('Warning: 15-digit IMEI check digit is invalid');
+                              TekFeedback.toast(
+                                  'Warning: 15-digit IMEI check digit is invalid');
                             }
                             setDialogState(() {
                               entered.add(clean);
@@ -882,7 +942,8 @@ class _ManualPurchaseEntryScreenState
                             });
                           }
                         },
-                        child: const Text('Add', style: TextStyle(fontWeight: FontWeight.bold)),
+                        child: const Text('Add',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ),
@@ -899,19 +960,27 @@ class _ManualPurchaseEntryScreenState
                       child: ListView.separated(
                         shrinkWrap: true,
                         itemCount: entered.length,
-                        separatorBuilder: (_, __) => const Divider(color: Colors.white10, height: 1),
+                        separatorBuilder: (_, __) =>
+                            const Divider(color: Colors.white10, height: 1),
                         itemBuilder: (c, i) => Row(
                           children: [
-                            Text('#${i + 1}', style: const TextStyle(color: DashboardColors.textMuted, fontSize: 11)),
+                            Text('#${i + 1}',
+                                style: const TextStyle(
+                                    color: DashboardColors.textMuted,
+                                    fontSize: 11)),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 entered[i],
-                                style: const TextStyle(color: Colors.white, fontFamily: 'monospace', fontSize: 12),
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontFamily: 'monospace',
+                                    fontSize: 12),
                               ),
                             ),
                             IconButton(
-                              icon: const Icon(Icons.remove_circle_outline, color: DashboardColors.alertRed, size: 16),
+                              icon: const Icon(Icons.remove_circle_outline,
+                                  color: DashboardColors.alertRed, size: 16),
                               onPressed: () {
                                 setDialogState(() => entered.removeAt(i));
                               },
@@ -926,7 +995,8 @@ class _ManualPurchaseEntryScreenState
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel', style: TextStyle(color: DashboardColors.textMuted)),
+                child: const Text('Cancel',
+                    style: TextStyle(color: DashboardColors.textMuted)),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
@@ -940,7 +1010,8 @@ class _ManualPurchaseEntryScreenState
                   Navigator.pop(ctx);
                   _scheduleDraftSave();
                 },
-                child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text('Done',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ],
           );
@@ -948,7 +1019,6 @@ class _ManualPurchaseEntryScreenState
       ),
     );
   }
-
 
   void _triggerProductMatch(_EditableItem row) async {
     try {
@@ -964,12 +1034,14 @@ class _ManualPurchaseEntryScreenState
       setState(() {
         row.isMatchLoading = false;
         if (match != null) {
-          row.matchStatus = match['status'] as String? ?? ProductMatchStatus.matched;
+          row.matchStatus =
+              match['status'] as String? ?? ProductMatchStatus.matched;
           row.matchedProductId = match['id']?.toString();
           row.itemKey = match['itemKey'] ?? match['id'];
           row.matchedProductName = match['name']?.toString() ?? row.name;
           row.matchNotes = match['notes']?.toString();
-          row.isNewProduct = match['status'] == ProductMatchStatus.quickRegister;
+          row.isNewProduct =
+              match['status'] == ProductMatchStatus.quickRegister;
           row.isStagedReady = true;
 
           // Pre-fill from catalog data
@@ -1029,7 +1101,8 @@ class _ManualPurchaseEntryScreenState
     final isEditing = editIndex != null;
     final row = isEditing ? _items[editIndex] : null;
 
-    final nameCtrl = TextEditingController(text: row != null ? row.name : (prefillName ?? ''));
+    final nameCtrl = TextEditingController(
+        text: row != null ? row.name : (prefillName ?? ''));
     final barcodeCtrl = TextEditingController(
       text: row != null
           ? row.sku
@@ -1077,17 +1150,22 @@ class _ManualPurchaseEntryScreenState
         final p = Db.items.get(k);
         if (p is Map) {
           final pName = (p['name'] ?? '').toString().trim().toLowerCase();
-          final pBarcode = (p['barcode'] ?? p['sku'] ?? p['code'] ?? '').toString().trim();
+          final pBarcode =
+              (p['barcode'] ?? p['sku'] ?? p['code'] ?? '').toString().trim();
           if ((barcodeKey.isNotEmpty && pBarcode == barcodeKey) ||
               (searchKey.isNotEmpty && pName == searchKey)) {
             if (pBarcode.isNotEmpty) {
               barcodeCtrl.text = pBarcode;
             }
             if (p['cost'] != null || p['purchaseRate'] != null) {
-              rateCtrl.text = ((p['cost'] ?? p['purchaseRate']) as num).toDouble().toStringAsFixed(2);
+              rateCtrl.text = ((p['cost'] ?? p['purchaseRate']) as num)
+                  .toDouble()
+                  .toStringAsFixed(2);
             }
             if (p['price'] != null || p['sellingPrice'] != null) {
-              spCtrl.text = ((p['price'] ?? p['sellingPrice']) as num).toDouble().toStringAsFixed(0);
+              spCtrl.text = ((p['price'] ?? p['sellingPrice']) as num)
+                  .toDouble()
+                  .toStringAsFixed(0);
             }
             if (p['mrp'] != null) {
               mrpCtrl.text = (p['mrp'] as num).toDouble().toStringAsFixed(0);
@@ -1101,7 +1179,9 @@ class _ManualPurchaseEntryScreenState
             matchedProductId = (p['_id'] ?? k).toString();
             matchedItemKey = k;
             isExistingProduct = true;
-            if (p['warranty'] != null && ItemWarrantyDuration.options.contains(p['warranty'].toString())) {
+            if (p['warranty'] != null &&
+                ItemWarrantyDuration.options
+                    .contains(p['warranty'].toString())) {
               selectedWarranty = p['warranty'].toString();
             }
             break;
@@ -1115,18 +1195,25 @@ class _ManualPurchaseEntryScreenState
       builder: (ctx) => StatefulBuilder(
         builder: (ctx2, setLocal) => AlertDialog(
           backgroundColor: const Color(0xFF0B1030),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           title: Row(
             children: [
               Icon(
-                isEditing ? Icons.edit_note_rounded : Icons.add_shopping_cart_rounded,
-                color: isEditing ? DashboardColors.neonOrange : DashboardColors.neonGreen,
+                isEditing
+                    ? Icons.edit_note_rounded
+                    : Icons.add_shopping_cart_rounded,
+                color: isEditing
+                    ? DashboardColors.neonOrange
+                    : DashboardColors.neonGreen,
                 size: 22,
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  isEditing ? 'Edit Item: ${row?.name}' : 'Add Item to Purchase Bill',
+                  isEditing
+                      ? 'Edit Item: ${row?.name}'
+                      : 'Add Item to Purchase Bill',
                   style: DashboardTypography.poppins(
                       fontSize: 16, fontWeight: FontWeight.w700),
                   overflow: TextOverflow.ellipsis,
@@ -1144,7 +1231,8 @@ class _ManualPurchaseEntryScreenState
                   onChanged: (val) {
                     final q = val.trim();
                     if (q.length >= 2) {
-                      final matches = SmartInventorySearchEngine.instance.search(q);
+                      final matches =
+                          SmartInventorySearchEngine.instance.search(q);
                       setLocal(() {
                         suggestions = matches.take(5).toList();
                         showSuggestions = suggestions.isNotEmpty;
@@ -1158,14 +1246,18 @@ class _ManualPurchaseEntryScreenState
                   },
                   decoration: InputDecoration(
                     labelText: 'Product Name *',
-                    labelStyle: const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
+                    labelStyle: const TextStyle(
+                        color: DashboardColors.textMuted, fontSize: 12),
                     hintText: 'Type to search existing items or enter new...',
-                    hintStyle: const TextStyle(color: Colors.white30, fontSize: 12),
-                    prefixIcon: const Icon(Icons.search_rounded, color: DashboardColors.neonBlue, size: 18),
+                    hintStyle:
+                        const TextStyle(color: Colors.white30, fontSize: 12),
+                    prefixIcon: const Icon(Icons.search_rounded,
+                        color: DashboardColors.neonBlue, size: 18),
                     suffixIcon: isExistingProduct
                         ? const Tooltip(
                             message: 'Linked to existing inventory',
-                            child: Icon(Icons.link_rounded, color: DashboardColors.neonGreen, size: 18),
+                            child: Icon(Icons.link_rounded,
+                                color: DashboardColors.neonGreen, size: 18),
                           )
                         : null,
                     isDense: true,
@@ -1173,7 +1265,8 @@ class _ManualPurchaseEntryScreenState
                     fillColor: Colors.white.withValues(alpha: 0.04),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: DashboardColors.glassBorder),
+                      borderSide:
+                          const BorderSide(color: DashboardColors.glassBorder),
                     ),
                   ),
                 ),
@@ -1184,15 +1277,21 @@ class _ManualPurchaseEntryScreenState
                     decoration: BoxDecoration(
                       color: const Color(0xFF0F1738),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.5)),
+                      border: Border.all(
+                          color:
+                              DashboardColors.neonBlue.withValues(alpha: 0.5)),
                       boxShadow: [
-                        BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 10, offset: const Offset(0, 4)),
+                        BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.5),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4)),
                       ],
                     ),
                     child: ListView.separated(
                       shrinkWrap: true,
                       itemCount: suggestions.length,
-                      separatorBuilder: (_, __) => const Divider(color: Colors.white10, height: 1),
+                      separatorBuilder: (_, __) =>
+                          const Divider(color: Colors.white10, height: 1),
                       itemBuilder: (ctx3, idx) {
                         final s = suggestions[idx];
                         return ListTile(
@@ -1200,30 +1299,44 @@ class _ManualPurchaseEntryScreenState
                           visualDensity: VisualDensity.compact,
                           title: Text(
                             s.name,
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12),
                           ),
                           subtitle: Text(
                             'SKU: ${s.sku.isNotEmpty ? s.sku : s.barcode}  |  Stock: ${s.stock}  |  Rate: ₹${s.lastPurchaseRate.toStringAsFixed(0)}',
-                            style: const TextStyle(color: DashboardColors.textMuted, fontSize: 11),
+                            style: const TextStyle(
+                                color: DashboardColors.textMuted, fontSize: 11),
                           ),
                           trailing: ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: DashboardColors.neonBlue,
                               foregroundColor: Colors.black,
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
                               minimumSize: const Size(0, 26),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(6)),
                             ),
                             onPressed: () {
                               setLocal(() {
                                 nameCtrl.text = s.name;
-                                barcodeCtrl.text = s.sku.isNotEmpty ? s.sku : s.barcode;
-                                if (s.lastPurchaseRate > 0) rateCtrl.text = s.lastPurchaseRate.toStringAsFixed(2);
-                                if (s.sellingPrice > 0) spCtrl.text = s.sellingPrice.toStringAsFixed(0);
-                                if (s.mrp > 0) mrpCtrl.text = s.mrp.toStringAsFixed(0);
+                                barcodeCtrl.text =
+                                    s.sku.isNotEmpty ? s.sku : s.barcode;
+                                if (s.lastPurchaseRate > 0)
+                                  rateCtrl.text =
+                                      s.lastPurchaseRate.toStringAsFixed(2);
+                                if (s.sellingPrice > 0)
+                                  spCtrl.text =
+                                      s.sellingPrice.toStringAsFixed(0);
+                                if (s.mrp > 0)
+                                  mrpCtrl.text = s.mrp.toStringAsFixed(0);
                                 if (s.hsn.isNotEmpty) hsnCtrl.text = s.hsn;
                                 if (_isGstEnabled && s.gst > 0) taxPct = s.gst;
-                                if (s.warranty.isNotEmpty && ItemWarrantyDuration.options.contains(s.warranty)) {
+                                if (s.warranty.isNotEmpty &&
+                                    ItemWarrantyDuration.options
+                                        .contains(s.warranty)) {
                                   selectedWarranty = s.warranty;
                                 }
                                 matchedProductId = s.productId;
@@ -1232,7 +1345,9 @@ class _ManualPurchaseEntryScreenState
                                 showSuggestions = false;
                               });
                             },
-                            child: const Text('Select', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                            child: const Text('Select',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 11)),
                           ),
                         );
                       },
@@ -1242,20 +1357,27 @@ class _ManualPurchaseEntryScreenState
                 if (isExistingProduct) ...[
                   const SizedBox(height: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: DashboardColors.neonGreen.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: DashboardColors.neonGreen.withValues(alpha: 0.3)),
+                      border: Border.all(
+                          color:
+                              DashboardColors.neonGreen.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.check_circle_rounded, color: DashboardColors.neonGreen, size: 15),
+                        const Icon(Icons.check_circle_rounded,
+                            color: DashboardColors.neonGreen, size: 15),
                         const SizedBox(width: 6),
                         const Expanded(
                           child: Text(
                             'Linked to existing inventory (details auto-populated)',
-                            style: TextStyle(color: DashboardColors.neonGreen, fontSize: 11, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                                color: DashboardColors.neonGreen,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600),
                           ),
                         ),
                         InkWell(
@@ -1266,7 +1388,11 @@ class _ManualPurchaseEntryScreenState
                               matchedItemKey = null;
                             });
                           },
-                          child: const Text('Unlink', style: TextStyle(color: DashboardColors.textMuted, fontSize: 11, decoration: TextDecoration.underline)),
+                          child: const Text('Unlink',
+                              style: TextStyle(
+                                  color: DashboardColors.textMuted,
+                                  fontSize: 11,
+                                  decoration: TextDecoration.underline)),
                         ),
                       ],
                     ),
@@ -1274,7 +1400,9 @@ class _ManualPurchaseEntryScreenState
                 ],
                 const SizedBox(height: 10),
                 _dialogField(
-                    barcodeCtrl, 'Barcode / SKU (auto-generated if blank)', TextInputType.text),
+                    barcodeCtrl,
+                    'Barcode / SKU (auto-generated if blank)',
+                    TextInputType.text),
                 const SizedBox(height: 10),
                 Row(children: [
                   Expanded(
@@ -1318,7 +1446,8 @@ class _ManualPurchaseEntryScreenState
                       ),
                       items: [0.0, 3.0, 5.0, 12.0, 18.0, 28.0]
                           .map((r) => DropdownMenuItem(
-                              value: r, child: Text('${r.toStringAsFixed(0)}%')))
+                              value: r,
+                              child: Text('${r.toStringAsFixed(0)}%')))
                           .toList(),
                       onChanged: (v) {
                         if (v != null) setLocal(() => taxPct = v);
@@ -1380,16 +1509,23 @@ class _ManualPurchaseEntryScreenState
                   style: TextStyle(color: DashboardColors.textMuted)),
             ),
             ElevatedButton.icon(
-              icon: Icon(isEditing ? Icons.check_rounded : Icons.add_shopping_cart_rounded, size: 16),
+              icon: Icon(
+                  isEditing
+                      ? Icons.check_rounded
+                      : Icons.add_shopping_cart_rounded,
+                  size: 16),
               style: ElevatedButton.styleFrom(
-                backgroundColor: isEditing ? DashboardColors.neonOrange : DashboardColors.neonGreen,
+                backgroundColor: isEditing
+                    ? DashboardColors.neonOrange
+                    : DashboardColors.neonGreen,
                 foregroundColor: Colors.black,
               ),
               onPressed: () {
                 final name = nameCtrl.text.trim();
                 if (name.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter a product name.')),
+                    const SnackBar(
+                        content: Text('Please enter a product name.')),
                   );
                   return;
                 }
@@ -1442,7 +1578,6 @@ class _ManualPurchaseEntryScreenState
                   setState(() {
                     _items.add(newRow);
                     _productSearchCtrl.clear();
-            
                   });
                   TekFeedback.success('Added "${newRow.name}" to bill');
                 }
@@ -1507,7 +1642,8 @@ class _ManualPurchaseEntryScreenState
         backgroundColor: const Color(0xFF0F172A),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: DashboardColors.alertRed.withValues(alpha: 0.4)),
+          side: BorderSide(
+              color: DashboardColors.alertRed.withValues(alpha: 0.4)),
         ),
         title: Row(
           children: [
@@ -1608,7 +1744,8 @@ class _ManualPurchaseEntryScreenState
       errors.add('Invoice/Bill number is required.');
     }
     if (_duplicateBlocked) {
-      errors.add('This invoice number already exists for the selected supplier.');
+      errors
+          .add('This invoice number already exists for the selected supplier.');
     }
     if (_items.isEmpty) {
       errors.add('Add at least one item.');
@@ -1617,9 +1754,11 @@ class _ManualPurchaseEntryScreenState
       final it = _items[i];
       if (it.name.isEmpty) errors.add('Row ${i + 1}: Product name is missing.');
       if (it.quantity <= 0) errors.add('Row ${i + 1}: Quantity must be > 0.');
-      if (it.purchaseRate < 0) errors.add('Row ${i + 1}: Purchase rate cannot be negative.');
+      if (it.purchaseRate < 0)
+        errors.add('Row ${i + 1}: Purchase rate cannot be negative.');
       if (it.imeiRequired && it.serialNumbers.length != it.quantity) {
-        errors.add('Row ${i + 1} ("${it.name}"): Requires ${it.quantity} IMEI/Serial numbers, but ${it.serialNumbers.length} entered.');
+        errors.add(
+            'Row ${i + 1} ("${it.name}"): Requires ${it.quantity} IMEI/Serial numbers, but ${it.serialNumbers.length} entered.');
       }
     }
     final paid = double.tryParse(_paidCtrl.text) ?? 0.0;
@@ -1660,7 +1799,8 @@ class _ManualPurchaseEntryScreenState
       final auth = Provider.of<AuthController>(context, listen: false);
 
       if (_isEditing) {
-        final updatedBill = await PurchaseBillService.instance.updateConfirmedPurchaseBill(
+        final updatedBill =
+            await PurchaseBillService.instance.updateConfirmedPurchaseBill(
           originalBill: widget.editBill!,
           vendorInvoiceNumber: _invoiceNumCtrl.text.trim(),
           vendorKey: _vendorKey,
@@ -1677,13 +1817,15 @@ class _ManualPurchaseEntryScreenState
         );
 
         if (mounted) {
-          TekFeedback.success('Purchase bill ${updatedBill.billNumber} updated!');
+          TekFeedback.success(
+              'Purchase bill ${updatedBill.billNumber} updated!');
           Navigator.of(context).pop(updatedBill);
         }
         return;
       }
 
-      final confirmedBill = await PurchaseBillService.instance.confirmPurchaseBill(
+      final confirmedBill =
+          await PurchaseBillService.instance.confirmPurchaseBill(
         billNumber: _billNumber,
         vendorInvoiceNumber: _invoiceNumCtrl.text.trim(),
         vendorKey: _vendorKey,
@@ -1719,7 +1861,8 @@ class _ManualPurchaseEntryScreenState
     } catch (e) {
       if (mounted) {
         setState(() => _isSaving = false);
-        TekFeedback.error('Save failed: ${e.toString().replaceFirst('Exception: ', '')}');
+        TekFeedback.error(
+            'Save failed: ${e.toString().replaceFirst('Exception: ', '')}');
       }
     }
   }
@@ -1730,17 +1873,22 @@ class _ManualPurchaseEntryScreenState
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF0B1030),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Reset Form?', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('Reset Form?',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         content: const Text(
           'This will discard all entered items and clear the active draft state.',
           style: TextStyle(color: DashboardColors.textMuted),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: DashboardColors.alertRed),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: DashboardColors.alertRed),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Reset All', style: TextStyle(color: Colors.white)),
+            child:
+                const Text('Reset All', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -1832,7 +1980,8 @@ class _ManualPurchaseEntryScreenState
           children: [
             _confirmRow('Supplier', _vendorName),
             _confirmRow('Invoice No.', _invoiceNumCtrl.text.trim()),
-            _confirmRow('Items', '${_items.length} item(s), ${_calc.lines.fold(0, (s, l) => s + l.quantity)} unit(s)'),
+            _confirmRow('Items',
+                '${_items.length} item(s), ${_calc.lines.fold(0, (s, l) => s + l.quantity)} unit(s)'),
             _confirmRow('Grand Total',
                 '₹${NumberFormat('#,##0.00', 'en_IN').format(_calc.grandTotal)}'),
             _confirmRow('Paid Now',
@@ -1850,8 +1999,8 @@ class _ManualPurchaseEntryScreenState
               ),
               child: const Text(
                 'Stock and vendor ledger will be updated atomically. This cannot be undone.',
-                style: TextStyle(
-                    color: DashboardColors.textMuted, fontSize: 12),
+                style:
+                    TextStyle(color: DashboardColors.textMuted, fontSize: 12),
               ),
             ),
           ],
@@ -1931,7 +2080,8 @@ class _ManualPurchaseEntryScreenState
               // Auto-Extract from Bill (OCR) button
               if (_isParsingBill)
                 Container(
-                  margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                  margin:
+                      const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
                     color: DashboardColors.neonGreen.withValues(alpha: 0.15),
@@ -1959,12 +2109,15 @@ class _ManualPurchaseEntryScreenState
                 )
               else if (_attachment != null)
                 Container(
-                  margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  margin:
+                      const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: DashboardColors.neonBlue.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.4)),
+                    border: Border.all(
+                        color: DashboardColors.neonBlue.withValues(alpha: 0.4)),
                   ),
                   child: Row(
                     children: [
@@ -2016,12 +2169,14 @@ class _ManualPurchaseEntryScreenState
                 )
               else
                 Container(
-                  margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                  margin:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: DashboardColors.neonGreen,
                       foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10)),
                       elevation: 2,
@@ -2039,7 +2194,8 @@ class _ManualPurchaseEntryScreenState
 
               // Reset / Discard form button
               IconButton(
-                icon: const Icon(Icons.restart_alt_rounded, size: 20, color: DashboardColors.textMuted),
+                icon: const Icon(Icons.restart_alt_rounded,
+                    size: 20, color: DashboardColors.textMuted),
                 tooltip: 'Reset / Clear Form',
                 onPressed: _discardDraftAndReset,
               ),
@@ -2048,7 +2204,8 @@ class _ManualPurchaseEntryScreenState
               if (!isVeryNarrow)
                 Container(
                   margin: const EdgeInsets.only(right: 12),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: DashboardColors.neonBlue.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(20),
@@ -2157,8 +2314,8 @@ class _ManualPurchaseEntryScreenState
       decoration: BoxDecoration(
         color: DashboardColors.neonGreen.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-            color: DashboardColors.neonGreen.withValues(alpha: 0.3)),
+        border:
+            Border.all(color: DashboardColors.neonGreen.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -2191,8 +2348,7 @@ class _ManualPurchaseEntryScreenState
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       decoration: const BoxDecoration(
         color: Color(0xFF0D1428),
-        border: Border(
-            top: BorderSide(color: DashboardColors.glassBorder)),
+        border: Border(top: BorderSide(color: DashboardColors.glassBorder)),
       ),
       child: Row(
         children: [
@@ -2232,8 +2388,8 @@ class _ManualPurchaseEntryScreenState
       decoration: BoxDecoration(
         color: DashboardColors.alertRed.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-            color: DashboardColors.alertRed.withValues(alpha: 0.3)),
+        border:
+            Border.all(color: DashboardColors.alertRed.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2254,8 +2410,7 @@ class _ManualPurchaseEntryScreenState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text('• ',
-                        style:
-                            TextStyle(color: DashboardColors.alertRed)),
+                        style: TextStyle(color: DashboardColors.alertRed)),
                     Expanded(
                         child: Text(e,
                             style: const TextStyle(
@@ -2275,9 +2430,7 @@ class _ManualPurchaseEntryScreenState
       icon: Icons.business_rounded,
       iconColor: DashboardColors.neonBlue,
       title: 'Supplier',
-      child: _vendorKey == null
-          ? _buildSupplierPrompt()
-          : _buildSupplierCard(),
+      child: _vendorKey == null ? _buildSupplierPrompt() : _buildSupplierCard(),
     );
   }
 
@@ -2286,14 +2439,12 @@ class _ManualPurchaseEntryScreenState
     return OutlinedButton.icon(
       style: OutlinedButton.styleFrom(
         side: BorderSide(
-            color: hasError
-                ? DashboardColors.alertRed
-                : DashboardColors.neonBlue,
+            color:
+                hasError ? DashboardColors.alertRed : DashboardColors.neonBlue,
             width: hasError ? 1.5 : 1),
         foregroundColor: DashboardColors.neonBlue,
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       icon: const Icon(Icons.search_rounded, size: 18),
       label: const Text('Search or Add Supplier',
@@ -2324,9 +2475,7 @@ class _ManualPurchaseEntryScreenState
               ),
               child: Center(
                 child: Text(
-                  _vendorName.isNotEmpty
-                      ? _vendorName[0].toUpperCase()
-                      : 'S',
+                  _vendorName.isNotEmpty ? _vendorName[0].toUpperCase() : 'S',
                   style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
@@ -2347,13 +2496,11 @@ class _ManualPurchaseEntryScreenState
                   if (_vendorPhone.isNotEmpty)
                     Text(_vendorPhone,
                         style: const TextStyle(
-                            color: DashboardColors.textMuted,
-                            fontSize: 12)),
+                            color: DashboardColors.textMuted, fontSize: 12)),
                   if (_vendorGst.isNotEmpty)
                     Text('GSTIN: $_vendorGst',
                         style: const TextStyle(
-                            color: DashboardColors.neonBlue,
-                            fontSize: 11)),
+                            color: DashboardColors.neonBlue, fontSize: 11)),
                 ],
               ),
             ),
@@ -2368,8 +2515,7 @@ class _ManualPurchaseEntryScreenState
                       width: 14,
                       height: 14,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: DashboardColors.neonOrange))
+                          strokeWidth: 2, color: DashboardColors.neonOrange))
                 else
                   Text(
                     '₹${NumberFormat('#,##0.00', 'en_IN').format(_vendorPrevBalance)}',
@@ -2425,8 +2571,8 @@ class _ManualPurchaseEntryScreenState
                 borderRadius: BorderRadius.circular(12),
                 onTap: _pickInvoiceDate,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.04),
                     borderRadius: BorderRadius.circular(12),
@@ -2494,7 +2640,8 @@ class _ManualPurchaseEntryScreenState
           ],
 
           const SizedBox(height: 12),
-          _textField(_notesCtrl, 'Notes / Remarks (optional)', Icons.notes_rounded,
+          _textField(
+              _notesCtrl, 'Notes / Remarks (optional)', Icons.notes_rounded,
               maxLines: 2, onChanged: (_) => _scheduleDraftSave()),
         ],
       ),
@@ -2547,7 +2694,9 @@ class _ManualPurchaseEntryScreenState
             Icon(
               _isGstEnabled ? Icons.percent_rounded : Icons.money_off_rounded,
               size: 13,
-              color: _isGstEnabled ? DashboardColors.neonPurple : DashboardColors.textMuted,
+              color: _isGstEnabled
+                  ? DashboardColors.neonPurple
+                  : DashboardColors.textMuted,
             ),
             const SizedBox(width: 5),
             Text(
@@ -2591,10 +2740,12 @@ class _ManualPurchaseEntryScreenState
               foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               minimumSize: const Size(0, 32),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
             icon: const Icon(Icons.add_rounded, size: 16),
-            label: const Text('+ Custom / New Item', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+            label: const Text('+ Custom / New Item',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
             onPressed: () => _showSingleStepItemDialog(),
           ),
         ],
@@ -2625,8 +2776,10 @@ class _ManualPurchaseEntryScreenState
                   const Icon(Icons.shopping_bag_outlined,
                       color: DashboardColors.textMuted, size: 42),
                   const SizedBox(height: 8),
-                  const Text('Search inventory above to add items or add a new product',
-                      style: TextStyle(color: DashboardColors.textMuted, fontSize: 13)),
+                  const Text(
+                      'Search inventory above to add items or add a new product',
+                      style: TextStyle(
+                          color: DashboardColors.textMuted, fontSize: 13)),
                 ],
               ),
             )
@@ -2674,12 +2827,15 @@ class _ManualPurchaseEntryScreenState
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                     margin: const EdgeInsets.only(right: 8),
                     decoration: BoxDecoration(
                       color: DashboardColors.neonBlue.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: DashboardColors.neonBlue.withValues(alpha: 0.3)),
+                      border: Border.all(
+                          color:
+                              DashboardColors.neonBlue.withValues(alpha: 0.3)),
                     ),
                     child: Text(
                       '#${i + 1}',
@@ -2705,8 +2861,7 @@ class _ManualPurchaseEntryScreenState
                       width: 14,
                       height: 14,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: DashboardColors.neonBlue),
+                          strokeWidth: 2, color: DashboardColors.neonBlue),
                     )
                   else if (row.matchStatus != null)
                     _matchBadge(row.matchStatus!, row),
@@ -2735,10 +2890,14 @@ class _ManualPurchaseEntryScreenState
               Row(children: [
                 _itemChip('Qty: ${row.quantity}', DashboardColors.neonBlue),
                 const SizedBox(width: 6),
-                _itemChip('₹${row.purchaseRate.toStringAsFixed(0)}', DashboardColors.textMuted),
+                _itemChip('₹${row.purchaseRate.toStringAsFixed(0)}',
+                    DashboardColors.textMuted),
                 const SizedBox(width: 6),
-                _itemChip('GST: ${row.taxPercent.toStringAsFixed(0)}%', DashboardColors.neonPurple),
-                if (row.warrantyDuration.isNotEmpty && row.warrantyDuration != ItemWarrantyDuration.noWarranty) ...[
+                _itemChip('GST: ${row.taxPercent.toStringAsFixed(0)}%',
+                    DashboardColors.neonPurple),
+                if (row.warrantyDuration.isNotEmpty &&
+                    row.warrantyDuration !=
+                        ItemWarrantyDuration.noWarranty) ...[
                   const SizedBox(width: 6),
                   _itemChip(row.warrantyDuration, DashboardColors.neonGreen),
                 ],
@@ -2759,7 +2918,8 @@ class _ManualPurchaseEntryScreenState
                   onTap: () => _showImeiSerialEntryDialog(i),
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
                       color: row.serialNumbers.length == row.quantity
                           ? DashboardColors.neonGreen.withValues(alpha: 0.12)
@@ -2853,8 +3013,8 @@ class _ManualPurchaseEntryScreenState
               : status == ProductMatchStatus.quickRegister
                   ? 'New'
                   : 'Review',
-          style:
-              TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700),
+          style: TextStyle(
+              color: color, fontSize: 10, fontWeight: FontWeight.w700),
         ),
       ]),
     );
@@ -2873,18 +3033,16 @@ class _ManualPurchaseEntryScreenState
     );
   }
 
-
-
-  Widget _dialogField(TextEditingController ctrl, String label,
-      TextInputType keyboardType) {
+  Widget _dialogField(
+      TextEditingController ctrl, String label, TextInputType keyboardType) {
     return TextField(
       controller: ctrl,
       keyboardType: keyboardType,
       style: const TextStyle(color: Colors.white, fontSize: 13),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(
-            color: DashboardColors.textMuted, fontSize: 12),
+        labelStyle:
+            const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
         isDense: true,
         filled: true,
         fillColor: Colors.white.withValues(alpha: 0.04),
@@ -2912,7 +3070,8 @@ class _ManualPurchaseEntryScreenState
                   _chargesCtrl,
                   'Other Charges (₹)',
                   Icons.attach_money_rounded,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (_) {
                     _recalcState();
                     _scheduleDraftSave();
@@ -2933,22 +3092,23 @@ class _ManualPurchaseEntryScreenState
                         color: DashboardColors.textMuted, fontSize: 12),
                     filled: true,
                     fillColor: Colors.white.withValues(alpha: 0.04),
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 12),
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide:
-                            const BorderSide(color: DashboardColors.glassBorder)),
+                        borderSide: const BorderSide(
+                            color: DashboardColors.glassBorder)),
                     enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide:
-                            const BorderSide(color: DashboardColors.glassBorder)),
+                        borderSide: const BorderSide(
+                            color: DashboardColors.glassBorder)),
                   ),
                   items: [0.0, 5.0, 12.0, 18.0, 28.0]
                       .map((r) => DropdownMenuItem(
                           value: r,
-                          child: Text(
-                              r == 0 ? 'None (0%)' : '${r.toStringAsFixed(0)}%')))
+                          child: Text(r == 0
+                              ? 'None (0%)'
+                              : '${r.toStringAsFixed(0)}%')))
                       .toList(),
                   onChanged: (v) {
                     if (v != null) {
@@ -3049,8 +3209,7 @@ class _ManualPurchaseEntryScreenState
             const Divider(color: DashboardColors.glassBorder, height: 16),
           ],
           if (_calc.chargesTotal > 0)
-            _summaryRow('Other Charges',
-                '₹${fmt.format(_calc.chargesTotal)}',
+            _summaryRow('Other Charges', '₹${fmt.format(_calc.chargesTotal)}',
                 color: DashboardColors.neonOrange),
           if (_calc.roundOffPaise != 0)
             _summaryRow('Round Off',
@@ -3138,14 +3297,12 @@ class _ManualPurchaseEntryScreenState
               border: Border.all(color: DashboardColors.glassBorder),
             ),
             child: Column(children: [
-              _summaryRow('Invoice Total',
-                  '₹${fmt.format(_calc.grandTotal)}'),
-              _summaryRow('Paid Now',
-                  '- ₹${fmt.format(_calc.paidAmount)}',
+              _summaryRow('Invoice Total', '₹${fmt.format(_calc.grandTotal)}'),
+              _summaryRow('Paid Now', '- ₹${fmt.format(_calc.paidAmount)}',
                   color: DashboardColors.neonGreen),
               const Divider(color: DashboardColors.glassBorder, height: 12),
-              _summaryRow('Invoice Balance Due',
-                  '₹${fmt.format(_calc.balanceDue)}',
+              _summaryRow(
+                  'Invoice Balance Due', '₹${fmt.format(_calc.balanceDue)}',
                   color: _calc.balanceDue > 0
                       ? DashboardColors.alertRed
                       : DashboardColors.neonGreen,
@@ -3200,8 +3357,7 @@ class _ManualPurchaseEntryScreenState
                       const BorderSide(color: DashboardColors.glassBorder)),
             ),
             items: ['Cash', 'UPI', 'Bank Transfer', 'Card', 'Cheque', 'Other']
-                .map((m) =>
-                    DropdownMenuItem(value: m, child: Text(m)))
+                .map((m) => DropdownMenuItem(value: m, child: Text(m)))
                 .toList(),
             onChanged: (v) {
               if (v != null) {
@@ -3244,8 +3400,8 @@ class _ManualPurchaseEntryScreenState
           padding: const EdgeInsets.symmetric(horizontal: 10),
           disabledBackgroundColor:
               DashboardColors.neonGreen.withValues(alpha: 0.4),
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           elevation: 4,
         ),
         icon: _isSaving
@@ -3258,7 +3414,9 @@ class _ManualPurchaseEntryScreenState
         label: FittedBox(
           fit: BoxFit.scaleDown,
           child: Text(
-            _isSaving ? 'Saving...' : (_isEditing ? 'Save Changes' : 'Review & Save'),
+            _isSaving
+                ? 'Saving...'
+                : (_isEditing ? 'Save Changes' : 'Review & Save'),
             style: DashboardTypography.poppins(
                 fontSize: 14, fontWeight: FontWeight.w800),
           ),
@@ -3355,10 +3513,9 @@ class _ManualPurchaseEntryScreenState
       onChanged: onChanged,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(
-            color: DashboardColors.textMuted, fontSize: 12),
-        prefixIcon:
-            Icon(icon, color: DashboardColors.neonBlue, size: 18),
+        labelStyle:
+            const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
+        prefixIcon: Icon(icon, color: DashboardColors.neonBlue, size: 18),
         filled: true,
         fillColor: Colors.white.withValues(alpha: 0.04),
         border: OutlineInputBorder(
@@ -3378,4 +3535,3 @@ class _ManualPurchaseEntryScreenState
     );
   }
 }
-
