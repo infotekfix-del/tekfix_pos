@@ -45,9 +45,19 @@ class BarcodeLabelService extends ChangeNotifier {
   static const double defaultLabelHeightMm = 25.0;
   static const double defaultLabelGapMm = 3.0;
 
-  /// Dynamic PdfPageFormat matching physical sticker dimensions (38x25mm or 50x25mm).
-  /// Margins: 1.5 mm on all sides (12 dots).
-  PdfPageFormat get pageFormat => PdfPageFormat(
+  /// Static standard PdfPageFormat matching default physical sticker dimensions (38 mm x 25 mm).
+  /// Margins: 1.0 mm top/bottom, 1.2 mm left/right to maximize printable area.
+  static PdfPageFormat get pageFormat => const PdfPageFormat(
+        defaultLabelWidthMm * PdfPageFormat.mm,
+        defaultLabelHeightMm * PdfPageFormat.mm,
+        marginTop: 1.0 * PdfPageFormat.mm,
+        marginBottom: 1.0 * PdfPageFormat.mm,
+        marginLeft: 1.2 * PdfPageFormat.mm,
+        marginRight: 1.2 * PdfPageFormat.mm,
+      );
+
+  /// Dynamic PdfPageFormat matching the currently configured profile/preset.
+  PdfPageFormat get activePageFormat => PdfPageFormat(
         _config.widthMm * PdfPageFormat.mm,
         _config.heightMm * PdfPageFormat.mm,
         marginTop: _config.safetyMarginMm * PdfPageFormat.mm,
@@ -364,7 +374,7 @@ class BarcodeLabelService extends ChangeNotifier {
 
         await Printing.layoutPdf(
           name: 'TekFix_Barcode_50x25mm',
-          format: pageFormat,
+          format: activePageFormat,
           onLayout: (PdfPageFormat format) async => pdfBytes,
         );
 
@@ -522,7 +532,7 @@ class BarcodeLabelService extends ChangeNotifier {
       for (int i = 0; i < qty; i++) {
         doc.addPage(
           pw.Page(
-            pageFormat: pageFormat,
+            pageFormat: activePageFormat,
             build: (pw.Context context) {
               return _buildLabelWidget(
                 item: item,
@@ -620,15 +630,43 @@ class BarcodeLabelService extends ChangeNotifier {
     );
   }
 
-  /// Generates the raw TSPL commands string for review or manual export.
+  /// Generates direct TSPL2 commands supported natively by TVS LP 46 Lite & TSC printers.
   String generateTsplCommands({
     required List<BarcodeLabelItem> items,
     bool showPrice = true,
+    String? shopName,
   }) {
-    return TsplGenerator.generateJob(
-      items: items,
-      config: _config,
-      showPrice: showPrice,
-    );
+    final buffer = StringBuffer();
+    final store = (shopName != null && shopName.isNotEmpty)
+        ? shopName
+        : (_config.storeName.isNotEmpty ? _config.storeName : 'TEKFIX DIGITAL');
+
+    for (final item in items) {
+      final qty = item.quantity.clamp(1, 9999);
+      final rawBarcode = item.barcode.trim();
+      final barcodeData = rawBarcode.isNotEmpty ? rawBarcode : generateUniqueBarcode();
+      final price = item.effectivePrice ?? item.sellingPrice;
+      final priceStr = showPrice && (price != null && price > 0)
+          ? 'MRP: Rs. ${price.toStringAsFixed(2)}'
+          : '';
+
+      buffer.writeln('SIZE 38 mm, 25 mm');
+      buffer.writeln('GAP 2 mm, 0 mm');
+      buffer.writeln('DIRECTION 1');
+      buffer.writeln('CLS');
+      buffer.writeln('TEXT 152,10,"2",0,1,1,"$store"');
+      buffer.writeln('TEXT 152,32,"1",0,1,1,"${item.name}"');
+      if (item.model.isNotEmpty) {
+        buffer.writeln('TEXT 152,50,"1",0,1,1,"Model: ${item.model}"');
+      }
+      buffer.writeln('BARCODE 28,68,"128",50,1,0,2,2,"$barcodeData"');
+      if (priceStr.isNotEmpty) {
+        buffer.writeln('TEXT 152,148,"2",0,1,1,"$priceStr"');
+      }
+      buffer.writeln('PRINT $qty,1');
+      buffer.writeln();
+    }
+
+    return buffer.toString();
   }
 }

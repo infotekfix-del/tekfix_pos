@@ -481,7 +481,7 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  isClosed ? 'EOD Closed (ക്ലോസ്ഡ്)' : 'End of Day Close (10 PM)',
+                  isClosed ? 'EOD Closed (ക്ലോസ്ഡ്)' : 'End of Day (EOD) Close (10 PM)',
                   style: const TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.bold,

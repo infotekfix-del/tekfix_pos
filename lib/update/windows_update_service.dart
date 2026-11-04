@@ -230,7 +230,7 @@ class WindowsUpdateService extends ChangeNotifier {
       }
     } on SocketException catch (e) {
       _lastFetchedRemoteVersion = 'Network Error';
-      _errorMessage = 'നെറ്റ്‌വർക്ക് കണക്ഷൻ ലഭ്യമല്ല (SocketException: ${e.message})';
+      _errorMessage = 'ഇന്റർനെറ്റ് കണക്ഷൻ ലഭ്യമല്ല (No internet connection: ${e.message})';
       _checkStatusSummary = 'Network Error: SocketException';
       _log('Status: Network Error: SocketException (${e.message})');
       _status = WindowsUpdateStatus.failed;
