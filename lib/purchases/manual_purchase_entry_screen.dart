@@ -27,6 +27,9 @@ import 'purchase_calculation_engine.dart';
 import 'purchase_models.dart';
 import 'supplier_search_sheet.dart';
 import 'purchase_bill_details_screen.dart';
+import 'smart_inventory_models.dart';
+import 'smart_inventory_search_engine.dart';
+import 'smart_inventory_combobox.dart';
 
 // ---------------------------------------------------------------------------
 // EditablePurchaseItem — mutable wrapper used by the item table
@@ -53,6 +56,8 @@ class _EditableItem {
   bool isMatchLoading;
   String? matchNotes;
   bool imeiRequired;
+  String category;
+  List<String> serialNumbers;
   String warrantyDuration;
 
   _EditableItem({
@@ -76,9 +81,12 @@ class _EditableItem {
     this.matchStatus,
     this.isMatchLoading = false,
     this.matchNotes,
+    this.category = '',
+    List<String>? serialNumbers,
     this.imeiRequired = false,
     this.warrantyDuration = 'No Warranty',
-  })  : rowId = rowId ?? 'ROW_${DateTime.now().microsecondsSinceEpoch}',
+  })  : serialNumbers = serialNumbers != null ? List<String>.from(serialNumbers) : [],
+        rowId = rowId ?? 'ROW_${DateTime.now().microsecondsSinceEpoch}',
         sku = sku.trim().isNotEmpty
             ? sku.trim()
             : 'TKF${DateTime.now().millisecondsSinceEpoch}';
@@ -115,6 +123,8 @@ class _EditableItem {
       matchStatusOverride: matchStatus,
       matchNotes: matchNotes,
       imeiRequired: imeiRequired,
+      category: category,
+      serialNumbers: List<String>.from(serialNumbers),
       warrantyDuration: warrantyDuration,
     );
   }
@@ -167,7 +177,7 @@ class _ManualPurchaseEntryScreenState
   final List<_EditableItem> _items = [];
   final _productSearchCtrl = TextEditingController();
   final _productSearchFocus = FocusNode();
-  bool _isSearchingProduct = false;
+
   Timer? _matchDebounce;
   bool _isGstEnabled = false;
 
@@ -208,6 +218,7 @@ class _ManualPurchaseEntryScreenState
   void initState() {
     super.initState();
     _calc = _recalculate();
+    SmartInventorySearchEngine.instance.initialize();
     _init();
   }
 
@@ -246,9 +257,11 @@ class _ManualPurchaseEntryScreenState
           taxPercent: it.taxPercent,
           isNewProduct: it.isNewProduct,
           isStagedReady: true,
-          matchedProductId: it.itemId ?? it.matchedProductId,
+          matchedProductId: it.itemId.isNotEmpty ? it.itemId : it.matchedProductId,
           matchedProductName: it.matchedProductName ?? it.name,
           matchStatus: it.matchStatusOverride ?? ProductMatchStatus.matched,
+          category: it.category,
+          serialNumbers: List<String>.from(it.serialNumbers),
           imeiRequired: it.imeiRequired,
           warrantyDuration: it.warrantyDuration.isNotEmpty ? it.warrantyDuration : ItemWarrantyDuration.noWarranty,
         ));
@@ -668,14 +681,274 @@ class _ManualPurchaseEntryScreenState
   }
 
   // -------------------------------------------------------------------------
-  // ADD ITEM
   // -------------------------------------------------------------------------
-  Future<void> _addItemBySearch(String query) async {
-    final trimmed = query.trim();
-    if (trimmed.isEmpty) return;
-    _productSearchCtrl.clear();
-    await _showSingleStepItemDialog(prefillName: trimmed);
+  // SMART INVENTORY COMBOBOX HANDLERS
+  // -------------------------------------------------------------------------
+  void _onProductSelectedFromCombobox(InventorySearchItem item) {
+    // 1. Smart Duplicate Prevention (Requirement 7)
+    int existingIndex = -1;
+    for (int i = 0; i < _items.length; i++) {
+      final it = _items[i];
+      final sameId = (it.matchedProductId != null && it.matchedProductId == item.productId) ||
+          (it.itemKey != null && it.itemKey == item.itemKey);
+      final sameSku = it.sku.isNotEmpty && item.sku.isNotEmpty && it.sku.toLowerCase() == item.sku.toLowerCase();
+      final sameBarcode = it.sku.isNotEmpty && item.barcode.isNotEmpty && it.sku.toLowerCase() == item.barcode.toLowerCase();
+      final sameName = it.name.trim().toLowerCase() == item.name.trim().toLowerCase();
+
+      if (sameId || sameSku || sameBarcode || sameName) {
+        existingIndex = i;
+        break;
+      }
+    }
+
+    if (existingIndex >= 0) {
+      final existing = _items[existingIndex];
+      setState(() {
+        existing.quantity += 1;
+        existing.isStagedReady = true;
+      });
+      TekFeedback.success('Updated quantity for "${existing.name}" to ${existing.quantity}');
+      if (existing.imeiRequired) {
+        _showImeiSerialEntryDialog(existingIndex);
+      }
+    } else {
+      final newRow = _EditableItem(
+        name: item.name,
+        brand: item.brand,
+        model: item.model,
+        sku: item.sku.isNotEmpty ? item.sku : (item.barcode.isNotEmpty ? item.barcode : 'TKF${DateTime.now().millisecondsSinceEpoch}'),
+        category: item.category,
+        hsnCode: item.hsn,
+        quantity: 1,
+        purchaseRate: item.lastPurchaseRate,
+        sellingPrice: item.sellingPrice,
+        mrp: item.mrp,
+        discount: 0.0,
+        taxPercent: _isGstEnabled ? item.gst : 0.0,
+        warrantyDuration: item.warranty.isNotEmpty ? item.warranty : ItemWarrantyDuration.noWarranty,
+        imeiRequired: item.trackImei,
+        isNewProduct: false,
+        isStagedReady: true,
+        matchedProductId: item.productId,
+        matchedProductName: item.name,
+        itemKey: item.itemKey,
+        matchStatus: ProductMatchStatus.matched,
+      );
+
+      setState(() {
+        _items.add(newRow);
+
+      });
+      TekFeedback.success('Added "${item.name}" to bill');
+
+      if (newRow.imeiRequired) {
+        _showImeiSerialEntryDialog(_items.length - 1);
+      }
+    }
+
+    _recalcState();
+    _scheduleDraftSave();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _productSearchFocus.canRequestFocus) {
+        _productSearchFocus.requestFocus();
+      }
+    });
   }
+
+  Future<void> _onAddNewItemFromCombobox(String query) async {
+    await _showSingleStepItemDialog(prefillName: query.trim());
+    await SmartInventorySearchEngine.instance.refresh();
+  }
+
+  void _showImeiSerialEntryDialog(int index) {
+    if (index < 0 || index >= _items.length) return;
+    final item = _items[index];
+
+    final imeiCtrl = TextEditingController();
+    final entered = List<String>.from(item.serialNumbers);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx2, setDialogState) {
+          final isComplete = entered.length == item.quantity;
+
+          return AlertDialog(
+            backgroundColor: const Color(0xFF0B1030),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: BorderSide(color: DashboardColors.neonBlue.withValues(alpha: 0.4)),
+            ),
+            title: Row(
+              children: [
+                const Icon(Icons.pin_rounded, color: DashboardColors.neonBlue, size: 22),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'IMEI / Serial Numbers — ${item.name}',
+                    style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 480,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isComplete
+                          ? DashboardColors.neonGreen.withValues(alpha: 0.12)
+                          : DashboardColors.neonOrange.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isComplete
+                            ? DashboardColors.neonGreen.withValues(alpha: 0.3)
+                            : DashboardColors.neonOrange.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Text(
+                      'Quantity: ${item.quantity}  |  Entered: ${entered.length} / ${item.quantity}',
+                      style: TextStyle(
+                        color: isComplete ? DashboardColors.neonGreen : DashboardColors.neonOrange,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: imeiCtrl,
+                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          decoration: InputDecoration(
+                            hintText: 'Enter 15-digit IMEI or scan barcode...',
+                            hintStyle: const TextStyle(color: DashboardColors.textMuted, fontSize: 12),
+                            filled: true,
+                            fillColor: Colors.white.withValues(alpha: 0.05),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          keyboardType: TextInputType.text,
+                          onSubmitted: (val) {
+                            final clean = val.trim().toUpperCase();
+                            if (clean.isEmpty) return;
+                            if (entered.contains(clean)) {
+                              TekFeedback.error('IMEI/Serial already added to this item');
+                            } else if (entered.length >= item.quantity) {
+                              TekFeedback.toast('Maximum ${item.quantity} IMEIs already entered');
+                            } else {
+                              final cat = ImeiValidator.categorizeIdentifier(clean);
+                              if (cat == 'INVALID_LUHN_IMEI') {
+                                TekFeedback.toast('Warning: 15-digit IMEI check digit is invalid');
+                              }
+                              setDialogState(() {
+                                entered.add(clean);
+                                imeiCtrl.clear();
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: DashboardColors.neonBlue,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        ),
+                        onPressed: () {
+                          final clean = imeiCtrl.text.trim().toUpperCase();
+                          if (clean.isEmpty) return;
+                          if (entered.contains(clean)) {
+                            TekFeedback.error('IMEI/Serial already added to this item');
+                          } else if (entered.length >= item.quantity) {
+                            TekFeedback.toast('Maximum ${item.quantity} IMEIs already entered');
+                          } else {
+                            final cat = ImeiValidator.categorizeIdentifier(clean);
+                            if (cat == 'INVALID_LUHN_IMEI') {
+                              TekFeedback.toast('Warning: 15-digit IMEI check digit is invalid');
+                            }
+                            setDialogState(() {
+                              entered.add(clean);
+                              imeiCtrl.clear();
+                            });
+                          }
+                        },
+                        child: const Text('Add', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (entered.isNotEmpty)
+                    Container(
+                      constraints: const BoxConstraints(maxHeight: 180),
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: entered.length,
+                        separatorBuilder: (_, __) => const Divider(color: Colors.white10, height: 1),
+                        itemBuilder: (c, i) => Row(
+                          children: [
+                            Text('#${i + 1}', style: const TextStyle(color: DashboardColors.textMuted, fontSize: 11)),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                entered[i],
+                                style: const TextStyle(color: Colors.white, fontFamily: 'monospace', fontSize: 12),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.remove_circle_outline, color: DashboardColors.alertRed, size: 16),
+                              onPressed: () {
+                                setDialogState(() => entered.removeAt(i));
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel', style: TextStyle(color: DashboardColors.textMuted)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: DashboardColors.neonGreen,
+                  foregroundColor: Colors.black,
+                ),
+                onPressed: () {
+                  setState(() {
+                    item.serialNumbers = entered;
+                  });
+                  Navigator.pop(ctx);
+                  _scheduleDraftSave();
+                },
+                child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
 
   void _triggerProductMatch(_EditableItem row) async {
     try {
@@ -1025,7 +1298,7 @@ class _ManualPurchaseEntryScreenState
                   setState(() {
                     _items.add(newRow);
                     _productSearchCtrl.clear();
-                    _isSearchingProduct = true;
+            
                   });
                   TekFeedback.success('Added "${newRow.name}" to bill');
                 }
@@ -1121,6 +1394,9 @@ class _ManualPurchaseEntryScreenState
       if (it.name.isEmpty) errors.add('Row ${i + 1}: Product name is missing.');
       if (it.quantity <= 0) errors.add('Row ${i + 1}: Quantity must be > 0.');
       if (it.purchaseRate < 0) errors.add('Row ${i + 1}: Purchase rate cannot be negative.');
+      if (it.imeiRequired && it.serialNumbers.length != it.quantity) {
+        errors.add('Row ${i + 1} ("${it.name}"): Requires ${it.quantity} IMEI/Serial numbers, but ${it.serialNumbers.length} entered.');
+      }
     }
     final paid = double.tryParse(_paidCtrl.text) ?? 0.0;
     if (paid < 0) errors.add('Paid amount cannot be negative.');
@@ -2094,93 +2370,39 @@ class _ManualPurchaseEntryScreenState
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             icon: const Icon(Icons.add_rounded, size: 16),
-            label: const Text('+ Add Item', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-            onPressed: () => _showSingleStepItemDialog(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.add_circle_rounded,
-                color: DashboardColors.neonGreen, size: 22),
-            tooltip: 'Add item',
+            label: const Text('+ New Item', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
             onPressed: () => _showSingleStepItemDialog(),
           ),
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Product search field
-          if (_isSearchingProduct || _items.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(children: [
-                Expanded(
-                  child: TextField(
-                    controller: _productSearchCtrl,
-                    focusNode: _productSearchFocus,
-                    autofocus: _isSearchingProduct,
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                    decoration: InputDecoration(
-                      hintText:
-                          'Type product name, SKU or barcode and press Enter...',
-                      hintStyle: const TextStyle(
-                          color: DashboardColors.textMuted, fontSize: 12),
-                      prefixIcon: const Icon(Icons.search_rounded,
-                          color: DashboardColors.neonBlue, size: 18),
-                      filled: true,
-                      fillColor: Colors.white.withValues(alpha: 0.04),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                            color: DashboardColors.neonBlue),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                            color: DashboardColors.glassBorder),
-                      ),
-                    ),
-                    textInputAction: TextInputAction.done,
-                    onSubmitted: (v) {
-                      if (v.trim().isNotEmpty) {
-                        _addItemBySearch(v.trim());
-                      }
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                TextButton(
-                  onPressed: () => setState(() {
-                    _isSearchingProduct = false;
-                    _productSearchCtrl.clear();
-                  }),
-                  child: const Text('Cancel',
-                      style:
-                          TextStyle(color: DashboardColors.textMuted)),
-                ),
-              ]),
+          // SMART INVENTORY COMBOBOX (Always accessible search bar)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: SmartInventoryCombobox(
+              controller: _productSearchCtrl,
+              focusNode: _productSearchFocus,
+              isGstEnabled: _isGstEnabled,
+              onProductSelected: _onProductSelectedFromCombobox,
+              onAddNewItem: _onAddNewItemFromCombobox,
+              onBarcodeScannerPressed: () {
+                _productSearchFocus.requestFocus();
+              },
             ),
+          ),
 
-          if (_items.isEmpty && !_isSearchingProduct)
+          if (_items.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 24),
               child: Column(
                 children: [
-                  const Icon(Icons.add_shopping_cart_rounded,
-                      color: DashboardColors.textMuted, size: 48),
+                  const Icon(Icons.shopping_bag_outlined,
+                      color: DashboardColors.textMuted, size: 42),
                   const SizedBox(height: 8),
-                  const Text('No items added yet.',
-                      style: TextStyle(color: DashboardColors.textMuted)),
-                  const SizedBox(height: 8),
-                  TextButton.icon(
-                    icon: const Icon(Icons.add_rounded,
-                        color: DashboardColors.neonGreen),
-                    label: const Text('Add First Item',
-                        style:
-                            TextStyle(color: DashboardColors.neonGreen)),
-                    onPressed: () {
-                      setState(() => _isSearchingProduct = true);
-                      _productSearchFocus.requestFocus();
-                    },
-                  ),
+                  const Text('Search inventory above to add items or add a new product',
+                      style: TextStyle(color: DashboardColors.textMuted, fontSize: 13)),
                 ],
               ),
             )
@@ -2295,6 +2517,62 @@ class _ManualPurchaseEntryScreenState
                       fontSize: 14),
                 ),
               ]),
+
+              // IMEI / Serial Number Action Button
+              if (row.imeiRequired) ...[
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: () => _showImeiSerialEntryDialog(i),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: row.serialNumbers.length == row.quantity
+                          ? DashboardColors.neonGreen.withValues(alpha: 0.12)
+                          : DashboardColors.neonOrange.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: row.serialNumbers.length == row.quantity
+                            ? DashboardColors.neonGreen.withValues(alpha: 0.4)
+                            : DashboardColors.neonOrange.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.qr_code_2_rounded,
+                          size: 14,
+                          color: row.serialNumbers.length == row.quantity
+                              ? DashboardColors.neonGreen
+                              : DashboardColors.neonOrange,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          row.serialNumbers.isEmpty
+                              ? '[ ENTER IMEI / SERIAL ]'
+                              : 'IMEI: ${row.serialNumbers.length} / ${row.quantity} entered',
+                          style: TextStyle(
+                            color: row.serialNumbers.length == row.quantity
+                                ? DashboardColors.neonGreen
+                                : DashboardColors.neonOrange,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.edit_rounded,
+                          size: 12,
+                          color: row.serialNumbers.length == row.quantity
+                              ? DashboardColors.neonGreen
+                              : DashboardColors.neonOrange,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
 
               // Duplicate / review warning
               if (row.matchNotes != null &&
