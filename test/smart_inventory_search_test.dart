@@ -477,5 +477,79 @@ void main() {
       expect(purchaseRow.purchaseRate, equals(450.0));
       expect(purchaseRow.mrp, equals(1699.0));
     });
+
+    test('15. Purchase Draft: Delete item, auto-recalculate totals, undo restore, and verify master inventory untouched', () {
+      const calcEngine = PurchaseCalculationEngine(isInterState: false);
+      final draftItems = <PurchaseBillItem>[
+        PurchaseBillItem(
+          itemId: 'ITEM_TPU_14',
+          name: 'iPhone 14 TPU Clear Case',
+          quantity: 10,
+          purchaseRate: 100.0,
+          taxPercent: 18.0,
+        ),
+        PurchaseBillItem(
+          itemId: 'ITEM_SAMS_CHG',
+          name: 'Samsung 25W Type-C Super Fast Charger',
+          quantity: 2,
+          purchaseRate: 500.0,
+          taxPercent: 18.0,
+        ),
+      ];
+
+      // Initial totals:
+      // Item 1: 10 * 100 = 1000 + 18% GST (180) = 1180
+      // Item 2: 2 * 500 = 1000 + 18% GST (180) = 1180
+      // Total = 2360
+      var result = calcEngine.calculate(items: draftItems);
+      expect(result.subtotalPaise, equals(200000));
+      expect(result.totalGstPaise, equals(36000));
+      expect(result.cgstPaise, equals(18000));
+      expect(result.sgstPaise, equals(18000));
+      expect(result.grandTotalPaise, equals(236000));
+      expect(draftItems.length, equals(2));
+
+      // 1. Delete Item 2
+      final removed = draftItems.removeAt(1);
+      expect(removed.itemId, equals('ITEM_SAMS_CHG'));
+      expect(draftItems.length, equals(1));
+      expect(draftItems[0].itemId, equals('ITEM_TPU_14')); // Item 1 unchanged
+
+      // 2. Recalculate totals
+      result = calcEngine.calculate(items: draftItems);
+      expect(result.subtotalPaise, equals(100000)); // 1000.00
+      expect(result.totalGstPaise, equals(18000));  // 180.00
+      expect(result.cgstPaise, equals(9000));
+      expect(result.sgstPaise, equals(9000));
+      expect(result.grandTotalPaise, equals(118000)); // 1180.00
+      expect(result.lines.fold(0, (s, l) => s + l.quantity), equals(10));
+
+      // 3. Verify master inventory still exists in itemsBox!
+      expect(itemsBox.containsKey('ITEM_SAMS_CHG'), isTrue);
+
+      // 4. Test Undo restoration
+      draftItems.insert(1, removed);
+      result = calcEngine.calculate(items: draftItems);
+      expect(draftItems.length, equals(2));
+      expect(result.subtotalPaise, equals(200000));
+      expect(result.grandTotalPaise, equals(236000));
+    });
+
+    test('16. Real-time Inventory Sync State transitions & metadata handling', () async {
+      final engine = SmartInventorySearchEngine.instance;
+      await engine.initialize(shopId: 'tekfix', forceRefresh: true);
+
+      // In unit test without live firebase server, syncState defaults to offline/cached
+      expect(engine.isOffline, isTrue);
+      expect(engine.syncState, equals(InventorySyncState.offline));
+
+      // Search works during offline state using cached Hive data
+      final searchRes = engine.search('TPU');
+      expect(searchRes, isNotEmpty);
+      expect(searchRes.first.productId, equals('ITEM_TPU_14'));
+
+      // Clean listener cancellation
+      engine.cancelListeners();
+    });
   });
 }

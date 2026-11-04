@@ -5,6 +5,7 @@
 
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import '../main.dart' show Db;
@@ -18,18 +19,28 @@ class SmartInventorySearchEngine extends ChangeNotifier {
   List<InventorySearchItem> _cachedList = [];
   bool _isInitialized = false;
   bool _isLoading = false;
-  bool _isOffline = false;
+  bool _isRefreshing = false;
   String? _lastError;
+  String? _syncErrorMessage;
+  InventorySyncState _syncState = InventorySyncState.syncing;
   String _currentShopId = '';
   StreamSubscription? _hiveSubscription;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _firestoreSubscription;
 
   bool get isInitialized => _isInitialized;
   bool get isLoading => _isLoading;
-  bool get isOffline => _isOffline;
+  bool get isRefreshing => _isRefreshing;
+  InventorySyncState get syncState => _syncState;
+  bool get isConnected => _syncState == InventorySyncState.connected;
+  bool get isOffline => _syncState == InventorySyncState.offline;
+  bool get isSyncing => _syncState == InventorySyncState.syncing;
+  bool get hasSyncError => _syncState == InventorySyncState.error;
   String? get lastError => _lastError;
+  String? get syncErrorMessage => _syncErrorMessage;
+  String get currentShopId => _currentShopId;
   int get itemCount => _cachedList.length;
 
-  /// Initializes the search index from local Hive cache first, then syncs with Cloud Firestore.
+  /// Initializes the search index from local Hive cache first, then establishes live Firestore listener.
   Future<void> initialize({String? shopId, bool forceRefresh = false}) async {
     final targetShopId = (shopId != null && shopId.isNotEmpty)
         ? shopId.trim()
@@ -58,12 +69,13 @@ class SmartInventorySearchEngine extends ChangeNotifier {
         });
       }
 
-      // 3. CLOUD SYNC: Query Cloud Firestore shops/{shopId}/inventory in background
-      await _syncWithFirestore(targetShopId);
+      // 3. REAL-TIME CLOUD SYNC: Listen to Firestore shops/{shopId}/inventory with metadata changes
+      _setupFirestoreListener(targetShopId);
     } catch (e) {
       debugPrint('[SmartInventorySearchEngine] Initialization error: $e');
       _lastError = e.toString();
-      _isOffline = true;
+      _syncState = InventorySyncState.error;
+      _syncErrorMessage = e.toString();
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -72,7 +84,7 @@ class SmartInventorySearchEngine extends ChangeNotifier {
 
   /// Refreshes the local in-memory index from Hive and Firestore.
   Future<void> refresh() async {
-    await initialize(shopId: _currentShopId, forceRefresh: true);
+    await forceServerRefresh();
   }
 
   void _loadFromLocalHive() {
@@ -100,21 +112,109 @@ class SmartInventorySearchEngine extends ChangeNotifier {
     _cachedList = _itemsById.values.toList();
   }
 
-  Future<void> _syncWithFirestore(String shopId) async {
+  /// Establishes real-time snapshot listener on shops/{shopId}/inventory with metadata detection.
+  void _setupFirestoreListener(String shopId) {
     if (Firebase.apps.isEmpty) {
-      _isOffline = true;
+      _syncState = InventorySyncState.offline;
+      debugPrint('[SmartInventorySearchEngine] Firebase not initialized; running in offline mode.');
       return;
     }
 
+    // Cancel existing listener before creating a new one to prevent leaks
+    _firestoreSubscription?.cancel();
+    _firestoreSubscription = null;
+    _syncState = InventorySyncState.syncing;
+    notifyListeners();
+
     try {
       final fs = FirebaseFirestore.instance;
-      // Fetch products from shops/{shopId}/inventory with a 6-second timeout
+      final user = FirebaseAuth.instance.currentUser;
+      debugPrint('[SmartInventorySearchEngine] Starting snapshot listener for shops/$shopId/inventory (Auth User: ${user?.uid ?? "Anonymous"})');
+
+      final collectionRef = fs.collection('shops').doc(shopId).collection('inventory');
+
+      _firestoreSubscription = collectionRef
+          .snapshots(includeMetadataChanges: true)
+          .listen(
+        (snapshot) {
+          final isFromCache = snapshot.metadata.isFromCache;
+          final hasPendingWrites = snapshot.metadata.hasPendingWrites;
+
+          debugPrint(
+            '[SmartInventorySearchEngine] Snapshot received: ${snapshot.docs.length} docs, '
+            'isFromCache: $isFromCache, hasPendingWrites: $hasPendingWrites',
+          );
+
+          for (final doc in snapshot.docs) {
+            final data = doc.data();
+            final id = doc.id;
+            final item = InventorySearchItem.fromMap(
+              id: id,
+              key: _itemsById[id]?.itemKey,
+              map: data,
+            );
+
+            if (item.isActive && !item.isDeleted) {
+              _itemsById[id] = item;
+            } else {
+              _itemsById.remove(id);
+            }
+          }
+
+          _cachedList = _itemsById.values.toList();
+
+          if (!isFromCache) {
+            // Fresh server snapshot verified!
+            _syncState = InventorySyncState.connected;
+            _syncErrorMessage = null;
+          } else {
+            // Data is served from local Firestore cache; server response is pending
+            _syncState = InventorySyncState.offline;
+          }
+
+          notifyListeners();
+        },
+        onError: (error) {
+          debugPrint('[SmartInventorySearchEngine] Firestore snapshot listener error: $error');
+          _syncState = InventorySyncState.error;
+          _syncErrorMessage = error.toString();
+          notifyListeners();
+        },
+      );
+    } catch (e) {
+      debugPrint('[SmartInventorySearchEngine] Listener setup exception: $e');
+      _syncState = InventorySyncState.error;
+      _syncErrorMessage = e.toString();
+      notifyListeners();
+    }
+  }
+
+  /// Forces a fresh server-only fetch from Cloud Firestore (`Source.server`).
+  Future<bool> forceServerRefresh() async {
+    if (_isRefreshing) return false;
+    _isRefreshing = true;
+    _syncState = InventorySyncState.syncing;
+    notifyListeners();
+
+    try {
+      if (Firebase.apps.isEmpty) {
+        throw Exception('Firebase is not initialized');
+      }
+
+      final fs = FirebaseFirestore.instance;
+      final shopId = _currentShopId.isNotEmpty ? _currentShopId : Db.setting('shop_id', 'tekfix');
+      final user = FirebaseAuth.instance.currentUser;
+
+      debugPrint('[SmartInventorySearchEngine] Force refreshing server inventory for shops/$shopId/inventory (User: ${user?.uid})');
+
       final snapshot = await fs
           .collection('shops')
           .doc(shopId)
           .collection('inventory')
-          .get(const GetOptions(source: Source.serverAndCache))
-          .timeout(const Duration(seconds: 6));
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 10));
+
+      debugPrint('[SmartInventorySearchEngine] Server refresh success: ${snapshot.docs.length} products loaded.');
 
       for (final doc in snapshot.docs) {
         final data = doc.data();
@@ -132,13 +232,30 @@ class SmartInventorySearchEngine extends ChangeNotifier {
         }
       }
 
-      _isOffline = true;
       _cachedList = _itemsById.values.toList();
+      _syncState = InventorySyncState.connected;
+      _syncErrorMessage = null;
+      notifyListeners();
+      return true;
     } catch (e) {
-      debugPrint('[SmartInventorySearchEngine] Firestore sync warning (running offline): $e');
-      _isOffline = true;
-      // Do not clear _cachedList because Hive cache is already loaded!
+      debugPrint('[SmartInventorySearchEngine] Server refresh failed: $e');
+      _syncState = InventorySyncState.error;
+      _syncErrorMessage = e.toString();
+      notifyListeners();
+      return false;
+    } finally {
+      _isRefreshing = false;
+      notifyListeners();
     }
+  }
+
+  /// Cancels active Firestore and Hive subscriptions cleanly.
+  void cancelListeners() {
+    _firestoreSubscription?.cancel();
+    _firestoreSubscription = null;
+    _hiveSubscription?.cancel();
+    _hiveSubscription = null;
+    debugPrint('[SmartInventorySearchEngine] All listeners cancelled.');
   }
 
   /// Searches the in-memory inventory using multi-token matching and relevance scoring.
@@ -183,7 +300,7 @@ class SmartInventorySearchEngine extends ChangeNotifier {
 
   @override
   void dispose() {
-    _hiveSubscription?.cancel();
+    cancelListeners();
     super.dispose();
   }
 }

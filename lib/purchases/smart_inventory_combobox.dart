@@ -75,9 +75,14 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
 
     _searchCtrl.addListener(_onSearchChanged);
     _focusNode.addListener(_onFocusChanged);
+    _engine.addListener(_onEngineChanged);
 
     // Initialize search engine
     _engine.initialize();
+  }
+
+  void _onEngineChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -87,6 +92,7 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
 
     _searchCtrl.removeListener(_onSearchChanged);
     _focusNode.removeListener(_onFocusChanged);
+    _engine.removeListener(_onEngineChanged);
 
     if (_ownsController) _searchCtrl.dispose();
     if (_ownsFocusNode) _focusNode.dispose();
@@ -320,15 +326,20 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
                       hintText: widget.placeholder,
                       hintStyle: const TextStyle(color: DashboardColors.textMuted, fontSize: 13),
                       prefixIcon: const Icon(Icons.search_rounded, color: DashboardColors.neonBlue, size: 20),
-                      suffixIcon: _searchCtrl.text.isNotEmpty
-                          ? IconButton(
+                      suffixIcon: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_searchCtrl.text.isNotEmpty)
+                            IconButton(
                               icon: const Icon(Icons.clear_rounded, color: Colors.white70, size: 18),
                               onPressed: () {
                                 _searchCtrl.clear();
                                 setSheetState(() {});
                               },
-                            )
-                          : null,
+                            ),
+                          _buildSyncButton(),
+                        ],
+                      ),
                       filled: true,
                       fillColor: Colors.white.withValues(alpha: 0.05),
                       border: OutlineInputBorder(
@@ -347,8 +358,8 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Offline warning banner if applicable
-                  if (_engine.isOffline) _buildOfflineBadge(),
+                  // Real-time Firestore sync status banner
+                  _buildSyncStatusBanner(),
 
                   // Results list
                   Expanded(
@@ -415,8 +426,8 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Optional offline notice
-            if (_engine.isOffline) _buildOfflineBadge(),
+            // Real-time Firestore sync status banner
+            _buildSyncStatusBanner(),
 
             // Results scroll area
             Flexible(
@@ -696,23 +707,201 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
     );
   }
 
-  Widget _buildOfflineBadge() {
+  // ---------------------------------------------------------------------------
+  // FIRESTORE LIVE SYNC STATUS & CONTROLS
+  // ---------------------------------------------------------------------------
+
+  Widget _buildSyncStatusBanner() {
+    if (_engine.isConnected) {
+      // Connected & fresh server data verified -> hide banner
+      return const SizedBox.shrink();
+    }
+    if (_engine.isSyncing) {
+      return _buildSyncingBadge();
+    }
+    if (_engine.hasSyncError) {
+      return _buildErrorBadge();
+    }
+    if (_engine.isOffline) {
+      return _buildOfflineBadge();
+    }
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildSyncingBadge() {
     return Container(
-      color: Colors.amber.shade900.withValues(alpha: 0.25),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      color: DashboardColors.neonBlue.withValues(alpha: 0.12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       child: const Row(
         children: [
-          Icon(Icons.cloud_off_rounded, color: Colors.amber, size: 14),
-          SizedBox(width: 6),
+          SizedBox(
+            width: 12,
+            height: 12,
+            child: CircularProgressIndicator(
+              strokeWidth: 1.5,
+              color: DashboardColors.neonBlue,
+            ),
+          ),
+          SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Showing saved inventory data. Sync pending.',
-              style: TextStyle(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.w500),
+              'Connecting to cloud inventory server...',
+              style: TextStyle(
+                color: DashboardColors.neonBlue,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildOfflineBadge() {
+    return Container(
+      color: Colors.amber.shade900.withValues(alpha: 0.25),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud_off_rounded, color: Colors.amber, size: 14),
+          const SizedBox(width: 6),
+          const Expanded(
+            child: Text(
+              'Showing saved inventory data. Sync pending.',
+              style: TextStyle(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.w500),
+            ),
+          ),
+          InkWell(
+            onTap: () => _triggerForceRefresh(),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              child: Text(
+                'Retry',
+                style: TextStyle(
+                  color: DashboardColors.neonBlue,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorBadge() {
+    return Container(
+      color: DashboardColors.alertRed.withValues(alpha: 0.18),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline_rounded, color: DashboardColors.alertRed, size: 14),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Sync error: ${_engine.syncErrorMessage ?? "Unable to connect"}',
+              style: const TextStyle(color: DashboardColors.alertRed, fontSize: 11, fontWeight: FontWeight.w500),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          InkWell(
+            onTap: () => _triggerForceRefresh(),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              child: Text(
+                'Retry',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSyncButton() {
+    final isBusy = _engine.isRefreshing || _engine.isSyncing;
+    return IconButton(
+      icon: isBusy
+          ? const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                color: DashboardColors.neonBlue,
+              ),
+            )
+          : Icon(
+              _engine.isConnected
+                  ? Icons.cloud_done_rounded
+                  : (_engine.hasSyncError
+                      ? Icons.cloud_off_rounded
+                      : Icons.sync_rounded),
+              color: _engine.isConnected
+                  ? DashboardColors.neonGreen
+                  : (_engine.hasSyncError
+                      ? DashboardColors.alertRed
+                      : Colors.amber),
+              size: 18,
+            ),
+      tooltip: isBusy
+          ? 'Syncing with cloud...'
+          : (_engine.isConnected
+              ? 'Live Cloud Sync Active (Click to force refresh)'
+              : 'Sync Inventory with Server'),
+      onPressed: isBusy ? null : _triggerForceRefresh,
+    );
+  }
+
+  Future<void> _triggerForceRefresh() async {
+    final success = await _engine.forceServerRefresh();
+    if (!mounted) return;
+
+    if (success) {
+      _performSearch(_searchCtrl.text);
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.cloud_done_rounded, color: DashboardColors.neonGreen, size: 18),
+              SizedBox(width: 8),
+              Text('Inventory synced successfully with cloud server!'),
+            ],
+          ),
+          backgroundColor: Color(0xFF1E293B),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error_outline_rounded, color: DashboardColors.alertRed, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('Sync failed: ${_engine.syncErrorMessage ?? "Network or permission error"}'),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF1E293B),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -782,6 +971,7 @@ class _SmartInventoryComboboxState extends State<SmartInventoryCombobox> {
                       _performSearch('');
                     },
                   ),
+                _buildSyncButton(),
                 IconButton(
                   icon: const Icon(Icons.qr_code_scanner_rounded, color: DashboardColors.neonBlue, size: 18),
                   tooltip: 'Scan Barcode',

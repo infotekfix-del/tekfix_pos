@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:tekfix_pos/sync/sync_engine.dart';
+import 'package:tekfix_erp_pos/sync/sync_engine.dart';
 import 'dart:io';
 
 void main() {

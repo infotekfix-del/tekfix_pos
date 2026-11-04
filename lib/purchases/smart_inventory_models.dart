@@ -267,3 +267,18 @@ class _Interval {
   _Interval(this.start, this.end);
 }
 
+/// Represents the live Firestore inventory synchronization state.
+enum InventorySyncState {
+  /// Connecting or fetching initial/fresh server snapshot
+  syncing,
+
+  /// Connected to live Firestore server; data is freshly synchronized from server
+  connected,
+
+  /// Serving cached inventory data (server response pending or device is offline)
+  offline,
+
+  /// Error during Firestore synchronization (e.g. permission-denied or network failure)
+  error,
+}
+

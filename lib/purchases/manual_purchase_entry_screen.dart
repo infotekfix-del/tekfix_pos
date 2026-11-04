@@ -1496,22 +1496,102 @@ class _ManualPurchaseEntryScreenState
     TekFeedback.toast(enable ? 'GST enabled (18%)' : 'GST disabled (0%)');
   }
 
+  Future<void> _confirmDeleteItem(int index) async {
+    if (index < 0 || index >= _items.length) return;
+    final item = _items[index];
+    final name = item.name.isNotEmpty ? item.name : 'Unnamed Item';
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: DashboardColors.alertRed.withValues(alpha: 0.4)),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: DashboardColors.alertRed.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.delete_outline_rounded,
+                  color: DashboardColors.alertRed, size: 22),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Remove Item?',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Remove "$name" from this purchase draft?\n(This will not delete the product from master inventory).',
+          style: const TextStyle(color: Colors.white70, fontSize: 13.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel',
+                style: TextStyle(color: DashboardColors.textMuted)),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: DashboardColors.alertRed,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            icon: const Icon(Icons.delete_outline_rounded, size: 16),
+            label: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      _removeItem(index);
+    }
+  }
+
   void _removeItem(int index) {
-    final name = _items[index].name;
-    setState(() => _items.removeAt(index));
-    _recalcState();
+    if (index < 0 || index >= _items.length) return;
+    final removedItem = _items[index];
+    final removedIndex = index;
+    final name = removedItem.name.isNotEmpty ? removedItem.name : 'Item';
+
+    setState(() {
+      _items.removeAt(index);
+      _calc = _recalculate();
+    });
     _scheduleDraftSave();
+
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Removed "$name"'),
+        content: Text('Removed "$name" from draft'),
         action: SnackBarAction(
-          label: 'Undo',
+          label: 'UNDO',
+          textColor: DashboardColors.neonGreen,
           onPressed: () {
-            // Can't perfectly restore because item was removed; minimal undo
+            if (!mounted) return;
+            setState(() {
+              final insertAt = removedIndex.clamp(0, _items.length);
+              _items.insert(insertAt, removedItem);
+              _calc = _recalculate();
+            });
+            _scheduleDraftSave();
           },
         ),
-        duration: const Duration(seconds: 3),
+        duration: const Duration(seconds: 4),
         backgroundColor: const Color(0xFF1E293B),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -2635,7 +2715,17 @@ class _ManualPurchaseEntryScreenState
                   IconButton(
                     icon: const Icon(Icons.edit_rounded,
                         color: DashboardColors.textMuted, size: 16),
+                    tooltip: 'Edit item',
                     onPressed: () => _showSingleStepItemDialog(editIndex: i),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                  const SizedBox(width: 10),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline_rounded,
+                        color: DashboardColors.alertRed, size: 18),
+                    tooltip: 'Remove from draft',
+                    onPressed: () => _confirmDeleteItem(i),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
