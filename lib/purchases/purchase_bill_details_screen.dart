@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../auth/auth_controller.dart';
-import '../main.dart' show boxPurchaseBills, toast;
+import '../main.dart' show Db, boxPurchaseBills, toast;
 import '../ui/dashboard/dashboard_tokens.dart';
 import 'purchase_models.dart';
 import 'purchase_bill_service.dart';
@@ -34,11 +37,47 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
   final _dateFormat = DateFormat('dd MMM yyyy, hh:mm a');
   final _shortDateFormat = DateFormat('dd MMM yyyy');
   PurchaseBill? _currentBill;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _billSub;
 
   @override
   void initState() {
     super.initState();
     _currentBill = widget.bill;
+    _subscribeToLiveFirestore();
+  }
+
+  void _subscribeToLiveFirestore() {
+    if (Firebase.apps.isEmpty) return;
+    final bNum = widget.bill?.billNumber ?? widget.billKey?.toString();
+    if (bNum == null || bNum.isEmpty) return;
+    final billId = widget.billKey?.toString() ?? bNum.replaceAll('/', '_');
+    final sId = Db.setting('shop_id', 'tekfix');
+
+    try {
+      _billSub = FirebaseFirestore.instance
+          .collection('shops')
+          .doc(sId)
+          .collection('purchase_bills')
+          .doc(billId)
+          .snapshots()
+          .listen((snap) {
+        if (snap.exists && snap.data() != null && mounted) {
+          setState(() {
+            _currentBill = PurchaseBill.fromMap(snap.data()!, snap.id);
+          });
+        }
+      }, onError: (e) {
+        debugPrint('[PurchaseBillDetailsScreen] Live stream notice: $e');
+      });
+    } catch (e) {
+      debugPrint('[PurchaseBillDetailsScreen] Live stream init notice: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _billSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _editBill(PurchaseBill bill) async {
@@ -62,11 +101,16 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
           ? Hive.box(boxPurchaseBills).listenable(keys: [widget.billKey])
           : Hive.box(boxPurchaseBills).listenable(),
       builder: (context, Box box, _) {
-        final bill = (widget.billKey != null
-                ? PurchaseBillService.instance.getPurchaseBill(widget.billKey)
-                : null) ??
-            _currentBill ??
-            widget.bill;
+        final hiveBill = widget.billKey != null
+            ? PurchaseBillService.instance.getPurchaseBill(widget.billKey)
+            : null;
+        PurchaseBill? bill = hiveBill;
+        if (bill == null ||
+            (_currentBill != null &&
+                (_currentBill!.updatedAt.isAfter(bill.updatedAt) ||
+                    _currentBill!.paidAmount > bill.paidAmount))) {
+          bill = _currentBill ?? bill ?? widget.bill;
+        }
         if (bill == null) {
           return Scaffold(
             backgroundColor: DashboardColors.bgDarkNavyStart,
@@ -369,13 +413,61 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
   // ---------------------------------------------------------------------------
 
   Widget _buildActionBar(PurchaseBill bill, AuthController auth) {
+    final bool isPaid = bill.balanceDuePaise <= 0 ||
+        BillPaymentStatus.isPaid(bill.paymentStatus);
+    final bool isPartial = !isPaid && bill.paidAmountPaise > 0;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: DashboardColors.glassCard(radius: 12),
       child: Row(
         children: [
-          // 1. Add Payment
-          if (bill.balanceDue > 0) ...[
+          // 1. Add Payment / Paid Status Indicator
+          if (isPaid) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0x2610B981),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0x6610B981)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.check_circle_rounded,
+                      color: DashboardColors.neonGreen, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Bill Paid in Full',
+                    style: DashboardTypography.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: DashboardColors.neonGreen,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+          ] else if (isPartial) ...[
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: DashboardColors.primaryBlue,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+              onPressed: () => _showAddPaymentDialog(bill, auth),
+              icon: const Icon(Icons.payment_rounded, size: 16),
+              label: Text(
+                'Record Payment (Bal: ₹${bill.balanceDue.toStringAsFixed(2)})',
+                style: DashboardTypography.poppins(
+                    fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(width: 10),
+          ] else ...[
             FilledButton.icon(
               style: FilledButton.styleFrom(
                 backgroundColor: DashboardColors.primaryBlue,
@@ -1220,8 +1312,9 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
 
                       setD(() => submitting = true);
                       try {
-                        await PurchaseBillService.instance.recordBillPayment(
-                          billKey: bill.key,
+                        final updated =
+                            await PurchaseBillService.instance.recordBillPayment(
+                          billKey: bill.key ?? widget.billKey,
                           amount: amt,
                           paymentDate: payDate,
                           paymentMethod: method,
@@ -1235,12 +1328,18 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                         );
                         if (ctx.mounted) {
                           Navigator.pop(ctx);
+                        }
+                        if (mounted) {
                           toast(context, 'Payment of ₹$amt saved successfully');
+                          setState(() {
+                            _currentBill = updated;
+                          });
                         }
                       } catch (e) {
                         setD(() => submitting = false);
-                        if (ctx.mounted)
+                        if (mounted) {
                           toast(context, 'Failed: $e', error: true);
+                        }
                       }
                     },
               child: submitting

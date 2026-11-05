@@ -1811,6 +1811,9 @@ class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
           purchaseDate: _invoiceDate,
           items: _items.map((e) => e.toItem()).toList(),
           otherCharges: double.tryParse(_chargesCtrl.text) ?? 0.0,
+          paidAmount: double.tryParse(_paidCtrl.text) ?? 0.0,
+          paymentMethod: _paymentMethod,
+          paymentReference: _paymentRefCtrl.text.trim(),
           staffId: auth.uid,
           staffName: auth.name.isNotEmpty ? auth.name : 'Owner',
           notes: _notesCtrl.text.trim(),
@@ -1854,7 +1857,10 @@ class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
         TekFeedback.success('Purchase bill ${confirmedBill.billNumber} saved!');
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (_) => PurchaseBillDetailsScreen(bill: confirmedBill),
+            builder: (_) => PurchaseBillDetailsScreen(
+              bill: confirmedBill,
+              billKey: confirmedBill.key,
+            ),
           ),
         );
       }

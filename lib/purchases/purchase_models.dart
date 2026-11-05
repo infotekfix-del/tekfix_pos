@@ -4,40 +4,58 @@ export 'imei_validator.dart';
 /// Payment Status for a Purchase Bill.
 class BillPaymentStatus {
   static const String paid = 'Paid';
-  static const String partiallyPaid = 'Partially Paid';
+  static const String partial = 'Partial';
+  static const String partiallyPaid = 'Partial';
   static const String unpaid = 'Unpaid';
   static const String draft = 'Draft';
 
-  static const List<String> all = [paid, partiallyPaid, unpaid, draft];
+  // Legacy alias
+  static const String legacyPartiallyPaid = 'Partially Paid';
+
+  static const List<String> all = [paid, partial, unpaid, draft];
+
+  /// Standard rule (integer paise only, no float comparison):
+  /// - isDraft == true → "Draft"
+  /// - paid <= 0 → "Unpaid"
+  /// - 0 < paid < grandTotal → "Partial"
+  /// - paid >= grandTotal → "Paid"
+  static String computeStatus({
+    required int grandTotalPaise,
+    required int paidAmountPaise,
+    bool isDraft = false,
+  }) {
+    if (isDraft) return draft;
+    if (paidAmountPaise <= 0) return unpaid;
+    if (paidAmountPaise >= grandTotalPaise) return paid;
+    return partial;
+  }
+
+  static bool isPaid(String status) => status.trim().toLowerCase() == 'paid';
+
+  static bool isPartial(String status) {
+    final s = status.trim().toLowerCase();
+    return s == 'partial' || s == 'partially paid';
+  }
+
+  static bool isUnpaid(String status) =>
+      status.trim().toLowerCase() == 'unpaid';
+
+  static bool isDraft(String status) => status.trim().toLowerCase() == 'draft';
 
   static Color getColor(String status) {
-    switch (status) {
-      case paid:
-        return const Color(0xFF10B981); // Emerald Green
-      case partiallyPaid:
-        return const Color(0xFFF59E0B); // Amber / Orange
-      case unpaid:
-        return const Color(0xFFEF4444); // Red
-      case draft:
-        return const Color(0xFFF97316); // Orange
-      default:
-        return const Color(0xFF94A3B8);
-    }
+    if (isPaid(status)) return const Color(0xFF10B981); // Emerald Green
+    if (isPartial(status)) return const Color(0xFFF59E0B); // Amber / Orange
+    if (isUnpaid(status)) return const Color(0xFFEF4444); // Red
+    if (isDraft(status)) return const Color(0xFFF97316); // Orange
+    return const Color(0xFF94A3B8);
   }
 
   static IconData getIcon(String status) {
-    switch (status) {
-      case paid:
-        return Icons.check_circle_rounded;
-      case partiallyPaid:
-        return Icons.timelapse_rounded;
-      case unpaid:
-        return Icons.pending_actions_rounded;
-      case draft:
-        return Icons.drafts_rounded;
-      default:
-        return Icons.help_outline_rounded;
-    }
+    if (isPaid(status)) return Icons.check_circle_rounded;
+    if (isPartial(status)) return Icons.timelapse_rounded;
+    if (isUnpaid(status)) return Icons.pending_actions_rounded;
+    if (isDraft(status)) return Icons.drafts_rounded;
+    return Icons.help_outline_rounded;
   }
 }
 
@@ -569,6 +587,7 @@ class VendorPaymentRecord {
   final dynamic vendorKey;
   final String vendorName;
   final double amount;
+  int get amountPaise => (amount * 100).round();
   final DateTime paymentDate;
   final String paymentMethod; // Cash, UPI, Bank Transfer, Card, Cheque, Other
   final String transactionReference;
@@ -600,6 +619,7 @@ class VendorPaymentRecord {
         'vendorKey': vendorKey,
         'vendorName': vendorName,
         'amount': amount,
+        'amountPaise': amountPaise,
         'paymentDate': paymentDate.toIso8601String(),
         'paymentMethod': paymentMethod,
         'transactionReference': transactionReference,
@@ -656,7 +676,26 @@ class PurchaseBill {
   final double grandTotal;
   final double paidAmount;
   final double balanceDue;
-  final String paymentStatus; // BillPaymentStatus
+  final String _paymentStatus;
+
+  /// Payment status computed dynamically from integer paise.
+  /// If isDraft == true, returns 'Draft'.
+  /// Otherwise:
+  /// - paidAmountPaise <= 0 → 'Unpaid'
+  /// - paidAmountPaise >= grandTotalPaise → 'Paid'
+  /// - 0 < paidAmountPaise < grandTotalPaise → 'Partial'
+  String get paymentStatus {
+    if (isDraft) return BillPaymentStatus.draft;
+    if (grandTotalPaise == 0 && _paymentStatus.isNotEmpty) {
+      return _paymentStatus;
+    }
+    return BillPaymentStatus.computeStatus(
+      grandTotalPaise: grandTotalPaise,
+      paidAmountPaise: paidAmountPaise,
+      isDraft: isDraft,
+    );
+  }
+
   final List<VendorPaymentRecord> payments;
   final BillAttachment? attachment;
   final String createdById;
@@ -703,7 +742,7 @@ class PurchaseBill {
     required this.grandTotal,
     this.paidAmount = 0.0,
     required this.balanceDue,
-    required this.paymentStatus,
+    String? paymentStatus,
     this.payments = const [],
     this.attachment,
     this.storagePath,
@@ -717,9 +756,10 @@ class PurchaseBill {
     required this.createdAt,
     required this.updatedAt,
     this.entrySource = EntrySource.billUpload,
-  });
+  }) : _paymentStatus = paymentStatus ?? BillPaymentStatus.unpaid;
 
   Map<String, dynamic> toMap() => {
+        '_id': key?.toString() ?? billNumber.replaceAll('/', '_'),
         'billNumber': billNumber,
         'vendorInvoiceNumber': vendorInvoiceNumber,
         'vendorKey': vendorKey,
@@ -778,21 +818,31 @@ class PurchaseBill {
         ((m['otherChargesPaise'] as num?) != null
             ? (m['otherChargesPaise'] as num).toDouble() / 100.0
             : 0.0);
-    final grand = (m['grandTotal'] as num?)?.toDouble() ??
-        ((m['grandTotalPaise'] as num?) != null
-            ? (m['grandTotalPaise'] as num).toDouble() / 100.0
-            : 0.0);
-    final paid = (m['paidAmount'] as num?)?.toDouble() ??
-        ((m['paidAmountPaise'] as num?) != null
-            ? (m['paidAmountPaise'] as num).toDouble() / 100.0
-            : 0.0);
-    final bal = (m['balanceDue'] as num?)?.toDouble() ??
-        ((m['balanceDuePaise'] as num?) != null
-            ? (m['balanceDuePaise'] as num).toDouble() / 100.0
-            : 0.0);
+    final grandPaise = (m['grandTotalPaise'] as num?)?.toInt() ??
+        ((m['grandTotal'] as num?) != null
+            ? ((m['grandTotal'] as num) * 100).round()
+            : 0);
+    final grand = (m['grandTotal'] as num?)?.toDouble() ?? (grandPaise / 100.0);
+    final paidPaise = (m['paidAmountPaise'] as num?)?.toInt() ??
+        ((m['paidAmount'] as num?) != null
+            ? ((m['paidAmount'] as num) * 100).round()
+            : 0);
+    final paid = (m['paidAmount'] as num?)?.toDouble() ?? (paidPaise / 100.0);
+    final calcBalPaise = (grandPaise - paidPaise).clamp(0, grandPaise);
+    final bal = (grandPaise > 0 || paidPaise > 0)
+        ? calcBalPaise / 100.0
+        : ((m['balanceDue'] as num?)?.toDouble() ??
+            ((m['balanceDuePaise'] as num?) != null
+                ? (m['balanceDuePaise'] as num).toDouble() / 100.0
+                : 0.0));
+    final status = BillPaymentStatus.computeStatus(
+      grandTotalPaise: grandPaise,
+      paidAmountPaise: paidPaise,
+      isDraft: m['isDraft'] == true,
+    );
 
     return PurchaseBill(
-      key: key ?? m['key'],
+      key: key ?? m['key'] ?? m['_id'],
       billNumber: m['billNumber']?.toString() ?? '',
       vendorInvoiceNumber: m['vendorInvoiceNumber']?.toString() ?? '',
       vendorKey: m['vendorKey'],
@@ -818,7 +868,7 @@ class PurchaseBill {
       grandTotal: grand,
       paidAmount: paid,
       balanceDue: bal,
-      paymentStatus: m['paymentStatus']?.toString() ?? BillPaymentStatus.unpaid,
+      paymentStatus: status,
       payments: (m['payments'] is List)
           ? (m['payments'] as List)
               .map((e) => VendorPaymentRecord.fromMap(e as Map))
@@ -859,6 +909,13 @@ class PurchaseBill {
     DateTime? updatedAt,
     String? entrySource,
   }) {
+    final newPaid = paidAmount ?? this.paidAmount;
+    final newPaidPaise = (newPaid * 100).round();
+    final newBal = balanceDue ??
+        (paidAmount != null
+            ? (grandTotalPaise - newPaidPaise).clamp(0, grandTotalPaise) / 100.0
+            : this.balanceDue);
+
     return PurchaseBill(
       key: key ?? this.key,
       billNumber: billNumber,
@@ -877,8 +934,8 @@ class PurchaseBill {
       totalTax: totalTax,
       otherCharges: otherCharges,
       grandTotal: grandTotal,
-      paidAmount: paidAmount ?? this.paidAmount,
-      balanceDue: balanceDue ?? this.balanceDue,
+      paidAmount: newPaid,
+      balanceDue: newBal,
       paymentStatus: paymentStatus ?? this.paymentStatus,
       payments: payments ?? this.payments,
       attachment: attachment ?? this.attachment,
@@ -910,6 +967,10 @@ class VendorLedgerEntry {
   final double runningBalance;
   final String? notes;
 
+  int get debitPaise => (debit * 100).round();
+  int get creditPaise => (credit * 100).round();
+  int get runningBalancePaise => (runningBalance * 100).round();
+
   const VendorLedgerEntry({
     required this.id,
     required this.date,
@@ -921,4 +982,42 @@ class VendorLedgerEntry {
     required this.runningBalance,
     this.notes,
   });
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'date': date.toIso8601String(),
+        'type': type,
+        'reference': reference,
+        'vendorInvoiceNumber': vendorInvoiceNumber,
+        'debit': debit,
+        'debitPaise': debitPaise,
+        'credit': credit,
+        'creditPaise': creditPaise,
+        'runningBalance': runningBalance,
+        'runningBalancePaise': runningBalancePaise,
+        'notes': notes,
+      };
+
+  factory VendorLedgerEntry.fromMap(Map<dynamic, dynamic> m) {
+    return VendorLedgerEntry(
+      id: m['id']?.toString() ?? '',
+      date: DateTime.tryParse(m['date']?.toString() ?? '') ?? DateTime.now(),
+      type: m['type']?.toString() ?? '',
+      reference: m['reference']?.toString() ?? '',
+      vendorInvoiceNumber: m['vendorInvoiceNumber']?.toString(),
+      debit: (m['debit'] as num?)?.toDouble() ??
+          ((m['debitPaise'] as num?) != null
+              ? (m['debitPaise'] as num).toDouble() / 100.0
+              : 0.0),
+      credit: (m['credit'] as num?)?.toDouble() ??
+          ((m['creditPaise'] as num?) != null
+              ? (m['creditPaise'] as num).toDouble() / 100.0
+              : 0.0),
+      runningBalance: (m['runningBalance'] as num?)?.toDouble() ??
+          ((m['runningBalancePaise'] as num?) != null
+              ? (m['runningBalancePaise'] as num).toDouble() / 100.0
+              : 0.0),
+      notes: m['notes']?.toString(),
+    );
+  }
 }

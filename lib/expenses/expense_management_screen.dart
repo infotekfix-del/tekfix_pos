@@ -485,7 +485,8 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: const Color(0xFFF43F5E),
         foregroundColor: Colors.white,
-        onPressed: () => AddExpenseDialog.show(context),
+        onPressed: () =>
+            AddExpenseDialog.show(context, onExpenseSaved: _loadData),
         icon: const Icon(Icons.add_rounded),
         label: const Text(
           'Add Expense (ചിലവ് ചേർക്കുക)',

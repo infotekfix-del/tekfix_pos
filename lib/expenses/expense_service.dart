@@ -551,7 +551,7 @@ class ExpenseService {
       final Map<String, ExpenseItem> map = {};
       for (final doc in snapshot.docs) {
         final item = ExpenseItem.fromMap(doc.data(), doc.id);
-        map[doc.id] = item;
+        map[item.id] = item;
       }
       return map.values.toList();
     });
@@ -585,7 +585,7 @@ class ExpenseService {
 
         for (final doc in snap.docs) {
           final item = ExpenseItem.fromMap(doc.data(), doc.id);
-          map[doc.id] = item;
+          map[item.id] = item;
         }
       } catch (e) {
         debugPrint('[ExpenseService] Firestore fetch error: $e');

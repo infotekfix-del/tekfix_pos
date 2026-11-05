@@ -1699,9 +1699,12 @@ class _PurchaseBillsDashboardViewState
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => PurchaseBillDetailsScreen(bill: b),
+                      builder: (_) =>
+                          PurchaseBillDetailsScreen(billKey: b.key, bill: b),
                     ),
-                  );
+                  ).then((_) {
+                    if (mounted) setState(() {});
+                  });
                 },
                 cells: [
                   DataCell(
@@ -1710,9 +1713,12 @@ class _PurchaseBillsDashboardViewState
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => PurchaseBillDetailsScreen(bill: b),
+                            builder: (_) => PurchaseBillDetailsScreen(
+                                billKey: b.key, bill: b),
                           ),
-                        );
+                        ).then((_) {
+                          if (mounted) setState(() {});
+                        });
                       },
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1826,10 +1832,12 @@ class _PurchaseBillsDashboardViewState
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) =>
-                                    PurchaseBillDetailsScreen(bill: b),
+                                builder: (_) => PurchaseBillDetailsScreen(
+                                    billKey: b.key, bill: b),
                               ),
-                            );
+                            ).then((_) {
+                              if (mounted) setState(() {});
+                            });
                           },
                         ),
 
@@ -1875,9 +1883,12 @@ class _PurchaseBillsDashboardViewState
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => PurchaseBillDetailsScreen(bill: b),
+                builder: (_) =>
+                    PurchaseBillDetailsScreen(billKey: b.key, bill: b),
               ),
-            );
+            ).then((_) {
+              if (mounted) setState(() {});
+            });
           },
           child: Container(
             padding: const EdgeInsets.all(16),
@@ -2045,9 +2056,12 @@ class _PurchaseBillsDashboardViewState
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => PurchaseBillDetailsScreen(bill: b),
+                            builder: (_) => PurchaseBillDetailsScreen(
+                                billKey: b.key, bill: b),
                           ),
-                        );
+                        ).then((_) {
+                          if (mounted) setState(() {});
+                        });
                       },
                     ),
                   ],
@@ -2098,27 +2112,22 @@ class _PurchaseBillsDashboardViewState
     Color border;
     Color text;
 
-    switch (status) {
-      case BillPaymentStatus.paid:
-        bg = DashboardColors.neonGreen.withValues(alpha: 0.15);
-        border = DashboardColors.neonGreen;
-        text = DashboardColors.neonGreen;
-        break;
-      case BillPaymentStatus.partiallyPaid:
-        bg = DashboardColors.neonBlue.withValues(alpha: 0.15);
-        border = DashboardColors.neonBlue;
-        text = DashboardColors.neonBlue;
-        break;
-      case BillPaymentStatus.draft:
-        bg = DashboardColors.neonOrange.withValues(alpha: 0.15);
-        border = DashboardColors.neonOrange;
-        text = DashboardColors.neonOrange;
-        break;
-      default:
-        bg = DashboardColors.alertOrange.withValues(alpha: 0.15);
-        border = DashboardColors.alertOrange;
-        text = DashboardColors.alertOrange;
-        break;
+    if (BillPaymentStatus.isPaid(status)) {
+      bg = DashboardColors.neonGreen.withValues(alpha: 0.15);
+      border = DashboardColors.neonGreen;
+      text = DashboardColors.neonGreen;
+    } else if (BillPaymentStatus.isPartial(status)) {
+      bg = DashboardColors.neonBlue.withValues(alpha: 0.15);
+      border = DashboardColors.neonBlue;
+      text = DashboardColors.neonBlue;
+    } else if (BillPaymentStatus.isDraft(status)) {
+      bg = DashboardColors.neonOrange.withValues(alpha: 0.15);
+      border = DashboardColors.neonOrange;
+      text = DashboardColors.neonOrange;
+    } else {
+      bg = DashboardColors.alertOrange.withValues(alpha: 0.15);
+      border = DashboardColors.alertOrange;
+      text = DashboardColors.alertOrange;
     }
 
     return Container(

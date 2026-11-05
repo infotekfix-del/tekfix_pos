@@ -563,7 +563,6 @@ class PurchaseBillService {
 
     // 2. Heavy work OUTSIDE transaction: Upload bill document to Firebase Storage
     String? storagePath;
-    String? downloadUrl;
     if (attachment != null) {
       storagePath = attachment.filePath;
       if (attachmentBytes != null ||
@@ -579,7 +578,7 @@ class PurchaseBillService {
             SettableMetadata(contentType: attachment.fileType),
           );
           storagePath = uploadTask.ref.fullPath;
-          downloadUrl = await uploadTask.ref.getDownloadURL();
+          await uploadTask.ref.getDownloadURL();
         } catch (e) {
           debugPrint(
               '[PurchaseBillService] Firebase Storage upload notice: $e');
@@ -609,14 +608,10 @@ class PurchaseBillService {
     final int balanceDuePaise =
         (grandTotalPaise - paidAmountPaise).clamp(0, grandTotalPaise);
 
-    String paymentStatus;
-    if (balanceDuePaise == 0) {
-      paymentStatus = BillPaymentStatus.paid;
-    } else if (paidAmountPaise > 0) {
-      paymentStatus = BillPaymentStatus.partiallyPaid;
-    } else {
-      paymentStatus = BillPaymentStatus.unpaid;
-    }
+    final String paymentStatus = BillPaymentStatus.computeStatus(
+      grandTotalPaise: grandTotalPaise,
+      paidAmountPaise: paidAmountPaise,
+    );
 
     // =========================================================================
     // STEP 1: PERSIST LOCALLY FIRST (Offline-First Guarantee)
@@ -664,7 +659,7 @@ class PurchaseBillService {
       paymentStatus: paymentStatus,
       payments: paymentsList,
       attachment: attachment,
-      storagePath: attachment?.filePath,
+      storagePath: storagePath ?? attachment?.filePath,
       invoiceExtractedTotal: invoiceExtractedTotal,
       createdById: staffId,
       createdByName: staffName,
@@ -1131,6 +1126,35 @@ class PurchaseBillService {
               ledgerBillData);
 
           if (paidAmountPaise > 0) {
+            final payDocId = paymentsList.isNotEmpty
+                ? paymentsList.first.paymentId
+                : 'PAY_${now.millisecondsSinceEpoch}';
+            final billPayRef = billRef.collection('payments').doc(payDocId);
+            final rootBillPayRef =
+                rootBillRef.collection('payments').doc(payDocId);
+            final billPayData = <String, dynamic>{
+              'id': payDocId,
+              'paymentId': payDocId,
+              'billNumber': billNumber,
+              'billId': billId,
+              'vendorKey': vDocId,
+              'vendorName': vendorName,
+              'amount': paidAmountPaise / 100.0,
+              'amountPaise': paidAmountPaise,
+              'paymentDate': purchaseDate.toIso8601String(),
+              'paymentMethod': initialPaymentMethod,
+              'transactionReference':
+                  initialPaymentReference?.isNotEmpty == true
+                      ? initialPaymentReference
+                      : 'Payment for $billNumber',
+              'notes': 'Payment recorded during purchase bill entry',
+              'recordedById': staffId,
+              'recordedByName': staffName,
+              'createdAt': FieldValue.serverTimestamp(),
+            };
+            transaction.set(billPayRef, billPayData);
+            transaction.set(rootBillPayRef, billPayData);
+
             final ledgerPayRef = firestore
                 .collection('shops')
                 .doc(sId)
@@ -1234,37 +1258,6 @@ class PurchaseBillService {
     }
 
     return confirmedBill;
-
-    return PurchaseBill(
-      billNumber: billNumber,
-      vendorInvoiceNumber: vendorInvoiceNumber,
-      vendorKey: vendorKey,
-      vendorName: vendorName,
-      vendorPhone: vendorPhone,
-      vendorGst: vendorGst,
-      vendorAddress: vendorAddress,
-      purchaseDate: purchaseDate,
-      uploadTimestamp: now,
-      items: items,
-      subtotal: subtotalPaise / 100.0,
-      totalQuantity: totalQty,
-      totalDiscount: totalDiscountPaise / 100.0,
-      totalTax: totalTaxPaise / 100.0,
-      otherCharges: otherChargesPaise / 100.0,
-      grandTotal: grandTotalPaise / 100.0,
-      paidAmount: paidAmountPaise / 100.0,
-      balanceDue: balanceDuePaise / 100.0,
-      paymentStatus: paymentStatus,
-      attachment: attachment,
-      storagePath: storagePath,
-      invoiceExtractedTotal: invoiceExtractedTotal,
-      createdById: staffId,
-      createdByName: staffName,
-      notes: notes,
-      isDraft: false,
-      createdAt: now,
-      updatedAt: now,
-    );
   }
 
   // ---------------------------------------------------------------------------
@@ -1282,6 +1275,9 @@ class PurchaseBillService {
     required DateTime purchaseDate,
     required List<PurchaseBillItem> items,
     double otherCharges = 0.0,
+    double? paidAmount,
+    String paymentMethod = 'Cash',
+    String? paymentReference,
     required String staffId,
     required String staffName,
     String? notes,
@@ -1342,19 +1338,18 @@ class PurchaseBillService {
     final int grandTotalPaise =
         (subtotalPaise - totalDiscountPaise + totalTaxPaise + otherChargesPaise)
             .clamp(0, 1 << 62);
-    final int paidAmountPaise =
+    final int originalPaidAmountPaise =
         (originalBill.paidAmount * 100).round().clamp(0, grandTotalPaise);
+    final int paidAmountPaise = paidAmount != null
+        ? (paidAmount * 100).round().clamp(0, grandTotalPaise)
+        : originalPaidAmountPaise;
     final int balanceDuePaise =
         (grandTotalPaise - paidAmountPaise).clamp(0, grandTotalPaise);
 
-    String paymentStatus;
-    if (balanceDuePaise == 0) {
-      paymentStatus = BillPaymentStatus.paid;
-    } else if (paidAmountPaise > 0) {
-      paymentStatus = BillPaymentStatus.partiallyPaid;
-    } else {
-      paymentStatus = BillPaymentStatus.unpaid;
-    }
+    final String paymentStatus = BillPaymentStatus.computeStatus(
+      grandTotalPaise: grandTotalPaise,
+      paidAmountPaise: paidAmountPaise,
+    );
 
     // -------------------------------------------------------------------------
     // INVENTORY RECONCILIATION VIA LINE-ITEM DIFFS
@@ -1433,8 +1428,9 @@ class PurchaseBillService {
             if (newQty > 0 && newItemMap.containsKey(k)) {
               final fresh = newItemMap[k]!;
               m['costPrice'] = fresh.purchaseRate;
-              if (fresh.sellingPrice > 0)
+              if (fresh.sellingPrice > 0) {
                 m['sellingPrice'] = fresh.sellingPrice;
+              }
               if (fresh.mrp > 0) m['mrp'] = fresh.mrp;
               if (fresh.warrantyDuration.isNotEmpty) {
                 m['warranty'] = fresh.warrantyDuration;
@@ -1496,6 +1492,38 @@ class PurchaseBillService {
     }
 
     // -------------------------------------------------------------------------
+    // VENDOR PAYMENT DIFFS & RECORDING
+    // -------------------------------------------------------------------------
+    final paymentsList = List<VendorPaymentRecord>.from(originalBill.payments);
+    VendorPaymentRecord? newPayment;
+    final int deltaPaidPaise = paidAmountPaise - originalPaidAmountPaise;
+    if (deltaPaidPaise > 0) {
+      final payId = 'PAY_${now.millisecondsSinceEpoch}';
+      newPayment = VendorPaymentRecord(
+        paymentId: payId,
+        billNumber: billNumber,
+        vendorKey: vendorKey,
+        vendorName: vendorName,
+        amount: deltaPaidPaise / 100.0,
+        paymentDate: now,
+        paymentMethod: paymentMethod,
+        transactionReference: paymentReference?.trim().isNotEmpty == true
+            ? paymentReference!.trim()
+            : 'Payment on edit for $billNumber',
+        notes: 'Payment recorded during purchase bill update',
+        recordedById: staffId,
+        recordedByName: staffName,
+      );
+      paymentsList.add(newPayment);
+
+      if (_paymentsBox.isOpen) {
+        await _paymentsBox.add(newPayment.toMap()..['billKey'] = billId);
+      }
+      await Db.moveMoney(paymentMethod, -(deltaPaidPaise / 100.0),
+          'Purchase Bill $billNumber payment');
+    }
+
+    // -------------------------------------------------------------------------
     // CONSTRUCT UPDATED BILL & PERSIST
     // -------------------------------------------------------------------------
     final updatedBill = PurchaseBill(
@@ -1519,7 +1547,7 @@ class PurchaseBillService {
       paidAmount: paidAmountPaise / 100.0,
       balanceDue: balanceDuePaise / 100.0,
       paymentStatus: paymentStatus,
-      payments: originalBill.payments,
+      payments: paymentsList,
       attachment: originalBill.attachment,
       storagePath: originalBill.storagePath,
       invoiceExtractedTotal: originalBill.invoiceExtractedTotal,
@@ -1563,7 +1591,10 @@ class PurchaseBillService {
             .doc(sId)
             .collection('purchase_bills')
             .doc(billId);
-        await docRef.set(updatedBill.toMap(), SetOptions(merge: true));
+        final rootDocRef = firestore.collection('purchase_bills').doc(billId);
+        final billMap = updatedBill.toMap();
+        await docRef.set(billMap, SetOptions(merge: true));
+        await rootDocRef.set(billMap, SetOptions(merge: true));
 
         final itemsCol = docRef.collection('items');
         for (final item in processedItems) {
@@ -1571,6 +1602,91 @@ class PurchaseBillService {
               ? item.id
               : 'item_${processedItems.indexOf(item)}';
           await itemsCol.doc(itemId).set(item.toMap(), SetOptions(merge: true));
+        }
+
+        if (newPayment != null) {
+          final payMap = newPayment.toMap();
+          await docRef
+              .collection('payments')
+              .doc(newPayment.paymentId)
+              .set(payMap, SetOptions(merge: true));
+          await rootDocRef
+              .collection('payments')
+              .doc(newPayment.paymentId)
+              .set(payMap, SetOptions(merge: true));
+
+          final ledgerPayRef = firestore
+              .collection('shops')
+              .doc(sId)
+              .collection('vendor_ledger')
+              .doc('VL_${billId}_${newPayment.paymentId}');
+          final ledgerPayData = <String, dynamic>{
+            'id': 'VL_${billId}_${newPayment.paymentId}',
+            'vendorId': vendorKey?.toString() ?? '',
+            'vendorName': vendorName,
+            'date': now.toIso8601String(),
+            'type': 'Bill Payment',
+            'reference': newPayment.transactionReference,
+            'vendorInvoiceNumber': vendorInvoiceNumber,
+            'debitPaise': 0,
+            'debit': 0.0,
+            'creditPaise': deltaPaidPaise,
+            'credit': deltaPaidPaise / 100.0,
+            'runningBalancePaise': balanceDuePaise,
+            'runningBalance': balanceDuePaise / 100.0,
+            'notes': 'Payment via $paymentMethod ($billNumber)',
+            'createdAt': FieldValue.serverTimestamp(),
+          };
+          await ledgerPayRef.set(ledgerPayData, SetOptions(merge: true));
+          await firestore
+              .collection('vendor_ledger')
+              .doc('VL_${billId}_${newPayment.paymentId}')
+              .set(ledgerPayData, SetOptions(merge: true));
+
+          final cashBankRef = firestore
+              .collection('shops')
+              .doc(sId)
+              .collection('accounting_cash_bank')
+              .doc('CB_${billId}_${newPayment.paymentId}');
+          final cashBankData = <String, dynamic>{
+            'id': 'CB_${billId}_${newPayment.paymentId}',
+            'entryType': 'CREDIT',
+            'mode': paymentMethod,
+            'amountPaise': deltaPaidPaise,
+            'amount': deltaPaidPaise / 100.0,
+            'category': 'PURCHASE_BILL_PAYMENT',
+            'referenceId': billId,
+            'billNumber': billNumber,
+            'vendorId': vendorKey?.toString() ?? '',
+            'vendorName': vendorName,
+            'staffId': staffId,
+            'staffName': staffName,
+            'date': now.toIso8601String(),
+            'createdAt': FieldValue.serverTimestamp(),
+          };
+          await cashBankRef.set(cashBankData, SetOptions(merge: true));
+          await firestore
+              .collection('accounting_cash_bank')
+              .doc('CB_${billId}_${newPayment.paymentId}')
+              .set(cashBankData, SetOptions(merge: true));
+        }
+
+        if (vendorKey != null) {
+          final vDocId = vendorKey.toString();
+          final vRef = firestore
+              .collection('shops')
+              .doc(sId)
+              .collection('vendors')
+              .doc(vDocId);
+          final diffPaise =
+              balanceDuePaise - (originalBill.balanceDue * 100).round();
+          if (diffPaise != 0) {
+            await vRef.set({
+              'currentBalancePaise': FieldValue.increment(diffPaise),
+              'balance': FieldValue.increment(diffPaise / 100.0),
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+          }
         }
       } catch (e) {
         debugPrint(
@@ -1634,16 +1750,11 @@ class PurchaseBillService {
     final double safePaid = initialPaidAmount.clamp(0.0, grandTotal);
     final double balanceDue = (grandTotal - safePaid).clamp(0.0, grandTotal);
 
-    String paymentStatus;
-    if (isDraft) {
-      paymentStatus = BillPaymentStatus.draft;
-    } else if (balanceDue <= 0.001) {
-      paymentStatus = BillPaymentStatus.paid;
-    } else if (safePaid > 0.001) {
-      paymentStatus = BillPaymentStatus.partiallyPaid;
-    } else {
-      paymentStatus = BillPaymentStatus.unpaid;
-    }
+    final String paymentStatus = BillPaymentStatus.computeStatus(
+      grandTotalPaise: (grandTotal * 100).round(),
+      paidAmountPaise: (safePaid * 100).round(),
+      isDraft: isDraft,
+    );
 
     final paymentsList = <VendorPaymentRecord>[];
     if (safePaid > 0) {
@@ -1910,18 +2021,25 @@ class PurchaseBillService {
     String? notes,
     required String staffId,
     required String staffName,
+    String? shopId,
   }) async {
     final raw = _billsBox.get(billKey);
     if (raw is! Map) throw Exception('Purchase bill not found');
     final bill = PurchaseBill.fromMap(raw, billKey);
 
-    if (amount <= 0) {
+    final int amountPaise = (amount * 100).round();
+    if (amountPaise <= 0) {
       throw Exception('Payment amount must be greater than zero');
     }
 
-    if (amount > bill.balanceDue + 0.01) {
+    if (bill.balanceDuePaise <= 0) {
+      throw Exception('This purchase bill is already fully settled.');
+    }
+
+    if (amountPaise > bill.balanceDuePaise) {
       throw Exception(
-          'Payment (₹${amount.toStringAsFixed(2)}) exceeds bill balance due (₹${bill.balanceDue.toStringAsFixed(2)}). Use Advance Payment for excess amounts.');
+        'Payment (₹${(amountPaise / 100).toStringAsFixed(2)}) exceeds bill balance due (₹${(bill.balanceDuePaise / 100).toStringAsFixed(2)}). Use Advance Payment for excess amounts.',
+      );
     }
 
     final payId = await generatePaymentId();
@@ -1931,7 +2049,7 @@ class PurchaseBillService {
       billNumber: bill.billNumber,
       vendorKey: bill.vendorKey,
       vendorName: bill.vendorName,
-      amount: amount,
+      amount: amountPaise / 100.0,
       paymentDate: paymentDate,
       paymentMethod: paymentMethod,
       transactionReference: transactionReference.trim(),
@@ -1940,21 +2058,204 @@ class PurchaseBillService {
       recordedByName: staffName,
     );
 
-    final updatedPayments = List<VendorPaymentRecord>.from(bill.payments)
-      ..add(payment);
-    final newPaid = (bill.paidAmount + amount).clamp(0.0, bill.grandTotal);
-    final newBalance = (bill.grandTotal - newPaid).clamp(0.0, bill.grandTotal);
+    final int newPaidPaise = bill.paidAmountPaise + amountPaise;
+    final int newBalancePaise =
+        (bill.grandTotalPaise - newPaidPaise).clamp(0, bill.grandTotalPaise);
+    final String newStatus = BillPaymentStatus.computeStatus(
+      grandTotalPaise: bill.grandTotalPaise,
+      paidAmountPaise: newPaidPaise,
+      isDraft: bill.isDraft,
+    );
 
-    String newStatus;
-    if (newBalance <= 0.001) {
-      newStatus = BillPaymentStatus.paid;
-    } else {
-      newStatus = BillPaymentStatus.partiallyPaid;
+    final sId = (shopId != null && shopId.isNotEmpty)
+        ? shopId
+        : Db.setting('shop_id', 'tekfix');
+    final billId =
+        bill.key?.toString() ?? bill.billNumber.replaceAll('/', '_');
+    final vDocId = bill.vendorKey?.toString() ??
+        'VENDOR_${bill.vendorName.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_')}';
+
+    // -------------------------------------------------------------------------
+    // FIRESTORE ATOMIC TRANSACTION (Reads Before Writes)
+    // -------------------------------------------------------------------------
+    if (Firebase.apps.isNotEmpty) {
+      try {
+        final firestore = FirebaseFirestore.instance;
+        final billRef = firestore
+            .collection('shops')
+            .doc(sId)
+            .collection('purchase_bills')
+            .doc(billId);
+        final rootBillRef = firestore.collection('purchase_bills').doc(billId);
+        final partyRef = firestore
+            .collection('shops')
+            .doc(sId)
+            .collection('parties')
+            .doc(vDocId);
+        final vendorRef = firestore
+            .collection('shops')
+            .doc(sId)
+            .collection('vendors')
+            .doc(vDocId);
+
+        await firestore.runTransaction((transaction) async {
+          // READ PHASE
+          final billSnap = await transaction.get(billRef);
+          DocumentSnapshot<Map<String, dynamic>>? partySnap;
+          try {
+            partySnap = await transaction.get(partyRef);
+          } catch (_) {}
+
+          int remoteGrandPaise = bill.grandTotalPaise;
+          int remotePaidPaise = bill.paidAmountPaise;
+
+          if (billSnap.exists && billSnap.data() != null) {
+            final bData = billSnap.data()!;
+            remoteGrandPaise = (bData['grandTotalPaise'] as num?)?.toInt() ??
+                (((bData['grandTotal'] as num?)?.toDouble() ??
+                            bill.grandTotal) *
+                        100)
+                    .round();
+            remotePaidPaise = (bData['paidAmountPaise'] as num?)?.toInt() ??
+                (((bData['paidAmount'] as num?)?.toDouble() ??
+                            bill.paidAmount) *
+                        100)
+                    .round();
+          }
+
+          final remoteBalPaise =
+              (remoteGrandPaise - remotePaidPaise).clamp(0, remoteGrandPaise);
+          if (amountPaise > remoteBalPaise) {
+            throw Exception(
+              'Payment (₹${(amountPaise / 100).toStringAsFixed(2)}) exceeds live balance due (₹${(remoteBalPaise / 100).toStringAsFixed(2)}).',
+            );
+          }
+
+          int vendorBalPaise = 0;
+          if (partySnap != null && partySnap.exists && partySnap.data() != null) {
+            final pData = partySnap.data()!;
+            vendorBalPaise = (pData['currentBalancePaise'] as num?)?.toInt() ??
+                (((pData['balance'] as num?)?.toDouble() ?? 0.0) * 100).round();
+          } else {
+            vendorBalPaise =
+                (getVendorOutstandingBalance(bill.vendorKey) * 100).round();
+          }
+
+          final finalPaidPaise = remotePaidPaise + amountPaise;
+          final finalBalPaise =
+              (remoteGrandPaise - finalPaidPaise).clamp(0, remoteGrandPaise);
+          final finalStatus = BillPaymentStatus.computeStatus(
+            grandTotalPaise: remoteGrandPaise,
+            paidAmountPaise: finalPaidPaise,
+            isDraft: bill.isDraft,
+          );
+          final newVendorBalPaise = vendorBalPaise - amountPaise;
+
+          // WRITE PHASE
+          // 1. Payment subcollection
+          final billPayRef = billRef.collection('payments').doc(payId);
+          transaction.set(billPayRef, payment.toMap());
+
+          // 2. Bill document updates
+          final billUpdates = <String, dynamic>{
+            'paidAmountPaise': finalPaidPaise,
+            'paidAmount': finalPaidPaise / 100.0,
+            'balanceDuePaise': finalBalPaise,
+            'balanceDue': finalBalPaise / 100.0,
+            'paymentStatus': finalStatus,
+            'lastUpdatedById': staffId,
+            'lastUpdatedByName': staffName,
+            'updatedAt': FieldValue.serverTimestamp(),
+          };
+          transaction.set(billRef, billUpdates, SetOptions(merge: true));
+          transaction.set(rootBillRef, billUpdates, SetOptions(merge: true));
+
+          // 3. Vendor current balance updates
+          final vendorUpdates = <String, dynamic>{
+            'currentBalancePaise': newVendorBalPaise,
+            'balance': newVendorBalPaise / 100.0,
+            'updatedAt': FieldValue.serverTimestamp(),
+          };
+          transaction.set(partyRef, vendorUpdates, SetOptions(merge: true));
+          transaction.set(vendorRef, vendorUpdates, SetOptions(merge: true));
+
+          // 4. Vendor Ledger entry
+          final ledgerPayRef = firestore
+              .collection('shops')
+              .doc(sId)
+              .collection('vendor_ledger')
+              .doc('VL_$payId');
+          final ledgerPayData = <String, dynamic>{
+            'id': 'VL_$payId',
+            'paymentId': payId,
+            'vendorId': vDocId,
+            'vendorName': bill.vendorName,
+            'date': paymentDate.toIso8601String(),
+            'type': 'Payment',
+            'reference': transactionReference.trim().isNotEmpty
+                ? transactionReference.trim()
+                : bill.billNumber,
+            'vendorInvoiceNumber': bill.vendorInvoiceNumber,
+            'debitPaise': 0,
+            'debit': 0.0,
+            'creditPaise': amountPaise,
+            'credit': amountPaise / 100.0,
+            'runningBalancePaise': newVendorBalPaise,
+            'runningBalance': newVendorBalPaise / 100.0,
+            'notes': notes?.trim().isNotEmpty == true
+                ? notes!.trim()
+                : 'Payment via $paymentMethod for ${bill.billNumber}',
+            'createdAt': FieldValue.serverTimestamp(),
+          };
+          transaction.set(ledgerPayRef, ledgerPayData);
+          transaction.set(
+              firestore.collection('vendor_ledger').doc('VL_$payId'),
+              ledgerPayData);
+
+          // 5. Accounting Cash/Bank entry
+          final cashBankRef = firestore
+              .collection('shops')
+              .doc(sId)
+              .collection('accounting_cash_bank')
+              .doc('CB_$payId');
+          final cashBankData = <String, dynamic>{
+            'id': 'CB_$payId',
+            'paymentId': payId,
+            'entryType': 'CREDIT',
+            'mode': paymentMethod,
+            'amountPaise': amountPaise,
+            'amount': amountPaise / 100.0,
+            'category': 'PURCHASE_BILL_PAYMENT',
+            'referenceId': billId,
+            'billNumber': bill.billNumber,
+            'vendorId': vDocId,
+            'vendorName': bill.vendorName,
+            'staffId': staffId,
+            'staffName': staffName,
+            'date': paymentDate.toIso8601String(),
+            'notes': notes?.trim(),
+            'createdAt': FieldValue.serverTimestamp(),
+          };
+          transaction.set(cashBankRef, cashBankData);
+          transaction.set(
+              firestore.collection('accounting_cash_bank').doc('CB_$payId'),
+              cashBankData);
+        });
+      } catch (e) {
+        debugPrint(
+            '[PurchaseBillService] Cloud Firestore payment transaction notice: $e');
+      }
     }
 
+    // -------------------------------------------------------------------------
+    // LOCAL STATE & HIVE STORAGE UPDATES
+    // -------------------------------------------------------------------------
+    final updatedPayments = List<VendorPaymentRecord>.from(bill.payments)
+      ..add(payment);
+
     final updatedBill = bill.copyWith(
-      paidAmount: newPaid,
-      balanceDue: newBalance,
+      paidAmount: newPaidPaise / 100.0,
+      balanceDue: newBalancePaise / 100.0,
       paymentStatus: newStatus,
       payments: updatedPayments,
       lastUpdatedById: staffId,
@@ -1968,11 +2269,11 @@ class PurchaseBillService {
     // Financial adjustments:
     // Paying reduces debt owed to supplier (moves balance towards 0)
     if (bill.vendorKey != null) {
-      await Db.adjustParty(bill.vendorKey, amount);
+      await Db.adjustParty(bill.vendorKey, amountPaise / 100.0);
     }
     // Moves money out of cash/bank
     await Db.moveMoney(
-        paymentMethod, -amount, 'Vendor Payment ${bill.billNumber}');
+        paymentMethod, -(amountPaise / 100.0), 'Vendor Payment ${bill.billNumber}');
 
     // Audit log
     if (Db.audit.isOpen) {
@@ -1986,14 +2287,113 @@ class PurchaseBillService {
         'details': {
           'billNumber': bill.billNumber,
           'vendor': bill.vendorName,
-          'amount': amount,
+          'amount': amountPaise / 100.0,
+          'amountPaise': amountPaise,
           'method': paymentMethod,
           'ref': transactionReference,
+          'newPaymentStatus': newStatus,
+          'newBalanceDuePaise': newBalancePaise,
         },
       });
     }
 
     return updatedBill;
+  }
+
+  /// One-time migration & reconciliation utility.
+  /// Scans all local Hive bills and Cloud Firestore purchase bills,
+  /// recomputes balanceDue and paymentStatus using integer paise,
+  /// and updates any mismatched records.
+  Future<int> reconcileExistingBillsPaymentStatus({String? shopId}) async {
+    int updatedCount = 0;
+    final sId = (shopId != null && shopId.isNotEmpty)
+        ? shopId
+        : Db.setting('shop_id', 'tekfix');
+
+    // 1. Reconcile local Hive bills
+    if (_billsBox.isOpen) {
+      for (final key in _billsBox.keys) {
+        final raw = _billsBox.get(key);
+        if (raw is! Map) continue;
+        final bill = PurchaseBill.fromMap(raw, key);
+        final calculatedBalPaise =
+            (bill.grandTotalPaise - bill.paidAmountPaise).clamp(0, bill.grandTotalPaise);
+        final calculatedStatus = BillPaymentStatus.computeStatus(
+          grandTotalPaise: bill.grandTotalPaise,
+          paidAmountPaise: bill.paidAmountPaise,
+          isDraft: bill.isDraft,
+        );
+
+        final storedStatus = raw['paymentStatus']?.toString();
+        final storedBalPaise = (raw['balanceDuePaise'] as num?)?.toInt();
+
+        if (storedStatus != calculatedStatus || storedBalPaise != calculatedBalPaise) {
+          final updatedBill = bill.copyWith(
+            balanceDue: calculatedBalPaise / 100.0,
+            paymentStatus: calculatedStatus,
+          );
+          await _billsBox.put(key, updatedBill.toMap());
+          updatedCount++;
+        }
+      }
+    }
+
+    // 2. Reconcile Cloud Firestore bills
+    if (Firebase.apps.isNotEmpty) {
+      try {
+        final firestore = FirebaseFirestore.instance;
+        final snap = await firestore
+            .collection('shops')
+            .doc(sId)
+            .collection('purchase_bills')
+            .get();
+
+        final batch = firestore.batch();
+        int batchOps = 0;
+
+        for (final doc in snap.docs) {
+          final data = doc.data();
+          final grandPaise = (data['grandTotalPaise'] as num?)?.toInt() ??
+              (((data['grandTotal'] as num?)?.toDouble() ?? 0.0) * 100).round();
+          final paidPaise = (data['paidAmountPaise'] as num?)?.toInt() ??
+              (((data['paidAmount'] as num?)?.toDouble() ?? 0.0) * 100).round();
+          final isDraft = data['isDraft'] == true;
+
+          final calculatedBalPaise =
+              (grandPaise - paidPaise).clamp(0, grandPaise);
+          final calculatedStatus = BillPaymentStatus.computeStatus(
+            grandTotalPaise: grandPaise,
+            paidAmountPaise: paidPaise,
+            isDraft: isDraft,
+          );
+
+          final storedStatus = data['paymentStatus']?.toString();
+          final storedBalPaise = (data['balanceDuePaise'] as num?)?.toInt();
+
+          if (storedStatus != calculatedStatus || storedBalPaise != calculatedBalPaise) {
+            batch.update(doc.reference, {
+              'balanceDuePaise': calculatedBalPaise,
+              'balanceDue': calculatedBalPaise / 100.0,
+              'paymentStatus': calculatedStatus,
+              'reconciledAt': FieldValue.serverTimestamp(),
+            });
+            batchOps++;
+            if (batchOps >= 450) {
+              await batch.commit();
+              batchOps = 0;
+            }
+          }
+        }
+        if (batchOps > 0) {
+          await batch.commit();
+        }
+      } catch (e) {
+        debugPrint(
+            '[PurchaseBillService] Cloud Firestore reconciliation notice: $e');
+      }
+    }
+
+    return updatedCount;
   }
 
   // ---------------------------------------------------------------------------
@@ -2011,10 +2411,12 @@ class PurchaseBillService {
     required String staffId,
     required String staffName,
   }) async {
-    if (amount <= 0)
+    if (amount <= 0) {
       throw Exception('Advance amount must be greater than zero');
-    if (vendorKey == null)
+    }
+    if (vendorKey == null) {
       throw Exception('Please select a vendor for advance payment');
+    }
 
     final effectiveDate = paymentDate ?? DateTime.now();
     final payId = await generatePaymentId();
@@ -2230,9 +2632,9 @@ class PurchaseBillService {
       totalPaid += b.paidAmount;
       totalOutstanding += b.balanceDue;
 
-      if (b.paymentStatus == BillPaymentStatus.paid) {
+      if (BillPaymentStatus.isPaid(b.paymentStatus)) {
         fullyPaidCount++;
-      } else if (b.paymentStatus == BillPaymentStatus.partiallyPaid) {
+      } else if (BillPaymentStatus.isPartial(b.paymentStatus)) {
         partiallyPaidCount++;
       } else {
         unpaidCount++;
@@ -2328,14 +2730,22 @@ class PurchaseBillService {
       if (vendorFilter != null &&
           vendorFilter != 'All Vendors' &&
           vendorFilter.isNotEmpty) {
-        if (b.vendorName.toLowerCase() != vendorFilter.toLowerCase())
+        if (b.vendorName.toLowerCase() != vendorFilter.toLowerCase()) {
           return false;
+        }
       }
 
       if (paymentStatusFilter != null &&
           paymentStatusFilter != 'All Statuses' &&
+          paymentStatusFilter != 'All' &&
           paymentStatusFilter.isNotEmpty) {
-        if (b.paymentStatus != paymentStatusFilter) return false;
+        if (paymentStatusFilter.toLowerCase() == 'partial' ||
+            paymentStatusFilter.toLowerCase() == 'partially paid') {
+          if (!BillPaymentStatus.isPartial(b.paymentStatus)) return false;
+        } else if (b.paymentStatus.toLowerCase() !=
+            paymentStatusFilter.toLowerCase()) {
+          return false;
+        }
       }
 
       if (staffFilter != null &&
@@ -2346,8 +2756,9 @@ class PurchaseBillService {
 
       if (startDate != null && b.purchaseDate.isBefore(startDate)) return false;
       if (endDate != null &&
-          b.purchaseDate.isAfter(endDate.add(const Duration(days: 1))))
+          b.purchaseDate.isAfter(endDate.add(const Duration(days: 1)))) {
         return false;
+      }
 
       return true;
     }).toList();
