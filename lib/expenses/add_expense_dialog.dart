@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -430,7 +429,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
 
               // Field 2: Category Dropdown
               DropdownButtonFormField<String>(
-                value: _category,
+                initialValue: _category,
                 dropdownColor: TekColors.bgCard,
                 style: const TextStyle(
                     color: TekColors.textPrimary, fontSize: 13.5),
@@ -506,21 +505,31 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                 children: [
                   Expanded(
                     child: _buildModeOption(
-                      title: 'Cash in Hand',
-                      subtitle: 'ക്യാഷ് ബോക്സ്',
+                      title: 'Cash',
+                      subtitle: 'ക്യാഷ് ഡ്രോയർ',
                       icon: Icons.payments_rounded,
                       mode: ExpensePaymentMode.cash,
                       activeColor: Colors.amber,
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: _buildModeOption(
-                      title: 'Bank / UPI',
-                      subtitle: 'ബാങ്ക് അക്കൗണ്ട്',
+                      title: 'UPI',
+                      subtitle: 'GPay / PhonePe',
+                      icon: Icons.qr_code_rounded,
+                      mode: ExpensePaymentMode.upi,
+                      activeColor: const Color(0xFF00D4FF),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildModeOption(
+                      title: 'Bank',
+                      subtitle: 'അക്കൗണ്ട് ട്രാൻസ്ഫർ',
                       icon: Icons.account_balance_rounded,
                       mode: ExpensePaymentMode.bank,
-                      activeColor: TekColors.primary,
+                      activeColor: const Color(0xFF38BDF8),
                     ),
                   ),
                 ],
@@ -767,7 +776,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
       onTap: () => setState(() => _paymentMode = mode),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected
               ? activeColor.withValues(alpha: 0.12)
@@ -781,17 +790,19 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
         child: Row(
           children: [
             Icon(icon,
-                size: 20,
+                size: 18,
                 color: isSelected ? activeColor : TekColors.textSecondary),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 12.5,
+                      fontSize: 12,
                       fontWeight:
                           isSelected ? FontWeight.bold : FontWeight.w500,
                       color: isSelected ? activeColor : TekColors.textPrimary,
@@ -799,8 +810,10 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                   ),
                   Text(
                     subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 10.5,
+                      fontSize: 9.5,
                       color: TekColors.textSecondary,
                       fontFamilyFallback: TekTypography.malayalamFallback,
                     ),

@@ -12,6 +12,7 @@ class ExpenseMetrics {
   final double thisMonthTotal;
   final double todayCashTotal;
   final double todayBankTotal;
+  final double todayUpiTotal;
   final int todayCount;
 
   const ExpenseMetrics({
@@ -19,6 +20,7 @@ class ExpenseMetrics {
     required this.thisMonthTotal,
     required this.todayCashTotal,
     required this.todayBankTotal,
+    this.todayUpiTotal = 0.0,
     required this.todayCount,
   });
 
@@ -26,12 +28,20 @@ class ExpenseMetrics {
   double get totalMonth => thisMonthTotal;
   double get cashToday => todayCashTotal;
   double get bankToday => todayBankTotal;
+  double get upiToday => todayUpiTotal;
+
+  int get todayTotalPaise => (todayTotal * 100).round();
+  int get todayCashTotalPaise => (todayCashTotal * 100).round();
+  int get todayUpiTotalPaise => (todayUpiTotal * 100).round();
+  int get todayBankTotalPaise => (todayBankTotal * 100).round();
+  int get thisMonthTotalPaise => (thisMonthTotal * 100).round();
 
   factory ExpenseMetrics.empty() => const ExpenseMetrics(
         todayTotal: 0.0,
         thisMonthTotal: 0.0,
         todayCashTotal: 0.0,
         todayBankTotal: 0.0,
+        todayUpiTotal: 0.0,
         todayCount: 0,
       );
 }
@@ -69,9 +79,11 @@ class ExpenseService {
 
     final int amountPaise =
         item?.amountPaise ?? (effectiveAmount * 100).round();
-    final rawMode = item?.paymentMode ?? paymentMode ?? ExpensePaymentMode.cash;
-    final normalizedMode = rawMode.toUpperCase() == ExpensePaymentMode.bank
-        ? ExpensePaymentMode.bank
+    final rawMode =
+        (item?.paymentMode ?? paymentMode ?? ExpensePaymentMode.cash)
+            .toUpperCase();
+    final normalizedMode = ExpensePaymentMode.all.contains(rawMode)
+        ? rawMode
         : ExpensePaymentMode.cash;
 
     final resolvedShopId =
@@ -318,6 +330,7 @@ class ExpenseService {
         await firestore.runTransaction((tx) async {
           tx.update(expRef, {
             'isVoided': true,
+            'status': 'VOIDED',
             'voidedAt': FieldValue.serverTimestamp(),
             'voidedByUid': voidedByUid,
             'voidReason': effectiveReason,
@@ -330,6 +343,7 @@ class ExpenseService {
         debugPrint('[ExpenseService] Reversal transaction note: $e');
         await expRef.set({
           'isVoided': true,
+          'status': 'VOIDED',
           'voidedAt': FieldValue.serverTimestamp(),
           'voidedByUid': voidedByUid,
           'voidReason': effectiveReason,
@@ -341,6 +355,7 @@ class ExpenseService {
     // 2. Reverse local Hive projection
     final updatedMap = Map<String, dynamic>.from(currentMap)
       ..['isVoided'] = true
+      ..['status'] = 'VOIDED'
       ..['voidedAt'] = now.toIso8601String()
       ..['voidedByUid'] = voidedByUid
       ..['voidReason'] = effectiveReason;
@@ -386,7 +401,7 @@ class ExpenseService {
     }
   }
 
-  /// Fetch all expenses for a date, merging local Hive and Firestore
+  /// Fetch all expenses for a date, merging Firestore and local Hive
   Future<List<ExpenseItem>> getExpensesForDate(
     DateTime targetDate, {
     String? shopId,
@@ -400,18 +415,7 @@ class ExpenseService {
           dt.day == targetDate.day;
     }
 
-    // 1. Hive local box
-    for (final k in Db.expenses.keys) {
-      final m = tekM(Db.expenses.get(k));
-      final item = ExpenseItem.fromMap(m, '$k');
-      if (matchesDate(item.expenseDate)) {
-        if (includeVoided || !item.isVoided) {
-          map[item.id] = item;
-        }
-      }
-    }
-
-    // 2. Firestore query
+    // 1. Firestore query (Authoritative Cloud source)
     final sId = shopId ?? Db.setting('shop_id', '');
     if (sId.isNotEmpty && Firebase.apps.isNotEmpty) {
       try {
@@ -441,27 +445,45 @@ class ExpenseService {
       }
     }
 
+    // 2. Only supplement missing offline/local entries from Hive box
+    for (final k in Db.expenses.keys) {
+      final m = tekM(Db.expenses.get(k));
+      final item = ExpenseItem.fromMap(m, '$k');
+      if (matchesDate(item.expenseDate)) {
+        if (!map.containsKey(item.id)) {
+          if (includeVoided || !item.isVoided) {
+            map[item.id] = item;
+          }
+        }
+      }
+    }
+
     final list = map.values.toList()
       ..sort((a, b) => b.expenseDate.compareTo(a.expenseDate));
     return list;
   }
 
-  /// Compute high-level dashboard expense metrics
-  Future<ExpenseMetrics> computeExpenseMetrics({
-    String? shopId,
+  /// Compute high-level dashboard expense metrics directly from a deduplicated list
+  /// using exact integer paise arithmetic to prevent floating-point drift.
+  ExpenseMetrics computeMetricsFromList(
+    List<ExpenseItem> items, {
     DateTime? date,
-  }) async {
-    final sId = shopId ?? Db.setting('shop_id', 'tekfix');
+  }) {
     final now = date ?? DateTime.now();
-    final all = await getAllExpenses(sId);
-
-    double todayTotal = 0.0;
-    double thisMonthTotal = 0.0;
-    double todayCashTotal = 0.0;
-    double todayBankTotal = 0.0;
+    int todayTotalPaise = 0;
+    int thisMonthTotalPaise = 0;
+    int todayCashTotalPaise = 0;
+    int todayUpiTotalPaise = 0;
+    int todayBankTotalPaise = 0;
     int todayCount = 0;
 
-    for (final exp in all) {
+    // Deduplicate items strictly by doc.id
+    final Map<String, ExpenseItem> uniqueMap = {};
+    for (final exp in items) {
+      uniqueMap[exp.id] = exp;
+    }
+
+    for (final exp in uniqueMap.values) {
       if (exp.isVoided) continue;
 
       final dt = exp.expenseDate;
@@ -470,27 +492,44 @@ class ExpenseService {
       final isThisMonth = dt.year == now.year && dt.month == now.month;
 
       if (isThisMonth) {
-        thisMonthTotal += exp.amount;
+        thisMonthTotalPaise += exp.amountPaise;
       }
 
       if (isToday) {
-        todayTotal += exp.amount;
+        todayTotalPaise += exp.amountPaise;
         todayCount++;
         if (exp.isCash) {
-          todayCashTotal += exp.amount;
+          todayCashTotalPaise += exp.amountPaise;
+        } else if (exp.isUpi) {
+          todayUpiTotalPaise += exp.amountPaise;
         } else {
-          todayBankTotal += exp.amount;
+          todayBankTotalPaise += exp.amountPaise;
         }
       }
     }
 
     return ExpenseMetrics(
-      todayTotal: todayTotal,
-      thisMonthTotal: thisMonthTotal,
-      todayCashTotal: todayCashTotal,
-      todayBankTotal: todayBankTotal,
+      todayTotal: todayTotalPaise / 100.0,
+      thisMonthTotal: thisMonthTotalPaise / 100.0,
+      todayCashTotal: todayCashTotalPaise / 100.0,
+      todayBankTotal: todayBankTotalPaise / 100.0,
+      todayUpiTotal: todayUpiTotalPaise / 100.0,
       todayCount: todayCount,
     );
+  }
+
+  /// Compute high-level dashboard expense metrics
+  Future<ExpenseMetrics> computeExpenseMetrics({
+    String? shopId,
+    DateTime? date,
+    List<ExpenseItem>? preloadedExpenses,
+  }) async {
+    if (preloadedExpenses != null) {
+      return computeMetricsFromList(preloadedExpenses, date: date);
+    }
+    final sId = shopId ?? Db.setting('shop_id', 'tekfix');
+    final all = await getAllExpenses(sId);
+    return computeMetricsFromList(all, date: date);
   }
 
   /// Stream real-time expenses from Firestore as the single source of truth,

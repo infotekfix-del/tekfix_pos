@@ -52,16 +52,22 @@ class ExpenseCategory {
 
 class ExpensePaymentMode {
   static const cash = 'CASH';
+  static const upi = 'UPI';
   static const bank = 'BANK';
+  static const card = 'CARD';
 
-  static const List<String> all = [cash, bank];
+  static const List<String> all = [cash, upi, bank, card];
 
   static String toDisplay(String mode) {
     switch (mode.toUpperCase()) {
       case cash:
         return 'Cash in Hand (ക്യാഷ്)';
+      case upi:
+        return 'UPI / GPay / PhonePe (യുപിഐ)';
+      case card:
+        return 'Card Payment (കാർഡ്)';
       case bank:
-        return 'Bank / UPI (ബാങ്ക്)';
+        return 'Bank Transfer (ബാങ്ക്)';
       default:
         return mode;
     }
@@ -122,24 +128,32 @@ class ExpenseItem {
   });
 
   bool get isCash => paymentMode.toUpperCase() == ExpensePaymentMode.cash;
+  bool get isUpi => paymentMode.toUpperCase() == ExpensePaymentMode.upi;
   bool get isBank => paymentMode.toUpperCase() == ExpensePaymentMode.bank;
+  bool get isCard => paymentMode.toUpperCase() == ExpensePaymentMode.card;
+  String get status => isVoided ? 'VOIDED' : 'ACTIVE';
 
   Map<String, dynamic> toMap({bool forFirestore = false}) {
     return {
       'id': id,
+      '_id': id, // Explicit _id to synchronize with local sync engine
       'shopId': shopId,
       'title': title,
+      'description': title,
       'category': category,
       'amount': amount,
       'amountPaise': amountPaise,
       'paymentMode': paymentMode,
+      'mode': paymentMode,
       'expenseDate': forFirestore
           ? Timestamp.fromDate(expenseDate)
           : expenseDate.toIso8601String(),
       'recordedByUid': recordedByUid,
       'recordedByName': recordedByName,
+      'createdBy': recordedByUid,
       'notes': notes,
       'receiptUrl': receiptUrl,
+      'status': isVoided ? 'VOIDED' : 'ACTIVE',
       'isVoided': isVoided,
       'voidedAt': voidedAt != null
           ? (forFirestore
@@ -174,23 +188,32 @@ class ExpenseItem {
         (((map['amountPaise'] as num?)?.toDouble() ?? 0.0) / 100.0);
     final int paise =
         (map['amountPaise'] as num?)?.toInt() ?? (amt * 100).round();
-    final resolvedId = docId.isNotEmpty ? docId : (map['id']?.toString() ?? '');
+    final resolvedId = (map['id']?.toString().isNotEmpty == true)
+        ? map['id']!.toString()
+        : ((map['_id']?.toString().isNotEmpty == true)
+            ? map['_id']!.toString()
+            : docId);
+
+    final isVoidedVal = map['isVoided'] == true || map['status'] == 'VOIDED';
 
     return ExpenseItem(
       id: resolvedId,
       shopId: map['shopId']?.toString() ?? '',
-      title: map['title']?.toString() ?? 'Expense',
+      title: map['title']?.toString() ?? (map['description']?.toString() ?? 'Expense'),
       category:
           map['category']?.toString() ?? ExpenseCategory.miscellaneousOther,
       amount: amt,
       amountPaise: paise,
-      paymentMode: (map['paymentMode']?.toString() ?? 'CASH').toUpperCase(),
+      paymentMode: (map['paymentMode']?.toString() ??
+              (map['mode']?.toString() ?? 'CASH'))
+          .toUpperCase(),
       expenseDate: parseDate(map['expenseDate'] ?? map['createdAt']),
-      recordedByUid: map['recordedByUid']?.toString() ?? '',
+      recordedByUid: map['recordedByUid']?.toString() ??
+          (map['createdBy']?.toString() ?? ''),
       recordedByName: map['recordedByName']?.toString() ?? 'Staff',
       notes: map['notes']?.toString() ?? '',
       receiptUrl: map['receiptUrl']?.toString(),
-      isVoided: map['isVoided'] == true,
+      isVoided: isVoidedVal,
       voidedAt: map['voidedAt'] != null ? parseDate(map['voidedAt']) : null,
       voidedByUid: map['voidedByUid']?.toString(),
       voidReason: map['voidReason']?.toString(),

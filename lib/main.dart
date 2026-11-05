@@ -3480,9 +3480,16 @@ class _ExpenseTabState extends State<_ExpenseTab> {
         final sId = auth.shopId.isNotEmpty
             ? auth.shopId
             : Db.setting('shop_id', 'tekfix');
-        final pMode = mode.toUpperCase() == 'BANK'
-            ? ExpensePaymentMode.bank
-            : ExpensePaymentMode.cash;
+        final String pMode;
+        if (mode.toUpperCase() == 'BANK') {
+          pMode = ExpensePaymentMode.bank;
+        } else if (mode.toUpperCase() == 'UPI') {
+          pMode = ExpensePaymentMode.upi;
+        } else if (mode.toUpperCase() == 'CARD') {
+          pMode = ExpensePaymentMode.card;
+        } else {
+          pMode = ExpensePaymentMode.cash;
+        }
 
         await ExpenseService.instance.createExpense(
           shopId: sId,
@@ -3525,10 +3532,30 @@ class _ExpenseTabState extends State<_ExpenseTab> {
         valueListenable: Db.expenses.listenable(),
         builder: (ctx, box, _) {
           final all = entriesOf(Db.expenses).reversed.toList();
-          final filtered = all.where((e) {
-            final cat = '${e.value['category'] ?? 'Other'}';
+          // Deduplicate items strictly by canonical document ID
+          final Map<String, bool> seenIds = {};
+          final dedupedEntries = <dynamic>[];
+          for (final entry in all) {
+            final val = tekM(entry.value);
+            final canonicalId = (val['id']?.toString().isNotEmpty == true)
+                ? val['id'].toString()
+                : ((val['_id']?.toString().isNotEmpty == true)
+                    ? val['_id'].toString()
+                    : '${entry.key}');
+            if (!seenIds.containsKey(canonicalId)) {
+              seenIds[canonicalId] = true;
+              dedupedEntries.add(entry);
+            }
+          }
+
+          final filtered = dedupedEntries.where((entry) {
+            final val = tekM(entry.value);
+            final isVoided =
+                val['isVoided'] == true || val['status'] == 'VOIDED';
+            if (isVoided) return false;
+            final cat = '${val['category'] ?? 'Other'}';
             if (_catFilter != 'All' && cat != _catFilter) return false;
-            final dt = _dt(e.value['createdAt']);
+            final dt = _dt(val['expenseDate'] ?? val['createdAt']);
             return _matchesDateFilter(dt);
           }).toList();
 
@@ -3689,18 +3716,46 @@ class _ExpenseTabState extends State<_ExpenseTab> {
                                         'ചെലവ് ഡിലീറ്റ് ചെയ്യണോ? (തുക തിരികെ ചേർക്കും)')) {
                                       return;
                                     }
-                                    if (e['mode'] != null) {
-                                      await Db.moveMoney(
-                                          '${e['mode']}',
-                                          _d(e['amount']),
-                                          'Expense refunded: ${e['title']}');
+                                    final itemKey = filtered[i].key;
+                                    final expId =
+                                        (e['id']?.toString().isNotEmpty == true)
+                                            ? e['id'].toString()
+                                            : ((e['_id']?.toString().isNotEmpty ==
+                                                    true)
+                                                ? e['_id'].toString()
+                                                : '$itemKey');
+                                    final auth =
+                                        context.read<AuthController>();
+                                    final sId = auth.shopId.isNotEmpty
+                                        ? auth.shopId
+                                        : Db.setting('shop_id', 'tekfix');
+
+                                    try {
+                                      await ExpenseService.instance.voidExpense(
+                                        shopId: sId,
+                                        expenseId: expId,
+                                        voidedByUid: auth.uid,
+                                        voidedByName: auth.name.isNotEmpty
+                                            ? auth.name
+                                            : 'Staff',
+                                        reason: 'Voided from Expense tab',
+                                      );
+                                    } catch (err) {
+                                      debugPrint(
+                                          '[ExpenseTab] Void error fallback: $err');
+                                      if (e['mode'] != null) {
+                                        await Db.moveMoney(
+                                            '${e['mode']}',
+                                            _d(e['amount']),
+                                            'Expense refunded: ${e['title']}');
+                                      }
+                                      await Db.logAction(
+                                          action: 'Expense Deleted',
+                                          entity: 'Expense',
+                                          entityId: '$itemKey',
+                                          oldValue: e);
+                                      await Db.expenses.delete(itemKey);
                                     }
-                                    await Db.logAction(
-                                        action: 'Expense Deleted',
-                                        entity: 'Expense',
-                                        entityId: '${filtered[i].key}',
-                                        oldValue: e);
-                                    await Db.expenses.delete(filtered[i].key);
                                   },
                                 ),
                               ],

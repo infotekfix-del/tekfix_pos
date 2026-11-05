@@ -367,6 +367,8 @@ class OwnerFinanceService {
     if (salaryPortion > 0 && expenseId != null) {
       expenseMap = {
         'id': expenseId,
+        '_id': expenseId,
+        'status': 'ACTIVE',
         'shopId': sId,
         'title': 'Shop Owner Salary - $dateKey',
         'category': 'Shop Owner Salary',

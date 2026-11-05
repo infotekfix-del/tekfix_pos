@@ -307,7 +307,7 @@ class SyncEngine extends ChangeNotifier {
 
       for (final k in box.keys) {
         final rec = _asMap(box.get(k));
-        final uid = rec['_id'] as String?;
+        final uid = (rec['_id'] ?? rec['id']) as String?;
         if (uid == null) {
           continue; // legacy: stamped by _ensureSeed on the seed device
         }
@@ -412,7 +412,7 @@ class SyncEngine extends ChangeNotifier {
       return;
     }
     final rec = _asMap(e.value);
-    var uid = (rec['_id'] ?? _keyToUid[ck]) as String?;
+    var uid = (rec['_id'] ?? rec['id'] ?? _keyToUid[ck]) as String?;
     if (uid != null && _remoteApplying.contains('${c.box}|$uid')) {
       return; // Remote write actively in progress, bypass duplicate hashing and enqueue
     }

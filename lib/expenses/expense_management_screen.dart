@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -58,12 +57,18 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
         : Db.setting('shop_id', 'tekfix');
 
     _expenseSub?.cancel();
-    _expenseSub = ExpenseService.instance.streamExpenses(sId).listen((list) async {
+    _expenseSub = ExpenseService.instance.streamExpenses(sId).listen((list) {
+      // Deduplicate strictly by Firestore document ID
+      final Map<String, ExpenseItem> map = {};
+      for (final exp in list) {
+        map[exp.id] = exp;
+      }
+      final dedupedList = map.values.toList();
       final metrics =
-          await ExpenseService.instance.computeExpenseMetrics(shopId: sId);
+          ExpenseService.instance.computeMetricsFromList(dedupedList);
       if (mounted) {
         setState(() {
-          _allExpenses = list;
+          _allExpenses = dedupedList;
           _metrics = metrics;
           _isLoading = false;
         });
@@ -80,11 +85,16 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
         : Db.setting('shop_id', 'tekfix');
     try {
       final list = await ExpenseService.instance.getAllExpenses(sId);
+      final Map<String, ExpenseItem> map = {};
+      for (final exp in list) {
+        map[exp.id] = exp;
+      }
+      final dedupedList = map.values.toList();
       final metrics =
-          await ExpenseService.instance.computeExpenseMetrics(shopId: sId);
+          ExpenseService.instance.computeMetricsFromList(dedupedList);
       if (mounted) {
         setState(() {
-          _allExpenses = list;
+          _allExpenses = dedupedList;
           _metrics = metrics;
           _isLoading = false;
         });
@@ -323,8 +333,9 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                 ),
                 onPressed: () async {
                   final uri = Uri.tryParse(exp.receiptUrl!);
-                  if (uri != null)
+                  if (uri != null) {
                     await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
                 },
                 icon: const Icon(Icons.receipt_rounded,
                     size: 18, color: TekColors.primary),
@@ -436,6 +447,7 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
     );
 
     if (confirm == true) {
+      if (!mounted) return;
       try {
         final auth = context.read<AuthController>();
         final sId = widget.shopId.isNotEmpty
@@ -473,8 +485,7 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: const Color(0xFFF43F5E),
         foregroundColor: Colors.white,
-        onPressed: () =>
-            AddExpenseDialog.show(context, onExpenseSaved: _loadData),
+        onPressed: () => AddExpenseDialog.show(context),
         icon: const Icon(Icons.add_rounded),
         label: const Text(
           'Add Expense (ചിലവ് ചേർക്കുക)',
@@ -578,13 +589,13 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
               ),
             ),
 
-            // Four Dashboard Summary Cards (Requirement 2)
+            // Dashboard Summary Cards (Distinct Cash, UPI, Bank/Card breakdown)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: LayoutBuilder(
                   builder: (ctx, constraints) {
-                    final isWide = constraints.maxWidth >= 800;
+                    final isWide = constraints.maxWidth >= 950;
                     if (isWide) {
                       return Row(
                         children: [
@@ -595,16 +606,7 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                                   '${_metrics.todayCount} entries today',
                                   Icons.today_rounded,
                                   const Color(0xFFF43F5E))),
-                          const SizedBox(width: 12),
-                          Expanded(
-                              child: _buildMetricCard(
-                                  "This Month's Expenses",
-                                  '₹${_metrics.thisMonthTotal.toStringAsFixed(2)}',
-                                  DateFormat('MMMM yyyy')
-                                      .format(DateTime.now()),
-                                  Icons.calendar_month_rounded,
-                                  const Color(0xFF8B5CF6))),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 10),
                           Expanded(
                               child: _buildMetricCard(
                                   'Cash Expenses Today',
@@ -612,14 +614,31 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                                   'Paid from Drawer',
                                   Icons.payments_rounded,
                                   Colors.amber)),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 10),
                           Expanded(
                               child: _buildMetricCard(
-                                  'Bank/UPI Expenses Today',
-                                  '₹${_metrics.todayBankTotal.toStringAsFixed(2)}',
-                                  'Paid via Account/UPI',
-                                  Icons.account_balance_rounded,
+                                  'UPI Expenses Today',
+                                  '₹${_metrics.todayUpiTotal.toStringAsFixed(2)}',
+                                  'Paid via UPI',
+                                  Icons.qr_code_rounded,
                                   const Color(0xFF00D4FF))),
+                          const SizedBox(width: 10),
+                          Expanded(
+                              child: _buildMetricCard(
+                                  'Bank / Card Today',
+                                  '₹${_metrics.todayBankTotal.toStringAsFixed(2)}',
+                                  'Account / POS Card',
+                                  Icons.account_balance_rounded,
+                                  const Color(0xFF38BDF8))),
+                          const SizedBox(width: 10),
+                          Expanded(
+                              child: _buildMetricCard(
+                                  "This Month's Total",
+                                  '₹${_metrics.thisMonthTotal.toStringAsFixed(2)}',
+                                  DateFormat('MMMM yyyy')
+                                      .format(DateTime.now()),
+                                  Icons.calendar_month_rounded,
+                                  const Color(0xFF8B5CF6))),
                         ],
                       );
                     } else {
@@ -637,12 +656,11 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                               const SizedBox(width: 10),
                               Expanded(
                                   child: _buildMetricCard(
-                                      "This Month",
-                                      '₹${_metrics.thisMonthTotal.toStringAsFixed(2)}',
-                                      DateFormat('MMM yyyy')
-                                          .format(DateTime.now()),
-                                      Icons.calendar_month_rounded,
-                                      const Color(0xFF8B5CF6))),
+                                      'Cash Today',
+                                      '₹${_metrics.todayCashTotal.toStringAsFixed(2)}',
+                                      'Drawer Cash',
+                                      Icons.payments_rounded,
+                                      Colors.amber)),
                             ],
                           ),
                           const SizedBox(height: 10),
@@ -650,21 +668,28 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                             children: [
                               Expanded(
                                   child: _buildMetricCard(
-                                      'Cash Expenses Today',
-                                      '₹${_metrics.todayCashTotal.toStringAsFixed(2)}',
-                                      'Drawer Cash',
-                                      Icons.payments_rounded,
-                                      Colors.amber)),
+                                      'UPI Today',
+                                      '₹${_metrics.todayUpiTotal.toStringAsFixed(2)}',
+                                      'UPI Transfers',
+                                      Icons.qr_code_rounded,
+                                      const Color(0xFF00D4FF))),
                               const SizedBox(width: 10),
                               Expanded(
                                   child: _buildMetricCard(
-                                      'Bank/UPI Expenses',
+                                      'Bank/Card Today',
                                       '₹${_metrics.todayBankTotal.toStringAsFixed(2)}',
-                                      'Bank Account',
+                                      'Bank / Card',
                                       Icons.account_balance_rounded,
-                                      const Color(0xFF00D4FF))),
+                                      const Color(0xFF38BDF8))),
                             ],
                           ),
+                          const SizedBox(height: 10),
+                          _buildMetricCard(
+                              "This Month's Total",
+                              '₹${_metrics.thisMonthTotal.toStringAsFixed(2)}',
+                              DateFormat('MMMM yyyy').format(DateTime.now()),
+                              Icons.calendar_month_rounded,
+                              const Color(0xFF8B5CF6)),
                         ],
                       );
                     }
@@ -777,8 +802,9 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                                           c == 'All' ? 'All Categories' : c));
                                 }).toList(),
                                 onChanged: (v) {
-                                  if (v != null)
+                                  if (v != null) {
                                     setState(() => _selectedCategory = v);
+                                  }
                                 },
                               ),
                             ),
@@ -807,11 +833,16 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                                       value: 'CASH',
                                       child: Text('Cash in Hand')),
                                   DropdownMenuItem(
-                                      value: 'BANK', child: Text('Bank / UPI')),
+                                      value: 'UPI', child: Text('UPI')),
+                                  DropdownMenuItem(
+                                      value: 'BANK', child: Text('Bank Transfer')),
+                                  DropdownMenuItem(
+                                      value: 'CARD', child: Text('Card')),
                                 ],
                                 onChanged: (v) {
-                                  if (v != null)
+                                  if (v != null) {
                                     setState(() => _selectedPaymentMode = v);
+                                  }
                                 },
                               ),
                             ),
@@ -840,8 +871,9 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                                           Text(s == 'All' ? 'All Staff' : s));
                                 }).toList(),
                                 onChanged: (v) {
-                                  if (v != null)
+                                  if (v != null) {
                                     setState(() => _selectedStaff = v);
+                                  }
                                 },
                               ),
                             ),
@@ -1024,8 +1056,26 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
   }
 
   Widget _buildExpenseCard(ExpenseItem item) {
-    final isCash = item.isCash;
-    final modeColor = isCash ? Colors.amber : const Color(0xFF00D4FF);
+    final Color modeColor;
+    final IconData modeIcon;
+    final String modeLabel;
+    if (item.isCash) {
+      modeColor = Colors.amber;
+      modeIcon = Icons.payments_rounded;
+      modeLabel = 'CASH';
+    } else if (item.isUpi) {
+      modeColor = const Color(0xFF00D4FF);
+      modeIcon = Icons.qr_code_rounded;
+      modeLabel = 'UPI';
+    } else if (item.isCard) {
+      modeColor = const Color(0xFFA855F7);
+      modeIcon = Icons.credit_card_rounded;
+      modeLabel = 'CARD';
+    } else {
+      modeColor = const Color(0xFF38BDF8);
+      modeIcon = Icons.account_balance_rounded;
+      modeLabel = 'BANK';
+    }
 
     return Container(
       key: ValueKey('expense_${item.id}'),
@@ -1058,11 +1108,7 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  item.isVoided
-                      ? Icons.block_rounded
-                      : (isCash
-                          ? Icons.payments_rounded
-                          : Icons.account_balance_rounded),
+                  item.isVoided ? Icons.block_rounded : modeIcon,
                   color: item.isVoided ? TekColors.error : modeColor,
                   size: 20,
                 ),
@@ -1158,7 +1204,7 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                           Border.all(color: modeColor.withValues(alpha: 0.5)),
                     ),
                     child: Text(
-                      item.isVoided ? 'VOID' : (isCash ? 'CASH' : 'BANK/UPI'),
+                      item.isVoided ? 'VOID' : modeLabel,
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,

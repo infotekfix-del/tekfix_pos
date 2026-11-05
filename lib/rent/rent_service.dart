@@ -253,6 +253,8 @@ class RentService {
     // Linked General Expense object (for seamless integration with Expense module)
     final expenseMap = {
       'id': expenseId,
+      '_id': expenseId,
+      'status': 'ACTIVE',
       'shopId': sId,
       'title': 'Shop Daily Rent - $dateKey',
       'category': ExpenseCategory.rentAndMaintenance,

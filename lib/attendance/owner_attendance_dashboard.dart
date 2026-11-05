@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../main.dart' show Db, rs, toast, formDialog, tf, AppCard, kPrimary;
 import '../staff/salary_calculator.dart';
+import '../expenses/expense_models.dart';
+import '../expenses/expense_service.dart';
 import 'attendance_models.dart';
 import 'attendance_service.dart';
 
@@ -205,11 +207,13 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
                       reason: reasonCtrl.text.trim(),
                     );
                     if (ctx.mounted) Navigator.pop(ctx);
-                    if (mounted)
+                    if (mounted) {
                       toast(context, 'ഹാജർ വിജയകരമായി രേഖപ്പെടുത്തി');
+                    }
                   } catch (e) {
-                    if (ctx.mounted)
+                    if (ctx.mounted) {
                       toast(ctx, 'പരാജയപ്പെട്ടു: $e', error: true);
+                    }
                   }
                 },
                 child: const Text('സേവ് ചെയ്യുക'),
@@ -288,18 +292,25 @@ class _OwnerAttendanceDashboardState extends State<OwnerAttendanceDashboard>
       onSave: () async {
         final a = double.tryParse(amtCtrl.text.trim()) ?? 0;
         if (a <= 0) return 'ശരിയായ തുക നൽകുക';
-        final nowIso = DateTime.now().toIso8601String();
+        final cleanTitle = noteCtrl.text.trim().isNotEmpty
+            ? noteCtrl.text.trim()
+            : 'Salary for ${staff['name']}';
 
-        await Db.expenses.add({
-          'category': 'Staff Salary',
-          'title': noteCtrl.text.trim(),
-          'amount': a,
-          'mode': mode,
-          'createdAt': nowIso,
-        });
+        final pMode = mode.toUpperCase() == 'UPI'
+            ? ExpensePaymentMode.upi
+            : (mode.toUpperCase() == 'BANK'
+                ? ExpensePaymentMode.bank
+                : ExpensePaymentMode.cash);
 
-        await Db.moveMoney(
-            mode, -a, 'Expense (Staff Salary): ${noteCtrl.text.trim()}');
+        await ExpenseService.instance.createExpense(
+          shopId: widget.shopId,
+          title: cleanTitle,
+          category: 'Staff Salary',
+          amount: a,
+          paymentMode: pMode,
+          expenseDate: DateTime.now(),
+          notes: 'Present Days: $presentDays',
+        );
 
         await Db.logAction(
           action: 'Salary Posted From Attendance',
