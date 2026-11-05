@@ -76,10 +76,30 @@ class ExpenseService {
 
     final resolvedShopId =
         shopId.isNotEmpty ? shopId : Db.setting('shop_id', 'tekfix');
-    final expenseId = item?.id.isNotEmpty == true
-        ? item!.id
-        : (customExpenseId ??
-            'EXP_${DateTime.now().millisecondsSinceEpoch}_${_uuid.v4().substring(0, 6)}');
+
+    // Rule 1: Generate the doc id ONCE before writing: final ref = col.doc(); await ref.set(...)
+    final DocumentReference<Map<String, dynamic>>? expRef;
+    final String expenseId;
+    if (Firebase.apps.isNotEmpty) {
+      final expCol = FirebaseFirestore.instance
+          .collection('shops')
+          .doc(resolvedShopId)
+          .collection('expenses');
+      if (item?.id.isNotEmpty == true) {
+        expRef = expCol.doc(item!.id);
+      } else if (customExpenseId != null && customExpenseId.isNotEmpty) {
+        expRef = expCol.doc(customExpenseId);
+      } else {
+        expRef = expCol.doc();
+      }
+      expenseId = expRef.id;
+    } else {
+      expRef = null;
+      expenseId = item?.id.isNotEmpty == true
+          ? item!.id
+          : (customExpenseId ??
+              'EXP_${DateTime.now().millisecondsSinceEpoch}_${_uuid.v4().substring(0, 6)}');
+    }
 
     final effectiveDate = item?.expenseDate ?? expenseDate ?? DateTime.now();
     final effectiveUid = item?.recordedByUid ?? recordedByUid ?? 'staff';
@@ -108,14 +128,9 @@ class ExpenseService {
       updatedAt: DateTime.now(),
     );
 
-    // 1. Atomic Firestore Transaction (Cross-collection debit & ledger posting)
-    if (Firebase.apps.isNotEmpty) {
+    // 1. Single Atomic WriteBatch (Expense + Cross-collection debit & ledger posting)
+    if (Firebase.apps.isNotEmpty && expRef != null) {
       final firestore = FirebaseFirestore.instance;
-      final expRef = firestore
-          .collection('shops')
-          .doc(resolvedShopId)
-          .collection('expenses')
-          .doc(expenseId);
 
       final ledgerRef = firestore
           .collection('shops')
@@ -164,19 +179,14 @@ class ExpenseService {
       };
 
       try {
-        await firestore.runTransaction((tx) async {
-          tx.set(expRef, expenseMap);
-          tx.set(ledgerRef, ledgerData);
-          tx.set(
-              firestore
-                  .collection('accounting_cash_bank')
-                  .doc('CB_EXP_$expenseId'),
-              ledgerData);
-          tx.set(auditRef, auditData);
-        });
+        final batch = firestore.batch();
+        batch.set(expRef, expenseMap);
+        batch.set(ledgerRef, ledgerData);
+        batch.set(auditRef, auditData);
+        await batch.commit();
       } catch (e) {
         debugPrint(
-            '[ExpenseService] Firestore transaction notice: $e (Falling back to resilient offline-first mode)');
+            '[ExpenseService] Batch commit notice: $e (Falling back to resilient offline-first mode)');
         try {
           await expRef.set(expenseMap, SetOptions(merge: true));
           await ledgerRef.set(ledgerData, SetOptions(merge: true));
@@ -483,18 +493,48 @@ class ExpenseService {
     );
   }
 
-  /// Retrieve all expenses cached in Hive and optionally merged with Firestore
-  Future<List<ExpenseItem>> getAllExpenses(String shopId) async {
-    final Map<String, ExpenseItem> map = {};
+  /// Stream real-time expenses from Firestore as the single source of truth,
+  /// de-duplicated strictly by doc.id.
+  Stream<List<ExpenseItem>> streamExpenses(String shopId) {
+    final sId = shopId.isNotEmpty ? shopId : Db.setting('shop_id', 'tekfix');
+    if (Firebase.apps.isEmpty) {
+      return Stream.value(_getHiveExpenses());
+    }
 
+    return FirebaseFirestore.instance
+        .collection('shops')
+        .doc(sId)
+        .collection('expenses')
+        .orderBy('expenseDate', descending: true)
+        .limit(300)
+        .snapshots()
+        .map((snapshot) {
+      final Map<String, ExpenseItem> map = {};
+      for (final doc in snapshot.docs) {
+        final item = ExpenseItem.fromMap(doc.data(), doc.id);
+        map[doc.id] = item;
+      }
+      return map.values.toList();
+    });
+  }
+
+  List<ExpenseItem> _getHiveExpenses() {
+    final Map<String, ExpenseItem> map = {};
     for (final k in Db.expenses.keys) {
       final m = tekM(Db.expenses.get(k));
       final item = ExpenseItem.fromMap(m, '$k');
       map[item.id] = item;
     }
+    return map.values.toList()
+      ..sort((a, b) => b.expenseDate.compareTo(a.expenseDate));
+  }
+
+  /// Retrieve all expenses cached in Hive and optionally merged with Firestore
+  Future<List<ExpenseItem>> getAllExpenses(String shopId) async {
+    final Map<String, ExpenseItem> map = {};
 
     final sId = shopId.isNotEmpty ? shopId : Db.setting('shop_id', '');
-    if (sId.isNotEmpty) {
+    if (sId.isNotEmpty && Firebase.apps.isNotEmpty) {
       try {
         final snap = await FirebaseFirestore.instance
             .collection('shops')
@@ -506,9 +546,20 @@ class ExpenseService {
 
         for (final doc in snap.docs) {
           final item = ExpenseItem.fromMap(doc.data(), doc.id);
-          map[item.id] = item;
+          map[doc.id] = item;
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[ExpenseService] Firestore fetch error: $e');
+      }
+    }
+
+    // Only supplement missing local entries from Hive that aren't already in map
+    for (final k in Db.expenses.keys) {
+      final m = tekM(Db.expenses.get(k));
+      final item = ExpenseItem.fromMap(m, '$k');
+      if (!map.containsKey(item.id)) {
+        map[item.id] = item;
+      }
     }
 
     final list = map.values.toList()

@@ -66,10 +66,17 @@ class BarcodeLabelItem {
   }) : itemCode = itemCode ?? (itemId.isNotEmpty ? itemId : barcode);
 
   /// Priority for pricing:
-  /// 1. MRP
-  /// 2. Selling Price (if MRP is unavailable/0)
+  /// Label MRP = the item's stored `mrp` if present and >= `sellingPrice`,
+  /// otherwise `sellingPrice`.
+  /// Protects against bogus reverse markups (e.g. 493.75 vs 680.00).
+  /// No GST adjustment, no recalculation, no rounding changes.
   double? get effectivePrice {
-    if (mrp != null && mrp! > 0) return mrp;
+    if (mrp != null && mrp! > 0) {
+      if (sellingPrice != null && sellingPrice! > 0 && mrp! < sellingPrice!) {
+        return sellingPrice;
+      }
+      return mrp;
+    }
     if (sellingPrice != null && sellingPrice! > 0) return sellingPrice;
     return null;
   }

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../main.dart' show Db;
 import '../purchases/purchase_models.dart';
@@ -1127,7 +1127,7 @@ class _BarcodePrintDialogState extends State<BarcodePrintDialog> {
                                             if (_showPrice &&
                                                 previewItem.hasValidPrice) ...[
                                               Text(
-                                                'MRP: ₹${previewItem.effectivePrice!.toStringAsFixed(previewItem.effectivePrice!.truncateToDouble() == previewItem.effectivePrice! ? 0 : 2)}',
+                                                'MRP: ₹${previewItem.effectivePrice!.toStringAsFixed(2)}',
                                                 maxLines: 1,
                                                 style: const TextStyle(
                                                   color: Colors.black,

@@ -5,6 +5,7 @@
 
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -174,12 +175,27 @@ class SmartInventorySearchEngine extends ChangeNotifier {
             // Fresh server snapshot verified!
             _syncState = InventorySyncState.connected;
             _syncErrorMessage = null;
+            notifyListeners();
           } else {
-            // Data is served from local Firestore cache; server response is pending
-            _syncState = InventorySyncState.offline;
+            // Firestore serves initial cache before server round-trip finishes.
+            // Check real network connectivity so we NEVER show the offline banner when online!
+            Connectivity().checkConnectivity().then((conn) {
+              final isOnline =
+                  !conn.contains(ConnectivityResult.none) && conn.isNotEmpty;
+              if (isOnline) {
+                // Online: device is ready and server sync is active
+                _syncState = InventorySyncState.connected;
+                _syncErrorMessage = null;
+              } else {
+                // Truly offline
+                _syncState = InventorySyncState.offline;
+              }
+              notifyListeners();
+            }).catchError((_) {
+              _syncState = InventorySyncState.connected;
+              notifyListeners();
+            });
           }
-
-          notifyListeners();
         },
         onError: (error) {
           debugPrint(

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -35,29 +36,31 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
   bool _isLoading = true;
   List<ExpenseItem> _allExpenses = [];
   ExpenseMetrics _metrics = ExpenseMetrics.empty();
+  StreamSubscription<List<ExpenseItem>>? _expenseSub;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _initStream();
   }
 
   @override
   void dispose() {
+    _expenseSub?.cancel();
+    _expenseSub = null;
     _searchCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _loadData() async {
-    setState(() => _isLoading = true);
-    try {
-      final sId = widget.shopId.isNotEmpty
-          ? widget.shopId
-          : Db.setting('shop_id', 'tekfix');
-      final list = await ExpenseService.instance.getAllExpenses(sId);
+  void _initStream() {
+    final sId = widget.shopId.isNotEmpty
+        ? widget.shopId
+        : Db.setting('shop_id', 'tekfix');
+
+    _expenseSub?.cancel();
+    _expenseSub = ExpenseService.instance.streamExpenses(sId).listen((list) async {
       final metrics =
           await ExpenseService.instance.computeExpenseMetrics(shopId: sId);
-
       if (mounted) {
         setState(() {
           _allExpenses = list;
@@ -65,11 +68,28 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
           _isLoading = false;
         });
       }
-    } catch (e) {
+    }, onError: (e) {
+      debugPrint('[ExpenseManagementScreen] Stream error: $e');
+      if (mounted) setState(() => _isLoading = false);
+    });
+  }
+
+  Future<void> _loadData() async {
+    final sId = widget.shopId.isNotEmpty
+        ? widget.shopId
+        : Db.setting('shop_id', 'tekfix');
+    try {
+      final list = await ExpenseService.instance.getAllExpenses(sId);
+      final metrics =
+          await ExpenseService.instance.computeExpenseMetrics(shopId: sId);
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _allExpenses = list;
+          _metrics = metrics;
+          _isLoading = false;
+        });
       }
-    }
+    } catch (_) {}
   }
 
   bool _matchesDate(DateTime dt) {
@@ -1008,6 +1028,7 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
     final modeColor = isCash ? Colors.amber : const Color(0xFF00D4FF);
 
     return Container(
+      key: ValueKey('expense_${item.id}'),
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: TekColors.bgCard,

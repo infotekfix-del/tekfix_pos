@@ -170,6 +170,69 @@ class OwnerFinanceService {
       } catch (e) {
         debugPrint('[OwnerFinanceService] getWithdrawalsForMonth error: $e');
       }
+
+      // 2b. Also query Firestore expenses for category 'Shop Owner Salary'
+      // to ensure ledger totals match Expenses report 100%
+      try {
+        final expSnap = await FirebaseFirestore.instance
+            .collection('shops')
+            .doc(sId)
+            .collection('expenses')
+            .where('category', isEqualTo: 'Shop Owner Salary')
+            .where('expenseDate',
+                isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
+            .where('expenseDate', isLessThanOrEqualTo: Timestamp.fromDate(endOfMonth))
+            .get();
+
+        final existingExpenseIds = map.values
+            .map((w) => w.expenseId)
+            .whereType<String>()
+            .toSet();
+
+        for (final doc in expSnap.docs) {
+          final data = doc.data();
+          final expId = doc.id;
+          final withdrawalId = data['withdrawalId'] as String?;
+          if (map.containsKey(expId) ||
+              existingExpenseIds.contains(expId) ||
+              (withdrawalId != null && map.containsKey(withdrawalId))) {
+            continue;
+          }
+          final isVoided = data['isVoided'] == true;
+          if (!includeVoided && isVoided) continue;
+
+          final amt = (data['amount'] as num?)?.toDouble() ?? 0.0;
+          final amtPaise =
+              (data['amountPaise'] as num?)?.toInt() ?? (amt * 100).round();
+          final dt = (data['expenseDate'] as Timestamp?)?.toDate() ?? DateTime.now();
+          final mode = (data['paymentMode'] as String? ?? 'CASH').toUpperCase();
+          final recByUid = data['recordedByUid'] as String? ?? '';
+          final recByName = data['recordedByName'] as String? ?? 'Staff';
+          final notes = data['notes'] as String? ?? '';
+
+          map[expId] = OwnerWithdrawalItem(
+            id: expId,
+            shopId: sId,
+            date: dt,
+            dateKey: toDateKey(dt),
+            totalAmount: amt,
+            totalAmountPaise: amtPaise,
+            salaryPortion: amt,
+            salaryPortionPaise: amtPaise,
+            drawingsPortion: 0.0,
+            drawingsPortionPaise: 0,
+            paymentMode: mode,
+            recordedByUid: recByUid,
+            recordedByName: recByName,
+            notes: notes,
+            isVoided: isVoided,
+            expenseId: expId,
+            createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? dt,
+          );
+        }
+      } catch (e) {
+        debugPrint('[OwnerFinanceService] getWithdrawalsForMonth expenses query error: $e');
+      }
     }
 
     final list = map.values.toList()..sort((a, b) => b.date.compareTo(a.date));

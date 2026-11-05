@@ -3421,7 +3421,7 @@ class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
                 fontSize: 14, fontWeight: FontWeight.w800),
           ),
         ),
-        onPressed: _isSaving ? null : _save,
+        onPressed: (_isSaving || _items.isEmpty) ? null : _save,
       ),
     );
   }

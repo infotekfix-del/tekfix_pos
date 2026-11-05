@@ -746,8 +746,10 @@ class PurchaseBillService {
             'costPrice': line.purchaseRate,
             'sellingPrice': line.sellingPrice > 0
                 ? line.sellingPrice
-                : (line.mrp > 0 ? line.mrp : line.purchaseRate * 1.2),
-            'mrp': line.mrp > 0 ? line.mrp : line.purchaseRate * 1.25,
+                : (line.mrp > 0 ? line.mrp : 0.0),
+            'mrp': line.mrp > 0
+                ? line.mrp
+                : (line.sellingPrice > 0 ? line.sellingPrice : 0.0),
             'minStock': 3,
             'warranty': line.warrantyDuration,
             'isMultiUnit': line.isMultiUnit,
@@ -1456,8 +1458,10 @@ class PurchaseBillService {
             'costPrice': fresh.purchaseRate,
             'sellingPrice': fresh.sellingPrice > 0
                 ? fresh.sellingPrice
-                : (fresh.mrp > 0 ? fresh.mrp : fresh.purchaseRate * 1.2),
-            'mrp': fresh.mrp > 0 ? fresh.mrp : fresh.purchaseRate * 1.25,
+                : (fresh.mrp > 0 ? fresh.mrp : 0.0),
+            'mrp': fresh.mrp > 0
+                ? fresh.mrp
+                : (fresh.sellingPrice > 0 ? fresh.sellingPrice : 0.0),
             'minStock': 3,
             'warranty': fresh.warrantyDuration,
             'isMultiUnit': fresh.isMultiUnit,

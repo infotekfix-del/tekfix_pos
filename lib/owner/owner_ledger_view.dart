@@ -81,8 +81,9 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
       return;
     }
 
+    final hasLimit = _settings != null && _settings!.monthlySalaryLimit > 0;
     final limitCtrl = TextEditingController(
-      text: (_settings?.monthlySalaryLimit ?? 20000.0).toStringAsFixed(0),
+      text: hasLimit ? _settings!.monthlySalaryLimit.toStringAsFixed(0) : '',
     );
 
     final updated = await showDialog<bool>(
@@ -138,8 +139,13 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
             style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF8B5CF6)),
             onPressed: () async {
-              final newLimit =
-                  double.tryParse(limitCtrl.text.trim()) ?? 20000.0;
+              final newLimit = double.tryParse(limitCtrl.text.trim());
+              if (newLimit == null || newLimit <= 0) {
+                toast(ctx,
+                    'ശരിയായ തുക നൽകുക (Please enter a valid salary amount)',
+                    error: true);
+                return;
+              }
               final current = _settings ??
                   OwnerSalarySettings(effectiveDate: DateTime.now());
               final toSave = current.copyWith(
@@ -238,18 +244,57 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthController>();
+    if (!auth.isOwner) {
+      return Scaffold(
+        backgroundColor: TekColors.mainBg,
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.lock_outline_rounded,
+                    size: 48, color: Color(0xFF8B5CF6)),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'ഉടമയ്ക്ക് മാത്രമുള്ള വിവരങ്ങൾ (Owner Only Area)',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Owner Salary & Drawings Ledger is restricted to Shop Owner / Admin.',
+                style: TextStyle(color: TekColors.textSecondary, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final monthDisplay = DateFormat('MMMM yyyy').format(_selectedMonth);
     final isDesktop = MediaQuery.of(context).size.width >= 900;
+    final quotaText = _settings != null && _settings!.monthlySalaryLimit > 0
+        ? 'Monthly Quota: ₹${_settings!.monthlySalaryLimit.toStringAsFixed(0)}'
+        : 'Quota: Not Configured';
 
     return Scaffold(
       backgroundColor: TekColors.mainBg,
       appBar: AppBar(
         backgroundColor: TekColors.sidebarBg,
         elevation: 0,
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Owner Salary & Drawings Ledger',
               style: TextStyle(
                   fontSize: 16.5,
@@ -257,8 +302,8 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
                   color: Colors.white),
             ),
             Text(
-              'ഉടമയുടെ ശമ്പളവും പിൻവലിക്കലുകളും • Base ₹20,000 Quota',
-              style: TextStyle(fontSize: 11, color: TekColors.textSecondary),
+              'ഉടമയുടെ ശമ്പളവും പിൻവലിക്കലുകളും • $quotaText',
+              style: const TextStyle(fontSize: 11, color: TekColors.textSecondary),
             ),
           ],
         ),
@@ -298,6 +343,56 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
                   _buildMonthBar(monthDisplay),
 
                   const SizedBox(height: 16),
+
+                  if (_settings == null || _settings!.monthlySalaryLimit <= 0) ...[
+                    InkWell(
+                      onTap: _showSettingsDialog,
+                      borderRadius: BorderRadius.circular(14),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          color:
+                              const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                              color: const Color(0xFFF59E0B)
+                                  .withValues(alpha: 0.4)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.info_outline_rounded,
+                                color: Color(0xFFF59E0B), size: 24),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Monthly Salary Quota is not configured',
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13.5),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Tap here to configure your monthly salary limit in settings.',
+                                    style: TextStyle(
+                                        color: TekColors.textSecondary,
+                                        fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.arrow_forward_ios_rounded,
+                                color: Color(0xFFF59E0B), size: 14),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
 
                   // 2. Metric Summary Cards (4 Cards)
                   _buildMetricCards(isDesktop),
@@ -418,6 +513,9 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
 
   Widget _buildMetricCards(bool isDesktop) {
     final count = isDesktop ? 4 : 2;
+    final hasConfiguredQuota =
+        _settings != null && _settings!.monthlySalaryLimit > 0;
+
     return GridView.count(
       crossAxisCount: count,
       shrinkWrap: true,
@@ -428,8 +526,10 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
       children: [
         _metricCard(
           title: 'Monthly Salary Cap',
-          subtitle: '₹${_metrics.monthlyLimit.toStringAsFixed(0)}',
-          badgeText: 'Base Limit',
+          subtitle: hasConfiguredQuota
+              ? '₹${_metrics.monthlyLimit.toStringAsFixed(0)}'
+              : 'Not Configured',
+          badgeText: hasConfiguredQuota ? 'Base Limit' : 'Unconfigured',
           badgeColor: const Color(0xFF8B5CF6),
           icon: Icons.shield_outlined,
           color: const Color(0xFF8B5CF6),
@@ -444,13 +544,17 @@ class _OwnerLedgerViewState extends State<OwnerLedgerView> {
         ),
         _metricCard(
           title: 'Remaining Quota',
-          subtitle: '₹${_metrics.remainingSalaryThisMonth.toStringAsFixed(0)}',
-          badgeText: _metrics.isQuotaFull ? 'Exhausted' : 'Available',
-          badgeColor: _metrics.isQuotaFull
+          subtitle: hasConfiguredQuota
+              ? '₹${_metrics.remainingSalaryThisMonth.toStringAsFixed(0)}'
+              : 'Not Set',
+          badgeText: hasConfiguredQuota
+              ? (_metrics.isQuotaFull ? 'Exhausted' : 'Available')
+              : 'Unconfigured',
+          badgeColor: hasConfiguredQuota && _metrics.isQuotaFull
               ? const Color(0xFFF59E0B)
               : const Color(0xFF00D4FF),
           icon: Icons.hourglass_bottom_rounded,
-          color: _metrics.isQuotaFull
+          color: hasConfiguredQuota && _metrics.isQuotaFull
               ? const Color(0xFFF59E0B)
               : const Color(0xFF00D4FF),
         ),

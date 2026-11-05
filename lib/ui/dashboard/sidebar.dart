@@ -188,8 +188,14 @@ class TekSidebar extends StatelessWidget {
                   onTap: () => onItemSelected?.call('Expenses'),
                 ),
                 _buildNavItem(
+                  label: 'Daily Rent Ledger',
+                  icon: Icons.calendar_today_rounded,
+                  isActive: activeItem == 'Daily Rent Ledger',
+                  onTap: () => onItemSelected?.call('Daily Rent Ledger'),
+                ),
+                _buildNavItem(
                   label: 'Owner Salary & Drawings',
-                  icon: Icons.account_balance_wallet_rounded,
+                  icon: Icons.account_circle_rounded,
                   isActive: activeItem == 'Owner Salary & Drawings',
                   onTap: () => onItemSelected?.call('Owner Salary & Drawings'),
                 ),

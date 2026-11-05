@@ -57,7 +57,11 @@ import 'purchases/purchase_bills_dashboard_view.dart';
 import 'pos/daily_sales_ledger_view.dart';
 import 'staff/salary_calculator.dart';
 import 'expenses/expense_management_screen.dart';
-import 'expenses/add_expense_dialog.dart';
+import 'expenses/expense_service.dart';
+import 'expenses/expense_models.dart';
+import 'expenses/expense_cleanup_dialog.dart';
+import 'rent/daily_rent_history_view.dart';
+import 'owner/owner_ledger_view.dart';
 import 'barcode/barcode_print_dialog.dart';
 import 'repairs/service_bill_dialog.dart';
 export 'utils/tek_helpers.dart';
@@ -1040,6 +1044,10 @@ List<NavCategory> _getNavCategories(String shopId) => [
         items: [
           AppModule('Expenses', Icons.receipt_long_rounded,
               ExpenseManagementScreen(shopId: shopId)),
+          AppModule('Daily Rent Ledger', Icons.calendar_today_rounded,
+              DailyRentHistoryView(shopId: shopId)),
+          AppModule('Owner Salary & Drawings', Icons.account_circle_rounded,
+              OwnerLedgerView(shopId: shopId)),
           const AppModule('Purchase & Expense', Icons.shopping_bag_rounded,
               PurchaseExpenseView()),
           const AppModule('Parties', Icons.groups_rounded, PartiesView()),
@@ -1281,26 +1289,36 @@ class _AppShellState extends State<AppShell> {
         return 'Purchase Bills';
       case 7:
         return 'Expenses';
+      case 8:
+        return 'Daily Rent Ledger';
       case 9:
-        return 'Customer Management';
+        return 'Owner Salary & Drawings';
+      case 10:
+        return 'Purchase & Expense';
+      case 11:
+        return 'Parties';
       case 12:
+        return 'Cash & Bank';
       case 13:
+        return 'Reports';
       case 14:
       case 15:
       case 16:
       case 17:
-        return 'Staff Management';
       case 18:
-        return 'Payment Reminders';
       case 19:
-        return 'After-Sales Follow-ups';
+        return 'Staff Management';
       case 20:
-        return 'App Updates & Releases';
+        return 'Payment Reminders';
       case 21:
-        return 'Backup & Sync';
+        return 'After-Sales Follow-ups';
       case 22:
-        return 'Audit / Change History';
+        return 'App Updates & Releases';
       case 23:
+        return 'Backup & Sync';
+      case 24:
+        return 'Audit / Change History';
+      case 25:
         return 'Settings & Print';
       default:
         return '';
@@ -1310,6 +1328,7 @@ class _AppShellState extends State<AppShell> {
   int _getSidebarItemIndex(String item) {
     switch (item) {
       case 'Dashboard':
+      case 'Home':
         return 0;
       case 'Sale / POS':
         return 1;
@@ -1326,24 +1345,37 @@ class _AppShellState extends State<AppShell> {
         return 6;
       case 'Expenses':
         return 7;
+      case 'Daily Rent Ledger':
+      case 'Shop Rent':
+        return 8;
+      case 'Owner Salary & Drawings':
+      case 'Owner Drawings':
+        return 9;
+      case 'Purchase & Expense':
+        return 10;
       case 'Customer Management':
       case 'Parties':
-        return 9;
-      case 'Staff Management':
+        return 11;
+      case 'Cash & Bank':
         return 12;
+      case 'Reports':
+        return 13;
+      case 'Staff Management':
+      case 'Staff & Attendance':
+        return 14;
       case 'Payment Reminders':
-        return 18;
-      case 'After-Sales Follow-ups':
-        return 19;
-      case 'App Updates & Releases':
         return 20;
-      case 'Backup & Sync':
+      case 'After-Sales Follow-ups':
         return 21;
-      case 'Audit / Change History':
+      case 'App Updates & Releases':
         return 22;
+      case 'Backup & Sync':
+        return 23;
+      case 'Audit / Change History':
+        return 24;
       case 'Settings & Print':
       case 'System Settings':
-        return 23;
+        return 25;
       default:
         return 0;
     }
@@ -3444,25 +3476,24 @@ class _ExpenseTabState extends State<_ExpenseTab> {
         final a = _r2(double.tryParse(amt.text.trim()) ?? 0);
         if (a <= 0) return 'ശരിയായ തുക നൽകുക';
         final t = title.text.trim().isEmpty ? category : title.text.trim();
-        final expenseKey = await Db.expenses.add({
-          'category': category,
-          'title': t,
-          'amount': a,
-          'mode': mode,
-          'createdAt': selectedDate.toIso8601String(),
-        });
-        await Db.logAction(
-            action: 'Expense Created',
-            entity: 'Expense',
-            entityId: '$expenseKey',
-            newValue: {
-              'category': category,
-              'title': t,
-              'amount': a,
-              'mode': mode,
-              'createdAt': selectedDate.toIso8601String(),
-            });
-        await Db.moveMoney(mode, -a, 'Expense ($category): $t');
+        final auth = context.read<AuthController>();
+        final sId = auth.shopId.isNotEmpty
+            ? auth.shopId
+            : Db.setting('shop_id', 'tekfix');
+        final pMode = mode.toUpperCase() == 'BANK'
+            ? ExpensePaymentMode.bank
+            : ExpensePaymentMode.cash;
+
+        await ExpenseService.instance.createExpense(
+          shopId: sId,
+          title: t,
+          category: category,
+          amount: a,
+          paymentMode: pMode,
+          expenseDate: selectedDate,
+          recordedByUid: auth.uid,
+          recordedByName: auth.name.isNotEmpty ? auth.name : 'Staff',
+        );
         return null;
       },
     );
@@ -5831,6 +5862,76 @@ class _SettingsViewState extends State<SettingsView> {
                       label: const Text('മാറ്റുക')),
                 ),
               ],
+            ),
+          ),
+          const SectionTitle('ഡെവലപ്പർ ടൂളുകൾ (Developer Tools)'),
+          AppCard(
+            child: ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.cleaning_services_rounded,
+                    color: Colors.orange, size: 20),
+              ),
+              title: const Text('Expense Deduplication & Cleanup',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              subtitle: const Text(
+                  'Scan & safely delete duplicate expense rows with backup (Owner Only)',
+                  style: TextStyle(fontSize: 12)),
+              trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+              onTap: () async {
+                final auth = context.read<AuthController>();
+                if (!auth.isOwner) {
+                  final pwCtrl = TextEditingController();
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      backgroundColor: TekColors.bgCard,
+                      title: const Row(
+                        children: [
+                          Icon(Icons.lock_outline_rounded,
+                              color: Colors.amber, size: 20),
+                          SizedBox(width: 8),
+                          Text('Owner PIN Required',
+                              style: TextStyle(fontSize: 16)),
+                        ],
+                      ),
+                      content: TextField(
+                        controller: pwCtrl,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                            labelText: 'Owner / Admin Password'),
+                      ),
+                      actions: [
+                        TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Cancel')),
+                        FilledButton(
+                          onPressed: () {
+                            final expected = Db.setting('admin_pass', '1234');
+                            if (pwCtrl.text.trim() == expected) {
+                              Navigator.pop(ctx, true);
+                            } else {
+                              toast(ctx, 'Incorrect Password', error: true);
+                            }
+                          },
+                          child: const Text('Verify'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (ok != true) return;
+                }
+                if (context.mounted) {
+                  final sId = auth.shopId.isNotEmpty
+                      ? auth.shopId
+                      : Db.setting('shop_id', 'tekfix');
+                  ExpenseCleanupDialog.show(context, shopId: sId);
+                }
+              },
             ),
           ),
           const SizedBox(height: 24),

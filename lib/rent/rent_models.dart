@@ -94,8 +94,8 @@ class DailyRentSettings {
   final List<RentRateHistoryItem> rateHistory;
 
   const DailyRentSettings({
-    this.dailyRentAmount = 300.0,
-    this.dailyRentAmountPaise = 30000,
+    this.dailyRentAmount = 500.0,
+    this.dailyRentAmountPaise = 50000,
     this.currency = 'INR',
     this.landlordName = '',
     this.defaultPaymentMode = ExpensePaymentMode.cash,

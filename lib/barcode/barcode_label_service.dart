@@ -23,6 +23,8 @@ class BarcodeLabelService extends ChangeNotifier {
 
   static const String settingsKey = 'barcode_printer_config';
   static const String defaultStoreName = 'TEKFIX DIGITAL';
+  static const String previewCurrencySymbol = '₹';
+  static const String tsplCurrencyPrefix = 'Rs.';
 
   PrinterConfig _config = const PrinterConfig();
   PrinterConnectionStatus _status = PrinterConnectionStatus.disconnected;
@@ -565,9 +567,7 @@ class BarcodeLabelService extends ChangeNotifier {
   }) {
     final hasPrice = showPrice && item.hasValidPrice;
     final price = item.effectivePrice ?? 0.0;
-    final priceVal = price.truncateToDouble() == price
-        ? price.toStringAsFixed(0)
-        : price.toStringAsFixed(2);
+    final priceVal = price.toStringAsFixed(2);
 
     return pw.Container(
       width: double.infinity,

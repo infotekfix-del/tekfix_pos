@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
+import '../auth/auth_controller.dart';
 import '../main.dart' show Db;
 import '../theme/tek_tokens.dart';
 import 'daily_rent_payment_dialog.dart';
@@ -25,8 +27,14 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
   String _selectedMode = 'ALL'; // ALL, CASH, BANK
 
   bool _loading = true;
+  DailyRentSettings? _settings;
   DailyRentMetrics _metrics = DailyRentMetrics.empty();
   List<DailyRentRecord> _records = [];
+  double _periodQuota = 0.0;
+  double _periodPaid = 0.0;
+  double _periodRemaining = 0.0;
+  int _periodPaidDays = 0;
+  int _periodUnpaidDays = 0;
 
   @override
   void initState() {
@@ -65,10 +73,33 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
       endDate: end,
     );
 
+    final daysInPeriod = end.difference(start).inDays + 1;
+    final periodQuota = settings.dailyRentAmount * daysInPeriod;
+    int paidDays = 0;
+    int unpaidDays = 0;
+    double periodPaid = 0.0;
+
+    for (final r in history) {
+      if (r.isPaid) {
+        paidDays++;
+        periodPaid += r.paidAmount;
+      } else if (r.status == 'PENDING') {
+        unpaidDays++;
+      }
+    }
+    final periodRemaining =
+        (periodQuota - periodPaid).clamp(0.0, double.infinity);
+
     if (mounted) {
       setState(() {
+        _settings = settings;
         _metrics = metrics;
         _records = history;
+        _periodQuota = periodQuota;
+        _periodPaid = periodPaid;
+        _periodRemaining = periodRemaining;
+        _periodPaidDays = paidDays;
+        _periodUnpaidDays = unpaidDays;
         _loading = false;
       });
     }
@@ -108,6 +139,42 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthController>();
+    if (!auth.isOwner) {
+      return Scaffold(
+        backgroundColor: TekColors.mainBg,
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.lock_outline_rounded,
+                    size: 48, color: Color(0xFFF59E0B)),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'ഉടമയ്ക്ക് മാത്രമുള്ള വിവരങ്ങൾ (Owner Only Area)',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Daily Rent Ledger is restricted to Shop Owner / Admin.',
+                style: TextStyle(color: TekColors.textSecondary, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: TekColors.mainBg,
       body: _loading
@@ -219,7 +286,40 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
         mainAxisSpacing: 12,
         childAspectRatio: isWide ? 1.45 : 1.35,
         children: [
-          // Card A: Today's Rent
+          // Card A: Rent Quota (daily rate × days)
+          _metricCard(
+            title: _dateFilterMode == 'THIS_MONTH'
+                ? "Monthly Rent Quota"
+                : "Period Rent Quota",
+            subtitle: "₹${_periodQuota.toStringAsFixed(0)}",
+            badgeText: "₹${(_settings?.dailyRentAmount ?? 500).toStringAsFixed(0)}/day",
+            badgeColor: const Color(0xFF8B5CF6),
+            icon: Icons.calendar_month_rounded,
+            color: const Color(0xFF8B5CF6),
+          ),
+          // Card B: Total Rent Paid So Far
+          _metricCard(
+            title: "Rent Paid So Far",
+            subtitle: "₹${_periodPaid.toStringAsFixed(0)}",
+            badgeText: "$_periodPaidDays Days",
+            badgeColor: const Color(0xFF10B981),
+            icon: Icons.account_balance_wallet_rounded,
+            color: const Color(0xFF10B981),
+          ),
+          // Card C: Remaining Rent Balance
+          _metricCard(
+            title: "Remaining Balance",
+            subtitle: "₹${_periodRemaining.toStringAsFixed(0)}",
+            badgeText: _periodRemaining > 0 ? "Pending" : "Cleared",
+            badgeColor: _periodRemaining > 0
+                ? const Color(0xFFF59E0B)
+                : const Color(0xFF10B981),
+            icon: Icons.hourglass_bottom_rounded,
+            color: _periodRemaining > 0
+                ? const Color(0xFFF59E0B)
+                : const Color(0xFF10B981),
+          ),
+          // Card D: Today's Rent Status
           _metricCard(
             title: "Today's Rent",
             subtitle: _metrics.todayStatus == 'PAID'
@@ -232,45 +332,18 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
             icon: Icons.today_rounded,
             color: const Color(0xFFF59E0B),
           ),
-          // Card B: Total Rent Paid This Month
-          _metricCard(
-            title: "Rent Paid This Month",
-            subtitle: "₹${_metrics.monthTotalPaid.toStringAsFixed(0)}",
-            badgeText: "Recorded",
-            badgeColor: const Color(0xFF10B981),
-            icon: Icons.account_balance_wallet_rounded,
-            color: const Color(0xFF10B981),
-          ),
-          // Card C: Paid Days Count
-          _metricCard(
-            title: "Paid Days",
-            subtitle: "${_metrics.monthPaidDays} Days",
-            badgeText: "Complete",
-            badgeColor: TekColors.info,
-            icon: Icons.verified_rounded,
-            color: TekColors.info,
-          ),
-          // Card D: Unpaid Days Count
+          // Card E: Unpaid Days
           _metricCard(
             title: "Unpaid Days",
-            subtitle: "${_metrics.monthUnpaidDays} Days",
-            badgeText: _metrics.monthUnpaidDays > 0 ? "Pending" : "Clear",
-            badgeColor: _metrics.monthUnpaidDays > 0
-                ? TekColors.warning
+            subtitle: "$_periodUnpaidDays Days",
+            badgeText: _periodUnpaidDays > 0 ? "Pending" : "Clear",
+            badgeColor: _periodUnpaidDays > 0
+                ? TekColors.error
                 : const Color(0xFF10B981),
             icon: Icons.pending_actions_rounded,
-            color: _metrics.monthUnpaidDays > 0
-                ? TekColors.warning
+            color: _periodUnpaidDays > 0
+                ? TekColors.error
                 : const Color(0xFF10B981),
-          ),
-          // Card E: Total Outstanding Scheduled Rent
-          _metricCard(
-            title: "Scheduled Outstanding",
-            subtitle: "₹${_metrics.monthTotalOutstanding.toStringAsFixed(0)}",
-            badgeText: "Unpaid",
-            badgeColor: TekColors.error,
-            icon: Icons.event_busy_rounded,
-            color: TekColors.error,
           ),
         ],
       );
@@ -512,21 +585,33 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
           badgeFg = TekColors.textMuted;
           badgeText = 'NOT SCHEDULED';
         } else {
-          badgeBg = const Color(0xFFF59E0B).withValues(alpha: 0.15);
-          badgeFg = const Color(0xFFF59E0B);
-          badgeText = 'PENDING (ബാക്കി)';
+          badgeBg = const Color(0xFFEF4444).withValues(alpha: 0.15);
+          badgeFg = const Color(0xFFEF4444);
+          badgeText = 'UNPAID / PENDING (ബാക്കി)';
+        }
+
+        final isUnpaid = r.status == 'PENDING';
+        Color borderColor;
+        Color cardBg;
+        if (isToday) {
+          borderColor = const Color(0xFFF59E0B).withValues(alpha: 0.8);
+          cardBg = TekColors.bgCard;
+        } else if (isUnpaid) {
+          borderColor = const Color(0xFFEF4444).withValues(alpha: 0.45);
+          cardBg = const Color(0xFFEF4444).withValues(alpha: 0.04);
+        } else {
+          borderColor = TekColors.border;
+          cardBg = TekColors.bgCard;
         }
 
         return Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: TekColors.bgCard,
+            color: cardBg,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: isToday
-                  ? const Color(0xFFF59E0B).withValues(alpha: 0.6)
-                  : TekColors.border,
-              width: isToday ? 1.5 : 1,
+              color: borderColor,
+              width: (isToday || isUnpaid) ? 1.5 : 1,
             ),
           ),
           child: Row(
@@ -612,6 +697,12 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
                               style: const TextStyle(
                                   color: TekColors.textMuted, fontSize: 11.5)),
                         ],
+                        if (r.notes.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          Text('• Note: ${r.notes}',
+                              style: const TextStyle(
+                                  color: TekColors.textMuted, fontSize: 11.5)),
+                        ],
                       ],
                     ),
                   ],
@@ -632,7 +723,7 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
                       color: r.isPaid
                           ? const Color(0xFF10B981)
                           : (r.status == 'PENDING'
-                              ? const Color(0xFFF59E0B)
+                              ? const Color(0xFFEF4444)
                               : TekColors.textMuted),
                     ),
                   ),
@@ -666,7 +757,7 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
                   onPressed: () => _openPaymentDialog(r.date),
                 )
               else if (r.status == 'PENDING')
-                ElevatedButton(
+                ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFF59E0B),
                     foregroundColor: Colors.black,
@@ -677,7 +768,8 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
                         borderRadius: BorderRadius.circular(8)),
                   ),
                   onPressed: () => _openPaymentDialog(r.date),
-                  child: const Text('Pay',
+                  icon: const Icon(Icons.payment_rounded, size: 14),
+                  label: const Text('Pay Now',
                       style:
                           TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 )

@@ -107,12 +107,10 @@ class TsplGenerator {
         charWidth: 8, maxDots: config.widthDots, margin: config.safeMarginDots);
     buffer.writeln('TEXT $codeX,$codeY,"1",0,1,1,"$barcodeData"');
 
-    // 6. MRP AT THE BOTTOM (PRINT WHEN TOGGLE IS ON AND PRICE > 0, NO ₹0)
+    // 6. MRP AT THE BOTTOM (PRINT WHEN TOGGLE IS ON AND PRICE > 0, ALWAYS 2 DECIMALS)
     if (showPrice && item.hasValidPrice) {
       final price = item.effectivePrice!;
-      final priceVal = price.truncateToDouble() == price
-          ? price.toStringAsFixed(0)
-          : price.toStringAsFixed(2);
+      final priceVal = price.toStringAsFixed(2);
       final mrpText = 'MRP: Rs.$priceVal';
       final mrpX = _calculateCenterX(mrpText.length,
           charWidth: 12,
