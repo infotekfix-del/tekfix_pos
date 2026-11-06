@@ -183,6 +183,11 @@ class DailyRegisterService {
     double ownerBankSalaryDrawn = 0.0,
     double ownerBankDrawingsDrawn = 0.0,
     double physicalCashCount = 0.0,
+    double retainedCashFloat = 1000.0,
+    CashDenominations denominations = const CashDenominations(),
+    CashHandoverSplit handoverSplit = const CashHandoverSplit(),
+    bool isBackdated = false,
+    String closingStatus = '',
     String closedByStaffId = '',
     String closedByStaffName = '',
     bool isClosed = false,
@@ -338,6 +343,11 @@ class DailyRegisterService {
       ownerBankDrawingsDrawn: ownerBankDrawingsDrawn,
       physicalCashCount: physicalCashCount,
       cashDiscrepancy: discrepancy,
+      retainedCashFloat: retainedCashFloat,
+      denominations: denominations,
+      handoverSplit: handoverSplit,
+      isBackdated: isBackdated,
+      closingStatus: closingStatus,
       categoryBreakdown: categoryBreakdown,
       topSellingProducts: topProducts,
       closedByStaffId: closedByStaffId,
@@ -346,13 +356,79 @@ class DailyRegisterService {
     );
   }
 
-  /// Close daily register and write immutable record to Firestore and Hive
+  /// Retrieve opening cash for a date:
+  /// 1. If already closed, use that day's saved opening cash (Firestore first).
+  /// 2. Check Firestore `shops/{shopId}/register_openings/{dateStr}`.
+  /// 3. Check local Hive key for `opening_cash_$dateStr` (offline cache).
+  /// 4. Look up previous business day's closed register retained cash float.
+  /// 5. Default to ₹1,000.0.
+  Future<double> getOpeningCashForDate(
+    DateTime targetDate, {
+    String? shopId,
+  }) async {
+    final dateStr = toDateString(targetDate);
+    final resolvedShop = shopId ?? Db.setting('shop_id', '');
+
+    // 1. If register is already closed, use closed summary's openingCash
+    final closed = await getClosedRegister(dateStr, shopId: resolvedShop);
+    if (closed != null) {
+      return closed.openingCash;
+    }
+
+    // 2. Check Firestore register_openings for this date (authoritative source of truth)
+    if (resolvedShop.isNotEmpty) {
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('shops')
+            .doc(resolvedShop)
+            .collection('register_openings')
+            .doc(dateStr)
+            .get();
+        if (doc.exists && doc.data() != null) {
+          final data = doc.data()!;
+          final openVal = (data['openingCash'] as num?)?.toDouble() ??
+              (((data['openingCashPaise'] as num?)?.toDouble() ?? 0.0) / 100.0);
+          await Db.settings.put('opening_cash_$dateStr', openVal);
+          return openVal;
+        }
+      } catch (e) {
+        debugPrint('Firestore register opening fetch error: $e');
+      }
+    }
+
+    // 3. Check local Hive key for this date's opening cash (offline fallback)
+    final localVal = Db.settings.get('opening_cash_$dateStr');
+    if (localVal != null) {
+      if (localVal is num) return localVal.toDouble();
+      final parsed = double.tryParse(localVal.toString());
+      if (parsed != null) return parsed;
+    }
+
+    // 4. Look up previous business day's closed register
+    final prevDate = targetDate.subtract(const Duration(days: 1));
+    final prevDateStr = toDateString(prevDate);
+    final prevClosed =
+        await getClosedRegister(prevDateStr, shopId: resolvedShop);
+    if (prevClosed != null) {
+      final prevFloat = prevClosed.retainedCashFloat;
+      await Db.settings.put('opening_cash_$dateStr', prevFloat);
+      return prevFloat;
+    }
+
+    // 5. Default opening float = ₹1,000.0
+    return 1000.0;
+  }
+
+  /// Close daily register atomically and write immutable record to Firestore,
+  /// and automatically carry forward retained cash float as next business day's opening cash.
   Future<void> closeDailyRegister({
     required DailyRegisterSummary summary,
     required String shopId,
     required String staffId,
     required String staffName,
     String? notes,
+    bool isBackdated = false,
+    bool forceOverrideNextDay = false,
   }) async {
     final now = DateTime.now();
     final closedSummary = summary.copyWith(
@@ -360,32 +436,174 @@ class DailyRegisterService {
       closedByStaffName: staffName,
       closedAt: now,
       isClosed: true,
+      isBackdated: isBackdated,
+      closingStatus: isBackdated
+          ? 'BACKDATED'
+          : (summary.cashDiscrepancy.abs() > 0.5 ? 'DISCREPANCY' : 'CLOSED'),
       notes: notes,
     );
 
     final payload = closedSummary.toMap();
     final docId = summary.dateString;
+    final resolvedShop = shopId.isNotEmpty ? shopId : Db.setting('shop_id', '');
 
-    // 1. Cache to Hive local settings/registers
+    // 1. Cache to Hive local settings/registers for immediate responsive UI
     await Db.settings.put('daily_register_$docId', payload);
 
-    // 2. Write immutable record to Firestore: shops/{shopId}/daily_registers/{dateString_YYYY_MM_DD}
-    if (shopId.isNotEmpty) {
+    // 2. Atomic Firestore transaction: write closed register + carry forward next-day opening cash
+    final nextDay = summary.date.add(const Duration(days: 1));
+    final nextDayStr = toDateString(nextDay);
+    bool shouldCarryForward = true;
+
+    if (resolvedShop.isNotEmpty) {
       try {
-        await FirebaseFirestore.instance
-            .collection('shops')
-            .doc(shopId)
-            .collection('daily_registers')
-            .doc(docId)
-            .set({
-          ...payload,
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        final shopDoc =
+            FirebaseFirestore.instance.collection('shops').doc(resolvedShop);
+        final registerRef = shopDoc.collection('daily_registers').doc(docId);
+        final nextDayRegisterRef =
+            shopDoc.collection('daily_registers').doc(nextDayStr);
+        final nextDayOpeningRef =
+            shopDoc.collection('register_openings').doc(nextDayStr);
+
+        await FirebaseFirestore.instance.runTransaction((transaction) async {
+          final registerSnap = await transaction.get(registerRef);
+          final nextDayRegisterSnap =
+              await transaction.get(nextDayRegisterRef);
+
+          final nextDayIsClosed = nextDayRegisterSnap.exists &&
+              (nextDayRegisterSnap.data()?['isClosed'] == true);
+
+          if (isBackdated && nextDayIsClosed && !forceOverrideNextDay) {
+            shouldCarryForward = false;
+            debugPrint(
+              '[DailyRegisterService] Backdated closing for $docId: $nextDayStr is already finalized. Not overwriting next day opening cash.',
+            );
+          }
+
+          transaction.set(
+            registerRef,
+            {
+              ...payload,
+              'createdAt': registerSnap.exists
+                  ? (registerSnap.data()?['createdAt'] ??
+                      FieldValue.serverTimestamp())
+                  : FieldValue.serverTimestamp(),
+              'updatedAt': FieldValue.serverTimestamp(),
+              'finalized': true,
+            },
+            SetOptions(merge: true),
+          );
+
+          if (shouldCarryForward) {
+            transaction.set(
+              nextDayOpeningRef,
+              {
+                'businessDate': nextDayStr,
+                'openingCash': summary.retainedCashFloat,
+                'openingCashPaise': summary.retainedCashFloatPaise,
+                'carriedFromDate': docId,
+                'isBackdatedCarry': isBackdated,
+                'updatedByStaffId': staffId,
+                'updatedByStaffName': staffName,
+                'updatedAt': FieldValue.serverTimestamp(),
+              },
+              SetOptions(merge: true),
+            );
+          }
+        });
       } catch (e) {
-        debugPrint('Firestore register close save error: $e');
+        debugPrint('Firestore register close atomic transaction error: $e');
+        // Fallback write if transaction failed (e.g. offline device)
+        try {
+          await FirebaseFirestore.instance
+              .collection('shops')
+              .doc(resolvedShop)
+              .collection('daily_registers')
+              .doc(docId)
+              .set({
+            ...payload,
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+            'finalized': true,
+          }, SetOptions(merge: true));
+
+          if (shouldCarryForward) {
+            await FirebaseFirestore.instance
+                .collection('shops')
+                .doc(resolvedShop)
+                .collection('register_openings')
+                .doc(nextDayStr)
+                .set({
+              'businessDate': nextDayStr,
+              'openingCash': summary.retainedCashFloat,
+              'openingCashPaise': summary.retainedCashFloatPaise,
+              'carriedFromDate': docId,
+              'isBackdatedCarry': isBackdated,
+              'updatedByStaffId': staffId,
+              'updatedByStaffName': staffName,
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+          }
+        } catch (e2) {
+          debugPrint('Firestore register close fallback error: $e2');
+        }
       }
     }
+
+    if (shouldCarryForward) {
+      await Db.settings
+          .put('opening_cash_$nextDayStr', summary.retainedCashFloat);
+    }
+
+    // 3. Audit Log
+    await Db.logAction(
+      action:
+          isBackdated ? 'Backdated EOD Register Closed' : 'EOD Register Closed',
+      entity: 'DailyRegister',
+      entityId: docId,
+      reason:
+          'Actual Cash: ₹${summary.physicalCashCount.toStringAsFixed(2)}, Retained Float: ₹${summary.retainedCashFloat.toStringAsFixed(2)}, Net Handover: ₹${summary.netCashHandover.toStringAsFixed(2)}, Status: ${closedSummary.resolvedClosingStatus}',
+      newValue: {
+        'businessDate': docId,
+        'actualCash': summary.physicalCashCount,
+        'retainedFloat': summary.retainedCashFloat,
+        'netHandover': summary.netCashHandover,
+        'discrepancy': summary.cashDiscrepancy,
+        'isBackdated': isBackdated,
+        'closedBy': staffName,
+      },
+    );
+  }
+
+  /// Get status of past N days for EOD status dashboard & backdated closing
+  Future<List<DailyRegisterSummary>> getPastDaysRegisterStatus({
+    required String shopId,
+    int days = 7,
+  }) async {
+    final now = DateTime.now();
+    final List<DailyRegisterSummary> list = [];
+
+    for (int i = 0; i < days; i++) {
+      final targetDate = now.subtract(Duration(days: i));
+      final dateStr = toDateString(targetDate);
+      final closed = await getClosedRegister(dateStr, shopId: shopId);
+
+      if (closed != null) {
+        list.add(closed);
+      } else {
+        // Fetch day's sales and compute pending summary
+        final s = await getSalesForDate(targetDate, shopId: shopId);
+        final openCash =
+            await getOpeningCashForDate(targetDate, shopId: shopId);
+        final pending = computeDailySummary(
+          sales: s,
+          date: targetDate,
+          openingCash: openCash,
+        );
+        list.add(pending);
+      }
+    }
+    return list;
   }
 
   /// Check if register was already closed for a date
@@ -393,14 +611,9 @@ class DailyRegisterService {
     String dateString, {
     String? shopId,
   }) async {
-    // 1. Check local Hive cache
-    final local = Db.settings.get('daily_register_$dateString');
-    if (local != null && local is Map) {
-      return DailyRegisterSummary.fromMap(Map<String, dynamic>.from(local));
-    }
-
-    // 2. Check Firestore
     final resolvedShop = shopId ?? Db.setting('shop_id', '');
+
+    // 1. Check Firestore (authoritative source of truth)
     if (resolvedShop.isNotEmpty) {
       try {
         final doc = await FirebaseFirestore.instance
@@ -418,6 +631,12 @@ class DailyRegisterService {
       } catch (e) {
         debugPrint('Error getting closed register from Firestore: $e');
       }
+    }
+
+    // 2. Fallback to local Hive cache if offline or uninitialized
+    final local = Db.settings.get('daily_register_$dateString');
+    if (local != null && local is Map) {
+      return DailyRegisterSummary.fromMap(Map<String, dynamic>.from(local));
     }
 
     return null;
@@ -576,6 +795,84 @@ class DailyRegisterService {
                 pw.Text('--------------------------------',
                     style: const pw.TextStyle(fontSize: 10)),
 
+                // Denominations Breakdown
+                if (!summary.denominations.isEmpty) ...[
+                  pw.SizedBox(height: 4),
+                  pw.Text('CASH DENOMINATIONS',
+                      style: const pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                  pw.SizedBox(height: 2),
+                  if (summary.denominations.count500 > 0)
+                    _pwLine(
+                        'Rs. 500 x ${summary.denominations.count500}:',
+                        'Rs. ${summary.denominations.subtotal500.toStringAsFixed(0)}'),
+                  if (summary.denominations.count200 > 0)
+                    _pwLine(
+                        'Rs. 200 x ${summary.denominations.count200}:',
+                        'Rs. ${summary.denominations.subtotal200.toStringAsFixed(0)}'),
+                  if (summary.denominations.count100 > 0)
+                    _pwLine(
+                        'Rs. 100 x ${summary.denominations.count100}:',
+                        'Rs. ${summary.denominations.subtotal100.toStringAsFixed(0)}'),
+                  if (summary.denominations.count50 > 0)
+                    _pwLine(
+                        'Rs. 50 x ${summary.denominations.count50}:',
+                        'Rs. ${summary.denominations.subtotal50.toStringAsFixed(0)}'),
+                  if (summary.denominations.count20 > 0)
+                    _pwLine(
+                        'Rs. 20 x ${summary.denominations.count20}:',
+                        'Rs. ${summary.denominations.subtotal20.toStringAsFixed(0)}'),
+                  if (summary.denominations.count10 > 0)
+                    _pwLine(
+                        'Rs. 10 x ${summary.denominations.count10}:',
+                        'Rs. ${summary.denominations.subtotal10.toStringAsFixed(0)}'),
+                  if (summary.denominations.count5 > 0)
+                    _pwLine(
+                        'Rs. 5 x ${summary.denominations.count5}:',
+                        'Rs. ${summary.denominations.subtotal5.toStringAsFixed(0)}'),
+                  if (summary.denominations.coinsValue > 0)
+                    _pwLine('Coins Total:',
+                        'Rs. ${summary.denominations.coinsValue.toStringAsFixed(2)}'),
+                  pw.Divider(thickness: 0.5),
+                  _pwLine('TOTAL PHYSICAL CASH:',
+                      'Rs. ${summary.physicalCashCount.toStringAsFixed(2)}',
+                      isBold: true),
+                  pw.Text('--------------------------------',
+                      style: const pw.TextStyle(fontSize: 10)),
+                ],
+
+                // EOD Final Cash Settlement & Float
+                pw.SizedBox(height: 4),
+                pw.Text('EOD CASH SETTLEMENT',
+                    style: const pw.TextStyle(
+                        fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                pw.SizedBox(height: 2),
+                _pwLine('Actual Cash Count:',
+                    'Rs. ${summary.physicalCashCount.toStringAsFixed(2)}'),
+                _pwLine('Retained Cash Float:',
+                    'Rs. ${summary.retainedCashFloat.toStringAsFixed(2)}'),
+                pw.Divider(thickness: 0.8),
+                _pwLine('NET CASH TO HANDOVER:',
+                    'Rs. ${summary.netCashHandover.toStringAsFixed(2)}',
+                    isBold: true),
+                pw.Divider(thickness: 0.8),
+                _pwLine('Next Day Opening Cash:',
+                    'Rs. ${summary.nextDayOpeningCash.toStringAsFixed(2)}'),
+                if (summary.handoverSplit.ownerCash > 0)
+                  _pwLine('  - Owner Cash:',
+                      'Rs. ${summary.handoverSplit.ownerCash.toStringAsFixed(2)}'),
+                if (summary.handoverSplit.bankDeposit > 0)
+                  _pwLine('  - Bank Deposit:',
+                      'Rs. ${summary.handoverSplit.bankDeposit.toStringAsFixed(2)}'),
+                if (summary.handoverSplit.otherHandover > 0)
+                  _pwLine(
+                      '  - Other (${summary.handoverSplit.otherRecipientName}):',
+                      'Rs. ${summary.handoverSplit.otherHandover.toStringAsFixed(2)}'),
+                _pwLine('Register Status:', summary.resolvedClosingStatus,
+                    isBold: true),
+                pw.Text('--------------------------------',
+                    style: const pw.TextStyle(fontSize: 10)),
+
                 // Category Breakdown
                 if (summary.categoryBreakdown.isNotEmpty) ...[
                   pw.SizedBox(height: 4),
@@ -676,6 +973,13 @@ ${summary.cashRentPaid > 0 ? "• Daily Rent Paid (Cash): -₹${summary.cashRent
 • UPI / GPay: ₹${summary.totalUpi.toStringAsFixed(2)}
 • Card Payments: ₹${summary.totalCard.toStringAsFixed(2)}
 ${summary.totalBankExpenses > 0 ? "• Bank Expenses Paid: -₹${summary.totalBankExpenses.toStringAsFixed(2)}\n" : ""}${summary.totalDue > 0 ? "• Customer Credit/Due: ₹${summary.totalDue.toStringAsFixed(2)}\n" : ""}
+🤝 *EOD CASH SETTLEMENT:*
+• Actual Cash Count: ₹${summary.physicalCashCount.toStringAsFixed(2)}
+• Retained Cash Float: ₹${summary.retainedCashFloat.toStringAsFixed(2)}
+• *NET CASH HANDOVER: ₹${summary.netCashHandover.toStringAsFixed(2)}*
+• Next Day Opening Cash: ₹${summary.nextDayOpeningCash.toStringAsFixed(2)}
+• Register Status: ${summary.resolvedClosingStatus}
+${summary.handoverSplit.ownerCash > 0 ? "  - Owner Cash: ₹${summary.handoverSplit.ownerCash.toStringAsFixed(2)}\n" : ""}${summary.handoverSplit.bankDeposit > 0 ? "  - Bank Deposit: ₹${summary.handoverSplit.bankDeposit.toStringAsFixed(2)}\n" : ""}${summary.handoverSplit.otherHandover > 0 ? "  - Other (${summary.handoverSplit.otherRecipientName}): ₹${summary.handoverSplit.otherHandover.toStringAsFixed(2)}\n" : ""}
 📦 *CATEGORY BREAKDOWN:*
 ${summary.categoryBreakdown.values.map((c) => "• ${c.category}: ${c.units} units (₹${c.totalAmount.toStringAsFixed(0)})").join("\n")}
 

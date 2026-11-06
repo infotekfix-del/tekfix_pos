@@ -1,3 +1,180 @@
+class CashDenominations {
+  final int count500;
+  final int count200;
+  final int count100;
+  final int count50;
+  final int count20;
+  final int count10;
+  final int count5;
+  final double coinsValue;
+
+  const CashDenominations({
+    this.count500 = 0,
+    this.count200 = 0,
+    this.count100 = 0,
+    this.count50 = 0,
+    this.count20 = 0,
+    this.count10 = 0,
+    this.count5 = 0,
+    this.coinsValue = 0.0,
+  });
+
+  double get subtotal500 => count500 * 500.0;
+  double get subtotal200 => count200 * 200.0;
+  double get subtotal100 => count100 * 100.0;
+  double get subtotal50 => count50 * 50.0;
+  double get subtotal20 => count20 * 20.0;
+  double get subtotal10 => count10 * 10.0;
+  double get subtotal5 => count5 * 5.0;
+
+  double get totalCash =>
+      subtotal500 +
+      subtotal200 +
+      subtotal100 +
+      subtotal50 +
+      subtotal20 +
+      subtotal10 +
+      subtotal5 +
+      coinsValue;
+
+  int get totalCashPaise => (totalCash * 100).round();
+
+  bool get isEmpty =>
+      count500 == 0 &&
+      count200 == 0 &&
+      count100 == 0 &&
+      count50 == 0 &&
+      count20 == 0 &&
+      count10 == 0 &&
+      count5 == 0 &&
+      coinsValue == 0.0;
+
+  CashDenominations copyWith({
+    int? count500,
+    int? count200,
+    int? count100,
+    int? count50,
+    int? count20,
+    int? count10,
+    int? count5,
+    double? coinsValue,
+  }) {
+    return CashDenominations(
+      count500: count500 ?? this.count500,
+      count200: count200 ?? this.count200,
+      count100: count100 ?? this.count100,
+      count50: count50 ?? this.count50,
+      count20: count20 ?? this.count20,
+      count10: count10 ?? this.count10,
+      count5: count5 ?? this.count5,
+      coinsValue: coinsValue ?? this.coinsValue,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'count500': count500,
+        'count200': count200,
+        'count100': count100,
+        'count50': count50,
+        'count20': count20,
+        'count10': count10,
+        'count5': count5,
+        'coinsValue': coinsValue,
+        'coinsValuePaise': (coinsValue * 100).round(),
+        'subtotal500': subtotal500,
+        'subtotal200': subtotal200,
+        'subtotal100': subtotal100,
+        'subtotal50': subtotal50,
+        'subtotal20': subtotal20,
+        'subtotal10': subtotal10,
+        'subtotal5': subtotal5,
+        'totalCash': totalCash,
+        'totalCashPaise': totalCashPaise,
+      };
+
+  factory CashDenominations.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const CashDenominations();
+    return CashDenominations(
+      count500: (map['count500'] as num?)?.toInt() ?? 0,
+      count200: (map['count200'] as num?)?.toInt() ?? 0,
+      count100: (map['count100'] as num?)?.toInt() ?? 0,
+      count50: (map['count50'] as num?)?.toInt() ?? 0,
+      count20: (map['count20'] as num?)?.toInt() ?? 0,
+      count10: (map['count10'] as num?)?.toInt() ?? 0,
+      count5: (map['count5'] as num?)?.toInt() ?? 0,
+      coinsValue: (map['coinsValue'] as num?)?.toDouble() ??
+          (((map['coinsValuePaise'] as num?)?.toDouble() ?? 0.0) / 100.0),
+    );
+  }
+}
+
+class CashHandoverSplit {
+  final double ownerCash;
+  final double bankDeposit;
+  final double otherHandover;
+  final String otherRecipientName;
+  final String handoverNotes;
+
+  const CashHandoverSplit({
+    this.ownerCash = 0.0,
+    this.bankDeposit = 0.0,
+    this.otherHandover = 0.0,
+    this.otherRecipientName = '',
+    this.handoverNotes = '',
+  });
+
+  double get totalHandover => ownerCash + bankDeposit + otherHandover;
+  int get totalHandoverPaise => (totalHandover * 100).round();
+  int get ownerCashPaise => (ownerCash * 100).round();
+  int get bankDepositPaise => (bankDeposit * 100).round();
+  int get otherHandoverPaise => (otherHandover * 100).round();
+
+  CashHandoverSplit copyWith({
+    double? ownerCash,
+    double? bankDeposit,
+    double? otherHandover,
+    String? otherRecipientName,
+    String? handoverNotes,
+  }) {
+    return CashHandoverSplit(
+      ownerCash: ownerCash ?? this.ownerCash,
+      bankDeposit: bankDeposit ?? this.bankDeposit,
+      otherHandover: otherHandover ?? this.otherHandover,
+      otherRecipientName: otherRecipientName ?? this.otherRecipientName,
+      handoverNotes: handoverNotes ?? this.handoverNotes,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'ownerCash': ownerCash,
+        'ownerCashPaise': ownerCashPaise,
+        'bankDeposit': bankDeposit,
+        'bankDepositPaise': bankDepositPaise,
+        'otherHandover': otherHandover,
+        'otherHandoverPaise': otherHandoverPaise,
+        'otherRecipientName': otherRecipientName,
+        'handoverNotes': handoverNotes,
+        'totalHandover': totalHandover,
+        'totalHandoverPaise': totalHandoverPaise,
+      };
+
+  factory CashHandoverSplit.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const CashHandoverSplit();
+    return CashHandoverSplit(
+      ownerCash: (map['ownerCash'] as num?)?.toDouble() ??
+          (((map['ownerCashPaise'] as num?)?.toDouble() ?? 0.0) / 100.0),
+      bankDeposit: (map['bankDeposit'] as num?)?.toDouble() ??
+          (((map['bankDepositPaise'] as num?)?.toDouble() ?? 0.0) / 100.0),
+      otherHandover: (map['otherHandover'] as num?)?.toDouble() ??
+          (((map['otherHandoverPaise'] as num?)?.toDouble() ?? 0.0) / 100.0),
+      otherRecipientName: map['otherRecipientName']?.toString() ??
+          map['otherHandoverRecipient']?.toString() ??
+          '',
+      handoverNotes: map['handoverNotes']?.toString() ?? '',
+    );
+  }
+}
+
 class CategorySalesSummary {
   final String category;
   final int units;
@@ -82,6 +259,11 @@ class DailyRegisterSummary {
   final double ownerBankDrawingsDrawn;
   final double physicalCashCount;
   final double cashDiscrepancy;
+  final double retainedCashFloat;
+  final CashDenominations denominations;
+  final CashHandoverSplit handoverSplit;
+  final bool isBackdated;
+  final String closingStatus;
   final Map<String, CategorySalesSummary> categoryBreakdown;
   final List<TopProductSummary> topSellingProducts;
   final String closedByStaffId;
@@ -118,6 +300,11 @@ class DailyRegisterSummary {
     this.ownerBankDrawingsDrawn = 0.0,
     this.physicalCashCount = 0.0,
     this.cashDiscrepancy = 0.0,
+    this.retainedCashFloat = 1000.0,
+    this.denominations = const CashDenominations(),
+    this.handoverSplit = const CashHandoverSplit(),
+    this.isBackdated = false,
+    this.closingStatus = '',
     this.categoryBreakdown = const {},
     this.topSellingProducts = const [],
     this.closedByStaffId = '',
@@ -141,7 +328,22 @@ class DailyRegisterSummary {
   int get ownerSalaryDrawnPaise => (ownerSalaryDrawnToday * 100).round();
   int get ownerExcessDrawingsPaise => (ownerExcessDrawingsToday * 100).round();
   int get physicalCashPaise => (physicalCashCount * 100).round();
+  int get physicalCashCountPaise => physicalCashPaise;
   int get cashDiscrepancyPaise => (cashDiscrepancy * 100).round();
+  int get retainedCashFloatPaise => (retainedCashFloat * 100).round();
+  double get netCashHandover =>
+      (physicalCashCount - retainedCashFloat).clamp(0.0, double.infinity);
+  int get netCashHandoverPaise => (netCashHandover * 100).round();
+  double get nextDayOpeningCash => retainedCashFloat;
+  int get nextDayOpeningCashPaise => retainedCashFloatPaise;
+
+  String get resolvedClosingStatus {
+    if (closingStatus.isNotEmpty) return closingStatus;
+    if (!isClosed) return 'PENDING';
+    if (cashDiscrepancy.abs() > 0.5) return 'DISCREPANCY';
+    if (isBackdated) return 'BACKDATED';
+    return 'CLOSED';
+  }
 
   // Convenience metric getters for EOD closing reports
   double get netSales => netRevenue;
@@ -165,6 +367,7 @@ class DailyRegisterSummary {
           totalCashExpenses -
           ownerCashDrawingsDrawn)
       .clamp(0.0, double.infinity);
+  double get expectedCashInRegister => expectedClosingCash;
   double get cashOverOrShort => physicalCashCount - expectedClosingCash;
   String get closedBy => closedByStaffName.isNotEmpty
       ? closedByStaffName
@@ -188,6 +391,11 @@ class DailyRegisterSummary {
     double? ownerBankDrawingsDrawn,
     double? physicalCashCount,
     double? cashDiscrepancy,
+    double? retainedCashFloat,
+    CashDenominations? denominations,
+    CashHandoverSplit? handoverSplit,
+    bool? isBackdated,
+    String? closingStatus,
     String? closedByStaffId,
     String? closedByStaffName,
     DateTime? closedAt,
@@ -226,6 +434,11 @@ class DailyRegisterSummary {
           ownerBankDrawingsDrawn ?? this.ownerBankDrawingsDrawn,
       physicalCashCount: physicalCashCount ?? this.physicalCashCount,
       cashDiscrepancy: cashDiscrepancy ?? this.cashDiscrepancy,
+      retainedCashFloat: retainedCashFloat ?? this.retainedCashFloat,
+      denominations: denominations ?? this.denominations,
+      handoverSplit: handoverSplit ?? this.handoverSplit,
+      isBackdated: isBackdated ?? this.isBackdated,
+      closingStatus: closingStatus ?? this.closingStatus,
       categoryBreakdown: categoryBreakdown,
       topSellingProducts: topSellingProducts,
       closedByStaffId: closedByStaffId ?? this.closedByStaffId,
@@ -238,6 +451,7 @@ class DailyRegisterSummary {
 
   Map<String, dynamic> toMap() => {
         'dateString': dateString,
+        'businessDate': dateString,
         'date': date.toIso8601String(),
         'openingTime': openingTime,
         'closingTime': closingTime,
@@ -257,6 +471,7 @@ class DailyRegisterSummary {
         'totalDue': totalDue,
         'totalCreditPaise': totalCreditPaise,
         'openingCash': openingCash,
+        'openingCashPaise': (openingCash * 100).round(),
         'refunds': refunds,
         'totalCashExpenses': totalCashExpenses,
         'totalCashExpensesPaise': totalCashExpensesPaise,
@@ -277,20 +492,43 @@ class DailyRegisterSummary {
         'ownerBankDrawingsDrawn': ownerBankDrawingsDrawn,
         'physicalCashCount': physicalCashCount,
         'physicalCashPaise': physicalCashPaise,
+        'actualCashCount': physicalCashCount,
+        'actualCashCountPaise': physicalCashPaise,
         'cashDiscrepancy': cashDiscrepancy,
         'cashDiscrepancyPaise': cashDiscrepancyPaise,
+        'retainedCashFloat': retainedCashFloat,
+        'retainedCashFloatPaise': retainedCashFloatPaise,
+        'netCashHandover': netCashHandover,
+        'netCashHandoverPaise': netCashHandoverPaise,
+        'nextDayOpeningCash': nextDayOpeningCash,
+        'nextDayOpeningCashPaise': nextDayOpeningCashPaise,
+        'denominations': denominations.toMap(),
+        'denominationBreakdown': denominations.toMap(),
+        'handoverSplit': handoverSplit.toMap(),
+        'ownerCash': handoverSplit.ownerCash,
+        'ownerCashPaise': handoverSplit.ownerCashPaise,
+        'bankDeposit': handoverSplit.bankDeposit,
+        'bankDepositPaise': handoverSplit.bankDepositPaise,
+        'otherHandover': handoverSplit.otherHandover,
+        'otherHandoverPaise': handoverSplit.otherHandoverPaise,
+        'otherHandoverRecipient': handoverSplit.otherRecipientName,
+        'isBackdated': isBackdated,
+        'closingStatus': resolvedClosingStatus,
         'categoryBreakdown':
             categoryBreakdown.map((k, v) => MapEntry(k, v.toMap())),
         'topSellingProducts': topSellingProducts.map((p) => p.toMap()).toList(),
         'closedByStaffId': closedByStaffId,
         'closedByStaffName': closedByStaffName,
+        'closedBy': closedBy,
         'closedAt': closedAt?.toIso8601String(),
         'isClosed': isClosed,
         'notes': notes,
       };
 
   factory DailyRegisterSummary.fromMap(Map<String, dynamic> map) {
-    final dStr = map['dateString']?.toString() ?? '';
+    final dStr = map['dateString']?.toString() ??
+        map['businessDate']?.toString() ??
+        '';
     final dt = map['date'] != null
         ? DateTime.tryParse(map['date'].toString()) ?? DateTime.now()
         : DateTime.now();
@@ -327,10 +565,14 @@ class DailyRegisterSummary {
     final double due = (map['totalDue'] as num?)?.toDouble() ??
         (((map['totalCreditPaise'] as num?)?.toDouble() ?? 0.0) / 100.0);
     final double physical = (map['physicalCashCount'] as num?)?.toDouble() ??
-        (((map['physicalCashPaise'] as num?)?.toDouble() ?? 0.0) / 100.0);
+        (map['actualCashCount'] as num?)?.toDouble() ??
+        (((map['physicalCashPaise'] as num?)?.toDouble() ??
+                ((map['actualCashCountPaise'] as num?)?.toDouble() ?? 0.0)) /
+            100.0);
     final double discrepancy = (map['cashDiscrepancy'] as num?)?.toDouble() ??
         (((map['cashDiscrepancyPaise'] as num?)?.toDouble() ?? 0.0) / 100.0);
-    final double openCash = (map['openingCash'] as num?)?.toDouble() ?? 0.0;
+    final double openCash = (map['openingCash'] as num?)?.toDouble() ??
+        (((map['openingCashPaise'] as num?)?.toDouble() ?? 0.0) / 100.0);
     final double ref = (map['refunds'] as num?)?.toDouble() ?? 0.0;
     final double cashExp = (map['totalCashExpenses'] as num?)?.toDouble() ??
         (((map['totalCashExpensesPaise'] as num?)?.toDouble() ?? 0.0) / 100.0);
@@ -355,6 +597,21 @@ class DailyRegisterSummary {
         (map['ownerBankSalaryDrawn'] as num?)?.toDouble() ?? 0.0;
     final double ownBankDraw =
         (map['ownerBankDrawingsDrawn'] as num?)?.toDouble() ?? 0.0;
+
+    final double retainedFloat =
+        (map['retainedCashFloat'] as num?)?.toDouble() ??
+            (((map['retainedCashFloatPaise'] as num?)?.toDouble() ?? 100000.0) /
+                100.0);
+    final denoms = CashDenominations.fromMap(map['denominations'] is Map
+        ? Map<String, dynamic>.from(map['denominations'])
+        : (map['denominationBreakdown'] is Map
+            ? Map<String, dynamic>.from(map['denominationBreakdown'])
+            : null));
+    final handover = CashHandoverSplit.fromMap(map['handoverSplit'] is Map
+        ? Map<String, dynamic>.from(map['handoverSplit'])
+        : map);
+    final isBack = map['isBackdated'] == true;
+    final cStatus = map['closingStatus']?.toString() ?? '';
 
     return DailyRegisterSummary(
       dateString: dStr,
@@ -385,10 +642,17 @@ class DailyRegisterSummary {
       ownerBankDrawingsDrawn: ownBankDraw,
       physicalCashCount: physical,
       cashDiscrepancy: discrepancy,
+      retainedCashFloat: retainedFloat,
+      denominations: denoms,
+      handoverSplit: handover,
+      isBackdated: isBack,
+      closingStatus: cStatus,
       categoryBreakdown: cats,
       topSellingProducts: top,
       closedByStaffId: map['closedByStaffId']?.toString() ?? '',
-      closedByStaffName: map['closedByStaffName']?.toString() ?? '',
+      closedByStaffName: map['closedByStaffName']?.toString() ??
+          map['closedBy']?.toString() ??
+          '',
       closedAt: map['closedAt'] != null
           ? DateTime.tryParse(map['closedAt'].toString())
           : null,

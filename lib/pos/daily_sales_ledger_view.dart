@@ -12,6 +12,7 @@ import '../rent/rent_service.dart';
 import '../rent/daily_rent_payment_dialog.dart';
 import '../owner/owner_finance_models.dart';
 import '../owner/owner_finance_service.dart';
+import 'cash_denomination_calculator.dart';
 import 'daily_register_models.dart';
 import 'daily_register_service.dart';
 
@@ -89,17 +90,30 @@ class DailySalesLedgerView extends StatefulWidget {
         }
       }
     }
-    if (!rentInExpenses && cashRent > 0) cExp += cashRent;
-    if (!rentInExpenses && bankRent > 0) bExp += bankRent;
-    if (!ownerSalInExpenses && ownerWth.cashSalary > 0)
+    if (!rentInExpenses && cashRent > 0) {
+      cExp += cashRent;
+    }
+    if (!rentInExpenses && bankRent > 0) {
+      bExp += bankRent;
+    }
+    if (!ownerSalInExpenses && ownerWth.cashSalary > 0) {
       cExp += ownerWth.cashSalary;
-    if (!ownerSalInExpenses && ownerWth.bankSalary > 0)
+    }
+    if (!ownerSalInExpenses && ownerWth.bankSalary > 0) {
       bExp += ownerWth.bankSalary;
+    }
+
+    final openCash = await DailyRegisterService.instance.getOpeningCashForDate(
+      targetDate,
+      shopId: resolvedShop,
+    );
+    final isBackdated = !DateUtils.isSameDay(targetDate, DateTime.now());
 
     final summary = closed ??
         DailyRegisterService.instance.computeDailySummary(
           sales: s,
           date: targetDate,
+          openingCash: openCash,
           totalCashExpenses: cExp,
           totalBankExpenses: bExp,
           cashRentPaid: cashRent,
@@ -113,6 +127,8 @@ class DailySalesLedgerView extends StatefulWidget {
           ownerBankDrawingsDrawn: ownerWth.bankDrawings,
           closedByStaffId: currentStaffId ?? '',
           closedByStaffName: currentStaffName ?? '',
+          isBackdated: isBackdated,
+          closingStatus: isBackdated ? 'BACKDATED' : 'PENDING',
         );
 
     if (!context.mounted) return;
@@ -125,6 +141,7 @@ class DailySalesLedgerView extends StatefulWidget {
         shopId: resolvedShop,
         currentStaffId: currentStaffId ?? 'staff',
         currentStaffName: currentStaffName ?? 'Staff',
+        isBackdated: isBackdated,
         onClosed: onClosed,
       ),
     );
@@ -142,6 +159,7 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
   bool _loading = false;
   List<Map<String, dynamic>> _sales = [];
   DailyRegisterSummary? _closedRegister;
+  double _openingCashForDate = 1000.0;
   double _cashExpenses = 0.0;
   double _bankExpenses = 0.0;
   double _cashRent = 0.0;
@@ -172,6 +190,11 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
       final dateStr = DailyRegisterService.toDateString(_selectedDate);
       final closed = await DailyRegisterService.instance.getClosedRegister(
         dateStr,
+        shopId: widget.shopId,
+      );
+
+      final openCash = await DailyRegisterService.instance.getOpeningCashForDate(
+        _selectedDate,
         shopId: widget.shopId,
       );
 
@@ -215,17 +238,24 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
           }
         }
       }
-      if (!rentInExpenses && cRent > 0) cExp += cRent;
-      if (!rentInExpenses && bRent > 0) bExp += bRent;
-      if (!ownerSalInExpenses && ownerWth.cashSalary > 0)
+      if (!rentInExpenses && cRent > 0) {
+        cExp += cRent;
+      }
+      if (!rentInExpenses && bRent > 0) {
+        bExp += bRent;
+      }
+      if (!ownerSalInExpenses && ownerWth.cashSalary > 0) {
         cExp += ownerWth.cashSalary;
-      if (!ownerSalInExpenses && ownerWth.bankSalary > 0)
+      }
+      if (!ownerSalInExpenses && ownerWth.bankSalary > 0) {
         bExp += ownerWth.bankSalary;
+      }
 
       if (mounted) {
         setState(() {
           _sales = s;
           _closedRegister = closed;
+          _openingCashForDate = openCash;
           _cashExpenses = cExp;
           _bankExpenses = bExp;
           _cashRent = cRent;
@@ -244,9 +274,11 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
 
   DailyRegisterSummary get _currentSummary {
     if (_closedRegister != null) return _closedRegister!;
+    final isBackdated = !_isToday;
     return DailyRegisterService.instance.computeDailySummary(
       sales: _sales,
       date: _selectedDate,
+      openingCash: _openingCashForDate,
       totalCashExpenses: _cashExpenses,
       totalBankExpenses: _bankExpenses,
       cashRentPaid: _cashRent,
@@ -260,6 +292,8 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
       ownerBankDrawingsDrawn: _ownerWth.bankDrawings,
       closedByStaffId: widget.currentStaffId ?? '',
       closedByStaffName: widget.currentStaffName ?? '',
+      isBackdated: isBackdated,
+      closingStatus: isBackdated ? 'BACKDATED' : 'PENDING',
     );
   }
 
@@ -359,6 +393,8 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                     const SizedBox(height: 14),
                     _buildDateSelectorRow(),
                     const SizedBox(height: 14),
+                    _buildEodStatusBanner(summary),
+                    const SizedBox(height: 14),
                     _buildSummaryMetricsGrid(summary, isDesktop),
                     const SizedBox(height: 16),
                     _buildSearchAndFilterBar(),
@@ -444,10 +480,12 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
   Widget _buildHeaderBar(DailyRegisterSummary summary) {
     final isClosed = _closedRegister != null;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 750;
+
+        final titleSection = Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               padding: const EdgeInsets.all(10),
@@ -483,46 +521,308 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
               ],
             ),
           ],
-        ),
+        );
 
-        // EOD Close / Register Status Button
-        GestureDetector(
-          onTap: () => _openEodClosingDialog(summary),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-            decoration: BoxDecoration(
-              gradient: isClosed
-                  ? const LinearGradient(
-                      colors: [Color(0xFF0F766E), Color(0xFF0D9488)])
-                  : TekColors.primaryGradient,
+        final actionButtons = Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            // Close Previous Day Action Button
+            InkWell(
+              onTap: _showPastDaysStatusSheet,
               borderRadius: BorderRadius.circular(12),
-              boxShadow: isClosed ? null : TekColors.primaryGlow,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  isClosed ? Icons.verified_rounded : Icons.nights_stay_rounded,
-                  color: Colors.white,
-                  size: 16,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                decoration: BoxDecoration(
+                  color: TekColors.bgSecondary,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: TekColors.secondary.withValues(alpha: 0.5)),
                 ),
-                const SizedBox(width: 8),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.history_toggle_off_rounded,
+                        size: 16, color: TekColors.secondary),
+                    SizedBox(width: 6),
+                    Text(
+                      'Close Previous Day',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: TekColors.secondary,
+                        fontFamilyFallback: TekTypography.malayalamFallback,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // EOD Close / Register Status Button
+            GestureDetector(
+              onTap: () => _openEodClosingDialog(summary),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                decoration: BoxDecoration(
+                  gradient: isClosed
+                      ? const LinearGradient(
+                          colors: [Color(0xFF0F766E), Color(0xFF0D9488)])
+                      : TekColors.primaryGradient,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: isClosed ? null : TekColors.primaryGlow,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isClosed
+                          ? Icons.verified_rounded
+                          : Icons.nights_stay_rounded,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      isClosed
+                          ? 'EOD Closed (ക്ലോസ്ഡ്)'
+                          : 'End of Day (EOD) Close',
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontFamilyFallback: TekTypography.malayalamFallback,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+
+        if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              titleSection,
+              const SizedBox(height: 10),
+              actionButtons,
+            ],
+          );
+        }
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            titleSection,
+            actionButtons,
+          ],
+        );
+      },
+    );
+  }
+
+  // EOD Register Status Banner (Requirement 6: Badges & EOD Dashboard Status)
+  Widget _buildEodStatusBanner(DailyRegisterSummary summary) {
+    final status = summary.resolvedClosingStatus;
+    Color statusColor;
+    String statusTitle;
+    String statusMalayalam;
+    IconData statusIcon;
+
+    switch (status) {
+      case 'CLOSED':
+        statusColor = const Color(0xFF10B981); // Emerald
+        statusTitle = 'CLOSED & FINALIZED';
+        statusMalayalam = 'ക്ലോസിംഗ് പൂർത്തിയായി';
+        statusIcon = Icons.check_circle_rounded;
+        break;
+      case 'BACKDATED':
+        statusColor = const Color(0xFF3B82F6); // Blue
+        statusTitle = 'BACKDATED CLOSURE';
+        statusMalayalam = 'ബാക്ക്ഡേറ്റഡ് ക്ലോസിംഗ്';
+        statusIcon = Icons.history_rounded;
+        break;
+      case 'DISCREPANCY':
+        statusColor = const Color(0xFFEF4444); // Red
+        statusTitle = 'CLOSED WITH DISCREPANCY';
+        statusMalayalam = 'വ്യത്യാസമുണ്ട് (Discrepancy)';
+        statusIcon = Icons.warning_rounded;
+        break;
+      case 'PENDING':
+      default:
+        statusColor = const Color(0xFFF59E0B); // Amber
+        statusTitle = 'REGISTER OPEN / PENDING';
+        statusMalayalam = 'ക്ലോസിംഗ് പെൻഡിങ്';
+        statusIcon = Icons.pending_actions_rounded;
+        break;
+    }
+
+    final isClosed = summary.isClosed;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: TekColors.bgCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: statusColor.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(statusIcon, size: 14, color: statusColor),
+                    const SizedBox(width: 6),
+                    Text(
+                      '$statusTitle • $statusMalayalam',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.bold,
+                        color: statusColor,
+                        fontFamilyFallback: TekTypography.malayalamFallback,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isClosed)
                 Text(
-                  isClosed
-                      ? 'EOD Closed (ക്ലോസ്ഡ്)'
-                      : 'End of Day (EOD) Close (10 PM)',
+                  'Closed by ${summary.closedByStaffName.isNotEmpty ? summary.closedByStaffName : summary.closedBy}',
                   style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    fontFamilyFallback: TekTypography.malayalamFallback,
+                      fontSize: 11, color: TekColors.textSecondary),
+                )
+              else
+                InkWell(
+                  onTap: () => _openEodClosingDialog(summary),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: TekColors.primary.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Close Register (ക്ലോസ് ചെയ്യുക) →',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.bold,
+                        color: TekColors.primary,
+                        fontFamilyFallback: TekTypography.malayalamFallback,
+                      ),
+                    ),
                   ),
                 ),
-              ],
-            ),
+            ],
           ),
+          const SizedBox(height: 12),
+          // 4 Key EOD metrics in a row
+          Row(
+            children: [
+              Expanded(
+                child: _eodMiniStat(
+                  label: 'Opening Cash',
+                  value: '₹${summary.openingCash.toStringAsFixed(0)}',
+                  color: TekColors.secondary,
+                ),
+              ),
+              Expanded(
+                child: _eodMiniStat(
+                  label: 'Expected Cash',
+                  value:
+                      '₹${summary.expectedCashInRegister.toStringAsFixed(0)}',
+                  color: Colors.amber,
+                ),
+              ),
+              Expanded(
+                child: _eodMiniStat(
+                  label: isClosed ? 'Counted Cash' : 'Retained Float',
+                  value: isClosed
+                      ? '₹${summary.physicalCashCount.toStringAsFixed(0)}'
+                      : '₹${summary.retainedCashFloat.toStringAsFixed(0)}',
+                  color: isClosed ? TekColors.primary : const Color(0xFF06B6D4),
+                ),
+              ),
+              Expanded(
+                child: _eodMiniStat(
+                  label: isClosed ? 'Net Handover' : 'Next Day Opening',
+                  value: isClosed
+                      ? '₹${summary.netCashHandover.toStringAsFixed(0)}'
+                      : '₹${summary.nextDayOpeningCash.toStringAsFixed(0)}',
+                  color: TekColors.success,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _eodMiniStat(
+      {required String label, required String value, required Color color}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style:
+              const TextStyle(fontSize: 10.5, color: TekColors.textSecondary),
+          maxLines: 1,
+        ),
+        const SizedBox(height: 3),
+        Text(
+          value,
+          style: TextStyle(
+              fontSize: 14, fontWeight: FontWeight.bold, color: color),
         ),
       ],
+    );
+  }
+
+  void _showPastDaysStatusSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _PastDaysStatusSheet(
+        shopId: widget.shopId ?? Db.setting('shop_id', ''),
+        currentStaffId: widget.currentStaffId ?? 'staff',
+        currentStaffName: widget.currentStaffName ?? 'Staff',
+        onSelectedDate: (date) {
+          Navigator.pop(ctx);
+          setState(() => _selectedDate = date);
+          _loadData();
+        },
+        onCloseDate: (date) {
+          Navigator.pop(ctx);
+          DailySalesLedgerView.showEodClosingModal(
+            context,
+            shopId: widget.shopId,
+            currentStaffId: widget.currentStaffId,
+            currentStaffName: widget.currentStaffName,
+            date: date,
+            onClosed: _loadData,
+          );
+        },
+      ),
     );
   }
 
@@ -1454,6 +1754,7 @@ class _EodClosingSheet extends StatefulWidget {
   final String shopId;
   final String currentStaffId;
   final String currentStaffName;
+  final bool isBackdated;
   final VoidCallback? onClosed;
 
   const _EodClosingSheet({
@@ -1461,6 +1762,7 @@ class _EodClosingSheet extends StatefulWidget {
     required this.shopId,
     required this.currentStaffId,
     required this.currentStaffName,
+    this.isBackdated = false,
     this.onClosed,
   });
 
@@ -1471,29 +1773,111 @@ class _EodClosingSheet extends StatefulWidget {
 class _EodClosingSheetState extends State<_EodClosingSheet> {
   late final TextEditingController _cashCountCtrl;
   late final TextEditingController _openingCashCtrl;
+  late final TextEditingController _retainedFloatCtrl;
+  late final TextEditingController _ownerCashCtrl;
+  late final TextEditingController _bankDepositCtrl;
+  late final TextEditingController _otherHandoverCtrl;
+  late final TextEditingController _otherRecipientCtrl;
+  late final TextEditingController _notesCtrl;
+
   late double _enteredCash;
   late double _openingCash;
+  late double _retainedFloat;
+  late double _ownerCash;
+  late double _bankDeposit;
+  late double _otherHandover;
+  late CashDenominations _denominations;
+
+  bool _showDenominations = false;
   bool _isSaving = false;
   bool _dismissedRentReminder = false;
 
   @override
   void initState() {
     super.initState();
-    _enteredCash = widget.initialSummary.physicalCashCount;
-    _openingCash = widget.initialSummary.openingCash;
+    final init = widget.initialSummary;
+    _enteredCash = init.physicalCashCount;
+    _openingCash = init.openingCash;
+    _retainedFloat =
+        init.retainedCashFloat > 0 ? init.retainedCashFloat : 1000.0;
+    _denominations = init.denominations;
+    if (_denominations.totalCash > 0 && _enteredCash == 0) {
+      _enteredCash = _denominations.totalCash;
+    }
+    _showDenominations = !_denominations.isEmpty;
+
+    _ownerCash = init.handoverSplit.ownerCash;
+    _bankDeposit = init.handoverSplit.bankDeposit;
+    _otherHandover = init.handoverSplit.otherHandover;
+
+    final netHandover =
+        (_enteredCash - _retainedFloat).clamp(0.0, double.infinity);
+    if (_ownerCash == 0 &&
+        _bankDeposit == 0 &&
+        _otherHandover == 0 &&
+        netHandover > 0) {
+      _ownerCash = netHandover;
+    }
+
     _cashCountCtrl = TextEditingController(
       text: _enteredCash > 0 ? _enteredCash.toStringAsFixed(0) : '',
     );
     _openingCashCtrl = TextEditingController(
       text: _openingCash > 0 ? _openingCash.toStringAsFixed(0) : '',
     );
+    _retainedFloatCtrl = TextEditingController(
+      text: _retainedFloat > 0 ? _retainedFloat.toStringAsFixed(0) : '1000',
+    );
+    _ownerCashCtrl = TextEditingController(
+      text: _ownerCash > 0 ? _ownerCash.toStringAsFixed(0) : '',
+    );
+    _bankDepositCtrl = TextEditingController(
+      text: _bankDeposit > 0 ? _bankDeposit.toStringAsFixed(0) : '',
+    );
+    _otherHandoverCtrl = TextEditingController(
+      text: _otherHandover > 0 ? _otherHandover.toStringAsFixed(0) : '',
+    );
+    _otherRecipientCtrl = TextEditingController(
+      text: init.handoverSplit.otherRecipientName,
+    );
+    _notesCtrl = TextEditingController(text: init.notes);
   }
 
   @override
   void dispose() {
     _cashCountCtrl.dispose();
     _openingCashCtrl.dispose();
+    _retainedFloatCtrl.dispose();
+    _ownerCashCtrl.dispose();
+    _bankDepositCtrl.dispose();
+    _otherHandoverCtrl.dispose();
+    _otherRecipientCtrl.dispose();
+    _notesCtrl.dispose();
     super.dispose();
+  }
+
+  void _setAllToOwner(double netHandover) {
+    setState(() {
+      _ownerCash = netHandover;
+      _bankDeposit = 0.0;
+      _otherHandover = 0.0;
+      _ownerCashCtrl.text =
+          _ownerCash > 0 ? _ownerCash.toStringAsFixed(0) : '';
+      _bankDepositCtrl.clear();
+      _otherHandoverCtrl.clear();
+    });
+  }
+
+  void _setAllToBank(double netHandover) {
+    setState(() {
+      _ownerCash = 0.0;
+      _bankDeposit = netHandover;
+      _otherHandover = 0.0;
+      _ownerCashCtrl.clear();
+      _bankDepositCtrl.text =
+          _bankDeposit > 0 ? _bankDeposit.toStringAsFixed(0) : '';
+      _otherHandoverCtrl.clear();
+    });
   }
 
   Widget _sheetRow(String k, String v,
@@ -1525,6 +1909,297 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
     );
   }
 
+  Widget _settlementCard({
+    required String title,
+    required String subtitle,
+    required double amount,
+    required Color color,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: TekColors.bgCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Icon(icon, size: 14, color: color),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '₹${amount.toStringAsFixed(0)}',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: const TextStyle(fontSize: 9.5, color: TekColors.textMuted),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool> _showConfirmationDialog({
+    required double actualCash,
+    required double retainedFloat,
+    required double netHandover,
+    required double liveDiscrepancy,
+    required CashHandoverSplit split,
+  }) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: TekColors.bgCard,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: const BorderSide(color: TekColors.border),
+            ),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: TekColors.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.verified_user_rounded,
+                      color: TekColors.primary, size: 20),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Confirm EOD Register Close',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: TekColors.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Business Date: ${widget.initialSummary.dateString}${widget.isBackdated ? " (Backdated)" : ""}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: TekColors.secondary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _sheetRow('Physical Cash Count:',
+                      '₹${actualCash.toStringAsFixed(2)}',
+                      isBold: true, valueColor: Colors.amber),
+                  _sheetRow('Retained Cash Float:',
+                      '₹${retainedFloat.toStringAsFixed(2)}',
+                      valueColor: const Color(0xFF06B6D4)),
+                  _sheetRow('Net Cash to Handover:',
+                      '₹${netHandover.toStringAsFixed(2)}',
+                      isBold: true, valueColor: TekColors.success),
+                  const Divider(color: TekColors.border),
+                  if (split.ownerCash > 0)
+                    _sheetRow('  • Owner Cash:',
+                        '₹${split.ownerCash.toStringAsFixed(2)}'),
+                  if (split.bankDeposit > 0)
+                    _sheetRow('  • Bank Deposit:',
+                        '₹${split.bankDeposit.toStringAsFixed(2)}'),
+                  if (split.otherHandover > 0)
+                    _sheetRow(
+                        '  • Other (${split.otherRecipientName.isNotEmpty ? split.otherRecipientName : "Staff"}):',
+                        '₹${split.otherHandover.toStringAsFixed(2)}'),
+                  const Divider(color: TekColors.border),
+                  _sheetRow(
+                    'Cash Discrepancy:',
+                    liveDiscrepancy == 0
+                        ? '₹0.00 (Balanced)'
+                        : (liveDiscrepancy > 0
+                            ? '+₹${liveDiscrepancy.toStringAsFixed(2)} (Over)'
+                            : '-₹${liveDiscrepancy.abs().toStringAsFixed(2)} (Short)'),
+                    valueColor: liveDiscrepancy == 0
+                        ? TekColors.success
+                        : (liveDiscrepancy > 0
+                            ? TekColors.primary
+                            : TekColors.error),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: TekColors.bgSecondary,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: TekColors.border),
+                    ),
+                    child: Text(
+                      'Retained Cash Float of ₹${retainedFloat.toStringAsFixed(0)} will be stored as opening cash for the next business day. Register close cannot be duplicated.',
+                      style: const TextStyle(
+                          fontSize: 11.5, color: TekColors.textSecondary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel',
+                    style: TextStyle(color: TekColors.textMuted)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: TekColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Confirm & Finalize',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<void> _showSuccessDialog(DailyRegisterSummary finalSummary) async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: TekColors.bgCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: const BorderSide(color: TekColors.success, width: 1.5),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: TekColors.success.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.check_circle_rounded,
+                color: TekColors.success,
+                size: 44,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Register Closed Successfully!',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: TekColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'EOD register finalized for ${finalSummary.dateString}.\nNext day opening cash set to ₹${finalSummary.retainedCashFloat.toStringAsFixed(0)}.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 12.5, color: TekColors.textSecondary),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      side: const BorderSide(color: TekColors.primary),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      DailyRegisterService.instance
+                          .printThermalEodSlip(context, finalSummary);
+                    },
+                    icon: const Icon(Icons.print_rounded,
+                        size: 16, color: TekColors.primary),
+                    label: const Text('Print Slip',
+                        style:
+                            TextStyle(color: TekColors.primary, fontSize: 12)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      side: const BorderSide(color: Color(0xFF22C55E)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      DailyRegisterService.instance
+                          .shareEodWhatsApp(context, finalSummary);
+                    },
+                    icon: const Icon(Icons.chat_bubble_outline_rounded,
+                        size: 16, color: Color(0xFF22C55E)),
+                    label: const Text('WhatsApp',
+                        style: TextStyle(
+                            color: Color(0xFF22C55E), fontSize: 12)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: TekColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Done',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final summary = widget.initialSummary;
@@ -1534,6 +2209,12 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
             summary.totalCashExpenses)
         .clamp(0.0, double.infinity);
     final liveDiscrepancy = _enteredCash - expectedClosingCash;
+    final netCashToHandover =
+        (_enteredCash - _retainedFloat).clamp(0.0, double.infinity);
+    final totalHandoverSplit = _ownerCash + _bankDeposit + _otherHandover;
+    final isHandoverBalanced = netCashToHandover <= 0 ||
+        (totalHandoverSplit - netCashToHandover).abs() < 0.5;
+
     final closedByDisplay = summary.closedBy.isNotEmpty
         ? summary.closedBy
         : widget.currentStaffName;
@@ -1612,6 +2293,37 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
               ],
             ),
 
+            if (widget.isBackdated) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFF3B82F6)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.history_rounded,
+                        color: Color(0xFF60A5FA), size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Backdated Closing for ${summary.dateString} (കഴിഞ്ഞ ദിവസത്തെ ക്ലോസിംഗ്). Next business day opening cash will be updated safely.',
+                        style: const TextStyle(
+                          color: Color(0xFF93C5FD),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          fontFamilyFallback: TekTypography.malayalamFallback,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             if (summary.isClosed) ...[
               const SizedBox(height: 12),
               Container(
@@ -1634,6 +2346,7 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
                           color: Color(0xFF2DD4BF),
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
+                          fontFamilyFallback: TekTypography.malayalamFallback,
                         ),
                       ),
                     ),
@@ -1642,7 +2355,7 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
               ),
             ],
 
-            // Daily Rent EOD Reminder (Requirement 9)
+            // Daily Rent EOD Reminder
             if (summary.rentPendingWarning && !_dismissedRentReminder) ...[
               const SizedBox(height: 12),
               Container(
@@ -1667,6 +2380,8 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
                               color: Color(0xFFF59E0B),
                               fontSize: 12.5,
                               fontWeight: FontWeight.bold,
+                              fontFamilyFallback:
+                                  TekTypography.malayalamFallback,
                             ),
                           ),
                         ),
@@ -1719,7 +2434,7 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
 
             const SizedBox(height: 16),
 
-            // 1. Gross Sales & Collections Overview (Requirements from Step 3)
+            // 1. Gross Sales & Collections Overview
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
@@ -1798,7 +2513,7 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
 
             const SizedBox(height: 14),
 
-            // 3. Cash Drawer Reconciliation & Verification (Step 3 Requirements)
+            // 3. Cash Drawer Reconciliation & Verification
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
@@ -1866,6 +2581,104 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
                       isBold: true, valueColor: Colors.amber),
                   const SizedBox(height: 10),
 
+                  // Denomination Calculator Toggle Header
+                  InkWell(
+                    onTap: () =>
+                        setState(() => _showDenominations = !_showDenominations),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: TekColors.bgCard,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: _showDenominations
+                                ? TekColors.primary
+                                : TekColors.border),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.calculate_rounded,
+                                  size: 16, color: TekColors.primary),
+                              SizedBox(width: 8),
+                              Text(
+                                'Cash Denomination Calculator (നോട്ടുകൾ എണ്ണുക)',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: TekColors.textPrimary,
+                                  fontFamilyFallback:
+                                      TekTypography.malayalamFallback,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              if (_denominations.totalCash > 0)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: TekColors.primary
+                                        .withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    '₹${_denominations.totalCash.toStringAsFixed(0)}',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: TekColors.primary,
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                _showDenominations
+                                    ? Icons.keyboard_arrow_up_rounded
+                                    : Icons.keyboard_arrow_down_rounded,
+                                color: TekColors.textSecondary,
+                                size: 18,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Embedded Denomination Calculator
+                  if (_showDenominations) ...[
+                    const SizedBox(height: 10),
+                    CashDenominationCalculator(
+                      initialDenominations: _denominations,
+                      onChanged: (d) {
+                        setState(() {
+                          _denominations = d;
+                          _enteredCash = d.totalCash;
+                          _cashCountCtrl.text = _enteredCash > 0
+                              ? _enteredCash.toStringAsFixed(0)
+                              : '';
+                          final net = (_enteredCash - _retainedFloat)
+                              .clamp(0.0, double.infinity);
+                          if (_bankDeposit == 0 && _otherHandover == 0) {
+                            _ownerCash = net;
+                            _ownerCashCtrl.text = _ownerCash > 0
+                                ? _ownerCash.toStringAsFixed(0)
+                                : '';
+                          }
+                        });
+                      },
+                    ),
+                  ],
+
+                  const SizedBox(height: 10),
+
                   // Input for Actual Cash Count
                   TextField(
                     controller: _cashCountCtrl,
@@ -1878,6 +2691,14 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
                     onChanged: (v) {
                       setState(() {
                         _enteredCash = double.tryParse(v.trim()) ?? 0.0;
+                        final net = (_enteredCash - _retainedFloat)
+                            .clamp(0.0, double.infinity);
+                        if (_bankDeposit == 0 && _otherHandover == 0) {
+                          _ownerCash = net;
+                          _ownerCashCtrl.text = _ownerCash > 0
+                              ? _ownerCash.toStringAsFixed(0)
+                              : '';
+                        }
                       });
                     },
                     decoration: InputDecoration(
@@ -1908,8 +2729,8 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
 
                   // Cash Over / Short Indicator
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: (liveDiscrepancy == 0
                               ? TekColors.success
@@ -1964,7 +2785,389 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
 
             const SizedBox(height: 14),
 
-            // 4. Action Buttons (Print Slip, WhatsApp, Confirm EOD Close)
+            // 4. Daily Cash Float & 3-Card Settlement Display (Requirement 1 & 4)
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: TekColors.bgSecondary,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                    color: const Color(0xFF06B6D4).withValues(alpha: 0.4)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.savings_rounded,
+                          size: 16, color: Color(0xFF06B6D4)),
+                      SizedBox(width: 8),
+                      Text(
+                        'Daily Cash Float (അടുത്ത ദിവസത്തേക്ക് മാറ്റിവെക്കുന്ന പണം):',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: TekColors.textPrimary,
+                          fontFamilyFallback: TekTypography.malayalamFallback,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Editable Retained Cash Float input (default: ₹1,000)
+                  TextField(
+                    controller: _retainedFloatCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF06B6D4)),
+                    onChanged: (v) {
+                      setState(() {
+                        _retainedFloat =
+                            double.tryParse(v.trim()) ?? 1000.0;
+                        final net = (_enteredCash - _retainedFloat)
+                            .clamp(0.0, double.infinity);
+                        if (_bankDeposit == 0 && _otherHandover == 0) {
+                          _ownerCash = net;
+                          _ownerCashCtrl.text = _ownerCash > 0
+                              ? _ownerCash.toStringAsFixed(0)
+                              : '';
+                        }
+                      });
+                    },
+                    decoration: InputDecoration(
+                      labelText:
+                          'Retained Cash Float (Next Day Opening Cash) - Default ₹1,000',
+                      labelStyle: const TextStyle(
+                          color: TekColors.textSecondary, fontSize: 12),
+                      prefixText: '₹ ',
+                      prefixStyle: const TextStyle(
+                          color: Color(0xFF06B6D4),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15),
+                      filled: true,
+                      fillColor: TekColors.bgCard,
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(
+                            color: Color(0xFF06B6D4), width: 1.5),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Prominent 3-Card Display
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _settlementCard(
+                          title: 'Actual Count',
+                          subtitle: 'Physical Cash',
+                          amount: _enteredCash,
+                          color: Colors.amber,
+                          icon: Icons.payments_rounded,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _settlementCard(
+                          title: 'Retained Float',
+                          subtitle: 'Next Day Opening',
+                          amount: _retainedFloat,
+                          color: const Color(0xFF06B6D4),
+                          icon: Icons.savings_rounded,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _settlementCard(
+                          title: 'Net Handover',
+                          subtitle: 'Count - Float',
+                          amount: netCashToHandover,
+                          color: TekColors.success,
+                          icon: Icons.handshake_rounded,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF06B6D4).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline_rounded,
+                            size: 14, color: Color(0xFF06B6D4)),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Retained float stays in the drawer as Next Day Opening Cash (₹${_retainedFloat.toStringAsFixed(0)}). It is NOT an expense and does not reduce profit.',
+                            style: const TextStyle(
+                                fontSize: 11, color: Color(0xFF06B6D4)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            // 5. Handover Destination Recording (Requirement 4)
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: TekColors.bgSecondary,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isHandoverBalanced
+                      ? TekColors.border
+                      : TekColors.warning.withValues(alpha: 0.6),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.handshake_rounded,
+                              size: 16, color: TekColors.primary),
+                          SizedBox(width: 8),
+                          Text(
+                            'Handover Destination Recording:',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: TekColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          InkWell(
+                            onTap: () => _setAllToOwner(netCashToHandover),
+                            borderRadius: BorderRadius.circular(6),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: TekColors.primary.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text('All to Owner',
+                                  style: TextStyle(
+                                      fontSize: 10.5,
+                                      color: TekColors.primary,
+                                      fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          InkWell(
+                            onTap: () => _setAllToBank(netCashToHandover),
+                            borderRadius: BorderRadius.circular(6),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0F766E)
+                                    .withValues(alpha: 0.25),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text('All to Bank',
+                                  style: TextStyle(
+                                      fontSize: 10.5,
+                                      color: Color(0xFF2DD4BF),
+                                      fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _ownerCashCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: TekColors.textPrimary),
+                          onChanged: (v) => setState(() =>
+                              _ownerCash = double.tryParse(v.trim()) ?? 0.0),
+                          decoration: InputDecoration(
+                            labelText: 'Owner Cash (ഉടമ)',
+                            labelStyle: const TextStyle(
+                              fontSize: 12,
+                              fontFamilyFallback:
+                                  TekTypography.malayalamFallback,
+                            ),
+                            prefixText: '₹ ',
+                            filled: true,
+                            fillColor: TekColors.bgCard,
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: _bankDepositCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: TekColors.textPrimary),
+                          onChanged: (v) => setState(() =>
+                              _bankDeposit = double.tryParse(v.trim()) ?? 0.0),
+                          decoration: InputDecoration(
+                            labelText: 'Bank Deposit (ബാങ്ക്)',
+                            labelStyle: const TextStyle(
+                              fontSize: 12,
+                              fontFamilyFallback:
+                                  TekTypography.malayalamFallback,
+                            ),
+                            prefixText: '₹ ',
+                            filled: true,
+                            fillColor: TekColors.bgCard,
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 1,
+                        child: TextField(
+                          controller: _otherHandoverCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: TekColors.textPrimary),
+                          onChanged: (v) => setState(() => _otherHandover =
+                              double.tryParse(v.trim()) ?? 0.0),
+                          decoration: InputDecoration(
+                            labelText: 'Other Handover (മറ്റുള്ളവർ)',
+                            labelStyle: const TextStyle(
+                              fontSize: 12,
+                              fontFamilyFallback:
+                                  TekTypography.malayalamFallback,
+                            ),
+                            prefixText: '₹ ',
+                            filled: true,
+                            fillColor: TekColors.bgCard,
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        flex: 1,
+                        child: TextField(
+                          controller: _otherRecipientCtrl,
+                          style: const TextStyle(
+                              fontSize: 14, color: TekColors.textPrimary),
+                          decoration: InputDecoration(
+                            labelText: 'Recipient Name (ആർക്ക് നൽകി)',
+                            labelStyle: const TextStyle(
+                              fontSize: 12,
+                              fontFamilyFallback:
+                                  TekTypography.malayalamFallback,
+                            ),
+                            filled: true,
+                            fillColor: TekColors.bgCard,
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // Handover Match Indicator
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: (isHandoverBalanced
+                              ? TekColors.success
+                              : TekColors.warning)
+                          .withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                          color: isHandoverBalanced
+                              ? TekColors.success
+                              : TekColors.warning),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                            isHandoverBalanced
+                                ? Icons.check_circle_rounded
+                                : Icons.error_outline_rounded,
+                            size: 16,
+                            color: isHandoverBalanced
+                                ? TekColors.success
+                                : TekColors.warning),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            isHandoverBalanced
+                                ? 'Handover split matches Net Handover: ₹${totalHandoverSplit.toStringAsFixed(2)}'
+                                : 'Split total (₹${totalHandoverSplit.toStringAsFixed(2)}) does not match Net Handover (₹${netCashToHandover.toStringAsFixed(2)}). Discrepancy: ${totalHandoverSplit - netCashToHandover > 0 ? "+₹" : "-₹"}${(totalHandoverSplit - netCashToHandover).abs().toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.bold,
+                              color: isHandoverBalanced
+                                  ? TekColors.success
+                                  : TekColors.warning,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            // 6. Action Buttons (Print Slip, WhatsApp)
             Row(
               children: [
                 Expanded(
@@ -1976,14 +3179,22 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
                           borderRadius: BorderRadius.circular(12)),
                     ),
                     onPressed: () {
-                      DailyRegisterService.instance.printThermalEodSlip(
-                        context,
-                        summary.copyWith(
-                          openingCash: _openingCash,
-                          physicalCashCount: _enteredCash,
-                          cashDiscrepancy: liveDiscrepancy,
+                      final s = summary.copyWith(
+                        openingCash: _openingCash,
+                        physicalCashCount: _enteredCash,
+                        cashDiscrepancy: liveDiscrepancy,
+                        retainedCashFloat: _retainedFloat,
+                        denominations: _denominations,
+                        handoverSplit: CashHandoverSplit(
+                          ownerCash: _ownerCash,
+                          bankDeposit: _bankDeposit,
+                          otherHandover: _otherHandover,
+                          otherRecipientName: _otherRecipientCtrl.text.trim(),
                         ),
+                        isBackdated: widget.isBackdated,
                       );
+                      DailyRegisterService.instance
+                          .printThermalEodSlip(context, s);
                     },
                     icon: const Icon(Icons.print_rounded,
                         size: 16, color: TekColors.primary),
@@ -2002,14 +3213,22 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
                           borderRadius: BorderRadius.circular(12)),
                     ),
                     onPressed: () {
-                      DailyRegisterService.instance.shareEodWhatsApp(
-                        context,
-                        summary.copyWith(
-                          openingCash: _openingCash,
-                          physicalCashCount: _enteredCash,
-                          cashDiscrepancy: liveDiscrepancy,
+                      final s = summary.copyWith(
+                        openingCash: _openingCash,
+                        physicalCashCount: _enteredCash,
+                        cashDiscrepancy: liveDiscrepancy,
+                        retainedCashFloat: _retainedFloat,
+                        denominations: _denominations,
+                        handoverSplit: CashHandoverSplit(
+                          ownerCash: _ownerCash,
+                          bankDeposit: _bankDeposit,
+                          otherHandover: _otherHandover,
+                          otherRecipientName: _otherRecipientCtrl.text.trim(),
                         ),
+                        isBackdated: widget.isBackdated,
                       );
+                      DailyRegisterService.instance
+                          .shareEodWhatsApp(context, s);
                     },
                     icon: const Icon(Icons.chat_bubble_outline_rounded,
                         size: 16, color: Color(0xFF22C55E)),
@@ -2039,6 +3258,32 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
                 onPressed: _isSaving
                     ? null
                     : () async {
+                        if (!isHandoverBalanced && netCashToHandover > 0) {
+                          toast(
+                            context,
+                            'Handover split total (₹${totalHandoverSplit.toStringAsFixed(0)}) must match Net Cash to Handover (₹${netCashToHandover.toStringAsFixed(0)})',
+                            error: true,
+                          );
+                          return;
+                        }
+
+                        final split = CashHandoverSplit(
+                          ownerCash: _ownerCash,
+                          bankDeposit: _bankDeposit,
+                          otherHandover: _otherHandover,
+                          otherRecipientName: _otherRecipientCtrl.text.trim(),
+                        );
+
+                        final confirmed = await _showConfirmationDialog(
+                          actualCash: _enteredCash,
+                          retainedFloat: _retainedFloat,
+                          netHandover: netCashToHandover,
+                          liveDiscrepancy: liveDiscrepancy,
+                          split: split,
+                        );
+
+                        if (!confirmed) return;
+
                         setState(() => _isSaving = true);
                         HapticFeedback.heavyImpact();
                         try {
@@ -2046,8 +3291,13 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
                             openingCash: _openingCash,
                             physicalCashCount: _enteredCash,
                             cashDiscrepancy: liveDiscrepancy,
+                            retainedCashFloat: _retainedFloat,
+                            denominations: _denominations,
+                            handoverSplit: split,
+                            isBackdated: widget.isBackdated,
                             closedByStaffId: widget.currentStaffId,
                             closedByStaffName: widget.currentStaffName,
+                            notes: _notesCtrl.text.trim(),
                           );
 
                           await DailyRegisterService.instance
@@ -2058,17 +3308,17 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
                                 : Db.setting('shop_id', ''),
                             staffId: widget.currentStaffId,
                             staffName: widget.currentStaffName,
+                            isBackdated: widget.isBackdated,
+                            notes: _notesCtrl.text.trim(),
                           );
 
-                          if (mounted) {
-                            Navigator.pop(context);
-                            toast(context,
-                                'End-of-Day Register closed successfully for ${summary.dateString}!');
-                            widget.onClosed?.call();
-                          }
+                          if (!mounted) return;
+                          Navigator.pop(context);
+                          await _showSuccessDialog(finalSummary);
+                          widget.onClosed?.call();
                         } catch (e) {
-                          setState(() => _isSaving = false);
                           if (mounted) {
+                            setState(() => _isSaving = false);
                             toast(context, 'Save failed: $e', error: true);
                           }
                         }
@@ -2094,6 +3344,267 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// Past Days Register Status Bottom Sheet (Requirement 5 & 6)
+class _PastDaysStatusSheet extends StatelessWidget {
+  final String shopId;
+  final String currentStaffId;
+  final String currentStaffName;
+  final ValueChanged<DateTime> onSelectedDate;
+  final ValueChanged<DateTime> onCloseDate;
+
+  const _PastDaysStatusSheet({
+    required this.shopId,
+    required this.currentStaffId,
+    required this.currentStaffName,
+    required this.onSelectedDate,
+    required this.onCloseDate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.78,
+      padding: const EdgeInsets.all(18),
+      decoration: const BoxDecoration(
+        color: TekColors.bgCard,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        border: Border(top: BorderSide(color: TekColors.border, width: 1.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 44,
+              height: 4,
+              decoration: BoxDecoration(
+                color: TekColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.history_rounded,
+                      color: TekColors.primary, size: 22),
+                  SizedBox(width: 10),
+                  Text(
+                    'EOD Register Status & Past Days',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: TekColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              IconButton(
+                icon: const Icon(Icons.close_rounded,
+                    color: TekColors.textSecondary),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: FutureBuilder<List<DailyRegisterSummary>>(
+              future: DailyRegisterService.instance
+                  .getPastDaysRegisterStatus(shopId: shopId, days: 7),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                        color: TekColors.primary),
+                  );
+                }
+                final list = snapshot.data ?? [];
+                if (list.isEmpty) {
+                  return const Center(
+                    child: Text('No register records found',
+                        style: TextStyle(color: TekColors.textSecondary)),
+                  );
+                }
+
+                return ListView.separated(
+                  itemCount: list.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final item = list[index];
+                    final status = item.resolvedClosingStatus;
+                    Color statusColor;
+                    IconData statusIcon;
+
+                    switch (status) {
+                      case 'CLOSED':
+                        statusColor = const Color(0xFF10B981);
+                        statusIcon = Icons.check_circle_rounded;
+                        break;
+                      case 'BACKDATED':
+                        statusColor = const Color(0xFF3B82F6);
+                        statusIcon = Icons.history_rounded;
+                        break;
+                      case 'DISCREPANCY':
+                        statusColor = const Color(0xFFEF4444);
+                        statusIcon = Icons.warning_rounded;
+                        break;
+                      case 'PENDING':
+                      default:
+                        statusColor = const Color(0xFFF59E0B);
+                        statusIcon = Icons.pending_actions_rounded;
+                        break;
+                    }
+
+                    return Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: TekColors.bgSecondary,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                            color: statusColor.withValues(alpha: 0.3)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment:
+                                MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                DailyRegisterService.toDisplayDate(item.date),
+                                style: const TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: TekColors.textPrimary,
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: statusColor.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                      color:
+                                          statusColor.withValues(alpha: 0.4)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(statusIcon,
+                                        size: 12, color: statusColor),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      status,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: statusColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment:
+                                MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Opening: ₹${item.openingCash.toStringAsFixed(0)} • Sales: ₹${item.grossSales.toStringAsFixed(0)}',
+                                style: const TextStyle(
+                                    fontSize: 11.5,
+                                    color: TekColors.textSecondary),
+                              ),
+                              if (item.isClosed)
+                                Text(
+                                  'Counted: ₹${item.physicalCashCount.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.amber),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              TextButton(
+                                onPressed: () => onSelectedDate(item.date),
+                                child: const Text('View Ledger Orders',
+                                    style: TextStyle(
+                                        fontSize: 11.5,
+                                        color: TekColors.secondary)),
+                              ),
+                              const SizedBox(width: 8),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: item.isClosed
+                                      ? const Color(0xFF0F766E)
+                                      : TekColors.primary,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 6),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(8)),
+                                ),
+                                onPressed: () => onCloseDate(item.date),
+                                child: Text(
+                                  item.isClosed
+                                      ? 'View / Print Slip'
+                                      : 'Close Register Now',
+                                  style: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              side: const BorderSide(color: TekColors.primary),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: DateTime.now().subtract(const Duration(days: 1)),
+                firstDate: DateTime(2022),
+                lastDate: DateTime.now(),
+              );
+              if (picked != null) {
+                onCloseDate(picked);
+              }
+            },
+            icon: const Icon(Icons.date_range_rounded,
+                size: 16, color: TekColors.primary),
+            label: const Text('Pick Another Past Date to Close (മറ്റൊരു തീയതി)',
+                style: TextStyle(color: TekColors.primary, fontSize: 12.5)),
+          ),
+        ],
       ),
     );
   }
