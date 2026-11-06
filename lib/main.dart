@@ -650,6 +650,20 @@ class TekFixApp extends StatelessWidget {
         // Enterprise dark theme as primary
         themeMode: ThemeMode.dark,
         home: const AuthGate(),
+        onGenerateRoute: (settings) {
+          if (settings.name == '/parties-ledger' ||
+              settings.name == '/parties') {
+            final args = settings.arguments as Map<String, dynamic>?;
+            return MaterialPageRoute(
+              builder: (_) => PartiesView(
+                initialType: args?['initialType'] as String?,
+                filterDueOnly: args?['filterDueOnly'] as bool? ?? false,
+              ),
+              settings: settings,
+            );
+          }
+          return null;
+        },
       ),
     );
   }
@@ -2982,71 +2996,263 @@ void showPartyPayment(
 }
 
 class PartiesView extends StatefulWidget {
-  const PartiesView({super.key});
+  final String? initialType;
+  final bool filterDueOnly;
+
+  const PartiesView({
+    super.key,
+    this.initialType,
+    this.filterDueOnly = false,
+  });
 
   @override
   State<PartiesView> createState() => _PartiesViewState();
 }
 
-class _PartiesViewState extends State<PartiesView> {
+class _PartiesViewState extends State<PartiesView>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  late bool _filterDueOnly;
   String _q = '';
 
   @override
+  void initState() {
+    super.initState();
+    _filterDueOnly = widget.filterDueOnly;
+    int initialIdx = 0;
+    if (widget.initialType?.toLowerCase() == 'supplier') {
+      initialIdx = 1;
+    } else if (widget.initialType?.toLowerCase() == 'all') {
+      initialIdx = 2;
+    } else {
+      initialIdx = 0; // Customers first
+    }
+    _tabController =
+        TabController(length: 3, vsync: this, initialIndex: initialIdx);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        appBar: const TekAppBar(
-          title: Text('പാർട്ടികൾ (Parties Ledger)'),
-          bottom: TabBar(tabs: [
-            Tab(text: 'All'),
-            Tab(text: 'Customers'),
-            Tab(text: 'Suppliers')
-          ]),
+    return Scaffold(
+      appBar: TekAppBar(
+        title: const Text('പാർട്ടികൾ (Parties Ledger)'),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Customers (കിട്ടാനുള്ളവ)'),
+            Tab(text: 'Suppliers (കൊടുക്കാനുള്ളവ)'),
+            Tab(text: 'All (എല്ലാം)'),
+          ],
         ),
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => showPartyForm(context),
-          icon: const Icon(Icons.person_add),
-          label: const Text('പാർട്ടി ചേർക്കുക'),
-        ),
-        body: ValueListenableBuilder(
-          valueListenable: Db.parties.listenable(),
-          builder: (ctx, box, _) {
-            final all = entriesOf(Db.parties).where((e) {
-              if (_q.isEmpty) return true;
-              return '${e.value['name']} ${e.value['phone']}'
-                  .toLowerCase()
-                  .contains(_q);
-            }).toList();
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                  child: TextField(
-                    onChanged: (v) =>
-                        setState(() => _q = v.trim().toLowerCase()),
-                    decoration: const InputDecoration(
-                        hintText: 'പേര് / ഫോൺ തിരയുക',
-                        prefixIcon: Icon(Icons.search)),
-                  ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => showPartyForm(context),
+        icon: const Icon(Icons.person_add),
+        label: const Text('പാർട്ടി ചേർക്കുക'),
+      ),
+      body: ValueListenableBuilder(
+        valueListenable: Db.parties.listenable(),
+        builder: (ctx, box, _) {
+          double totalReceivable = 0;
+          double totalPayable = 0;
+          for (final e in entriesOf(Db.parties)) {
+            final p = e.value;
+            final isSupplier = p['type'] == 'Supplier';
+            final bal = _d(p['balance']);
+            if (!isSupplier) {
+              if (bal > 0.005) totalReceivable += bal;
+            } else {
+              if (bal < -0.005) {
+                totalPayable += (-bal);
+              } else if (bal > 0.005) {
+                totalPayable += bal;
+              }
+            }
+          }
+
+          final all = entriesOf(Db.parties).where((e) {
+            if (_q.isEmpty) return true;
+            return '${e.value['name']} ${e.value['phone']}'
+                .toLowerCase()
+                .contains(_q);
+          }).toList();
+
+          final customers = all.where((e) {
+            final isCust = e.value['type'] != 'Supplier';
+            if (!isCust) return false;
+            if (_filterDueOnly) {
+              return _d(e.value['balance']) > 0.005;
+            }
+            return true;
+          }).toList();
+
+          final suppliers = all.where((e) {
+            final isSupp = e.value['type'] == 'Supplier';
+            if (!isSupp) return false;
+            if (_filterDueOnly) {
+              return _d(e.value['balance']).abs() > 0.005;
+            }
+            return true;
+          }).toList();
+
+          final allFiltered = all.where((e) {
+            if (_filterDueOnly) {
+              return _d(e.value['balance']).abs() > 0.005;
+            }
+            return true;
+          }).toList();
+
+          return Column(
+            children: [
+              // KPI Financial Summary Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: const Color(0xFF10B981)
+                                  .withValues(alpha: 0.35)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Receivable (കിട്ടാനുള്ളത്)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF10B981),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              rs(totalReceivable),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF43F5E).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: const Color(0xFFF43F5E)
+                                  .withValues(alpha: 0.35)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Payable (കൊടുക്കാനുള്ളത്)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFFF43F5E),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              rs(totalPayable),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                Expanded(
-                  child: TabBarView(
-                    children: [
-                      _list(all),
-                      _list(all
-                          .where((e) => e.value['type'] != 'Supplier')
-                          .toList()),
-                      _list(all
-                          .where((e) => e.value['type'] == 'Supplier')
-                          .toList()),
-                    ],
-                  ),
+              ),
+
+              // Search & Due Filter Row
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        onChanged: (v) =>
+                            setState(() => _q = v.trim().toLowerCase()),
+                        decoration: const InputDecoration(
+                          hintText: 'പേര് / ഫോൺ തിരയുക (Search name / phone)',
+                          prefixIcon: Icon(Icons.search, size: 20),
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    FilterChip(
+                      label: Text(
+                        _filterDueOnly
+                            ? 'കുടിശ്ശിക മാത്രം (Due Only)'
+                            : 'All Balances',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _filterDueOnly
+                              ? const Color(0xFF6366F1)
+                              : Colors.white70,
+                          fontWeight: _filterDueOnly
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                      selected: _filterDueOnly,
+                      onSelected: (val) =>
+                          setState(() => _filterDueOnly = val),
+                      selectedColor:
+                          const Color(0xFF6366F1).withValues(alpha: 0.25),
+                      checkmarkColor: const Color(0xFF6366F1),
+                      side: BorderSide(
+                        color: _filterDueOnly
+                            ? const Color(0xFF6366F1)
+                            : Colors.white24,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            );
-          },
-        ),
+              ),
+
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _list(customers),
+                    _list(suppliers),
+                    _list(allFiltered),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

@@ -2154,7 +2154,9 @@ class PurchaseBillService {
           // WRITE PHASE
           // 1. Payment subcollection
           final billPayRef = billRef.collection('payments').doc(payId);
+          final rootBillPayRef = rootBillRef.collection('payments').doc(payId);
           transaction.set(billPayRef, payment.toMap());
+          transaction.set(rootBillPayRef, payment.toMap());
 
           // 2. Bill document updates
           final billUpdates = <String, dynamic>{

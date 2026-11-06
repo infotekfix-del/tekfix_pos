@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 
 import '../auth/auth_controller.dart';
 import '../main.dart' show Db, toast;
@@ -207,15 +208,16 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
           ? auth.name
           : Db.setting('staff_logged_name', 'Staff');
 
+      final clientExpenseId = 'EXP_${DateTime.now().millisecondsSinceEpoch}_${const Uuid().v4().substring(0, 8)}';
+
       String? uploadedUrl;
       if (_pickedFile != null && _fileBytes != null) {
         final ext = _pickedFile!.extension?.toLowerCase() ?? 'jpg';
         final mimeType = ext == 'pdf' ? 'application/pdf' : 'image/$ext';
-        final tempExpId = 'EXP_${DateTime.now().millisecondsSinceEpoch}';
 
         uploadedUrl = await ExpenseService.instance.uploadReceiptFile(
           shopId: shopId,
-          expenseId: tempExpId,
+          expenseId: clientExpenseId,
           fileName: _pickedFile!.name,
           bytes: _fileBytes!,
           mimeType: mimeType,
@@ -224,6 +226,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
 
       final expense = await ExpenseService.instance.createExpense(
         shopId: shopId,
+        customExpenseId: clientExpenseId,
         title: _titleCtrl.text.trim(),
         category: _category,
         amount: amount,

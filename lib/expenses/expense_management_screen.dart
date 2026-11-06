@@ -8,6 +8,7 @@ import '../auth/auth_controller.dart';
 import '../main.dart' show Db, toast;
 import '../theme/tek_tokens.dart';
 import 'add_expense_dialog.dart';
+import 'expense_cleanup_service.dart';
 import 'expense_models.dart';
 import 'expense_service.dart';
 import '../rent/daily_rent_history_view.dart';
@@ -41,6 +42,117 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
   void initState() {
     super.initState();
     _initStream();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndAutoCleanupDuplicates();
+    });
+  }
+
+  Future<void> _checkAndAutoCleanupDuplicates() async {
+    try {
+      final sId = widget.shopId.isNotEmpty
+          ? widget.shopId
+          : Db.setting('shop_id', 'tekfix');
+      final auth = context.read<AuthController>();
+      final uid = auth.uid.isNotEmpty
+          ? auth.uid
+          : Db.setting('staff_logged_id', 'staff');
+      final name = auth.name.isNotEmpty
+          ? auth.name
+          : Db.setting('staff_logged_name', 'Staff');
+
+      final result =
+          await ExpenseCleanupService.instance.runAutoDeduplicationCleanup(
+        shopId: sId,
+        uid: uid,
+        name: name,
+      );
+      if (result != null && result.documentsDeleted > 0 && mounted) {
+        toast(
+          context,
+          'ഓട്ടോ ക്ലീനപ്പ്: ${result.documentsDeleted} ഇരട്ടി ചെലവുകൾ നീക്കം ചെയ്തു (Cleaned ₹${result.amountCleaned.toStringAsFixed(2)})',
+        );
+      }
+    } catch (e) {
+      debugPrint('[ExpenseManagementScreen] Auto-cleanup check: $e');
+    }
+  }
+
+  Future<void> _manualDeduplicationCleanup() async {
+    final sId = widget.shopId.isNotEmpty
+        ? widget.shopId
+        : Db.setting('shop_id', 'tekfix');
+    final auth = context.read<AuthController>();
+    final uid =
+        auth.uid.isNotEmpty ? auth.uid : Db.setting('staff_logged_id', 'staff');
+    final name = auth.name.isNotEmpty
+        ? auth.name
+        : Db.setting('staff_logged_name', 'Staff');
+
+    toast(context, 'Scanning for duplicate expenses...');
+    try {
+      final groups =
+          await ExpenseCleanupService.instance.scanDuplicates(shopId: sId);
+      if (groups.isEmpty) {
+        if (mounted) toast(context, 'ഇരട്ടി ചെലവുകൾ ഒന്നും കണ്ടെത്തിയില്ല (No duplicates found)');
+        return;
+      }
+
+      int totalDups = 0;
+      double totalAmt = 0.0;
+      final List<String> toDelete = [];
+      for (final grp in groups) {
+        for (final dup in grp.duplicateItems) {
+          totalDups++;
+          totalAmt += dup.amount;
+          toDelete.add(dup.id);
+        }
+      }
+
+      if (!mounted) return;
+
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: TekColors.bgCard,
+          title: const Text('Duplicate Expenses Found',
+              style: TextStyle(color: TekColors.textPrimary)),
+          content: Text(
+            'കണ്ടെത്തിയത്: $totalDups ഇരട്ടി എൻട്രികൾ (${groups.length} ക്ലസ്റ്ററുകൾ).\nആകെ തുക: ₹${totalAmt.toStringAsFixed(2)}\n\nഇവ ഓട്ടോമാറ്റിക് ബാക്കപ്പ് ചെയ്ത് സ്ഥിരമായി നീക്കം ചെയ്യണോ?',
+            style: const TextStyle(color: TekColors.textSecondary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel', style: TextStyle(color: TekColors.textSecondary)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFF43F5E)),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Clean Up Now',
+                  style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed == true && mounted) {
+        final res = await ExpenseCleanupService.instance.executeCleanup(
+          shopId: sId,
+          duplicateDocIdsToDelete: toDelete,
+          deletedByUid: uid,
+          deletedByName: name,
+        );
+        if (mounted) {
+          toast(
+            context,
+            'വിജയകരമായി ${res.documentsDeleted} എൻട്രികൾ നീക്കം ചെയ്തു (Cleaned ₹${res.amountCleaned.toStringAsFixed(2)})',
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) toast(context, 'Error cleaning duplicates: $e');
+    }
   }
 
   @override
@@ -582,6 +694,12 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                               color: TekColors.secondary),
                           onPressed: _loadData,
                           tooltip: 'Refresh Expenses',
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.cleaning_services_rounded,
+                              color: Color(0xFFF43F5E)),
+                          onPressed: _manualDeduplicationCleanup,
+                          tooltip: 'Clean Duplicate Expenses (ഇരട്ടി ചിലവുകൾ നീക്കം ചെയ്യുക)',
                         ),
                       ],
                     ),

@@ -227,5 +227,39 @@ class ExpenseCleanupService {
       afterMetrics: afterMetrics,
     );
   }
+
+  /// One-step automated scan & cleanup for identical duplicate clusters (<= 5 seconds)
+  Future<CleanupExecutionResult?> runAutoDeduplicationCleanup({
+    required String shopId,
+    required String uid,
+    required String name,
+  }) async {
+    try {
+      final groups = await scanDuplicates(shopId: shopId);
+      if (groups.isEmpty) return null;
+
+      final List<String> toDelete = [];
+      for (final grp in groups) {
+        for (final dup in grp.duplicateItems) {
+          toDelete.add(dup.id);
+        }
+      }
+
+      if (toDelete.isEmpty) return null;
+
+      debugPrint(
+          '[ExpenseCleanupService] Auto-cleaning ${toDelete.length} duplicate expenses...');
+      return await executeCleanup(
+        shopId: shopId,
+        duplicateDocIdsToDelete: toDelete,
+        deletedByUid: uid,
+        deletedByName: name,
+      );
+    } catch (e) {
+      debugPrint(
+          '[ExpenseCleanupService] Error in runAutoDeduplicationCleanup: $e');
+      return null;
+    }
+  }
 }
 

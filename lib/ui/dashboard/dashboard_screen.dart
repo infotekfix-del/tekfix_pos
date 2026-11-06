@@ -120,7 +120,7 @@ class _TekDashboardScreenState extends State<TekDashboardScreen> {
         _navigateTo(const StaffView(), item);
         break;
       case 'Customer Management':
-        _navigateTo(const PartiesView(), item);
+        _navigateTo(const PartiesView(initialType: 'customer'), item);
         break;
       case 'Payment Reminders':
         _navigateTo(const RemindersScreen(), item);
@@ -379,16 +379,28 @@ class TekDashboardContent extends StatelessWidget {
         double cashInHand = Db.cash;
         double bankBalance = Db.bankBalance;
         double receivablesTotal = 0;
+        double payablesTotal = 0;
         int dueRemindersCount = 0;
 
         for (final v in Db.parties.values) {
           if (v is! Map) continue;
           final p = tekM(v);
+          final isSupplier = p['type'] == 'Supplier';
           final bal = tekD(p['balance']);
-          if (bal > 0) {
-            receivablesTotal += bal;
-            final eval = ReminderService.instance.evaluateCustomerReminder(p);
-            if (eval['isDue'] == true) dueRemindersCount++;
+          if (!isSupplier) {
+            // Customer receivables (amount owed to shop)
+            if (bal > 0.005) {
+              receivablesTotal += bal;
+              final eval = ReminderService.instance.evaluateCustomerReminder(p);
+              if (eval['isDue'] == true) dueRemindersCount++;
+            }
+          } else {
+            // Supplier payables (amount shop owes to supplier)
+            if (bal < -0.005) {
+              payablesTotal += (-bal);
+            } else if (bal > 0.005) {
+              payablesTotal += bal;
+            }
           }
         }
 
@@ -418,14 +430,19 @@ class TekDashboardContent extends StatelessWidget {
           ),
           TekStatCard(
             title: 'Receivable',
-            subtitle: 'കിട്ടാനുള്ള തുക',
+            subtitle: payablesTotal > 0
+                ? 'Payable: ${rs(payablesTotal)}'
+                : 'കിട്ടാനുള്ള തുക',
             amount: rs(receivablesTotal),
             icon: Icons.call_received_rounded,
             accentColor: DashboardColors.neonPurple,
             changeText: '3.1%',
             isPositive: false,
             sparklineData: const [70, 65, 68, 55, 52, 48, 42, 38],
-            onTap: () => _nav(context, const PartiesView()),
+            onTap: () => _nav(
+              context,
+              const PartiesView(initialType: 'customer', filterDueOnly: true),
+            ),
           ),
           TekStatCard(
             title: 'Reminders Due',

@@ -102,7 +102,9 @@ class ExpenseService {
       } else if (customExpenseId != null && customExpenseId.isNotEmpty) {
         expRef = expCol.doc(customExpenseId);
       } else {
-        expRef = expCol.doc();
+        final generatedId =
+            'EXP_${DateTime.now().millisecondsSinceEpoch}_${_uuid.v4().substring(0, 8)}';
+        expRef = expCol.doc(generatedId);
       }
       expenseId = expRef.id;
     } else {
