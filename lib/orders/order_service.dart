@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../firebase_options.dart';
 import '../staff/activity_log.dart';
 import 'order_models.dart';
 
@@ -9,11 +11,17 @@ class OrderService {
   OrderService._();
   static final OrderService instance = OrderService._();
 
-  final _db = FirebaseFirestore.instance;
+  FirebaseFirestore get _db => FirebaseFirestore.instance;
 
   /// Generates a non-duplicable sequential order ID in format: TF-YYYYMMDD-0001
   Future<String> generateOrderId(String shopId) async {
     final dateStr = DateFormat('yyyyMMdd').format(DateTime.now());
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      final timeSuffix = (DateTime.now().millisecondsSinceEpoch % 10000)
+          .toString()
+          .padLeft(4, '0');
+      return 'TF-$dateStr-$timeSuffix';
+    }
     final counterRef = _db
         .collection('shops')
         .doc(shopId)
@@ -45,6 +53,25 @@ class OrderService {
     required String shopId,
     required StaffOrder order,
   }) async {
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      try {
+        await ActivityLog.record(
+          action: 'Created Staff Order',
+          entity: 'Staff Order',
+          entityId: order.orderId,
+          newValue: {
+            'orderId': order.orderId,
+            'totalTypes': order.totalTypes,
+            'totalQuantity': order.totalQuantity,
+            'items':
+                order.products.map((p) => '${p.name} (${p.quantity})').toList(),
+          },
+          reason: order.generalRemarks,
+        );
+      } catch (_) {}
+      return order;
+    }
+
     final orderRef = _db
         .collection('shops')
         .doc(shopId)
@@ -97,7 +124,9 @@ class OrderService {
 
   /// Real-time stream of orders submitted by a specific staff member
   Stream<List<StaffOrder>> streamStaffOrders(String shopId, String staffId) {
-    if (shopId.isEmpty) return const Stream.empty();
+    if (shopId.isEmpty || DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      return const Stream.empty();
+    }
     return _db
         .collection('shops')
         .doc(shopId)
@@ -114,7 +143,9 @@ class OrderService {
 
   /// Real-time stream of all staff orders across the company for Owner panel
   Stream<List<StaffOrder>> streamAllOrders(String shopId) {
-    if (shopId.isEmpty) return const Stream.empty();
+    if (shopId.isEmpty || DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      return const Stream.empty();
+    }
     return _db
         .collection('shops')
         .doc(shopId)
@@ -135,6 +166,7 @@ class OrderService {
     required StaffOrderStatus newStatus,
     required String ownerName,
   }) async {
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) return;
     final orderRef =
         _db.collection('shops').doc(shopId).collection('orders').doc(orderId);
 
@@ -184,6 +216,7 @@ class OrderService {
     required WhatsAppDeliveryStatus status,
     String? messageId,
   }) async {
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) return;
     final orderRef =
         _db.collection('shops').doc(shopId).collection('orders').doc(orderId);
 
@@ -261,6 +294,9 @@ class OrderService {
 
   /// Reads WhatsApp configuration from settings
   Future<WhatsAppGroupConfig> getWhatsAppConfig(String shopId) async {
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      return const WhatsAppGroupConfig();
+    }
     try {
       final snap = await _db
           .collection('shops')
@@ -278,6 +314,7 @@ class OrderService {
   /// Saves WhatsApp configuration
   Future<void> saveWhatsAppConfig(
       String shopId, WhatsAppGroupConfig config) async {
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) return;
     await _db
         .collection('shops')
         .doc(shopId)

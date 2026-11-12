@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import '../auth/auth_controller.dart';
+import '../firebase_options.dart';
 import '../main.dart' show Db, rs, dtFormat;
 import '../ui/sync_status_icon.dart';
 import 'activity_log.dart';
@@ -537,10 +539,18 @@ class _Online extends StatelessWidget {
     final shop = context.read<AuthController>().shopId;
     return _Panel(
       'Online staff (ഓൺലൈൻ)',
-      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('shops/$shop/presence')
-            .snapshots(),
+      (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty)
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.0),
+              child: Text(
+                'Presence tracking is disabled in isolated Staging UAT mode.',
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+            )
+          : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('shops/$shop/presence')
+                  .snapshots(),
         builder: (context, snap) {
           final docs = snap.data?.docs ?? [];
           if (docs.isEmpty) {

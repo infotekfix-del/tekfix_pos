@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import '../main.dart' show Db, tekM;
+import '../storage/storage_bridge.dart';
+import '../storage/supabase_storage_bridge_client.dart';
 import 'expense_models.dart';
 
 class ExpenseMetrics {
@@ -379,7 +381,8 @@ class ExpenseService {
     return ExpenseItem.fromMap(updatedMap, expenseId);
   }
 
-  /// Upload receipt document or photo to Firebase Storage
+  /// Upload receipt document or photo via StorageBridge
+  /// (Routes to Firebase Storage in Production, Supabase Storage in Staging)
   Future<String?> uploadReceiptFile({
     required String shopId,
     required String expenseId,
@@ -389,14 +392,14 @@ class ExpenseService {
   }) async {
     try {
       final sId = shopId.isNotEmpty ? shopId : Db.setting('shop_id', 'tekfix');
-      final cleanName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
-      final ref = FirebaseStorage.instance
-          .ref()
-          .child('shops/$sId/expense_receipts/${expenseId}_$cleanName');
-
-      final task =
-          await ref.putData(bytes, SettableMetadata(contentType: mimeType));
-      return await task.ref.getDownloadURL();
+      return await StorageBridge.uploadFinancialDocument(
+        shopId: sId,
+        category: StorageCategory.expenseReceipts,
+        documentId: expenseId,
+        originalFileName: fileName,
+        bytes: bytes,
+        mimeType: mimeType,
+      );
     } catch (e) {
       debugPrint('[ExpenseService] Receipt upload error: $e');
       rethrow;

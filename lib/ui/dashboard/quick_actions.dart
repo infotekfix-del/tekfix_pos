@@ -15,6 +15,7 @@ class TekQuickActionsGrid extends StatelessWidget {
   final VoidCallback? onAddExpense;
   final VoidCallback? onDailyRent;
   final VoidCallback? onOwnerWithdrawal;
+  final VoidCallback? onRecharge;
 
   const TekQuickActionsGrid({
     super.key,
@@ -27,6 +28,7 @@ class TekQuickActionsGrid extends StatelessWidget {
     this.onAddExpense,
     this.onDailyRent,
     this.onOwnerWithdrawal,
+    this.onRecharge,
   });
 
   @override
@@ -143,6 +145,19 @@ class TekQuickActionsGrid extends StatelessWidget {
         glowColor: const Color(0xFF94A3B8),
         onTap: onOpenSettings,
       ),
+      if (onRecharge != null)
+        _ActionTileData(
+          title: 'Recharge',
+          subtitle: 'റീചാർജ്',
+          icon: Icons.phone_android_rounded,
+          gradient: const LinearGradient(
+            colors: [Color(0xFF06B6D4), Color(0xFF0891B2)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          glowColor: const Color(0xFF06B6D4),
+          onTap: onRecharge!,
+        ),
     ];
 
     return Column(

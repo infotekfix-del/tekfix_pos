@@ -1,0 +1,118 @@
+{
+  "staffRoleDenial": {
+    "timestamp": "2026-11-12T03:31:21.560Z",
+    "durationMs": 77,
+    "statusCode": 401,
+    "headers": {
+      "date": "Thu, 12 Nov 2026 03:31:23 GMT",
+      "cfRay": "a59276a4ad806e76-MAA",
+      "sbEdgeRegion": "ap-south-1",
+      "correlationId": "a59276a4ad806e76-MAA"
+    },
+    "body": {
+      "error": "Authentication failed: Invalid Token or Protected Header formatting"
+    }
+  },
+  "unenrolledDeviceDenial": {
+    "timestamp": "2026-11-12T03:31:21.830Z",
+    "durationMs": 114,
+    "statusCode": 403,
+    "headers": {
+      "date": "Thu, 12 Nov 2026 03:31:23 GMT",
+      "cfRay": "a59276a618286e76-MAA",
+      "sbEdgeRegion": "ap-south-1",
+      "correlationId": "a59276a618286e76-MAA"
+    },
+    "body": {
+      "error": "Device DEV_UNENROLLED_ROGUE_1794454281561 is not registered or has been revoked."
+    }
+  },
+  "invalidSignatureDenial": {
+    "timestamp": "2026-11-12T03:31:22.159Z",
+    "durationMs": 146,
+    "statusCode": 403,
+    "headers": {
+      "date": "Thu, 12 Nov 2026 03:31:23 GMT",
+      "cfRay": "a59276a7fc416e76-MAA",
+      "sbEdgeRegion": "ap-south-1",
+      "correlationId": "a59276a7fc416e76-MAA"
+    },
+    "body": {
+      "error": "Cryptographic signature verification failed: Invalid key or altered payload."
+    }
+  },
+  "replayedNonceDenial": {
+    "timestamp": "2026-11-12T03:31:22.666Z",
+    "durationMs": 140,
+    "statusCode": 403,
+    "headers": {
+      "date": "Thu, 12 Nov 2026 03:31:24 GMT",
+      "cfRay": "a59276ab2ba96e76-MAA",
+      "sbEdgeRegion": "ap-south-1",
+      "correlationId": "a59276ab2ba96e76-MAA"
+    },
+    "body": {
+      "error": "Challenge nonce is invalid, expired, or already consumed (Replay blocked)."
+    }
+  },
+  "duplicateIdempotency": {
+    "first": {
+      "timestamp": "2026-11-12T03:31:23.034Z",
+      "durationMs": 196,
+      "statusCode": 200,
+      "headers": {
+        "date": "Thu, 12 Nov 2026 03:31:24 GMT",
+        "cfRay": "a59276ad1f7d6e76-MAA",
+        "sbEdgeRegion": "ap-south-1",
+        "correlationId": "a59276ad1f7d6e76-MAA"
+      },
+      "body": {
+        "success": true,
+        "rechargeId": "IDEM_STAGING_KEY_1794454282838",
+        "walletId": "WALLET_AIRTEL",
+        "operator": "airtel",
+        "amountPaise": 10000,
+        "balanceBeforePaise": 11100,
+        "balanceAfterPaise": 1100,
+        "totalBalancePaise": 1100,
+        "idempotentReplay": false,
+        "message": "Recharge debit completed successfully"
+      }
+    },
+    "second": {
+      "timestamp": "2026-11-12T03:31:23.360Z",
+      "durationMs": 161,
+      "statusCode": 200,
+      "headers": {
+        "date": "Thu, 12 Nov 2026 03:31:24 GMT",
+        "cfRay": "a59276af5bc66e76-MAA",
+        "sbEdgeRegion": "ap-south-1",
+        "correlationId": "a59276af5bc66e76-MAA"
+      },
+      "body": {
+        "success": true,
+        "rechargeId": "IDEM_STAGING_KEY_1794454282838",
+        "walletId": "WALLET_AIRTEL",
+        "operator": "airtel",
+        "amountPaise": 10000,
+        "totalBalancePaise": 1100,
+        "idempotentReplay": true,
+        "message": "Recharge debit already processed idempotently"
+      }
+    }
+  },
+  "positiveControl": {
+    "timestamp": "2026-11-12T03:31:23.718Z",
+    "durationMs": 232,
+    "statusCode": 400,
+    "headers": {
+      "date": "Thu, 12 Nov 2026 03:31:25 GMT",
+      "cfRay": "a59276b12edd6e76-MAA",
+      "sbEdgeRegion": "ap-south-1",
+      "correlationId": "a59276b12edd6e76-MAA"
+    },
+    "body": {
+      "error": "Insufficient own prepaid balance: Available 1100 paise, requested 5000 paise"
+    }
+  }
+}

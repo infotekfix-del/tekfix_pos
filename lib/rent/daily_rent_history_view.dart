@@ -654,57 +654,60 @@ class _DailyRentHistoryViewState extends State<DailyRentHistoryView> {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          DateFormat('EEEE, dd MMM yyyy').format(r.date),
-                          style: const TextStyle(
-                              color: TekColors.textPrimary,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold),
+                        Flexible(
+                          child: Text(
+                            DateFormat('EEE, dd MMM yyyy').format(r.date),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: TekColors.textPrimary,
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.bold),
+                          ),
                         ),
                         if (isToday) ...[
                           const SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 1.5),
+                                horizontal: 5, vertical: 1),
                             decoration: BoxDecoration(
                               color: const Color(0xFFF59E0B),
-                              borderRadius: BorderRadius.circular(6),
+                              borderRadius: BorderRadius.circular(4),
                             ),
                             child: const Text('TODAY',
                                 style: TextStyle(
                                     color: Colors.black,
-                                    fontSize: 9.5,
+                                    fontSize: 9,
                                     fontWeight: FontWeight.bold)),
                           ),
                         ],
                       ],
                     ),
                     const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        Text(
-                          r.isPaid
-                              ? 'Paid via ${r.paymentMode}${r.recordedByName.isNotEmpty ? " by ${r.recordedByName}" : ""}'
-                              : (r.status == 'NOT_SCHEDULED'
-                                  ? 'Shop Closed / Day Off'
-                                  : 'Scheduled Daily Rent: ₹${r.expectedRent.toStringAsFixed(0)}'),
-                          style: const TextStyle(
-                              color: TekColors.textSecondary, fontSize: 12),
-                        ),
-                        if (r.paymentReference.isNotEmpty) ...[
-                          const SizedBox(width: 6),
-                          Text('• Ref: ${r.paymentReference}',
-                              style: const TextStyle(
-                                  color: TekColors.textMuted, fontSize: 11.5)),
-                        ],
-                        if (r.notes.isNotEmpty) ...[
-                          const SizedBox(width: 6),
-                          Text('• Note: ${r.notes}',
-                              style: const TextStyle(
-                                  color: TekColors.textMuted, fontSize: 11.5)),
-                        ],
-                      ],
+                    Text(
+                      r.isPaid
+                          ? 'Paid via ${r.paymentMode}${r.recordedByName.isNotEmpty ? " • ${r.recordedByName}" : ""}'
+                          : (r.status == 'NOT_SCHEDULED'
+                              ? 'Shop Closed / Day Off'
+                              : 'Scheduled Rent'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: TekColors.textSecondary, fontSize: 12),
                     ),
+                    if (r.paymentReference.isNotEmpty || r.notes.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        [
+                          if (r.paymentReference.isNotEmpty) 'Ref: ${r.paymentReference}',
+                          if (r.notes.isNotEmpty) 'Note: ${r.notes}',
+                        ].join(' • '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: TekColors.textMuted, fontSize: 11),
+                      ),
+                    ],
                   ],
                 ),
               ),

@@ -131,7 +131,7 @@ void main() {
 
     test('3. Payment Status Transitions', () {
       expect(BillPaymentStatus.paid, equals('Paid'));
-      expect(BillPaymentStatus.partiallyPaid, equals('Partially Paid'));
+      expect(BillPaymentStatus.partiallyPaid, equals('Partial'));
       expect(BillPaymentStatus.unpaid, equals('Unpaid'));
 
       // Test helper logic for status deduction

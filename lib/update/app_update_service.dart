@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:ota_update/ota_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../firebase_options.dart';
 
 /// Holds metadata about an available application update.
 class AppUpdateInfo {
@@ -89,6 +91,10 @@ class AppUpdateService {
 
   /// Checks Firestore for updates and returns [AppUpdateInfo] if a newer version is found.
   Future<AppUpdateInfo?> checkUpdateAvailable() async {
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      debugPrint('AppUpdateService: Skipped in UAT mode / when Firebase is not initialized.');
+      return null;
+    }
     try {
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;
@@ -177,6 +183,9 @@ class AppUpdateService {
   /// Convenience method to check and automatically display update dialog on app launch.
   Future<void> checkForUpdate(BuildContext context,
       {bool autoShowDialog = true, bool showToastIfLatest = false}) async {
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      return;
+    }
     // Throttle automatic checks so repeated widget mounts do not trigger duplicate queries
     if (autoShowDialog) {
       final now = DateTime.now();

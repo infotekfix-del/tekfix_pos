@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:tekfix_erp_pos/main.dart';
@@ -5,7 +6,8 @@ import 'package:tekfix_erp_pos/auth/auth_controller.dart';
 
 void main() {
   setUpAll(() async {
-    Hive.init('./test_hive_data');
+    final tempDir = await Directory.systemTemp.createTemp();
+    Hive.init(tempDir.path);
 
     for (final box in allBoxes) {
       await Hive.openBox(box);

@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import '../firebase_options.dart';
 import '../main.dart' show Db;
 
 /// Represents the unit conversion and costing metadata for a consumable item.
@@ -246,7 +248,7 @@ class ConsumablesService {
     }
 
     // Sync to Firestore if shopId is provided
-    if (shopId != null && shopId.isNotEmpty) {
+    if (shopId != null && shopId.isNotEmpty && Firebase.apps.isNotEmpty && !DefaultFirebaseOptions.isUatMode) {
       try {
         final query = await FirebaseFirestore.instance
             .collection('shops')

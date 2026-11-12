@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../auth/auth_controller.dart';
 import 'dashboard_tokens.dart';
 
 /// Pixel-faithful fixed left sidebar for TekFix ERP.
@@ -124,6 +125,15 @@ class TekSidebar extends StatelessWidget {
                   isActive: activeItem == 'Daily Sales & EOD',
                   onTap: () => onItemSelected?.call('Daily Sales & EOD'),
                 ),
+                // Phase 13.3.0 OWNER-ONLY RECHARGE POLICY:
+                // Only verified shop owners can see and access Quick Recharge
+                if (AuthController.instance.isOwner)
+                  _buildNavItem(
+                    label: 'Quick Recharge',
+                    icon: Icons.flash_on_rounded,
+                    isActive: activeItem == 'Quick Recharge',
+                    onTap: () => onItemSelected?.call('Quick Recharge'),
+                  ),
                 _buildNavItem(
                   label: 'Items / Stock',
                   icon: Icons.inventory_2_rounded,
@@ -199,6 +209,14 @@ class TekSidebar extends StatelessWidget {
                   isActive: activeItem == 'Owner Salary & Drawings',
                   onTap: () => onItemSelected?.call('Owner Salary & Drawings'),
                 ),
+                // Phase 13.3.3: Owner-Only Trusted Devices Management
+                if (AuthController.instance.isOwner)
+                  _buildNavItem(
+                    label: 'Trusted Devices',
+                    icon: Icons.devices_other_rounded,
+                    isActive: activeItem == 'Trusted Devices',
+                    onTap: () => onItemSelected?.call('Trusted Devices'),
+                  ),
 
                 const SizedBox(height: 18),
 

@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../core/device.dart';
+import '../firebase_options.dart';
 import '../main.dart'
     show
         Db,
@@ -176,6 +177,12 @@ class SyncEngine extends ChangeNotifier {
       {required String shopId,
       required String uid,
       required bool isOwner}) async {
+    if (DefaultFirebaseOptions.isUatMode) {
+      debugPrint('[SyncEngine] Staging UAT mode: Cloud Firestore sync disabled for production isolation.');
+      _state = SyncState.synced;
+      notifyListeners();
+      return;
+    }
     if (_running && _shop == shopId && _uid == uid && _owner == isOwner) return;
     await stop();
     _shop = shopId;

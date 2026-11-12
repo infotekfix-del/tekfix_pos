@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import '../firebase_options.dart';
 import '../main.dart' show Db;
 import 'notification_models.dart';
 
@@ -45,8 +47,8 @@ class NotificationService {
   /// Real-time stream of notifications for staff
   Stream<List<TekNotification>> streamNotifications(
       String shopId, String staffId) {
-    if (shopId.isEmpty) {
-      return Stream.value(_getDefaultAnnouncements(shopId, staffId));
+    if (shopId.isEmpty || DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      return Stream.value(_getDefaultAnnouncements(shopId, staffId)).asBroadcastStream();
     }
 
     return FirebaseFirestore.instance
@@ -76,14 +78,14 @@ class NotificationService {
     }).handleError((e) {
       debugPrint('Error streaming notifications: $e. Returning default list.');
       return _getDefaultAnnouncements(shopId, staffId);
-    });
+    }).asBroadcastStream();
   }
 
   /// Real-time stream of unread count
   Stream<int> streamUnreadCount(String shopId, String staffId) {
     return streamNotifications(shopId, staffId).map((list) {
       return list.where((n) => !n.isRead).length;
-    });
+    }).asBroadcastStream();
   }
 
   /// Seed initial owner announcement & system alerts if collection is newly created
@@ -143,7 +145,7 @@ class NotificationService {
     String sender = 'Owner',
     String? staffId,
   }) async {
-    if (shopId.isEmpty) return;
+    if (shopId.isEmpty || DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) return;
     final ref = FirebaseFirestore.instance
         .collection('shops')
         .doc(shopId)

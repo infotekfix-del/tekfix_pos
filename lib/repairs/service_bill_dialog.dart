@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import '../auth/auth_controller.dart';
+import '../firebase_options.dart';
 import '../main.dart'
     show Db, ModeSelector, printInvoice, sendInvoiceWhatsApp, toast;
 import '../pos/pos_models.dart';
@@ -709,7 +711,7 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
 
       // ATOMIC FIRESTORE TRANSACTION
       if (_shopId.isNotEmpty) {
-        if (FirebaseAuth.instance.currentUser != null) {
+        if (Firebase.apps.isNotEmpty && !DefaultFirebaseOptions.isUatMode && FirebaseAuth.instance.currentUser != null) {
           await FirebaseFirestore.instance.runTransaction((transaction) async {
             final shopDocRef =
                 FirebaseFirestore.instance.collection('shops').doc(_shopId);

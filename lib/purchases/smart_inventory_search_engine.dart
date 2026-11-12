@@ -9,6 +9,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import '../firebase_options.dart';
 import '../main.dart' show Db;
 import 'smart_inventory_models.dart';
 
@@ -120,10 +121,10 @@ class SmartInventorySearchEngine extends ChangeNotifier {
 
   /// Establishes real-time snapshot listener on shops/{shopId}/inventory with metadata detection.
   void _setupFirestoreListener(String shopId) {
-    if (Firebase.apps.isEmpty) {
+    if (Firebase.apps.isEmpty || DefaultFirebaseOptions.isUatMode) {
       _syncState = InventorySyncState.offline;
       debugPrint(
-          '[SmartInventorySearchEngine] Firebase not initialized; running in offline mode.');
+          '[SmartInventorySearchEngine] Firebase not initialized or UAT mode; running in offline mode.');
       return;
     }
 
@@ -221,8 +222,11 @@ class SmartInventorySearchEngine extends ChangeNotifier {
     notifyListeners();
 
     try {
-      if (Firebase.apps.isEmpty) {
-        throw Exception('Firebase is not initialized');
+      if (Firebase.apps.isEmpty || DefaultFirebaseOptions.isUatMode) {
+        _syncState = InventorySyncState.offline;
+        _isRefreshing = false;
+        notifyListeners();
+        return false;
       }
 
       final fs = FirebaseFirestore.instance;

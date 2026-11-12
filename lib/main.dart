@@ -22,6 +22,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'auth/auth_controller.dart';
 import 'auth/login_gate.dart';
 import 'core/device.dart';
+import 'recharge/recharge_backend_bridge.dart';
+import 'recharge/supabase_recharge_bridge_client.dart';
+import 'security/staging_identity_service.dart';
 import 'staff/activity_log.dart';
 import 'staff/staff_accounts_view.dart';
 import 'staff/staff_tracking_view.dart';
@@ -86,6 +89,11 @@ const String boxSyncQueue = 'tek_sync_queue';
 const String boxReturns = 'tek_returns';
 const String boxPurchaseBills = 'tek_purchase_bills';
 const String boxVendorPayments = 'tek_vendor_payments';
+const String boxRecharges = 'tek_recharges';
+const String boxRechargeQueue = 'tek_recharge_queue';
+const String boxRechargeDeadLetter = 'tek_recharge_dead_letter';
+const String boxRechargeReconciliation = 'tek_recharge_reconciliation';
+const String boxRechargeWalletLedger = 'tek_recharge_wallet_ledger';
 const List<String> allBoxes = [
   boxItems,
   boxParties,
@@ -102,6 +110,11 @@ const List<String> allBoxes = [
   boxReturns,
   boxPurchaseBills,
   boxVendorPayments,
+  boxRecharges,
+  boxRechargeQueue,
+  boxRechargeDeadLetter,
+  boxRechargeReconciliation,
+  boxRechargeWalletLedger,
 ];
 
 const Color kPrimary = Color(0xFF1E3A8A);
@@ -167,6 +180,11 @@ class Db {
   static Box get returns => Hive.box(boxReturns);
   static Box get purchaseBills => Hive.box(boxPurchaseBills);
   static Box get vendorPayments => Hive.box(boxVendorPayments);
+  static Box get recharges => Hive.box(boxRecharges);
+  static Box get rechargeQueue => Hive.box(boxRechargeQueue);
+  static Box get rechargeDeadLetter => Hive.box(boxRechargeDeadLetter);
+  static Box get rechargeReconciliation => Hive.box(boxRechargeReconciliation);
+  static Box get rechargeWalletLedger => Hive.box(boxRechargeWalletLedger);
 
   // ---- Cross-device references ---------------------------------------------
   // Hive keys (0,1,2...) differ on every device; the `_id` stamped by the sync
@@ -438,20 +456,41 @@ Future<void> main() async {
 
     debugPrint('[TekFix Startup] 1. Flutter engine binding initialized');
 
-    // 2. Firebase Initialization (Optional, offline-first app starts even without it)
-    try {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      ).timeout(const Duration(seconds: 3));
-
-      FirebaseFirestore.instance.settings = const Settings(
-        persistenceEnabled: true,
-        cacheSizeBytes: 100 * 1024 * 1024,
+    // 2. Firebase / Staging Backend Initialization
+    if (DefaultFirebaseOptions.isUatMode) {
+      debugPrint('[TekFix Startup] 2. STAGING UAT ISOLATION ACTIVE');
+      debugPrint('[TekFix Startup] 2. Production Firebase (tekfix-45b38) strictly BLOCKED.');
+      debugPrint('[TekFix Startup] 2. Initializing Supabase Recharge Bridge client for ap-south-1 Mumbai...');
+      DefaultFirebaseOptions.validateStagingSupabaseReference(DefaultFirebaseOptions.expectedSupabaseEdgeUrl);
+      final stagingClient = SupabaseRechargeBridgeClient(
+        edgeFunctionBaseUrl: DefaultFirebaseOptions.expectedSupabaseEdgeUrl,
+        getFirebaseIdToken: () async => StagingIdentityService.getOptionAToken(
+          edgeFunctionBaseUrl: DefaultFirebaseOptions.expectedSupabaseEdgeUrl,
+        ),
       );
-      debugPrint(
-          '[TekFix Startup] 2. Firebase initialized with offline persistence');
-    } catch (e) {
-      debugPrint('[TekFix Startup] 2. Firebase init skipped or failed: $e');
+      RechargeBackendBridge.configure(
+        mode: RechargeBackendMode.supabaseEdgeFunction,
+        supabaseClient: stagingClient,
+      );
+      debugPrint('[TekFix Startup] 2. Supabase Recharge Bridge configured successfully');
+    } else {
+      try {
+        DefaultFirebaseOptions.enforceProductionIsolation(
+          projectId: DefaultFirebaseOptions.currentPlatform.projectId,
+        );
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        ).timeout(const Duration(seconds: 3));
+
+        FirebaseFirestore.instance.settings = const Settings(
+          persistenceEnabled: true,
+          cacheSizeBytes: 100 * 1024 * 1024,
+        );
+        debugPrint(
+            '[TekFix Startup] 2. Firebase initialized with offline persistence');
+      } catch (e) {
+        debugPrint('[TekFix Startup] 2. Firebase init skipped or failed: $e');
+      }
     }
 
     // 3. Hive Initialization with Corrupt Box Recovery

@@ -1,0 +1,65 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // -----------------------------------------------------------
+    // Authentication & Shop Authorization Helpers
+    // -----------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isShopOwner(shopId) {
+      return isSignedIn() &&
+        firestore.exists(/databases/(default)/documents/shops/$(shopId)) &&
+        firestore.get(/databases/(default)/documents/shops/$(shopId)).data.ownerUid == request.auth.uid;
+    }
+
+    function isShopStaff(shopId) {
+      return isSignedIn() &&
+        firestore.exists(/databases/(default)/documents/shops/$(shopId)/users/$(request.auth.uid)) &&
+        firestore.get(/databases/(default)/documents/shops/$(shopId)/users/$(request.auth.uid)).data.active != false &&
+        firestore.get(/databases/(default)/documents/shops/$(shopId)/users/$(request.auth.uid)).data.approved != false;
+    }
+
+    function isShopMember(shopId) {
+      return isShopOwner(shopId) || isShopStaff(shopId);
+    }
+
+    function isValidAttachment() {
+      return request.resource.size < 10 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*')
+            || request.resource.contentType == 'application/pdf');
+    }
+
+    // -----------------------------------------------------------
+    // Global Default Deny All Paths
+    // -----------------------------------------------------------
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // -----------------------------------------------------------
+    // Explicit Whitelisted Business Folders (/shops/{shopId}/...)
+    // -----------------------------------------------------------
+
+    // 1. Expense Receipts
+    match /shops/{shopId}/expense_receipts/{fileName} {
+      allow read: if isShopMember(shopId);
+      allow write: if isShopMember(shopId) && isValidAttachment();
+    }
+
+    // 2. Purchase Invoices
+    match /shops/{shopId}/purchase_invoices/{fileName} {
+      allow read: if isShopMember(shopId);
+      allow write: if isShopMember(shopId) && isValidAttachment();
+    }
+
+    // 3. Rent Receipts
+    match /shops/{shopId}/rent_receipts/{fileName} {
+      allow read: if isShopMember(shopId);
+      allow write: if isShopMember(shopId) && isValidAttachment();
+    }
+  }
+}
+

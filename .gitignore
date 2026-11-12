@@ -110,3 +110,17 @@ Thumbs.db
 *.swp
 *~
 test_hive_data/
+
+# Financial Database Backups
+backups/
+test_backups_temp/
+*.enc.bin
+*.manifest.json
+*.sql
+
+# Private Local Staging Configurations (Owner PIN)
+tools/staging/staging.local.json
+tools/staging/staging.local*.json
+staging.local.json
+staging.local*.json
+

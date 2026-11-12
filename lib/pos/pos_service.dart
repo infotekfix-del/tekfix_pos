@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
+import '../firebase_options.dart';
 import '../main.dart' show Db;
 import '../utils/tek_helpers.dart';
 import '../inventory/consumables_service.dart';
@@ -79,25 +81,27 @@ class PosService {
     _pinLockoutUntil = null;
     final approvalId = _uuid.v4();
 
-    try {
-      await FirebaseFirestore.instance
-          .collection('shops')
-          .doc(shopId)
-          .collection('priceApprovals')
-          .doc(approvalId)
-          .set({
-        'approvalId': approvalId,
-        'itemId': item.id,
-        'itemName': item.name,
-        'mrp': item.sellingPrice,
-        'floorPrice': item.minPrice,
-        'approvedPrice': requestedPrice,
-        'staffId': staffId,
-        'staffName': staffName,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      debugPrint('Price approval audit log write failed: $e');
+    if (shopId.isNotEmpty && Firebase.apps.isNotEmpty && !DefaultFirebaseOptions.isUatMode) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('shops')
+            .doc(shopId)
+            .collection('priceApprovals')
+            .doc(approvalId)
+            .set({
+          'approvalId': approvalId,
+          'itemId': item.id,
+          'itemName': item.name,
+          'mrp': item.sellingPrice,
+          'floorPrice': item.minPrice,
+          'approvedPrice': requestedPrice,
+          'staffId': staffId,
+          'staffName': staffName,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        debugPrint('Price approval audit log write failed: $e');
+      }
     }
 
     return (success: true, approvalId: approvalId, error: null);
@@ -123,7 +127,7 @@ class PosService {
 
   /// Real-time stream of catalog products with live stock tracking from Firestore
   Stream<List<PosItem>> streamCatalogItems(String shopId) {
-    if (shopId.isEmpty) {
+    if (shopId.isEmpty || DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
       return Stream.value(getCatalogItems());
     }
 
@@ -290,7 +294,7 @@ class PosService {
 
     try {
       // 3. Firestore Atomic Transaction
-      if (shopId.isNotEmpty) {
+      if (shopId.isNotEmpty && Firebase.apps.isNotEmpty && !DefaultFirebaseOptions.isUatMode) {
         try {
           await FirebaseFirestore.instance.runTransaction((transaction) async {
             final invRef = FirebaseFirestore.instance

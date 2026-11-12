@@ -320,7 +320,7 @@ void main() {
       expect(find.text('TEKFIX DIGITAL'), findsOneWidget);
       expect(find.text('BATTERY AXLEL GOLD 805'), findsNWidgets(2));
       expect(find.text('TKF123456'), findsNWidgets(2));
-      expect(find.text('MRP: ₹450'), findsOneWidget);
+      expect(find.text('MRP: ₹450.00'), findsOneWidget);
 
       // Verify Action Buttons
       expect(find.text('Print Border Test'), findsOneWidget);

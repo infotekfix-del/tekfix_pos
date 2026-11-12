@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../auth/auth_controller.dart';
+import '../firebase_options.dart';
 import '../main.dart' show EmptyState, toast;
 import '../ui/sync_status_icon.dart';
 import 'staff_tracking_view.dart' show RoleBadge;
@@ -115,10 +117,17 @@ class StaffAccountsView extends StatelessWidget {
         icon: const Icon(Icons.person_add),
         label: const Text('Add Staff Account'),
       ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('shops/${a.shopId}/users')
-            .snapshots(),
+      body: (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty)
+          ? const Center(
+              child: Text(
+                'Staff accounts are managed in Cloud Firestore (disabled in isolated Staging UAT mode).',
+                style: TextStyle(color: Colors.white70),
+              ),
+            )
+          : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('shops/${a.shopId}/users')
+                  .snapshots(),
         builder: (context, snap) {
           if (!snap.hasData)
             return const Center(child: CircularProgressIndicator());

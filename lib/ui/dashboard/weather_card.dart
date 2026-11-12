@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../../firebase_options.dart';
 import '../../main.dart' show Db;
 import 'dashboard_tokens.dart';
 
@@ -56,6 +58,10 @@ class _TekWeatherCardState extends State<TekWeatherCard> {
   }
 
   Future<void> _fetchLiveWeather() async {
+    if (DefaultFirebaseOptions.isUatMode ||
+        WidgetsBinding.instance.runtimeType.toString().contains('Test')) {
+      return;
+    }
     setState(() => _isLoading = true);
     try {
       final url = Uri.parse(

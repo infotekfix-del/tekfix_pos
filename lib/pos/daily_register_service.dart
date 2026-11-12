@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -6,6 +7,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../firebase_options.dart';
 import '../main.dart' show Db, tekM, toast;
 import 'daily_register_models.dart';
 
@@ -72,7 +74,7 @@ class DailyRegisterService {
 
     // 2. Query Firestore if shopId provided
     final resolvedShop = shopId ?? Db.setting('shop_id', '');
-    if (resolvedShop.isNotEmpty) {
+    if (resolvedShop.isNotEmpty && Firebase.apps.isNotEmpty && !DefaultFirebaseOptions.isUatMode) {
       try {
         final startTs = Timestamp.fromDate(startOfDay);
         final endTs = Timestamp.fromDate(endOfDay);
@@ -376,7 +378,7 @@ class DailyRegisterService {
     }
 
     // 2. Check Firestore register_openings for this date (authoritative source of truth)
-    if (resolvedShop.isNotEmpty) {
+    if (resolvedShop.isNotEmpty && Firebase.apps.isNotEmpty && !DefaultFirebaseOptions.isUatMode) {
       try {
         final doc = await FirebaseFirestore.instance
             .collection('shops')
@@ -455,7 +457,7 @@ class DailyRegisterService {
     final nextDayStr = toDateString(nextDay);
     bool shouldCarryForward = true;
 
-    if (resolvedShop.isNotEmpty) {
+    if (resolvedShop.isNotEmpty && Firebase.apps.isNotEmpty && !DefaultFirebaseOptions.isUatMode) {
       try {
         final shopDoc =
             FirebaseFirestore.instance.collection('shops').doc(resolvedShop);
@@ -614,7 +616,7 @@ class DailyRegisterService {
     final resolvedShop = shopId ?? Db.setting('shop_id', '');
 
     // 1. Check Firestore (authoritative source of truth)
-    if (resolvedShop.isNotEmpty) {
+    if (resolvedShop.isNotEmpty && Firebase.apps.isNotEmpty && !DefaultFirebaseOptions.isUatMode) {
       try {
         final doc = await FirebaseFirestore.instance
             .collection('shops')

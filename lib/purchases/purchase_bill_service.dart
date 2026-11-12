@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import '../main.dart' show Db, boxPurchaseBills, boxVendorPayments;
 import '../inventory/consumables_service.dart';
+import '../storage/storage_bridge.dart';
+import '../storage/supabase_storage_bridge_client.dart';
 import 'purchase_models.dart';
 
 class PurchaseBillService {
@@ -571,14 +573,14 @@ class PurchaseBillService {
         try {
           final bytes =
               attachmentBytes ?? base64Decode(attachment.bytesBase64!);
-          final storageRef = FirebaseStorage.instance.ref().child(
-              'shops/$sId/purchase_invoices/${billId}_${attachment.fileName}');
-          final uploadTask = await storageRef.putData(
-            bytes,
-            SettableMetadata(contentType: attachment.fileType),
+          storagePath = await StorageBridge.uploadFinancialDocument(
+            shopId: sId,
+            category: StorageCategory.purchaseInvoices,
+            documentId: billId,
+            originalFileName: attachment.fileName,
+            bytes: bytes,
+            mimeType: attachment.fileType.isNotEmpty ? attachment.fileType : 'application/pdf',
           );
-          storagePath = uploadTask.ref.fullPath;
-          await uploadTask.ref.getDownloadURL();
         } catch (e) {
           debugPrint(
               '[PurchaseBillService] Firebase Storage upload notice: $e');
@@ -821,14 +823,18 @@ class PurchaseBillService {
             try {
               final bytes =
                   attachmentBytes ?? base64Decode(attachment.bytesBase64!);
-              final storageRef = FirebaseStorage.instance.ref().child(
-                  'shops/$sId/purchase_invoices/${billId}_${attachment.fileName}');
-              final uploadTask = await storageRef.putData(
-                bytes,
-                SettableMetadata(contentType: attachment.fileType),
+              storagePath = await StorageBridge.uploadFinancialDocument(
+                shopId: sId,
+                category: StorageCategory.purchaseInvoices,
+                documentId: billId,
+                originalFileName: attachment.fileName,
+                bytes: bytes,
+                mimeType: attachment.fileType.isNotEmpty ? attachment.fileType : 'application/pdf',
               );
-              storagePath = uploadTask.ref.fullPath;
-              downloadUrl = await uploadTask.ref.getDownloadURL();
+              downloadUrl = await StorageBridge.resolveDownloadUrl(
+                shopId: sId,
+                rawUrlOrPath: storagePath,
+              );
             } catch (e) {
               debugPrint(
                   '[PurchaseBillService] Firebase Storage upload notice: $e');

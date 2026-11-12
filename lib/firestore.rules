@@ -11,39 +11,37 @@ service cloud.firestore {
 
     function isOwner(shopId) {
       return isSignedIn() && (
-        // 1. Direct shop owner check via ownerUid field
+        // 1. Direct shop owner check via ownerUid field on active shop
         (exists(/databases/$(db)/documents/shops/$(shopId)) &&
          'ownerUid' in get(/databases/$(db)/documents/shops/$(shopId)).data &&
-         get(/databases/$(db)/documents/shops/$(shopId)).data.ownerUid == request.auth.uid) ||
-        // 2. User role in shop users collection
+         get(/databases/$(db)/documents/shops/$(shopId)).data.ownerUid == request.auth.uid &&
+         (!('active' in get(/databases/$(db)/documents/shops/$(shopId)).data) ||
+          get(/databases/$(db)/documents/shops/$(shopId)).data.active != false)) ||
+        // 2. Active, approved owner/admin in shop users collection
         (exists(/databases/$(db)/documents/shops/$(shopId)/users/$(request.auth.uid)) &&
          'role' in get(/databases/$(db)/documents/shops/$(shopId)/users/$(request.auth.uid)).data &&
+         (!('active' in get(/databases/$(db)/documents/shops/$(shopId)/users/$(request.auth.uid)).data) ||
+          get(/databases/$(db)/documents/shops/$(shopId)/users/$(request.auth.uid)).data.active != false) &&
+         (!('approved' in get(/databases/$(db)/documents/shops/$(shopId)/users/$(request.auth.uid)).data) ||
+          get(/databases/$(db)/documents/shops/$(shopId)/users/$(request.auth.uid)).data.approved != false) &&
          (get(/databases/$(db)/documents/shops/$(shopId)/users/$(request.auth.uid)).data.role == 'owner' ||
-          get(/databases/$(db)/documents/shops/$(shopId)/users/$(request.auth.uid)).data.role == 'admin')) ||
-        // 3. Email-based owner/admin identification
-        (request.auth.token.email != null &&
-         (request.auth.token.email.matches('.*owner.*') || request.auth.token.email.matches('.*admin.*')))
+          get(/databases/$(db)/documents/shops/$(shopId)/users/$(request.auth.uid)).data.role == 'admin'))
       );
     }
 
     function isShopMember(shopId) {
       return isSignedIn() && (
         isOwner(shopId) ||
-        // 1. Custom claims shopId match
-        (request.auth.token.shopId != null && request.auth.token.shopId == shopId) ||
-        // 2. Active member in shop users collection
+        // 1. Active member in shop users collection
         (exists(/databases/$(db)/documents/shops/$(shopId)/users/$(request.auth.uid)) &&
          (!('active' in get(/databases/$(db)/documents/shops/$(shopId)/users/$(request.auth.uid)).data) ||
           get(/databases/$(db)/documents/shops/$(shopId)/users/$(request.auth.uid)).data.active != false) &&
          (!('approved' in get(/databases/$(db)/documents/shops/$(shopId)/users/$(request.auth.uid)).data) ||
           get(/databases/$(db)/documents/shops/$(shopId)/users/$(request.auth.uid)).data.approved != false)) ||
-        // 3. Exists in staff collection
+        // 2. Exists in staff collection
         exists(/databases/$(db)/documents/shops/$(shopId)/staff/$(request.auth.uid)) ||
-        // 4. Exists in members collection
-        exists(/databases/$(db)/documents/shops/$(shopId)/members/$(request.auth.uid)) ||
-        // 5. Default/primary shop authorization for authenticated staff & owner
-        shopId == 'tekfix' ||
-        shopId == 'default'
+        // 3. Exists in members collection
+        exists(/databases/$(db)/documents/shops/$(shopId)/members/$(request.auth.uid))
       );
     }
 
@@ -52,7 +50,11 @@ service cloud.firestore {
     // -------------------------------------------------------------
     match /shops/{shop} {
       allow read: if isShopMember(shop);
-      allow create, update: if isShopMember(shop);
+      allow create: if isSignedIn() && (
+        request.resource.data.ownerUid == request.auth.uid ||
+        isOwner(shop)
+      );
+      allow update: if isShopMember(shop);
       allow delete: if isOwner(shop);
 
       // 1. Service Jobs & Invoices (Service Checkout / Sale to Customer)
@@ -389,11 +391,302 @@ service cloud.firestore {
         allow delete: if isOwner(shop);
       }
 
-      // Universal catch-all for any other shop subcollections
-      match /{document=**} {
+      // -------------------------------------------------------------
+      // 18. RECHARGE & UTILITY ACCOUNTING MODULE
+      // -------------------------------------------------------------
+      // Wallets: Owner can create/top-up balances (non-negative); Direct staff updates are strictly DENIED.
+      // Recharge debits MUST be processed through authorized trusted server-side operation.
+      match /recharge_wallets/{walletId} {
+        allow read: if isShopMember(shop);
+        allow create: if isOwner(shop) &&
+          (!('totalBalancePaise' in request.resource.data) || request.resource.data.totalBalancePaise >= 0) &&
+          (!('ownPrepaidBalancePaise' in request.resource.data) || request.resource.data.ownPrepaidBalancePaise >= 0) &&
+          (!('distributorCreditBalancePaise' in request.resource.data) || request.resource.data.distributorCreditBalancePaise >= 0);
+        allow update: if isOwner(shop) &&
+          (!('totalBalancePaise' in request.resource.data) || request.resource.data.totalBalancePaise >= 0) &&
+          (!('ownPrepaidBalancePaise' in request.resource.data) || request.resource.data.ownPrepaidBalancePaise >= 0) &&
+          (!('distributorCreditBalancePaise' in request.resource.data) || request.resource.data.distributorCreditBalancePaise >= 0);
+        allow delete: if false; // Wallets are permanent shop assets
+      }
+
+      // Wallet Ledger: Immutable append-only audit trail
+      match /recharge_wallet_logs/{logId} {
+        allow read: if isShopMember(shop);
+        allow create: if isOwner(shop); // Owner top-up or trusted backend (Admin SDK) only
+        allow update, delete: if false; // Strict financial ledger immutability
+      }
+
+      // Recharge Transactions: Phase 13.3.0 Owner-Only Recharge Policy
+      // Recharge operations are restricted exclusively to verified shop owners. Staff accounts are rejected.
+      match /recharge_transactions/{txnId} {
+        allow read: if isShopMember(shop);
+        allow create: if isOwner(shop);
+        allow update: if isOwner(shop);
+        allow delete: if false;
+      }
+
+      // Distributor Profiles & Outstanding
+      match /recharge_distributors/{distId} {
         allow read: if isShopMember(shop);
         allow create, update: if isShopMember(shop);
         allow delete: if isOwner(shop);
+      }
+
+      // Distributor Ledger: Immutable append-only payable audit trail
+      match /recharge_distributor_ledger/{id} {
+        allow read: if isShopMember(shop);
+        allow create: if isOwner(shop);
+        allow update, delete: if false; // Strict financial ledger immutability
+      }
+
+      // Reversals & Refunds: Immutable financial reversal vouchers
+      match /recharge_reversals/{id} {
+        allow read: if isShopMember(shop);
+        allow create: if isOwner(shop);
+        allow update, delete: if false; // Strict financial ledger immutability
+      }
+
+      match /recharge_refunds/{id} {
+        allow read: if isShopMember(shop);
+        allow create: if isOwner(shop);
+        allow update, delete: if false; // Strict financial ledger immutability
+      }
+
+      // Commissions & Float Deposits
+      match /recharge_commissions/{id} {
+        allow read: if isShopMember(shop);
+        allow create, update: if isOwner(shop);
+        allow delete: if isOwner(shop);
+      }
+
+      match /recharge_float_deposits/{id} {
+        allow read: if isShopMember(shop);
+        allow create: if isOwner(shop);
+        allow update, delete: if false; // Immutable bank contra records
+      }
+
+      match /recharge_daily_collections/{id} {
+        allow read: if isShopMember(shop);
+        allow create, update: if isShopMember(shop);
+        allow delete: if isOwner(shop);
+      }
+
+      // Daily Operator Opening & Closing Balance Reconciliation (Phase 12.4 Hardened)
+      match /recharge_daily_reconciliation/{businessDate} {
+        allow read: if isShopMember(shop);
+
+        allow create: if isShopMember(shop) && (
+          request.resource.data.shopId == shop &&
+          request.resource.data.businessDate == businessDate &&
+          (!('isImmutable' in request.resource.data) || request.resource.data.isImmutable == false) &&
+          (!('isReviewedByOwner' in request.resource.data) || request.resource.data.isReviewedByOwner == false) &&
+          (!('closingStatus' in request.resource.data) || request.resource.data.closingStatus == 'pending') &&
+          (!('reconciliationStatus' in request.resource.data) || request.resource.data.reconciliationStatus in ['pending', 'incomplete']) &&
+          (!('reviewedBy' in request.resource.data) || request.resource.data.reviewedBy == null) &&
+          (!('reviewedAt' in request.resource.data) || request.resource.data.reviewedAt == null) &&
+          (!('closedBy' in request.resource.data) || request.resource.data.closedBy == null) &&
+          (!('closedAt' in request.resource.data) || request.resource.data.closedAt == null) &&
+          (!('corrections' in request.resource.data) || request.resource.data.corrections.size() == 0) &&
+          // Verify operator maps do not contain closing or review data
+          (!('operators' in request.resource.data) || (
+            (!('jio' in request.resource.data.operators) || (
+              (!('actualClosingBalancePaise' in request.resource.data.operators.jio) || request.resource.data.operators.jio.actualClosingBalancePaise == 0) &&
+              (!('expectedClosingBalancePaise' in request.resource.data.operators.jio) || request.resource.data.operators.jio.expectedClosingBalancePaise == 0) &&
+              (!('differencePaise' in request.resource.data.operators.jio) || request.resource.data.operators.jio.differencePaise == 0) &&
+              (!('isClosingCompleted' in request.resource.data.operators.jio) || request.resource.data.operators.jio.isClosingCompleted == false) &&
+              (!('isReviewedByOwner' in request.resource.data.operators.jio) || request.resource.data.operators.jio.isReviewedByOwner == false) &&
+              (!('reviewedBy' in request.resource.data.operators.jio) || request.resource.data.operators.jio.reviewedBy == null) &&
+              (!('reviewedAt' in request.resource.data.operators.jio) || request.resource.data.operators.jio.reviewedAt == null) &&
+              (!('closingEnteredBy' in request.resource.data.operators.jio) || request.resource.data.operators.jio.closingEnteredBy == null || request.resource.data.operators.jio.closingEnteredBy == '') &&
+              (!('closingEnteredAt' in request.resource.data.operators.jio) || request.resource.data.operators.jio.closingEnteredAt == null)
+            )) &&
+            (!('airtel' in request.resource.data.operators) || (
+              (!('actualClosingBalancePaise' in request.resource.data.operators.airtel) || request.resource.data.operators.airtel.actualClosingBalancePaise == 0) &&
+              (!('expectedClosingBalancePaise' in request.resource.data.operators.airtel) || request.resource.data.operators.airtel.expectedClosingBalancePaise == 0) &&
+              (!('differencePaise' in request.resource.data.operators.airtel) || request.resource.data.operators.airtel.differencePaise == 0) &&
+              (!('isClosingCompleted' in request.resource.data.operators.airtel) || request.resource.data.operators.airtel.isClosingCompleted == false) &&
+              (!('isReviewedByOwner' in request.resource.data.operators.airtel) || request.resource.data.operators.airtel.isReviewedByOwner == false) &&
+              (!('reviewedBy' in request.resource.data.operators.airtel) || request.resource.data.operators.airtel.reviewedBy == null) &&
+              (!('reviewedAt' in request.resource.data.operators.airtel) || request.resource.data.operators.airtel.reviewedAt == null) &&
+              (!('closingEnteredBy' in request.resource.data.operators.airtel) || request.resource.data.operators.airtel.closingEnteredBy == null || request.resource.data.operators.airtel.closingEnteredBy == '') &&
+              (!('closingEnteredAt' in request.resource.data.operators.airtel) || request.resource.data.operators.airtel.closingEnteredAt == null)
+            )) &&
+            (!('vi' in request.resource.data.operators) || (
+              (!('actualClosingBalancePaise' in request.resource.data.operators.vi) || request.resource.data.operators.vi.actualClosingBalancePaise == 0) &&
+              (!('expectedClosingBalancePaise' in request.resource.data.operators.vi) || request.resource.data.operators.vi.expectedClosingBalancePaise == 0) &&
+              (!('differencePaise' in request.resource.data.operators.vi) || request.resource.data.operators.vi.differencePaise == 0) &&
+              (!('isClosingCompleted' in request.resource.data.operators.vi) || request.resource.data.operators.vi.isClosingCompleted == false) &&
+              (!('isReviewedByOwner' in request.resource.data.operators.vi) || request.resource.data.operators.vi.isReviewedByOwner == false) &&
+              (!('reviewedBy' in request.resource.data.operators.vi) || request.resource.data.operators.vi.reviewedBy == null) &&
+              (!('reviewedAt' in request.resource.data.operators.vi) || request.resource.data.operators.vi.reviewedAt == null) &&
+              (!('closingEnteredBy' in request.resource.data.operators.vi) || request.resource.data.operators.vi.closingEnteredBy == null || request.resource.data.operators.vi.closingEnteredBy == '') &&
+              (!('closingEnteredAt' in request.resource.data.operators.vi) || request.resource.data.operators.vi.closingEnteredAt == null)
+            )) &&
+            (!('bsnl' in request.resource.data.operators) || (
+              (!('actualClosingBalancePaise' in request.resource.data.operators.bsnl) || request.resource.data.operators.bsnl.actualClosingBalancePaise == 0) &&
+              (!('expectedClosingBalancePaise' in request.resource.data.operators.bsnl) || request.resource.data.operators.bsnl.expectedClosingBalancePaise == 0) &&
+              (!('differencePaise' in request.resource.data.operators.bsnl) || request.resource.data.operators.bsnl.differencePaise == 0) &&
+              (!('isClosingCompleted' in request.resource.data.operators.bsnl) || request.resource.data.operators.bsnl.isClosingCompleted == false) &&
+              (!('isReviewedByOwner' in request.resource.data.operators.bsnl) || request.resource.data.operators.bsnl.isReviewedByOwner == false) &&
+              (!('reviewedBy' in request.resource.data.operators.bsnl) || request.resource.data.operators.bsnl.reviewedBy == null) &&
+              (!('reviewedAt' in request.resource.data.operators.bsnl) || request.resource.data.operators.bsnl.reviewedAt == null) &&
+              (!('closingEnteredBy' in request.resource.data.operators.bsnl) || request.resource.data.operators.bsnl.closingEnteredBy == null || request.resource.data.operators.bsnl.closingEnteredBy == '') &&
+              (!('closingEnteredAt' in request.resource.data.operators.bsnl) || request.resource.data.operators.bsnl.closingEnteredAt == null)
+            ))
+          ))
+        );
+
+        allow update: if isShopMember(shop) && (
+          // Record must not be locked / immutable
+          (!('isImmutable' in resource.data) || resource.data.isImmutable != true) &&
+
+          // Audit notes array must be append-only / never truncated or rewritten
+          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['auditNotes']) || (
+            'auditNotes' in request.resource.data && (
+              !('auditNotes' in resource.data) || (
+                request.resource.data.auditNotes.size() >= resource.data.auditNotes.size() &&
+                request.resource.data.auditNotes.hasAll(resource.data.auditNotes)
+              )
+            )
+          )) &&
+
+          // 1. OPENING IMMUTABILITY (Applies to both Owner and Staff)
+          (!('openingStatus' in resource.data) || resource.data.openingStatus != 'completed' || (
+            request.resource.data.openingStatus == 'completed' &&
+            request.resource.data.openedBy == resource.data.openedBy &&
+            request.resource.data.openedAt == resource.data.openedAt &&
+            (!('operators' in resource.data) || (
+              (!('jio' in resource.data.operators) || !('openingBalancePaise' in resource.data.operators.jio) || request.resource.data.operators.jio.openingBalancePaise == resource.data.operators.jio.openingBalancePaise) &&
+              (!('airtel' in resource.data.operators) || !('openingBalancePaise' in resource.data.operators.airtel) || request.resource.data.operators.airtel.openingBalancePaise == resource.data.operators.airtel.openingBalancePaise) &&
+              (!('vi' in resource.data.operators) || !('openingBalancePaise' in resource.data.operators.vi) || request.resource.data.operators.vi.openingBalancePaise == resource.data.operators.vi.openingBalancePaise) &&
+              (!('bsnl' in resource.data.operators) || !('openingBalancePaise' in resource.data.operators.bsnl) || request.resource.data.operators.bsnl.openingBalancePaise == resource.data.operators.bsnl.openingBalancePaise)
+            ))
+          )) &&
+
+          // 2. CLOSING IMMUTABILITY (Applies to both Owner and Staff)
+          (!('closingStatus' in resource.data) || resource.data.closingStatus != 'completed' || (
+            request.resource.data.closingStatus == 'completed' &&
+            request.resource.data.closedBy == resource.data.closedBy &&
+            request.resource.data.closedAt == resource.data.closedAt &&
+            (!('operators' in resource.data) || (
+              (!('jio' in resource.data.operators) || !('actualClosingBalancePaise' in resource.data.operators.jio) || request.resource.data.operators.jio.actualClosingBalancePaise == resource.data.operators.jio.actualClosingBalancePaise) &&
+              (!('airtel' in resource.data.operators) || !('actualClosingBalancePaise' in resource.data.operators.airtel) || request.resource.data.operators.airtel.actualClosingBalancePaise == resource.data.operators.airtel.actualClosingBalancePaise) &&
+              (!('vi' in resource.data.operators) || !('actualClosingBalancePaise' in resource.data.operators.vi) || request.resource.data.operators.vi.actualClosingBalancePaise == resource.data.operators.vi.actualClosingBalancePaise) &&
+              (!('bsnl' in resource.data.operators) || !('actualClosingBalancePaise' in resource.data.operators.bsnl) || request.resource.data.operators.bsnl.actualClosingBalancePaise == resource.data.operators.bsnl.actualClosingBalancePaise) &&
+              (!('jio' in resource.data.operators) || !('expectedClosingBalancePaise' in resource.data.operators.jio) || request.resource.data.operators.jio.expectedClosingBalancePaise == resource.data.operators.jio.expectedClosingBalancePaise) &&
+              (!('airtel' in resource.data.operators) || !('expectedClosingBalancePaise' in resource.data.operators.airtel) || request.resource.data.operators.airtel.expectedClosingBalancePaise == resource.data.operators.airtel.expectedClosingBalancePaise) &&
+              (!('vi' in resource.data.operators) || !('expectedClosingBalancePaise' in resource.data.operators.vi) || request.resource.data.operators.vi.expectedClosingBalancePaise == resource.data.operators.vi.expectedClosingBalancePaise) &&
+              (!('bsnl' in resource.data.operators) || !('expectedClosingBalancePaise' in resource.data.operators.bsnl) || request.resource.data.operators.bsnl.expectedClosingBalancePaise == resource.data.operators.bsnl.expectedClosingBalancePaise) &&
+              (!('jio' in resource.data.operators) || !('differencePaise' in resource.data.operators.jio) || request.resource.data.operators.jio.differencePaise == resource.data.operators.jio.differencePaise) &&
+              (!('airtel' in resource.data.operators) || !('differencePaise' in resource.data.operators.airtel) || request.resource.data.operators.airtel.differencePaise == resource.data.operators.airtel.differencePaise) &&
+              (!('vi' in resource.data.operators) || !('differencePaise' in resource.data.operators.vi) || request.resource.data.operators.vi.differencePaise == resource.data.operators.vi.differencePaise) &&
+              (!('bsnl' in resource.data.operators) || !('differencePaise' in resource.data.operators.bsnl) || request.resource.data.operators.bsnl.differencePaise == resource.data.operators.bsnl.differencePaise)
+            ))
+          )) &&
+
+          // 3. ROLE-SPECIFIC PERMISSIONS
+          (
+            // Owner Review & Lock actions
+            (isOwner(shop) && (
+              // Owner review verification: reviewedBy must not be forged
+              (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['reviewedBy'])) ||
+              (request.resource.data.reviewedBy.matches('.*' + request.auth.uid + '.*') ||
+               (request.auth.token.email != null && request.resource.data.reviewedBy.matches('.*' + request.auth.token.email + '.*')))
+            )) ||
+
+            // Staff actions (Opening or Closing entry)
+            (!isOwner(shop) && (
+              // Staff cannot review, self-approve, or lock record
+              request.resource.data.reconciliationStatus != 'reviewed' &&
+              (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['isImmutable', 'reviewedBy', 'reviewedAt', 'createdBy'])) &&
+              // Once closed, staff cannot change reconciliation status
+              (!('closingStatus' in resource.data) || resource.data.closingStatus != 'completed' || request.resource.data.reconciliationStatus == resource.data.reconciliationStatus) &&
+              // Staff cannot self-approve on operator level
+              (!('operators' in request.resource.data) || (
+                (!('jio' in request.resource.data.operators) || !('isReviewedByOwner' in request.resource.data.operators.jio) || request.resource.data.operators.jio.isReviewedByOwner == false || ('operators' in resource.data && 'jio' in resource.data.operators && resource.data.operators.jio.isReviewedByOwner == true)) &&
+                (!('airtel' in request.resource.data.operators) || !('isReviewedByOwner' in request.resource.data.operators.airtel) || request.resource.data.operators.airtel.isReviewedByOwner == false || ('operators' in resource.data && 'airtel' in resource.data.operators && resource.data.operators.airtel.isReviewedByOwner == true)) &&
+                (!('vi' in request.resource.data.operators) || !('isReviewedByOwner' in request.resource.data.operators.vi) || request.resource.data.operators.vi.isReviewedByOwner == false || ('operators' in resource.data && 'vi' in resource.data.operators && resource.data.operators.vi.isReviewedByOwner == true)) &&
+                (!('bsnl' in request.resource.data.operators) || !('isReviewedByOwner' in request.resource.data.operators.bsnl) || request.resource.data.operators.bsnl.isReviewedByOwner == false || ('operators' in resource.data && 'bsnl' in resource.data.operators && resource.data.operators.bsnl.isReviewedByOwner == true))
+              ))
+            ))
+          )
+        );
+
+        allow delete: if false; // Permanent reconciliation records
+
+        // Subcollection: Immutable append-only correction vouchers
+        match /corrections/{correctionId} {
+          allow read: if isShopMember(shop);
+          allow create: if isShopMember(shop) && (
+            // Owner can create approved correction directly
+            (isOwner(shop) &&
+             request.resource.data.correctionId == correctionId &&
+             request.resource.data.approvedBy == request.auth.uid &&
+             request.resource.data.status in ['approved', 'rejected']) ||
+            // Staff can submit pending correction request
+            (!isOwner(shop) &&
+             request.resource.data.correctionId == correctionId &&
+             request.resource.data.requestedBy == request.auth.uid &&
+             request.resource.data.status == 'pending' &&
+             !('approvedBy' in request.resource.data))
+          );
+          allow update: if isOwner(shop) &&
+            resource.data.status == 'pending' &&
+            request.resource.data.status in ['approved', 'rejected'] &&
+            request.resource.data.approvedBy == request.auth.uid &&
+            request.resource.data.requestedBy != request.auth.uid; // Staff requested, owner approved
+          allow delete: if false; // Immutable audit documents
+        }
+      }
+
+      // -------------------------------------------------------------
+      // 19. OWNER TRUSTED DEVICES MODULE (PHASE 13.3.3)
+      // -------------------------------------------------------------
+      match /trusted_devices/{deviceId} {
+        // Read: Only verified shop owner can inspect registered devices
+        allow read: if isOwner(shop);
+
+        // Direct client creation & modification is strictly DENIED.
+        // Device enrollment must go through trusted Cloud Function 'registerTrustedDevice'.
+        allow create, update, delete: if false;
+      }
+
+      // Ephemeral cryptographic nonces for challenge-response auth
+      match /device_challenges/{nonceId} {
+        allow read, write: if false; // Cloud Functions Admin SDK only
+      }
+
+      // Universal catch-all for any other shop subcollections
+      match /{document=**} {
+        allow read: if isShopMember(shop);
+        allow create, update: if isShopMember(shop) &&
+          !(request.path[5] in [
+            'recharge_wallets',
+            'recharge_transactions',
+            'recharge_wallet_logs',
+            'recharge_distributor_ledger',
+            'recharge_distributors',
+            'recharge_reversals',
+            'recharge_refunds',
+            'recharge_commissions',
+            'recharge_float_deposits',
+            'recharge_daily_collections',
+            'recharge_daily_reconciliation'
+          ]);
+        allow delete: if isOwner(shop) &&
+          !(request.path[5] in [
+            'recharge_wallets',
+            'recharge_transactions',
+            'recharge_wallet_logs',
+            'recharge_distributor_ledger',
+            'recharge_distributors',
+            'recharge_reversals',
+            'recharge_refunds',
+            'recharge_commissions',
+            'recharge_float_deposits',
+            'recharge_daily_collections',
+            'recharge_daily_reconciliation'
+          ]);
       }
     }
 

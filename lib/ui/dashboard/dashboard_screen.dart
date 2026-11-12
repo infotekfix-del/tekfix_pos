@@ -1,10 +1,12 @@
 import 'dart:io' show Platform;
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 
+import '../../firebase_options.dart';
 import '../../attendance/attendance_service.dart';
 import '../../attendance/attendance_models.dart';
 import '../../attendance/owner_attendance_approvals_view.dart';
@@ -41,6 +43,9 @@ import '../../expenses/add_expense_dialog.dart';
 import '../../rent/daily_rent_payment_dialog.dart';
 import '../../owner/owner_withdrawal_dialog.dart';
 import '../../owner/owner_ledger_view.dart';
+import '../../owner/owner_trusted_devices_screen.dart';
+import '../../recharge/quick_recharge_screen.dart';
+import '../../recharge/quick_recharge_dialog.dart';
 import 'dashboard_tokens.dart';
 import 'sidebar.dart';
 import 'top_bar.dart';
@@ -51,7 +56,6 @@ import 'sales_chart.dart';
 import 'quick_actions.dart';
 import 'recent_activity.dart';
 import 'service_summary.dart';
-import 'weather_card.dart';
 
 /// Pixel-faithful Home / Dashboard Screen for TekFix ERP.
 /// Responsive desktop 3-area layout (Fixed Sidebar, Top Bar, Scrollable Content)
@@ -110,6 +114,21 @@ class _TekDashboardScreenState extends State<TekDashboardScreen> {
       case 'Sale / POS':
         _navigateTo(const SaleView(), item);
         break;
+      case 'Quick Recharge':
+        // Phase 13.3.0 Owner-Only Recharge Policy enforcement
+        if (!AuthController.instance.isOwner) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                '❌ അനധികൃത പ്രവേശനം: ഉടമയ്ക്ക് മാത്രമേ റീച്ചാർജ് അക്കൗണ്ടിംഗ് ഉപയോഗിക്കാൻ അനുവാദമുള്ളൂ (Owner only).',
+              ),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+          break;
+        }
+        _navigateTo(const QuickRechargeScreen(), item);
+        break;
       case 'Items / Stock':
         _navigateTo(const ItemsView(), item);
         break;
@@ -142,6 +161,18 @@ class _TekDashboardScreenState extends State<TekDashboardScreen> {
         break;
       case 'Owner Salary & Drawings':
         _navigateTo(const OwnerLedgerView(), item);
+        break;
+      case 'Trusted Devices':
+        if (!AuthController.instance.isOwner) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('❌ ഉടമയ്ക്ക് മാത്രമേ വിശ്വസനീയ ഉപകരണങ്ങൾ കാണാൻ അനുവാദമുള്ളൂ (Owner only).'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+          break;
+        }
+        _navigateTo(const OwnerTrustedDevicesScreen(), item);
         break;
       case 'System Settings':
         _navigateTo(const SettingsView(), item);
@@ -208,8 +239,9 @@ class _TekDashboardScreenState extends State<TekDashboardScreen> {
       child: Focus(
         autofocus: true,
         child: StreamBuilder<List<AttendanceRecord>>(
-          stream:
-              AttendanceService.instance.streamPendingApprovals(auth.shopId),
+          stream: (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty)
+              ? const Stream.empty()
+              : AttendanceService.instance.streamPendingApprovals(auth.shopId),
           builder: (context, attendanceSnap) {
             final pendingAttendance = attendanceSnap.data?.length ?? 0;
 
@@ -464,8 +496,9 @@ class TekDashboardContent extends StatelessWidget {
         ];
 
         return StreamBuilder<List<AttendanceRecord>>(
-          stream:
-              AttendanceService.instance.streamPendingApprovals(auth.shopId),
+          stream: (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty)
+              ? const Stream.empty()
+              : AttendanceService.instance.streamPendingApprovals(auth.shopId),
           builder: (context, snap) {
             final pendingCount = pendingAttendance ?? (snap.data?.length ?? 0);
 
@@ -547,6 +580,8 @@ class TekDashboardContent extends StatelessWidget {
                                   DailyRentPaymentDialog.show(context),
                               onOwnerWithdrawal: () =>
                                   OwnerWithdrawalDialog.show(context),
+                              onRecharge: () =>
+                                  QuickRechargeDialog.show(context),
                               onServiceRequest: () =>
                                   showServiceJobForm(context),
                               onAddCustomer: () => showPartyForm(context),
@@ -561,14 +596,12 @@ class TekDashboardContent extends StatelessWidget {
 
                       const SizedBox(width: 18),
 
-                      // Right Column (approx 37%): Weather Card + Service Summary + Recent Activity
+                      // Right Column (approx 37%): Service Summary + Recent Activity
                       Expanded(
                         flex: 37,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const TekWeatherCard(),
-                            const SizedBox(height: 18),
                             TekServiceSummary(
                               onSelectFilter: (f) =>
                                   _nav(context, ServicesView(initialFilter: f)),
@@ -597,14 +630,13 @@ class TekDashboardContent extends StatelessWidget {
                         onDailyRent: () => DailyRentPaymentDialog.show(context),
                         onOwnerWithdrawal: () =>
                             OwnerWithdrawalDialog.show(context),
+                        onRecharge: () => QuickRechargeDialog.show(context),
                         onServiceRequest: () => showServiceJobForm(context),
                         onAddCustomer: () => showPartyForm(context),
                         onViewReports: () => _nav(context, const ReportsView()),
                         onOpenSettings: () =>
                             _nav(context, const SettingsView()),
                       ),
-                      const SizedBox(height: 20),
-                      const TekWeatherCard(),
                       const SizedBox(height: 20),
                       TekServiceSummary(
                         onSelectFilter: (f) =>
