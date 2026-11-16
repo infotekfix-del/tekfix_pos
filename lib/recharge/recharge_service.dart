@@ -14,6 +14,7 @@ import '../firebase_options.dart';
 import '../security/device_security_service.dart';
 import '../security/staging_identity_service.dart';
 import 'recharge_backend_bridge.dart';
+import 'recharge_recovery_engine.dart';
 import '../main.dart' show Db, boxRecharges, boxRechargeQueue, boxRechargeDeadLetter, boxRechargeReconciliation, boxRechargeWalletLedger;
 import 'recharge_models.dart';
 
@@ -294,6 +295,7 @@ class RechargeService {
 
         final qData = Map<String, dynamic>.from(item);
         final opType = qData['opType'] as String?;
+        if (opType == null) continue; // Preserves RechargeRecoveryEngine write-ahead journals
         final payload =
             Map<String, dynamic>.from(qData['payload'] as Map? ?? {});
         final recId = payload['rechargeId'] as String? ?? key.toString();
@@ -379,11 +381,10 @@ class RechargeService {
                     deviceId: devId,
                     ownerUid: ownerUid,
                   );
-                  final signature = await sec.signChallenge(
-                    shopId: shopId,
-                    ownerUid: ownerUid,
-                    nonce: challenge.nonce,
-                  );
+                  final fundingTypeStr = funding == 'distributorCredit' ? 'distributorCredit' : 'ownPrepaid';
+                  final canonicalData = '$walletId:$recId:$amountPaise:$fundingTypeStr';
+                  final canonicalPayload = 'PROCESS_DEBIT:$shopId:$ownerUid:$devId:${challenge.nonce}:$canonicalData';
+                  final signature = await sec.signRawPayload(canonicalPayload);
                   final res =
                       await RechargeBackendBridge.supabaseClient!.processDebit(
                     shopId: shopId,
@@ -673,6 +674,17 @@ class RechargeService {
     return defaultWallet;
   }
 
+  /// Idempotently initialize all core operator wallets for the shop in Supabase PostgreSQL
+  Future<void> initializeShopWallets({required String shopId}) async {
+    if (RechargeBackendBridge.isSupabaseMode && RechargeBackendBridge.supabaseClient != null) {
+      try {
+        await RechargeBackendBridge.supabaseClient!.initializeWallets(shopId: shopId);
+      } catch (e) {
+        debugPrint('[RechargeService] initializeShopWallets notice: $e');
+      }
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // 2. FUNDING TYPE A: OWN MONEY / PREPAID WALLET TOP-UP
   // ---------------------------------------------------------------------------
@@ -691,9 +703,16 @@ class RechargeService {
     required String staffName,
     String? referenceId,
     String description = 'Own Bank Transfer Top-Up',
+    bool checkBankBalance = false,
   }) async {
     if (amount <= 0) {
       throw ArgumentError('തുക പോസിറ്റീവ് ആയിരിക്കണം (Amount must be positive)');
+    }
+
+    // Phase 16.4.13: Pre-flight bank balance validation
+    if (checkBankBalance && Db.bankBalance < amount) {
+      throw StateError(
+          'Insufficient bank balance: Available ₹${Db.bankBalance.toStringAsFixed(2)}, Required ₹${amount.toStringAsFixed(2)}');
     }
 
     final amountPaise = (amount * 100).round();
@@ -735,24 +754,45 @@ class RechargeService {
         timestamp: DateTime.now(),
       );
 
+      final sec = DeviceSecurityService.instance;
+      final dId = sec.deviceId;
+      final currentUid = _resolveActiveUid(staffId);
+
+      // Phase 16.4.13: Write-Ahead Outbox Intent before network call
+      await RechargeRecoveryEngine.recordPendingTopUpIntent(
+        idempotencyKey: txnId,
+        shopId: shopId,
+        ownerUid: currentUid,
+        deviceId: dId,
+        walletId: currentWallet.walletId,
+        operator: operator.displayName,
+        amount: amount,
+        amountPaise: amountPaise,
+        referenceNo: txnId,
+        source: 'bank',
+        staffId: staffId,
+        staffName: staffName,
+        description: description,
+        checkBankBalance: false, // Already checked above
+      );
+
       // Remote Atomic Commit: PostgreSQL via Supabase Bridge or Firestore Fallback
+      Map<String, dynamic>? res;
       if (RechargeBackendBridge.isSupabaseMode) {
         if (RechargeBackendBridge.supabaseClient != null) {
-          final sec = DeviceSecurityService.instance;
-          final dId = sec.deviceId;
-          final currentUid = _resolveActiveUid(staffId);
           final challenge = await RechargeBackendBridge.supabaseClient!.requestChallenge(
             shopId: shopId,
             deviceId: dId,
             ownerUid: currentUid,
           );
-          final sig = await sec.signChallenge(
-            shopId: shopId,
-            ownerUid: currentUid,
-            nonce: challenge.nonce,
-          );
+          // Generate byte-for-byte canonical payload matching backend PROCESS_TOPUP
+          final ref = txnId;
+          const source = 'bank';
+          final canonicalData = '${currentWallet.walletId}:$amountPaise:$ref:$source';
+          final canonicalPayload = 'PROCESS_TOPUP:$shopId:$currentUid:$dId:${challenge.nonce}:$canonicalData';
+          final sig = await sec.signRawPayload(canonicalPayload);
 
-          await RechargeBackendBridge.supabaseClient!.processTopup(
+          res = await RechargeBackendBridge.supabaseClient!.processTopup(
             shopId: shopId,
             walletId: currentWallet.walletId,
             amountPaise: amountPaise,
@@ -764,6 +804,13 @@ class RechargeService {
             deviceId: dId,
             deviceSignature: sig,
             nonce: challenge.nonce,
+          );
+
+          // Phase 16.4.13: Advance outbox to SERVER_CONFIRMED
+          await RechargeRecoveryEngine.markTopUpServerConfirmed(
+            txnId,
+            serverDepositId: res['reference_id']?.toString() ?? txnId,
+            balanceAfterPaise: res['total_balance_paise'] as int?,
           );
         } else if (Firebase.apps.isNotEmpty) {
           throw StateError('[RechargeService] Supabase client is not configured for Recharge Accounting.');
@@ -792,22 +839,49 @@ class RechargeService {
                 SetOptions(merge: true));
             transaction.set(logRef, ledgerEntry.toMap(forFirestore: true));
           });
+
+          await RechargeRecoveryEngine.markTopUpServerConfirmed(
+            txnId,
+            serverDepositId: txnId,
+          );
         } catch (e) {
           debugPrint('[RechargeService] Firestore topup notice: $e');
         }
       }
 
-      // Update local bank balance: Asset Transfer (Decreases bank balance)
+      // Phase 16.4.13: Authoritative Cloud Accounting & Local Bank Settlement
       try {
-        await Db.moveMoney(
-            'Bank', -amount, 'Topup ${operator.displayName} ($txnId)');
-      } catch (_) {}
+        await RechargeRecoveryEngine.executeTopUpSettlement(
+          idempotencyKey: txnId,
+          shopId: shopId,
+          operator: operator.displayName,
+          amount: amount,
+          referenceNo: txnId,
+          staffId: staffId,
+          staffName: staffName,
+        );
+      } catch (e) {
+        debugPrint('[RechargeService] Bank settlement failed post-confirmation: $e');
+        await RechargeRecoveryEngine.markManualReviewRequired(
+          txnId,
+          'Bank settlement failed post-confirmation: $e',
+        );
+        rethrow;
+      }
 
-      // Cache state locally
-      _localWallets['${shopId}_${currentWallet.walletId}'] = updatedWallet;
+      // Cache authoritative state locally
+      final finalWallet = (res != null && res['total_balance_paise'] != null)
+          ? currentWallet.copyWith(
+              ownPrepaidBalancePaise: (res['own_prepaid_balance_paise'] as int?) ??
+                  (res['total_balance_paise'] as int) - currentWallet.distributorCreditBalancePaise,
+              updatedAt: DateTime.now(),
+            )
+          : updatedWallet;
+
+      _localWallets['${shopId}_${currentWallet.walletId}'] = finalWallet;
       await _recordWalletLedgerEntry(ledgerEntry);
 
-      return (wallet: updatedWallet, entry: ledgerEntry);
+      return (wallet: finalWallet, entry: ledgerEntry);
     } finally {
       _inFlightOperations.remove(txnId);
     }
@@ -920,11 +994,10 @@ class RechargeService {
             deviceId: dId,
             ownerUid: currentUid,
           );
-          final sig = await sec.signChallenge(
-            shopId: shopId,
-            ownerUid: currentUid,
-            nonce: challenge.nonce,
-          );
+          // Generate byte-for-byte canonical payload matching backend PROCESS_DISTRIBUTOR_LOAD
+          final canonicalData = '${currentWallet.walletId}:$distributorId:$amountPaise';
+          final canonicalPayload = 'PROCESS_DISTRIBUTOR_LOAD:$shopId:$currentUid:$dId:${challenge.nonce}:$canonicalData';
+          final sig = await sec.signRawPayload(canonicalPayload);
 
           await RechargeBackendBridge.supabaseClient!.processDistributorLoad(
             shopId: shopId,
@@ -1126,12 +1199,11 @@ class RechargeService {
                 ownerUid: ownerUid,
               );
 
-              // 2. Hardware ECDSA P-256 signature over challenge nonce
-              final signature = await sec.signChallenge(
-                shopId: recharge.shopId,
-                ownerUid: ownerUid,
-                nonce: challenge.nonce,
-              );
+              // 2. Hardware ECDSA P-256 signature over canonical payload matching backend PROCESS_DEBIT
+              final fundingTypeStr = recharge.fundingType == RechargeFundingType.distributorCredit ? 'distributorCredit' : 'ownPrepaid';
+              final canonicalData = '${wallet.walletId}:${recharge.rechargeId}:$amountPaise:$fundingTypeStr';
+              final canonicalPayload = 'PROCESS_DEBIT:${recharge.shopId}:$ownerUid:$devId:${challenge.nonce}:$canonicalData';
+              final signature = await sec.signRawPayload(canonicalPayload);
 
               // 3. Process atomic wallet debit via Edge Function
               resData = await RechargeBackendBridge.supabaseClient!.processDebit(
@@ -4131,6 +4203,11 @@ class RechargeService {
       );
     }
 
+    int totalOwnTopUpPaise = 0;
+    for (final report in walletReports.values) {
+      totalOwnTopUpPaise += report.ownTopUpPaise;
+    }
+
     final recon = CashBankReconciliationReport(
       rechargeCashCollectedPaise: cashCollPaise,
       rechargeUpiCollectedPaise: upiCollPaise,
@@ -4142,6 +4219,7 @@ class RechargeService {
       distributorUpiPaymentsPaise: distUpiPayPaise,
       distributorBankPaymentsPaise: distBankPayPaise,
       actualCashDepositedToBankPaise: actualCashDepositedToBankPaise,
+      ownFloatBankDebitsPaise: totalOwnTopUpPaise,
     );
 
     return RechargeFinancialReport(

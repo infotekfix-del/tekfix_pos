@@ -348,6 +348,15 @@ class SupabaseRechargeBridgeClient {
     return res['wallet'] as Map<String, dynamic>?;
   }
 
+  /// Idempotently initialize all core operator wallets for the shop
+  Future<Map<String, dynamic>> initializeWallets({
+    required String shopId,
+  }) async {
+    return await _post('initialize-wallets', {
+      'shopId': shopId,
+    });
+  }
+
   /// Fetch distributor from PostgreSQL (Read-Only)
   Future<Map<String, dynamic>?> getDistributor({
     required String shopId,

@@ -268,6 +268,7 @@ class AuthController extends ChangeNotifier {
         'name': name.trim(),
         'role': 'owner',
         'active': true,
+        'approved': true,
         'email': email.trim()
       });
 

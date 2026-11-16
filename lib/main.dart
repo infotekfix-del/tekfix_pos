@@ -67,6 +67,7 @@ import 'expenses/expense_models.dart';
 import 'expenses/expense_cleanup_dialog.dart';
 import 'rent/daily_rent_history_view.dart';
 import 'owner/owner_ledger_view.dart';
+import 'owner/owner_trusted_devices_screen.dart';
 import 'barcode/barcode_print_dialog.dart';
 import 'repairs/service_bill_dialog.dart';
 export 'utils/tek_helpers.dart';
@@ -1121,7 +1122,7 @@ class NavCategory {
   });
 }
 
-List<NavCategory> _getNavCategories(String shopId) => [
+List<NavCategory> _getNavCategories(String shopId, {bool isOwner = false}) => [
       NavCategory(
         title: 'Core POS & Operations',
         icon: Icons.storefront_rounded,
@@ -1187,17 +1188,20 @@ List<NavCategory> _getNavCategories(String shopId) => [
               FollowupsScreen()),
         ],
       ),
-      const NavCategory(
+      NavCategory(
         title: 'Settings & System',
         icon: Icons.settings_suggest_rounded,
         items: [
-          AppModule('App Updates & Releases', Icons.system_update_rounded,
+          const AppModule('App Updates & Releases', Icons.system_update_rounded,
               AppUpdateManagementView()),
-          AppModule(
+          const AppModule(
               'Backup & Sync', Icons.cloud_sync_rounded, BackupSyncView()),
-          AppModule(
+          const AppModule(
               'Audit / Change History', Icons.history_rounded, AuditLogView()),
-          AppModule('Settings & Print', Icons.settings_rounded, SettingsView()),
+          const AppModule('Settings & Print', Icons.settings_rounded, SettingsView()),
+          if (isOwner)
+            const AppModule(
+                'Trusted Devices', Icons.devices_other_rounded, OwnerTrustedDevicesScreen()),
         ],
       ),
     ];
@@ -1314,7 +1318,7 @@ class _AppShellState extends State<AppShell> {
       );
     }
 
-    final categories = _getNavCategories(auth.shopId);
+    final categories = _getNavCategories(auth.shopId, isOwner: owner);
     final mods = categories.expand((c) => c.items).toList();
     final wide = MediaQuery.of(context).size.width >= 900;
 
@@ -1423,6 +1427,8 @@ class _AppShellState extends State<AppShell> {
         return 'Audit / Change History';
       case 25:
         return 'Settings & Print';
+      case 26:
+        return 'Trusted Devices';
       default:
         return '';
     }
@@ -1479,6 +1485,8 @@ class _AppShellState extends State<AppShell> {
       case 'Settings & Print':
       case 'System Settings':
         return 25;
+      case 'Trusted Devices':
+        return 26;
       default:
         return 0;
     }

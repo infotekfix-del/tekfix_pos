@@ -1,4 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:hive/hive.dart';
 import 'package:intl/intl.dart';
 import '../main.dart';
 import 'recharge_backend_bridge.dart';
@@ -20,6 +23,10 @@ class RechargeRecoveryEngine {
   static const String statusSettled = 'SETTLED';
   static const String statusAborted = 'ABORTED';
   static const String statusManualReviewRequired = 'MANUAL_REVIEW_REQUIRED';
+  static const String statusCompensationRequired = 'COMPENSATION_REQUIRED';
+
+  /// Concurrency lock to prevent duplicate concurrent settlement executions
+  static final Set<String> _inFlightTopUpSettlements = <String>{};
 
   /// Step 1: Pre-commit write-ahead journal entry before network dispatch
   static Future<void> recordPendingIntent({
@@ -59,6 +66,200 @@ class RechargeRecoveryEngine {
       'settledReadModel': false,
     };
     await Db.rechargeQueue.put(idempotencyKey, entry);
+  }
+
+  /// Durable Write-Ahead Top-Up Outbox Intent (Phase 16.4.13)
+  /// Validates pre-flight bank balance before recording outbox entry
+  static Future<void> recordPendingTopUpIntent({
+    required String idempotencyKey,
+    required String shopId,
+    required String ownerUid,
+    required String deviceId,
+    required String walletId,
+    required String operator,
+    required double amount,
+    required int amountPaise,
+    required String referenceNo,
+    required String source,
+    required String staffId,
+    required String staffName,
+    String description = '',
+    bool checkBankBalance = true,
+  }) async {
+    if (checkBankBalance && Db.bankBalance < amount) {
+      throw StateError(
+          'Insufficient bank balance: Available ₹${Db.bankBalance.toStringAsFixed(2)}, Required ₹${amount.toStringAsFixed(2)}');
+    }
+
+    final entry = {
+      'idempotencyKey': idempotencyKey,
+      'type': 'TOPUP',
+      'status': statusInitiated,
+      'shopId': shopId,
+      'ownerUid': ownerUid,
+      'deviceId': deviceId,
+      'walletId': walletId,
+      'operator': operator,
+      'amount': amount,
+      'amountPaise': amountPaise,
+      'referenceNo': referenceNo,
+      'source': source,
+      'staffId': staffId,
+      'staffName': staffName,
+      'description': description,
+      'createdAt': DateTime.now().toIso8601String(),
+      'serverDepositId': null,
+      'confirmedAt': null,
+      'settledBank': false,
+      'settledVoucher': false,
+      'voucherId': 'CB_TOPUP_$idempotencyKey',
+    };
+    await Db.rechargeQueue.put(idempotencyKey, entry);
+  }
+
+  /// Mark top-up server credit confirmed by Supabase Edge Function
+  static Future<void> markTopUpServerConfirmed(
+    String idempotencyKey, {
+    required String serverDepositId,
+    int? balanceAfterPaise,
+  }) async {
+    final raw = Db.rechargeQueue.get(idempotencyKey);
+    if (raw is Map) {
+      final updated = Map<String, dynamic>.from(raw);
+      updated['status'] = statusServerConfirmed;
+      updated['serverDepositId'] = serverDepositId;
+      if (balanceAfterPaise != null) {
+        updated['balanceAfterPaise'] = balanceAfterPaise;
+      }
+      updated['confirmedAt'] = DateTime.now().toIso8601String();
+      await Db.rechargeQueue.put(idempotencyKey, updated);
+    }
+  }
+
+  /// Execute Post-Confirmation Bank Settlement for Top-Up (Phase 16.4.13)
+  /// Creates deterministic Firestore voucher in `accounting_cash_bank` and debits local bank balance
+  static Future<void> executeTopUpSettlement({
+    required String idempotencyKey,
+    required String shopId,
+    required String operator,
+    required double amount,
+    required String referenceNo,
+    String? staffId,
+    String? staffName,
+    Map<String, dynamic>? journal,
+  }) async {
+    // Concurrency protection: serialize concurrent settlement execution for same key
+    while (_inFlightTopUpSettlements.contains(idempotencyKey)) {
+      await Future.delayed(const Duration(milliseconds: 20));
+    }
+    if (hasMoneyMoved(idempotencyKey)) {
+      await Db.rechargeQueue.delete(idempotencyKey);
+      return;
+    }
+    _inFlightTopUpSettlements.add(idempotencyKey);
+    try {
+      final voucherId = 'CB_TOPUP_$idempotencyKey';
+      final amountPaise = (amount * 100).round();
+
+      // 1. Authoritative Cloud Accounting: Create Double-Entry Voucher in Firestore
+      final bool voucherAlreadySettled = journal?['settledVoucher'] == true;
+      if (!voucherAlreadySettled &&
+          Firebase.apps.isNotEmpty &&
+          shopId.isNotEmpty) {
+        try {
+          final voucherRef = FirebaseFirestore.instance
+              .collection('shops')
+              .doc(shopId)
+              .collection('accounting_cash_bank')
+              .doc(voucherId);
+
+          final voucherData = <String, dynamic>{
+            'id': voucherId,
+            'type': 'DEBIT',
+            'entryType': 'DEBIT',
+            'transactionCategory': 'RECHARGE_FLOAT_TOPUP',
+            'category': 'ASSET_TRANSFER',
+            'isRecharge': true,
+            'isExpense': false, // Asset transfer, NEVER a business expense
+            'isSalesRevenue': false, // NEVER sales revenue
+            'walletId': 'WALLET_${operator.toUpperCase()}',
+            'operator': operator,
+            'amount': amount,
+            'amountPaise': amountPaise,
+            'paymentMode': 'BANK',
+            'mode': 'Bank',
+            'referenceNo': referenceNo,
+            'supabaseDepositId': idempotencyKey,
+            'effectiveDate': FieldValue.serverTimestamp(),
+            'createdByUid': staffId ?? 'OWNER',
+            'createdByName': staffName ?? 'Shop Owner',
+            'createdAt': FieldValue.serverTimestamp(),
+          };
+
+          await voucherRef.set(voucherData, SetOptions(merge: true));
+          if (journal != null) {
+            journal['settledVoucher'] = true;
+            await Db.rechargeQueue.put(idempotencyKey, journal);
+          }
+        } catch (e) {
+          debugPrint(
+              '[RechargeRecoveryEngine] Firestore voucher creation error: $e');
+          throw StateError('FIRESTORE_VOUCHER_FAILED: $e');
+        }
+      }
+
+      // 2. Local Bank Settlement: Asset Transfer (Decreases bank balance)
+      if (!hasMoneyMoved(idempotencyKey)) {
+        try {
+          await Db.moveMoney(
+            'Bank',
+            -amount,
+            'Topup $operator (Ref: $referenceNo, Txn: $idempotencyKey)',
+          );
+          // Phase 16.4.18: Synchronize SyncEngine last-synced bank balance relatively.
+          // Adjusts the baseline by subtracting the settled top-up amount, preserving
+          // any unrelated pending retail deltas (e.g. UPI sales, cash deposits).
+          if (Hive.isBoxOpen('tek_sync_meta')) {
+            final metaBox = Hive.box('tek_sync_meta');
+            if (metaBox.containsKey('ls:bank|bank_balance')) {
+              final oldLs =
+                  (metaBox.get('ls:bank|bank_balance') as num?)?.toDouble() ??
+                      0.0;
+              final double newLs = ((oldLs - amount) * 100).round() / 100;
+              await metaBox.put('ls:bank|bank_balance', newLs);
+            } else {
+              await metaBox.put(
+                  'ls:bank|bank_balance', Db.bank.get('bank_balance'));
+            }
+          }
+          if (journal != null) {
+            journal['settledBank'] = true;
+            await Db.rechargeQueue.put(idempotencyKey, journal);
+          }
+        } catch (e) {
+          debugPrint('[RechargeRecoveryEngine] Local bank debit error: $e');
+          throw StateError('LOCAL_BANK_DEBIT_FAILED: $e');
+        }
+      }
+
+      // 3. Mark Outbox Settled & Remove from Active Queue
+      await Db.rechargeQueue.delete(idempotencyKey);
+    } finally {
+      _inFlightTopUpSettlements.remove(idempotencyKey);
+    }
+  }
+
+  /// Returns all journal entries currently held for manual review
+  static List<Map<String, dynamic>> getPendingManualReviewItems() {
+    if (!Db.rechargeQueue.isOpen) return [];
+    final items = <Map<String, dynamic>>[];
+    for (final key in Db.rechargeQueue.keys) {
+      final val = Db.rechargeQueue.get(key);
+      if (val is Map && val['status'] == statusManualReviewRequired) {
+        items.add(Map<String, dynamic>.from(val));
+      }
+    }
+    return items;
   }
 
   /// Step 2: Mark server debit confirmed by Supabase Edge Function
@@ -103,9 +304,11 @@ class RechargeRecoveryEngine {
 
   /// Mark transaction as requiring manual owner review
   /// Rule: NEVER silently redirect identified customer debt to general receivables
-  static Future<void> markManualReviewRequired(String idempotencyKey, String reason) async {
+  static Future<void> markManualReviewRequired(
+      String idempotencyKey, String reason) async {
     final raw = Db.rechargeQueue.get(idempotencyKey);
-    final journal = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+    final journal =
+        raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
     journal['status'] = statusManualReviewRequired;
     journal['reviewReason'] = reason;
     journal['flaggedAt'] = DateTime.now().toIso8601String();
@@ -116,7 +319,8 @@ class RechargeRecoveryEngine {
       entity: 'Recharge',
       entityId: idempotencyKey,
       newValue: reason,
-      reason: 'Customer party record missing/deleted; manual debt reassignment required',
+      reason:
+          'Customer party record missing/deleted; manual debt reassignment required',
     );
   }
 
@@ -138,8 +342,13 @@ class RechargeRecoveryEngine {
     if (!Db.bank.isOpen) return false;
     final txnLog = (Db.bank.get('txn_log') as List?) ?? [];
     for (final item in txnLog) {
-      if (item is Map && item['note']?.toString().contains('(Txn: $idempotencyKey)') == true) {
-        return true;
+      if (item is Map) {
+        final note = item['note']?.toString() ?? '';
+        if (note.contains('(Txn: $idempotencyKey)') ||
+            note.contains('Txn: $idempotencyKey') ||
+            note.contains(idempotencyKey)) {
+          return true;
+        }
       }
     }
     return false;
@@ -160,11 +369,20 @@ class RechargeRecoveryEngine {
 
       final journal = Map<String, dynamic>.from(raw);
       final status = journal['status']?.toString() ?? '';
-      final idempotencyKey = journal['idempotencyKey']?.toString() ?? key.toString();
+      final idempotencyKey =
+          journal['idempotencyKey']?.toString() ?? key.toString();
 
       // Skip entries currently held for manual review by shop owner
       if (status == statusManualReviewRequired) {
-        debugPrint('[RechargeRecoveryEngine] Skipping $idempotencyKey: HELD FOR MANUAL REVIEW');
+        debugPrint(
+            '[RechargeRecoveryEngine] Skipping $idempotencyKey: HELD FOR MANUAL REVIEW');
+        continue;
+      }
+
+      // Phase 16.4.13: Route Top-Up Outbox items to dedicated recovery flow
+      if (journal['type'] == 'TOPUP') {
+        final recovered = await _reconcilePendingTopUp(journal, key);
+        if (recovered) reconciledCount++;
         continue;
       }
 
@@ -197,7 +415,8 @@ class RechargeRecoveryEngine {
           );
           await Db.rechargeQueue.delete(key);
           reconciledCount++;
-          debugPrint('[RechargeRecoveryEngine] Interrupted settlement reconciled for $idempotencyKey');
+          debugPrint(
+              '[RechargeRecoveryEngine] Interrupted settlement reconciled for $idempotencyKey');
         } catch (e) {
           debugPrint('[RechargeRecoveryEngine] Settlement paused: $e');
         }
@@ -210,19 +429,25 @@ class RechargeRecoveryEngine {
         if (client == null) continue; // Cannot verify without backend bridge
 
         try {
-          final shopId = journal['shopId']?.toString() ?? Db.setting('shop_id', 'shop_staging_001');
+          final shopId = journal['shopId']?.toString() ??
+              Db.setting('shop_id', 'shop_staging_001');
           final sec = DeviceSecurityService.instance;
           final devId = sec.deviceId;
 
-          final ownerUid = journal['ownerUid']?.toString() ?? 'owner_staging_001';
+          final ownerUid =
+              journal['ownerUid']?.toString() ?? 'owner_staging_001';
 
           // Request challenge to safely query or re-verify idempotency
-          final challenge = await client.requestChallenge(shopId: shopId, deviceId: devId, ownerUid: ownerUid);
-          final debitAmountPaise = ((costPrice > 0 ? costPrice : retailAmount) * 100).round();
+          final challenge = await client.requestChallenge(
+              shopId: shopId, deviceId: devId, ownerUid: ownerUid);
+          final debitAmountPaise =
+              ((costPrice > 0 ? costPrice : retailAmount) * 100).round();
           final targetWalletId = 'WALLET_${operator.toUpperCase()}';
           const fundingType = 'ownPrepaid';
-          final canonicalData = '$targetWalletId:$idempotencyKey:$debitAmountPaise:$fundingType';
-          final canonicalPayload = 'PROCESS_DEBIT:$shopId:${journal['ownerUid'] ?? 'owner'}:$devId:${challenge.nonce}:$canonicalData';
+          final canonicalData =
+              '$targetWalletId:$idempotencyKey:$debitAmountPaise:$fundingType';
+          final canonicalPayload =
+              'PROCESS_DEBIT:$shopId:${journal['ownerUid'] ?? 'owner'}:$devId:${challenge.nonce}:$canonicalData';
           final signature = await sec.signRawPayload(canonicalPayload);
 
           final res = await client.processDebit(
@@ -267,17 +492,20 @@ class RechargeRecoveryEngine {
             );
             await Db.rechargeQueue.delete(key);
             reconciledCount++;
-            debugPrint('[RechargeRecoveryEngine] In-flight transaction reconciled with server: $idempotencyKey');
+            debugPrint(
+                '[RechargeRecoveryEngine] In-flight transaction reconciled with server: $idempotencyKey');
           } else {
             // Terminal error from server
-            await markFailed(idempotencyKey, res['error']?.toString() ?? 'Server rejected');
+            await markFailed(
+                idempotencyKey, res['error']?.toString() ?? 'Server rejected');
           }
         } catch (e) {
           final createdAtStr = journal['createdAt']?.toString();
           if (createdAtStr != null) {
             final dt = DateTime.tryParse(createdAtStr);
             if (dt != null && DateTime.now().difference(dt).inMinutes > 10) {
-              await markFailed(idempotencyKey, 'Expired in-flight transaction: $e');
+              await markFailed(
+                  idempotencyKey, 'Expired in-flight transaction: $e');
             }
           }
         }
@@ -285,6 +513,132 @@ class RechargeRecoveryEngine {
     }
 
     return reconciledCount;
+  }
+
+  /// Reconcile an interrupted or in-flight Top-Up outbox item (Phase 16.4.13)
+  static Future<bool> _reconcilePendingTopUp(
+    Map<String, dynamic> journal,
+    dynamic key,
+  ) async {
+    final status = journal['status']?.toString() ?? '';
+    final idempotencyKey =
+        journal['idempotencyKey']?.toString() ?? key.toString();
+    final shopId =
+        journal['shopId']?.toString() ?? Db.setting('shop_id', 'tekfix');
+    final operator = journal['operator']?.toString() ?? '';
+    final amount = (journal['amount'] as num?)?.toDouble() ?? 0.0;
+    final referenceNo = journal['referenceNo']?.toString() ?? idempotencyKey;
+    final staffId = journal['staffId']?.toString();
+    final staffName = journal['staffName']?.toString();
+
+    // Case 1: Server debit confirmed, but bank settlement was interrupted by crash
+    if (status == statusServerConfirmed) {
+      try {
+        await executeTopUpSettlement(
+          idempotencyKey: idempotencyKey,
+          shopId: shopId,
+          operator: operator,
+          amount: amount,
+          referenceNo: referenceNo,
+          staffId: staffId,
+          staffName: staffName,
+          journal: journal,
+        );
+        debugPrint(
+            '[RechargeRecoveryEngine] Interrupted TopUp settled for $idempotencyKey');
+        return true;
+      } catch (e) {
+        debugPrint(
+            '[RechargeRecoveryEngine] TopUp settlement recovery error: $e');
+        await markManualReviewRequired(
+          idempotencyKey,
+          'Bank settlement failed during recovery: $e',
+        );
+        return false;
+      }
+    }
+
+    // Case 2: In-flight top-up when app crashed or timed out before receiving server response
+    if (status == statusInitiated) {
+      final client = RechargeBackendBridge.supabaseClient;
+      if (client == null) return false;
+
+      try {
+        final sec = DeviceSecurityService.instance;
+        final devId = sec.deviceId;
+        final ownerUid = journal['ownerUid']?.toString() ?? 'owner';
+        final walletId = journal['walletId']?.toString() ??
+            'WALLET_${operator.toUpperCase()}';
+        final amountPaise =
+            (journal['amountPaise'] as num?)?.toInt() ?? (amount * 100).round();
+        const source = 'bank';
+
+        final challenge = await client.requestChallenge(
+          shopId: shopId,
+          deviceId: devId,
+          ownerUid: ownerUid,
+        );
+
+        final canonicalData = '$walletId:$amountPaise:$referenceNo:$source';
+        final canonicalPayload =
+            'PROCESS_TOPUP:$shopId:$ownerUid:$devId:${challenge.nonce}:$canonicalData';
+        final sig = await sec.signRawPayload(canonicalPayload);
+
+        final res = await client.processTopup(
+          shopId: shopId,
+          walletId: walletId,
+          amountPaise: amountPaise,
+          source: source,
+          staffId: staffId,
+          staffName: staffName,
+          referenceId: referenceNo,
+          description: journal['description']?.toString(),
+          deviceId: devId,
+          deviceSignature: sig,
+          nonce: challenge.nonce,
+        );
+
+        if (res['success'] == true) {
+          await markTopUpServerConfirmed(
+            idempotencyKey,
+            serverDepositId: res['reference_id']?.toString() ?? idempotencyKey,
+            balanceAfterPaise: res['total_balance_paise'] as int?,
+          );
+
+          await executeTopUpSettlement(
+            idempotencyKey: idempotencyKey,
+            shopId: shopId,
+            operator: operator,
+            amount: amount,
+            referenceNo: referenceNo,
+            staffId: staffId,
+            staffName: staffName,
+            journal: journal,
+          );
+          debugPrint(
+              '[RechargeRecoveryEngine] Initiated TopUp reconciled with server: $idempotencyKey');
+          return true;
+        } else {
+          await markFailed(idempotencyKey,
+              res['error']?.toString() ?? 'Server rejected top-up');
+          return false;
+        }
+      } catch (e) {
+        debugPrint(
+            '[RechargeRecoveryEngine] Error recovering initiated top-up $idempotencyKey: $e');
+        final createdAtStr = journal['createdAt']?.toString();
+        if (createdAtStr != null) {
+          final dt = DateTime.tryParse(createdAtStr);
+          if (dt != null && DateTime.now().difference(dt).inMinutes > 1440) {
+            await markFailed(
+                idempotencyKey, 'Expired in-flight top-up (>24h): $e');
+          }
+        }
+        return false;
+      }
+    }
+
+    return false;
   }
 
   static Future<void> _executeLocalSettlement({
@@ -305,11 +659,13 @@ class RechargeRecoveryEngine {
     // Only credit ledger if this transaction was not already committed locally
     if (paymentMode == 'Cash') {
       if (!hasMoneyMoved(idempotencyKey)) {
-        await Db.moveMoney('Cash', retailAmount, 'Recharge Sale (Recovered): $operator $mobile (Txn: $idempotencyKey)');
+        await Db.moveMoney('Cash', retailAmount,
+            'Recharge Sale (Recovered): $operator $mobile (Txn: $idempotencyKey)');
       }
     } else if (paymentMode == 'UPI') {
       if (!hasMoneyMoved(idempotencyKey)) {
-        await Db.moveMoney('Bank', retailAmount, 'Recharge UPI (Recovered): $operator $mobile (Txn: $idempotencyKey)');
+        await Db.moveMoney('Bank', retailAmount,
+            'Recharge UPI (Recovered): $operator $mobile (Txn: $idempotencyKey)');
       }
     } else if (paymentMode == 'Credit / Due') {
       if (partyKey == null || !Db.parties.containsKey(partyKey)) {
@@ -318,7 +674,8 @@ class RechargeRecoveryEngine {
           idempotencyKey,
           'Customer party record missing/deleted (partyKey: $partyKey, name: $partyName). Debt must be manually reviewed.',
         );
-        throw StateError('MANUAL_REVIEW_REQUIRED: Identified customer party record missing/deleted. Debt held for owner review.');
+        throw StateError(
+            'MANUAL_REVIEW_REQUIRED: Identified customer party record missing/deleted. Debt held for owner review.');
       }
       final bool alreadySettledParty = journal?['settledParty'] == true;
       if (!alreadySettledParty) {

@@ -36,6 +36,7 @@ const STAGING_IDENTITY_MODE = RAW_STAGING_MODE === "true";
 const STAGING_JWT_SECRET = Deno.env.get("STAGING_JWT_SECRET") || "";
 const STAGING_BOOTSTRAP_SECRET = Deno.env.get("STAGING_BOOTSTRAP_SECRET") || "";
 const FIREBASE_PROJECT_ID = Deno.env.get("FIREBASE_PROJECT_ID") || "";
+const FIREBASE_SERVICE_ACCOUNT_B64 = Deno.env.get("FIREBASE_SERVICE_ACCOUNT_B64") || "";
 const GOOGLE_JWKS_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
 
 function constantTimeCompare(a: string, b: string): boolean {
@@ -310,17 +311,22 @@ async function verifyShopOwner(
     return false;
   }
 
-  // Condition 4 & 5: active and approved must EXPLICITLY be true (never default to true if missing)
-  const isActive = userDoc.fields?.active?.booleanValue === true;
-  const isApproved = userDoc.fields?.approved?.booleanValue === true;
+  // Condition 4 & 5: active and approved status validation (matching firestore.rules lines 23-26)
+  // An owner is active and approved unless explicitly set to false.
+  const isActive = userDoc.fields?.active !== undefined
+    ? userDoc.fields.active.booleanValue !== false
+    : true;
+  const isApproved = userDoc.fields?.approved !== undefined
+    ? userDoc.fields.approved.booleanValue !== false
+    : true;
 
   if (!isActive) {
-    console.warn(`[verifyShopOwner] Access denied: User "${callerUid}" is inactive or missing active=true.`);
+    console.warn(`[verifyShopOwner] Access denied: User "${callerUid}" is inactive (active=false).`);
     return false;
   }
 
   if (!isApproved) {
-    console.warn(`[verifyShopOwner] Access denied: User "${callerUid}" is unapproved or missing approved=true.`);
+    console.warn(`[verifyShopOwner] Access denied: User "${callerUid}" is explicitly unapproved (approved=false).`);
     return false;
   }
 
@@ -625,6 +631,326 @@ function jsonResponse(data: any, status = 200): Response {
       "Access-Control-Allow-Headers": "Authorization, Content-Type",
     },
   });
+}
+
+// ============================================================================
+// 6B. SERVER-AUTHORITATIVE ATOMIC BANK RESERVATION IN FIRESTORE (Phase 16.4.16 & 16.4.19)
+// ============================================================================
+
+let cachedGoogleAccessToken: { token: string; expiresAt: number } | null = null;
+
+async function getGoogleFirestoreAccessToken(): Promise<string | null> {
+  if (!FIREBASE_SERVICE_ACCOUNT_B64) return null;
+  const now = Date.now();
+  if (cachedGoogleAccessToken && cachedGoogleAccessToken.expiresAt > now + 60000) {
+    return cachedGoogleAccessToken.token;
+  }
+
+  try {
+    const rawJson = atob(FIREBASE_SERVICE_ACCOUNT_B64);
+    const sa = JSON.parse(rawJson);
+    if (!sa.client_email || !sa.private_key) {
+      throw new Error("Invalid service account JSON: missing client_email or private_key");
+    }
+
+    const key = await jose.importPKCS8(sa.private_key, "RS256");
+    const nowSec = Math.floor(now / 1000);
+    const jwt = await new jose.SignJWT({
+      iss: sa.client_email,
+      sub: sa.client_email,
+      aud: "https://oauth2.googleapis.com/token",
+      scope: "https://www.googleapis.com/auth/datastore",
+    })
+      .setProtectedHeader({ alg: "RS256", typ: "JWT" })
+      .setIssuedAt(nowSec)
+      .setExpirationTime(nowSec + 3600)
+      .sign(key);
+
+    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        assertion: jwt,
+      }),
+    });
+
+    if (!tokenRes.ok) {
+      const errText = await tokenRes.text();
+      throw new Error(`Google OAuth2 token request failed (${tokenRes.status}): ${errText}`);
+    }
+
+    const tokenData = await tokenRes.json();
+    cachedGoogleAccessToken = {
+      token: tokenData.access_token,
+      expiresAt: now + (tokenData.expires_in ?? 3600) * 1000,
+    };
+    return cachedGoogleAccessToken.token;
+  } catch (err: any) {
+    console.error("[getGoogleFirestoreAccessToken] Error:", err.message);
+    throw err;
+  }
+}
+
+async function reserveBankFundsInFirestore(params: {
+  shopId: string;
+  rawToken: string;
+  ref: string;
+  amountPaise: number;
+  walletId: string;
+  callerUid: string;
+  staffName?: string;
+}): Promise<{ success: boolean; error?: string; status?: number }> {
+  const { shopId, rawToken, ref, amountPaise, walletId, callerUid, staffName } = params;
+
+  // Phase 16.4.18: Hard failure if FIREBASE_PROJECT_ID is not configured.
+  // STAGING_IDENTITY_MODE must NEVER bypass financial operations or fake successful reservations.
+  if (!FIREBASE_PROJECT_ID) {
+    console.error("[reserveBankFundsInFirestore] FATAL: FIREBASE_PROJECT_ID is not configured.");
+    return {
+      success: false,
+      error: "HARD_FAILURE: FIREBASE_PROJECT_ID is not configured. Server refused to process financial top-up without authoritative Firestore integration.",
+      status: 500,
+    };
+  }
+
+  const amount = amountPaise / 100.0;
+  const docBasePath = `projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents`;
+  const baseUrl = `https://firestore.googleapis.com/v1/${docBasePath}`;
+  
+  let authHeader = `Bearer ${rawToken}`;
+  try {
+    const saToken = await getGoogleFirestoreAccessToken();
+    if (saToken) {
+      authHeader = `Bearer ${saToken}`;
+    }
+  } catch (saErr: any) {
+    return {
+      success: false,
+      error: `Failed to authenticate with Google Firestore: ${saErr.message}`,
+      status: 500,
+    };
+  }
+
+  const headers = {
+    Authorization: authHeader,
+    "Content-Type": "application/json",
+  };
+
+  const maxRetries = 5;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // 1. Begin atomic readWrite transaction
+      const beginRes = await fetch(`${baseUrl}:beginTransaction`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ options: { readWrite: {} } }),
+      });
+
+      if (!beginRes.ok) {
+        const errText = await beginRes.text();
+        if (beginRes.status === 409 && attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, attempt * 200 + Math.floor(Math.random() * 100)));
+          continue;
+        }
+        return { success: false, error: `Firestore transaction start failed: ${errText}`, status: 500 };
+      }
+
+      const { transaction } = await beginRes.json();
+
+      // 2. Read current bank balance within transaction
+      const bankDocUrl = `${baseUrl}/shops/${shopId}/bank/bank_balance?transaction=${encodeURIComponent(transaction)}`;
+      const bankRes = await fetch(bankDocUrl, { headers });
+
+      if (!bankRes.ok) {
+        if (bankRes.status === 409 && attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, attempt * 200 + Math.floor(Math.random() * 100)));
+          continue;
+        }
+        return {
+          success: false,
+          error: `Failed to read authoritative bank balance from Firestore (status: ${bankRes.status})`,
+          status: 400,
+        };
+      }
+
+      const bankDoc = await bankRes.json();
+      const currentVal = bankDoc.fields?.v?.doubleValue !== undefined
+        ? Number(bankDoc.fields.v.doubleValue)
+        : (bankDoc.fields?.v?.integerValue !== undefined ? Number(bankDoc.fields.v.integerValue) : 0.0);
+      const updateTime = bankDoc.updateTime;
+
+      // 3. Reject insufficient balance atomically
+      if (currentVal < amount) {
+        return {
+          success: false,
+          error: `Insufficient bank balance: Available ₹${currentVal.toFixed(2)}, Required ₹${amount.toFixed(2)}`,
+          status: 400,
+        };
+      }
+
+      const newBalance = currentVal - amount;
+      const nowIso = new Date().toISOString();
+
+      // 4. Commit atomic reservation: decrement bank_balance & write RESERVED voucher
+      const commitUrl = `${baseUrl}:commit`;
+      const commitBody = {
+        transaction,
+        writes: [
+          {
+            update: {
+              name: `${docBasePath}/shops/${shopId}/bank/bank_balance`,
+              fields: {
+                v: { doubleValue: newBalance },
+                _by: { stringValue: callerUid },
+                _st: { stringValue: nowIso },
+              },
+            },
+            currentDocument: {
+              updateTime,
+            },
+          },
+          {
+            update: {
+              name: `${docBasePath}/shops/${shopId}/accounting_cash_bank/CB_TOPUP_${ref}`,
+              fields: {
+                id: { stringValue: `CB_TOPUP_${ref}` },
+                type: { stringValue: "DEBIT" },
+                entryType: { stringValue: "DEBIT" },
+                transactionCategory: { stringValue: "RECHARGE_FLOAT_TOPUP" },
+                category: { stringValue: "ASSET_TRANSFER" },
+                isRecharge: { booleanValue: true },
+                isExpense: { booleanValue: false },
+                isSalesRevenue: { booleanValue: false },
+                status: { stringValue: "RESERVED" },
+                walletId: { stringValue: walletId },
+                amount: { doubleValue: amount },
+                amountPaise: { integerValue: amountPaise },
+                paymentMode: { stringValue: "BANK" },
+                mode: { stringValue: "Bank" },
+                referenceNo: { stringValue: ref },
+                createdByUid: { stringValue: callerUid },
+                createdByName: { stringValue: staffName || "Shop Owner" },
+                createdAt: { stringValue: nowIso },
+              },
+            },
+          },
+        ],
+      };
+
+      const commitRes = await fetch(commitUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(commitBody),
+      });
+
+      if (!commitRes.ok) {
+        const errText = await commitRes.text();
+        if (commitRes.status === 409 && attempt < maxRetries) {
+          // Document contention / concurrency collision - exponential backoff with jitter and retry
+          await new Promise((r) => setTimeout(r, attempt * 200 + Math.floor(Math.random() * 100)));
+          continue;
+        }
+        return { success: false, error: `Firestore reservation commit conflict: ${errText}`, status: 409 };
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, attempt * 200 + Math.floor(Math.random() * 100)));
+        continue;
+      }
+      return { success: false, error: `Firestore reservation exception: ${err.message}`, status: 500 };
+    }
+  }
+  return { success: false, error: "Firestore reservation failed after max retries due to document contention", status: 409 };
+}
+
+async function finalizeBankSettlementInFirestore(
+  shopId: string,
+  rawToken: string,
+  ref: string,
+  serverDepositId: string
+): Promise<void> {
+  if (!FIREBASE_PROJECT_ID) {
+    console.error("[finalizeBankSettlementInFirestore] FATAL: FIREBASE_PROJECT_ID is not configured.");
+    return;
+  }
+  const baseUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents`;
+  const url = `${baseUrl}/shops/${shopId}/accounting_cash_bank/CB_TOPUP_${ref}?updateMask.fieldPaths=status&updateMask.fieldPaths=supabaseDepositId&updateMask.fieldPaths=confirmedAt`;
+  
+  let authHeader = `Bearer ${rawToken}`;
+  try {
+    const saToken = await getGoogleFirestoreAccessToken();
+    if (saToken) authHeader = `Bearer ${saToken}`;
+  } catch (_) {}
+
+  await fetch(url, {
+    method: "PATCH",
+    headers: { Authorization: authHeader, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      fields: {
+        status: { stringValue: "SETTLED" },
+        supabaseDepositId: { stringValue: serverDepositId },
+        confirmedAt: { stringValue: new Date().toISOString() },
+      },
+    }),
+  }).catch((e) => console.warn(`[finalizeBankSettlement] Notice: ${e}`));
+}
+
+async function compensateFailedBankReservation(
+  shopId: string,
+  rawToken: string,
+  ref: string,
+  amount: number,
+  errorMessage: string
+): Promise<void> {
+  if (!FIREBASE_PROJECT_ID) {
+    console.error("[compensateFailedBankReservation] FATAL: FIREBASE_PROJECT_ID is not configured.");
+    return;
+  }
+  const docBasePath = `projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents`;
+  const baseUrl = `https://firestore.googleapis.com/v1/${docBasePath}`;
+  
+  let authHeader = `Bearer ${rawToken}`;
+  try {
+    const saToken = await getGoogleFirestoreAccessToken();
+    if (saToken) authHeader = `Bearer ${saToken}`;
+  } catch (_) {}
+
+  const headers = { Authorization: authHeader, "Content-Type": "application/json" };
+  await fetch(`${baseUrl}:commit`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      writes: [
+        {
+          transform: {
+            document: `${docBasePath}/shops/${shopId}/bank/bank_balance`,
+            fieldTransforms: [
+              {
+                fieldPath: "v",
+                increment: { doubleValue: amount },
+              },
+            ],
+          },
+        },
+        {
+          update: {
+            name: `${docBasePath}/shops/${shopId}/accounting_cash_bank/CB_TOPUP_${ref}`,
+            fields: {
+              status: { stringValue: "CANCELLED" },
+              cancellationReason: { stringValue: errorMessage },
+              cancelledAt: { stringValue: new Date().toISOString() },
+            },
+          },
+          updateMask: {
+            fieldPaths: ["status", "cancellationReason", "cancelledAt"],
+          },
+        },
+      ],
+    }),
+  }).catch((e) => console.error(`[compensateFailedBankReservation] Compensation failed: ${e}`));
 }
 
 // ============================================================================
@@ -1377,7 +1703,7 @@ serve(async (req: Request) => {
     }
 
     // ------------------------------------------------------------------------
-    // ENDPOINT 5: POST /process-topup (SECURED WITH HARDWARE ECDSA)
+    // ENDPOINT 5: POST /process-topup (SECURED WITH HARDWARE ECDSA & ATOMIC BANK RESERVATION)
     // ------------------------------------------------------------------------
     if (pathname.endsWith("/process-topup")) {
       const { walletId, amountPaise, source, staffId, staffName, referenceId, description, deviceId, deviceSignature, nonce } = body;
@@ -1403,6 +1729,59 @@ serve(async (req: Request) => {
         return jsonResponse({ error: hwAuth.error }, hwAuth.status || 403);
       }
 
+      // 1. Idempotency pre-check against Supabase: Check if reference already processed
+      const cleanRef = ref.trim().toUpperCase();
+      const { data: existingDep } = await supabase
+        .from("recharge_float_deposits")
+        .select("*")
+        .eq("shop_id", shopId)
+        .eq("normalized_ref", cleanRef)
+        .maybeSingle();
+
+      if (existingDep) {
+        if (Number(existingDep.amount_paise) === Number(amountPaise)) {
+          const { data: wallet } = await supabase
+            .from("recharge_wallets")
+            .select("total_balance_paise, own_prepaid_balance_paise")
+            .eq("shop_id", shopId)
+            .eq("wallet_id", walletId)
+            .single();
+
+          return jsonResponse({
+            success: true,
+            wallet_id: walletId,
+            amount_paise: amountPaise,
+            total_balance_paise: wallet?.total_balance_paise ?? 0,
+            reference_id: existingDep.deposit_id,
+            idempotent_replay: true,
+          });
+        } else {
+          return jsonResponse(
+            { error: "Idempotency conflict: reference already processed with different payload" },
+            400
+          );
+        }
+      }
+
+      // 2. Race-safe server-authoritative Firestore bank reservation (Phase 16.4.16)
+      const isBankSource = !source || source.toLowerCase() === "bank";
+      if (isBankSource) {
+        const reservation = await reserveBankFundsInFirestore({
+          shopId,
+          rawToken,
+          ref,
+          amountPaise,
+          walletId,
+          callerUid,
+          staffName,
+        });
+
+        if (!reservation.success) {
+          return jsonResponse({ error: reservation.error }, reservation.status || 400);
+        }
+      }
+
+      // 3. Credit Operator Wallet in Supabase
       const { data, error } = await supabase.rpc("recharge_process_topup", {
         p_shop_id: shopId,
         p_wallet_id: walletId,
@@ -1412,9 +1791,33 @@ serve(async (req: Request) => {
         p_staff_name: staffName || "Owner",
         p_reference_id: ref,
         p_description: description || null,
+        p_device_id: deviceId,
       });
 
-      if (error) return jsonResponse({ error: error.message }, 400);
+      if (error) {
+        // Compensate reserved bank funds if Supabase RPC failed
+        if (isBankSource) {
+          await compensateFailedBankReservation(
+            shopId,
+            rawToken,
+            ref,
+            amountPaise / 100.0,
+            error.message
+          );
+        }
+        return jsonResponse({ error: error.message }, 400);
+      }
+
+      // 4. Finalize voucher in Firestore to SETTLED
+      if (isBankSource) {
+        await finalizeBankSettlementInFirestore(
+          shopId,
+          rawToken,
+          ref,
+          data?.reference_id || ref
+        );
+      }
+
       return jsonResponse(data);
     }
 
@@ -1606,7 +2009,7 @@ serve(async (req: Request) => {
     // ------------------------------------------------------------------------
     if (pathname.endsWith("/get-wallet")) {
       const { walletId } = body;
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from("recharge_wallets")
         .select("*")
         .eq("shop_id", shopId)
@@ -1614,7 +2017,39 @@ serve(async (req: Request) => {
         .maybeSingle();
 
       if (error) return jsonResponse({ error: error.message }, 500);
+
+      // Self-healing: if wallet does not exist in PostgreSQL for this shop, idempotently initialize
+      if (!data) {
+        await supabase.rpc("recharge_initialize_shop_wallets", { p_shop_id: shopId });
+        const retry = await supabase
+          .from("recharge_wallets")
+          .select("*")
+          .eq("shop_id", shopId)
+          .eq("wallet_id", walletId)
+          .maybeSingle();
+        data = retry.data;
+      }
+
       return jsonResponse({ success: true, wallet: data });
+    }
+
+    // ------------------------------------------------------------------------
+    // ENDPOINT 11B: POST /initialize-wallets (IDEMPOTENT OWNER AUTHENTICATED)
+    // ------------------------------------------------------------------------
+    if (pathname.endsWith("/initialize-wallets")) {
+      const { data, error } = await supabase.rpc("recharge_initialize_shop_wallets", {
+        p_shop_id: shopId,
+      });
+
+      if (error) return jsonResponse({ error: error.message }, 500);
+
+      const { data: wallets, error: wErr } = await supabase
+        .from("recharge_wallets")
+        .select("*")
+        .eq("shop_id", shopId);
+
+      if (wErr) return jsonResponse({ error: wErr.message }, 500);
+      return jsonResponse({ success: true, result: data, wallets });
     }
 
     // ------------------------------------------------------------------------

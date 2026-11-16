@@ -1886,6 +1886,7 @@ class CashBankReconciliationReport {
   final int distributorUpiPaymentsPaise;
   final int distributorBankPaymentsPaise;
   final int actualCashDepositedToBankPaise;
+  final int ownFloatBankDebitsPaise;
 
   const CashBankReconciliationReport({
     this.rechargeCashCollectedPaise = 0,
@@ -1898,6 +1899,7 @@ class CashBankReconciliationReport {
     this.distributorUpiPaymentsPaise = 0,
     this.distributorBankPaymentsPaise = 0,
     this.actualCashDepositedToBankPaise = 0,
+    this.ownFloatBankDebitsPaise = 0,
   });
 
   double get rechargeCashCollected => rechargeCashCollectedPaise / 100.0;
@@ -1910,6 +1912,7 @@ class CashBankReconciliationReport {
   double get distributorUpiPayments => distributorUpiPaymentsPaise / 100.0;
   double get distributorBankPayments => distributorBankPaymentsPaise / 100.0;
   double get actualCashDepositedToBank => actualCashDepositedToBankPaise / 100.0;
+  double get ownFloatBankDebits => ownFloatBankDebitsPaise / 100.0;
 
   int get netPhysicalCashFlowPaise =>
       rechargeCashCollectedPaise -

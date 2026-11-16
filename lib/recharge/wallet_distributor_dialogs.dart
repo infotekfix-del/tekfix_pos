@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../theme/tek_tokens.dart';
+import '../main.dart';
 import 'recharge_models.dart';
 import 'recharge_service.dart';
 
@@ -86,6 +86,16 @@ class _WalletTopUpDialogState extends State<WalletTopUpDialog> {
 
     try {
       if (_fundingType == RechargeFundingType.ownMoney) {
+        // Phase 16.4.16: Enforce client-side bank balance validation in UI
+        if (Db.bankBalance < amt) {
+          setState(() {
+            _submitting = false;
+            _errorMessage =
+                'ബാങ്ക് അക്കൗണ്ടിൽ മതിയായ ബാലൻസ് ഇല്ല (Insufficient bank balance: Available ₹${Db.bankBalance.toStringAsFixed(2)}, Required ₹${amt.toStringAsFixed(2)})';
+          });
+          return;
+        }
+
         await RechargeService.instance.recordOwnMoneyTopUp(
           shopId: widget.shopId,
           operator: _operator,
@@ -98,6 +108,7 @@ class _WalletTopUpDialogState extends State<WalletTopUpDialog> {
           description: _notesController.text.trim().isNotEmpty
               ? _notesController.text.trim()
               : 'Own Bank Transfer Top-Up to ${_operator.displayName}',
+          checkBankBalance: true,
         );
       } else {
         await RechargeService.instance.recordDistributorCreditLoad(
@@ -186,7 +197,50 @@ class _WalletTopUpDialogState extends State<WalletTopUpDialog> {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
+
+              // Phase 16.4.16: Informational Bank Balance display for Own Money
+              if (_fundingType == RechargeFundingType.ownMoney) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Db.bankBalance > 0
+                        ? TekColors.electricCyan.withValues(alpha: 0.12)
+                        : TekColors.error.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Db.bankBalance > 0
+                          ? TekColors.electricCyan.withValues(alpha: 0.4)
+                          : TekColors.error.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.account_balance_rounded,
+                        size: 16,
+                        color: Db.bankBalance > 0
+                            ? TekColors.electricCyan
+                            : TekColors.error,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'ലഭ്യമായ ബാങ്ക് ബാലൻസ്: ₹${Db.bankBalance.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Db.bankBalance > 0
+                                ? TekColors.textPrimary
+                                : TekColors.error,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
 
               // Operator Dropdown
               const Text('Operator / ഓപ്പറേറ്റർ:',
