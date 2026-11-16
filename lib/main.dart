@@ -18,6 +18,7 @@ import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import 'auth/auth_controller.dart';
 import 'auth/login_gate.dart';
@@ -500,6 +501,25 @@ Future<void> main() async {
         );
         debugPrint(
             '[TekFix Startup] 2. Firebase initialized with offline persistence');
+
+        // Configure Supabase Recharge Bridge for Production using genuine Firebase Auth ID Tokens
+        final prodEdgeUrl = DefaultFirebaseOptions.productionSupabaseEdgeUrl;
+        final prodClient = SupabaseRechargeBridgeClient(
+          edgeFunctionBaseUrl: prodEdgeUrl,
+          getFirebaseIdToken: () async {
+            final user = FirebaseAuth.instance.currentUser;
+            if (user == null) return null;
+            return await user.getIdToken();
+          },
+        );
+        RechargeBackendBridge.configure(
+          mode: RechargeBackendMode.supabaseEdgeFunction,
+          supabaseClient: prodClient,
+        );
+        debugPrint('[TekFix Startup] 2. Production Supabase Recharge Bridge configured successfully ($prodEdgeUrl)');
+      } on StateError catch (se) {
+        debugPrint('[TekFix Startup] 2. CRITICAL PRODUCTION FAILURE: $se');
+        rethrow;
       } catch (e) {
         debugPrint('[TekFix Startup] 2. Firebase init skipped or failed: $e');
       }

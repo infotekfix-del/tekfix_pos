@@ -58,20 +58,40 @@ const STAGING_SHOP_OWNERS: Readonly<Record<string, readonly string[]>> = Object.
 
 // Enforce configuration integrity on startup/first load
 function validateEnvironmentConfiguration(): void {
+  // Fail-closed gate: STAGING_IDENTITY_MODE must be explicitly "true" or "false"
+  if (RAW_STAGING_MODE !== "true" && RAW_STAGING_MODE !== "false") {
+    throw new Error(
+      `FATAL SECURITY CONFIGURATION: STAGING_IDENTITY_MODE must be explicitly set to "true" or "false" (received: "${RAW_STAGING_MODE ?? "undefined"}"). Server refused to start.`
+    );
+  }
+
   if (STAGING_IDENTITY_MODE) {
+    // Staging mode validation (Option A HMAC identity): does NOT require production Firebase ID
     if (!STAGING_JWT_SECRET || new TextEncoder().encode(STAGING_JWT_SECRET).length < 32) {
       throw new Error(
         "FATAL SECURITY CONFIGURATION: STAGING_IDENTITY_MODE is true, but STAGING_JWT_SECRET is missing or has insufficient entropy (< 32 bytes / 256 bits). Server refused to start."
       );
     }
   } else {
-    // Production Mode: Must have FIREBASE_PROJECT_ID explicitly set
+    // Production Mode: Must have FIREBASE_PROJECT_ID explicitly set and strictly match tekfix-45b38
     if (!FIREBASE_PROJECT_ID) {
       throw new Error(
         "FATAL SECURITY CONFIGURATION: Production identity mode active, but FIREBASE_PROJECT_ID is not configured. Server refused to start."
       );
     }
+    if (FIREBASE_PROJECT_ID !== "tekfix-45b38") {
+      throw new Error(
+        `FATAL SECURITY CONFIGURATION: Production FIREBASE_PROJECT_ID must strictly equal "tekfix-45b38" (received: "${FIREBASE_PROJECT_ID}"). Server refused to start.`
+      );
+    }
   }
+}
+
+// Immediate startup evaluation
+try {
+  validateEnvironmentConfiguration();
+} catch (e) {
+  console.error("[recharge-bridge:startup_validation_failed]", e);
 }
 
 // Supabase DB Client

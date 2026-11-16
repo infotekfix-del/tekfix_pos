@@ -60,6 +60,31 @@ class DefaultFirebaseOptions {
   static const String expectedSupabaseEdgeUrl =
       'https://mwhsvidbrfkryuiwhnev.supabase.co/functions/v1/recharge-bridge';
 
+  /// Raw compile-time environment definition for production Supabase Edge URL
+  static const String _rawProdEdgeUrl =
+      String.fromEnvironment('SUPABASE_PROD_EDGE_URL', defaultValue: '');
+
+  /// Authorized Supabase Production Edge Function Base URL.
+  /// In production builds, SUPABASE_PROD_EDGE_URL must be explicitly provided.
+  /// Never falls back to staging URL (mwhsvidbrfkryuiwhnev).
+  static String get productionSupabaseEdgeUrl {
+    final url = _rawProdEdgeUrl.trim();
+    if (url.isEmpty) {
+      throw StateError(
+        'CRITICAL CONFIGURATION ERROR: SUPABASE_PROD_EDGE_URL is not configured. '
+        'Production builds must explicitly define --dart-define=SUPABASE_PROD_EDGE_URL=<url>. '
+        'Never fall back to staging Supabase ($expectedSupabaseProjectRef).',
+      );
+    }
+    if (url.contains(expectedSupabaseProjectRef)) {
+      throw StateError(
+        'CRITICAL SECURITY VIOLATION: Production build attempted to use staging Supabase project '
+        '($expectedSupabaseProjectRef). Production must use an isolated production Supabase instance.',
+      );
+    }
+    return url;
+  }
+
   /// Literal production project id. Kept separate from [productionFirebaseProjectId]
   /// because UAT compiles replace that constant with `PROD_BLOCKED_IN_UAT`.
   static const String blockedProductionProjectId = 'tekfix-45b38';
