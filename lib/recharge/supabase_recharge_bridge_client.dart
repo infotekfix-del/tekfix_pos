@@ -70,11 +70,16 @@ class SupabaseRechargeBridgeClient {
   Future<({String nonce, String expiresAt})> requestChallenge({
     required String shopId,
     required String deviceId,
+    String? ownerUid,
   }) async {
-    final res = await _post('request-challenge', {
+    final payload = <String, dynamic>{
       'shopId': shopId,
       'deviceId': deviceId,
-    });
+    };
+    if (ownerUid != null && ownerUid.isNotEmpty) {
+      payload['ownerUid'] = ownerUid;
+    }
+    final res = await _post('request-challenge', payload);
 
     final nonce = res['nonce']?.toString() ?? '';
     final expiresAt = res['expiresAt']?.toString() ?? '';

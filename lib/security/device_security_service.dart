@@ -240,9 +240,9 @@ class DeviceSecurityService {
     // Windows Desktop / Fallback Environment
     if (_cachedPrivateKeyPem == null || _cachedPrivateKeyPem!.isEmpty) {
       _cachedPrivateKeyPem = await PlatformHardwareKeyStore.instance.readPrivateKey();
-    }
-    if (_cachedPrivateKeyPem == null || _cachedPrivateKeyPem!.isEmpty) {
-      throw StateError('Cannot sign payload: Device private key is uninitialized.');
+      if (_cachedPrivateKeyPem == null || _cachedPrivateKeyPem!.isEmpty) {
+        await generateDeviceKeys();
+      }
     }
 
     final msgHash = sha256.convert(utf8.encode(canonicalPayload)).bytes;

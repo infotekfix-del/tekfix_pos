@@ -137,11 +137,23 @@ void main() {
     test('Gate 5: StagingIdentityService acquires server-issued token without client secrets', () async {
       int serverCalls = 0;
       final mockClient = MockClient((request) async {
+        if (request.url.path.endsWith('/request-challenge')) {
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'nonce': 'mock_challenge_nonce_12345',
+              'expiresAt': DateTime.now().add(const Duration(minutes: 5)).toIso8601String(),
+            }),
+            200,
+          );
+        }
         if (request.url.path.endsWith('/issue-staging-token')) {
           serverCalls++;
           final body = jsonDecode(request.body) as Map<String, dynamic>;
           expect(body['shopId'], equals('shop_staging_001'));
           expect(body['ownerUid'], equals('owner_staging_001'));
+          expect(body['nonce'], equals('mock_challenge_nonce_12345'));
+          expect(body['deviceSignature'], isNotEmpty);
           return http.Response(
             jsonEncode({
               'success': true,
@@ -205,6 +217,16 @@ void main() {
 
     test('Gate 7: RechargeBackendBridge is properly configured with Supabase client and server-issued token', () async {
       final mockClient = MockClient((request) async {
+        if (request.url.path.endsWith('/request-challenge')) {
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'nonce': 'mock_bridge_nonce_123',
+              'expiresAt': DateTime.now().add(const Duration(minutes: 5)).toIso8601String(),
+            }),
+            200,
+          );
+        }
         if (request.url.path.endsWith('/issue-staging-token')) {
           return http.Response(
             jsonEncode({

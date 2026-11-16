@@ -24,6 +24,7 @@ import 'auth/login_gate.dart';
 import 'core/device.dart';
 import 'recharge/recharge_backend_bridge.dart';
 import 'recharge/supabase_recharge_bridge_client.dart';
+import 'security/device_security_service.dart';
 import 'security/staging_identity_service.dart';
 import 'staff/activity_log.dart';
 import 'staff/staff_accounts_view.dart';
@@ -440,6 +441,14 @@ Future<void> main() async {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
 
+    // Ensure logs are forwarded to Android logcat in release builds
+    debugPrint = (String? message, {int? wrapWidth}) {
+      if (message != null) {
+        // ignore: avoid_print
+        print(message);
+      }
+    };
+
     // 1. Hook FlutterError.onError so errors show on screen / in logs instead of crashing
     FlutterError.onError = (FlutterErrorDetails details) {
       FlutterError.presentError(details);
@@ -466,6 +475,9 @@ Future<void> main() async {
         edgeFunctionBaseUrl: DefaultFirebaseOptions.expectedSupabaseEdgeUrl,
         getFirebaseIdToken: () async => StagingIdentityService.getOptionAToken(
           edgeFunctionBaseUrl: DefaultFirebaseOptions.expectedSupabaseEdgeUrl,
+          shopId: AuthController.instance.shopId,
+          ownerUid: AuthController.instance.uid,
+          deviceId: DeviceSecurityService.instance.deviceId,
         ),
       );
       RechargeBackendBridge.configure(
@@ -552,6 +564,24 @@ Future<void> main() async {
       await AuthController.instance.init().timeout(const Duration(seconds: 4));
     } catch (e) {
       debugPrint('[TekFix Startup] AuthController init warning: $e');
+    }
+
+    // 5.1 DeviceSecurityService Init & Staging Trusted Device Auto-Enrollment
+    debugPrint('[TekFix Startup] 4.1 Initializing DeviceSecurityService...');
+    try {
+      final sec = DeviceSecurityService.instance;
+      await sec.init();
+      debugPrint('[TekFix Startup] 4.1 Staging UAT: Device ${sec.deviceId} initialized.');
+      debugPrint('[TekFix Startup] 4.1 Staging UAT Public Key:\n${sec.publicKeyPem}');
+      if (DefaultFirebaseOptions.isUatMode) {
+        // In Staging UAT mode, auto-enroll the active authorized device for Owner
+        if (!sec.isEnrolledLocally) {
+          await sec.setEnrolledLocally(true);
+          debugPrint('[TekFix Startup] 4.1 Staging UAT: Device ${sec.deviceId} auto-enrolled locally.');
+        }
+      }
+    } catch (e) {
+      debugPrint('[TekFix Startup] DeviceSecurityService init warning: $e');
     }
 
     // 6. Custom on-screen error builder
@@ -1535,12 +1565,62 @@ class _AppShellState extends State<AppShell> {
   }
 }
 
+Future<void> _showOwnerSignOutDialog(BuildContext context) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: TekColors.bgCard,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Row(
+        children: [
+          Icon(Icons.logout_rounded, color: Color(0xFFEF4444), size: 24),
+          SizedBox(width: 10),
+          Text(
+            'ലോഗൗട്ട് ചെയ്യണോ?',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+      content: const Text(
+        'സെഷൻ അവസാനിപ്പിച്ച് ലോഗിൻ സ്‌ക്രീനിലേക്ക് മടങ്ങാൻ ആഗ്രഹിക്കുന്നുവോ?',
+        style: TextStyle(color: Colors.white70, fontSize: 14),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('Cancel (റദ്ദാക്കുക)', style: TextStyle(color: Colors.white60)),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFFEF4444),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: const Text('Sign Out (ലോഗൗട്ട്)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        ),
+      ],
+    ),
+  );
+
+  if (confirmed == true && context.mounted) {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    await AuthController.instance.signOut();
+  }
+}
+
 class MoreView extends StatelessWidget {
   final List<AppModule> modules;
   const MoreView({super.key, required this.modules});
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthController>();
+    final isOwner = auth.isOwner;
+
     return Scaffold(
       appBar: TekAppBar(
         title: const Text('More modules'),
@@ -1563,6 +1643,79 @@ class MoreView extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // 1. Top Owner Profile Card (Only for verified Owner)
+          if (isOwner) ...[
+            AppCard(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 26,
+                    backgroundColor: Colors.amber.withAlpha(35),
+                    child: const Icon(Icons.person_rounded, color: Colors.amber, size: 28),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              auth.name.isNotEmpty ? auth.name : 'Owner',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withAlpha(30),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: Colors.amber.withAlpha(90)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.shield_rounded, size: 12, color: Colors.amber),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'OWNER',
+                                    style: TextStyle(
+                                      color: Colors.amber,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 10,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          Db.setting('shop_name', 'TEKFIX DIGITAL'),
+                          style: TextStyle(fontSize: 12, color: _muted(context)),
+                        ),
+                        if (auth.email.isNotEmpty)
+                          Text(
+                            auth.email,
+                            style: TextStyle(fontSize: 11, color: _muted(context)),
+                          ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444)),
+                    tooltip: 'Sign Out (ലോഗൗട്ട്)',
+                    onPressed: () => _showOwnerSignOutDialog(context),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           for (final m in modules)
             AppCard(
               margin: const EdgeInsets.only(bottom: 10),
@@ -1584,6 +1737,63 @@ class MoreView extends StatelessWidget {
                 ],
               ),
             ),
+
+          // 3. Bottom Red Logout Card (Only for verified Owner)
+          if (isOwner) ...[
+            const SizedBox(height: 12),
+            Container(
+              margin: const EdgeInsets.only(bottom: 24),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444).withAlpha(18),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFEF4444).withAlpha(80)),
+              ),
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(14),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => _showOwnerSignOutDialog(context),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: Color(0x33EF4444),
+                          child: Icon(Icons.logout_rounded, color: Color(0xFFEF4444)),
+                        ),
+                        SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'ലോഗൗട്ട് ചെയ്യുക (Sign Out)',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  color: Color(0xFFEF4444),
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'സെഷൻ അവസാനിപ്പിച്ച് ലോഗിൻ സ്‌ക്രീനിലേക്ക് മടങ്ങുക',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFFEF4444)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -6232,6 +6442,32 @@ class _SettingsViewState extends State<SettingsView> {
                   ExpenseCleanupDialog.show(context, shopId: sId);
                 }
               },
+            ),
+          ),
+          const SizedBox(height: 12),
+          const SectionTitle('അക്കൗണ്ട് & സെഷൻ (Account & Session)'),
+          AppCard(
+            child: ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withAlpha(30),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.logout_rounded,
+                    color: Color(0xFFEF4444), size: 20),
+              ),
+              title: const Text('ലോഗൗട്ട് ചെയ്യുക (Sign Out)',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Color(0xFFEF4444))),
+              subtitle: const Text(
+                  'സെഷൻ അവസാനിപ്പിച്ച് ലോഗിൻ സ്‌ക്രീനിലേക്ക് മടങ്ങുക',
+                  style: TextStyle(fontSize: 12)),
+              trailing: const Icon(Icons.arrow_forward_ios_rounded,
+                  size: 14, color: Color(0xFFEF4444)),
+              onTap: () => _showOwnerSignOutDialog(context),
             ),
           ),
           const SizedBox(height: 24),

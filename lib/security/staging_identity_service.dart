@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:hive/hive.dart';
 import 'package:http/http.dart' as http;
+import '../auth/auth_controller.dart';
+import '../main.dart' show Db;
 import 'device_security_service.dart';
 
 /// ============================================================================
@@ -48,11 +51,62 @@ class StagingIdentityService {
     return _cachedExpiresAt!.isAfter(DateTime.now().add(const Duration(seconds: 30)));
   }
 
+  /// Helper to safely resolve active shop ID from active Owner session or Hive
+  static String _resolveShopId(String? explicitShopId) {
+    if (explicitShopId != null && explicitShopId.trim().isNotEmpty) {
+      return explicitShopId.trim();
+    }
+    try {
+      final authShopId = AuthController.instance.shopId.trim();
+      if (authShopId.isNotEmpty) return authShopId;
+    } catch (_) {}
+    try {
+      if (Hive.isBoxOpen('tek_settings')) {
+        final stored = Db.setting('shop_id', '').trim();
+        if (stored.isNotEmpty) return stored;
+      }
+    } catch (_) {}
+    return defaultShopId;
+  }
+
+  /// Helper to safely resolve active owner UID from active Owner session or Hive
+  static String _resolveOwnerUid(String? explicitOwnerUid) {
+    if (explicitOwnerUid != null && explicitOwnerUid.trim().isNotEmpty) {
+      return explicitOwnerUid.trim();
+    }
+    try {
+      final authUid = AuthController.instance.uid.trim();
+      if (authUid.isNotEmpty) return authUid;
+    } catch (_) {}
+    try {
+      if (Hive.isBoxOpen('tek_settings')) {
+        final stored = Db.setting('staff_logged_id', '').trim();
+        if (stored.isNotEmpty) return stored;
+      }
+    } catch (_) {}
+    return defaultOwnerUid;
+  }
+
+  /// Helper to safely resolve active registered device ID
+  static String _resolveDeviceId(String? explicitDeviceId) {
+    if (explicitDeviceId != null && explicitDeviceId.trim().isNotEmpty) {
+      return explicitDeviceId.trim();
+    }
+    try {
+      final devId = DeviceSecurityService.instance.deviceId.trim();
+      if (devId.isNotEmpty) return devId;
+    } catch (_) {}
+    return '';
+  }
+
   /// Obtains a short-lived Option A staging token from the staging Edge Function.
   /// 
-  /// 1. Checks in-memory cache first (with 30s safety margin).
-  /// 2. If missing or nearing expiry, requests a new token from /issue-staging-token over HTTPS.
-  /// 3. Returns the valid JWT for use in Authorization: Bearer headers.
+  /// 1. Enforces owner-only authentication (strictly rejects staff sessions).
+  /// 2. Checks in-memory cache first (with 30s safety margin).
+  /// 3. Resolves shopId, ownerUid, and deviceId dynamically from the active session.
+  /// 4. Generates a fresh nonce challenge and authentic ECDSA P-256 hardware signature.
+  /// 5. Validates all 5 mandatory parameters before POSTing to /issue-staging-token.
+  /// 6. Returns the valid JWT for use in Authorization: Bearer headers.
   static Future<String> getOptionAToken({
     required String edgeFunctionBaseUrl,
     String? shopId,
@@ -61,46 +115,87 @@ class StagingIdentityService {
     String? nonce,
     String? deviceSignature,
   }) async {
-    final effectiveShopId = shopId ?? defaultShopId;
-    final effectiveOwnerUid = ownerUid ?? defaultOwnerUid;
+    // 1. Staff isolation check: staff sessions must NEVER obtain owner staging tokens
+    try {
+      if (AuthController.instance.isStaffLoggedIn) {
+        throw StateError('Staff access denied: Recharge Accounting token issuance requires an authenticated Owner session.');
+      }
+    } catch (e) {
+      if (e is StateError) rethrow;
+    }
 
+    // 2. In-memory cache hit check
     if (hasValidCachedToken) {
       return _cachedToken!;
     }
 
-    final client = _customHttpClient ?? http.Client();
-    final effectiveDeviceId = deviceId ?? DeviceSecurityService.instance.deviceId;
-    String effectiveNonce = nonce ?? '';
-    String effectiveSignature = deviceSignature ?? '';
+    // 3. Dynamic parameter resolution
+    final effectiveShopId = _resolveShopId(shopId);
+    final effectiveOwnerUid = _resolveOwnerUid(ownerUid);
+    final effectiveDeviceId = _resolveDeviceId(deviceId);
 
-    // If nonce or signature not explicitly provided, request challenge and sign with hardware key
+    if (effectiveDeviceId.isEmpty) {
+      throw StateError('[StagingIdentityService] Device ID is uninitialized or empty.');
+    }
+
+    final client = _customHttpClient ?? http.Client();
+    String effectiveNonce = (nonce != null && nonce.trim().isNotEmpty) ? nonce.trim() : '';
+    String effectiveSignature = (deviceSignature != null && deviceSignature.trim().isNotEmpty) ? deviceSignature.trim() : '';
+
+    // 4. Request fresh challenge nonce and sign with hardware key if not supplied
     if (effectiveNonce.isEmpty || effectiveSignature.isEmpty) {
-      try {
-        final challengeUrl = Uri.parse('$edgeFunctionBaseUrl/request-challenge');
-        final challengeRes = await client.post(
-          challengeUrl,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'shopId': effectiveShopId,
-            'ownerUid': effectiveOwnerUid,
-            'deviceId': effectiveDeviceId,
-          }),
-        );
-        if (challengeRes.statusCode >= 200 && challengeRes.statusCode < 300) {
-          final cData = jsonDecode(challengeRes.body) as Map<String, dynamic>;
-          effectiveNonce = cData['nonce']?.toString() ?? '';
-          if (effectiveNonce.isNotEmpty) {
-            final canonicalPayload = 'ISSUE_STAGING_TOKEN:$effectiveShopId:$effectiveOwnerUid:$effectiveDeviceId:$effectiveNonce';
-            effectiveSignature = await DeviceSecurityService.instance.signRawPayload(canonicalPayload);
+      final challengeUrl = Uri.parse('$edgeFunctionBaseUrl/request-challenge');
+      final challengeRes = await client.post(
+        challengeUrl,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'shopId': effectiveShopId,
+          'ownerUid': effectiveOwnerUid,
+          'deviceId': effectiveDeviceId,
+        }),
+      );
+
+      if (challengeRes.statusCode < 200 || challengeRes.statusCode >= 300) {
+        String errMsg = 'HTTP ${challengeRes.statusCode}';
+        try {
+          final errData = jsonDecode(challengeRes.body);
+          if (errData is Map && errData['error'] != null) {
+            errMsg = errData['error'].toString();
           }
+        } catch (_) {
+          errMsg = challengeRes.body.isNotEmpty ? challengeRes.body : errMsg;
         }
-      } catch (e) {
-        debugPrint('[StagingIdentityService] Challenge request notice: $e');
+        throw StateError(
+          '[StagingIdentityService] Challenge request failed (${challengeRes.statusCode}): $errMsg',
+        );
+      }
+
+      final cData = jsonDecode(challengeRes.body) as Map<String, dynamic>;
+      effectiveNonce = cData['nonce']?.toString().trim() ?? '';
+      if (effectiveNonce.isEmpty) {
+        throw StateError('[StagingIdentityService] Server response missing challenge nonce.');
+      }
+
+      final canonicalPayload = 'ISSUE_STAGING_TOKEN:$effectiveShopId:$effectiveOwnerUid:$effectiveDeviceId:$effectiveNonce';
+      effectiveSignature = (await DeviceSecurityService.instance.signRawPayload(canonicalPayload)).trim();
+      if (effectiveSignature.isEmpty) {
+        throw StateError('[StagingIdentityService] Device signature generation returned empty signature.');
       }
     }
 
-    final url = Uri.parse('$edgeFunctionBaseUrl/issue-staging-token');
+    // 5. Assert all 5 mandatory parameters are present and non-empty
+    if (effectiveShopId.isEmpty ||
+        effectiveOwnerUid.isEmpty ||
+        effectiveDeviceId.isEmpty ||
+        effectiveNonce.isEmpty ||
+        effectiveSignature.isEmpty) {
+      throw StateError(
+        '[StagingIdentityService] Missing mandatory parameters: shopId, ownerUid, deviceId, nonce, and deviceSignature are all required.',
+      );
+    }
 
+    // 6. Request token from /issue-staging-token
+    final url = Uri.parse('$edgeFunctionBaseUrl/issue-staging-token');
     final response = await client.post(
       url,
       headers: {
@@ -132,7 +227,14 @@ class StagingIdentityService {
       return token;
     }
 
-    final errorBody = response.body;
+    String errorBody = response.body;
+    try {
+      final errData = jsonDecode(response.body);
+      if (errData is Map && errData['error'] != null) {
+        errorBody = errData['error'].toString();
+      }
+    } catch (_) {}
+
     throw StateError(
       '[StagingIdentityService] Staging token issuance failed (${response.statusCode}): $errorBody',
     );

@@ -372,12 +372,13 @@ class RechargeService {
 
               if (RechargeBackendBridge.isSupabaseMode) {
                 if (RechargeBackendBridge.supabaseClient != null) {
+                  final ownerUid = _resolveActiveUid(payload['staffId'] as String?);
                   final challenge =
                       await RechargeBackendBridge.supabaseClient!.requestChallenge(
                     shopId: shopId,
                     deviceId: devId,
+                    ownerUid: ownerUid,
                   );
-                  final ownerUid = _resolveActiveUid(payload['staffId'] as String?);
                   final signature = await sec.signChallenge(
                     shopId: shopId,
                     ownerUid: ownerUid,
@@ -739,11 +740,12 @@ class RechargeService {
         if (RechargeBackendBridge.supabaseClient != null) {
           final sec = DeviceSecurityService.instance;
           final dId = sec.deviceId;
+          final currentUid = _resolveActiveUid(staffId);
           final challenge = await RechargeBackendBridge.supabaseClient!.requestChallenge(
             shopId: shopId,
             deviceId: dId,
+            ownerUid: currentUid,
           );
-          final currentUid = _resolveActiveUid(staffId);
           final sig = await sec.signChallenge(
             shopId: shopId,
             ownerUid: currentUid,
@@ -912,11 +914,12 @@ class RechargeService {
         if (RechargeBackendBridge.supabaseClient != null) {
           final sec = DeviceSecurityService.instance;
           final dId = sec.deviceId;
+          final currentUid = _resolveActiveUid(staffId);
           final challenge = await RechargeBackendBridge.supabaseClient!.requestChallenge(
             shopId: shopId,
             deviceId: dId,
+            ownerUid: currentUid,
           );
-          final currentUid = _resolveActiveUid(staffId);
           final sig = await sec.signChallenge(
             shopId: shopId,
             ownerUid: currentUid,
@@ -1116,13 +1119,14 @@ class RechargeService {
             if (RechargeBackendBridge.supabaseClient != null) {
               // Phase 13.6 Zero-Cost Supabase Edge Function Route
               // 1. Request single-use challenge nonce from Edge Function
+              final ownerUid = _resolveActiveUid(recharge.staffId);
               final challenge = await RechargeBackendBridge.supabaseClient!.requestChallenge(
                 shopId: recharge.shopId,
                 deviceId: devId,
+                ownerUid: ownerUid,
               );
 
               // 2. Hardware ECDSA P-256 signature over challenge nonce
-              final ownerUid = _resolveActiveUid(recharge.staffId);
               final signature = await sec.signChallenge(
                 shopId: recharge.shopId,
                 ownerUid: ownerUid,

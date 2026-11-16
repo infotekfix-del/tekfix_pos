@@ -32,6 +32,12 @@ class QuickRechargeDialog extends StatefulWidget {
     );
   }
 
+  static String _maskPhone(String phone) {
+    final clean = phone.trim();
+    if (clean.length < 5) return '***';
+    return '${clean.substring(0, 2)}*****${clean.substring(clean.length - 2)}';
+  }
+
   /// Core server-authoritative accounting logic for executing a recharge transaction.
   /// Enforces:
   /// 1. Owner authorization & Enrolled hardware device (1 mobile + 1 laptop).
@@ -51,16 +57,22 @@ class QuickRechargeDialog extends StatefulWidget {
     String? customIdempotencyKey,
   }) async {
     // 1. Role-based Authorization: Must be authenticated Shop Owner
+    debugPrint('[RECHARGE_SAVE] OWNER_AUTH_CHECK');
     final auth = AuthController.instance;
     if (!auth.isOwner) {
+      debugPrint('[RECHARGE_SAVE] OWNER_AUTH_CHECK_FAILED: signedIn=${auth.signedIn}, isStaff=${auth.isStaffLoggedIn}, role=${auth.role}');
       throw StateError('Owner authorization required for recharge transactions');
     }
+    debugPrint('[RECHARGE_SAVE] OWNER_AUTH_CHECK_PASSED: uid=${auth.uid}, shop=${auth.shopId}');
 
     // 2. Hardware Device Security: Must be an enrolled trusted device (1 mobile + 1 laptop)
+    debugPrint('[RECHARGE_SAVE] DEVICE_SECURITY_CHECK');
     final sec = DeviceSecurityService.instance;
     if (!sec.isEnrolledLocally) {
+      debugPrint('[RECHARGE_SAVE] DEVICE_SECURITY_CHECK_FAILED: deviceId=${sec.deviceId}, isEnrolled=false');
       throw StateError('Trusted device enrollment required: This device is not authorized for recharge transactions.');
     }
+    debugPrint('[RECHARGE_SAVE] DEVICE_SECURITY_CHECK_PASSED: deviceId=${sec.deviceId}');
 
     // 2.1 Fast Client-Side Duplicate Tap Prevention (60-second safety window)
     if (customIdempotencyKey == null) {
@@ -74,7 +86,8 @@ class QuickRechargeDialog extends StatefulWidget {
           if (existingMobile == mobile && (existingAmount - retailAmount).abs() < 0.01 && rawDate != null) {
             final dt = DateTime.tryParse(rawDate);
             if (dt != null && dt.isAfter(sixtySecsAgo)) {
-              throw StateError('Duplicate transaction detected: A recharge of ₹$retailAmount for $mobile was already processed within the last 60 seconds.');
+              debugPrint('[RECHARGE_SAVE] DUPLICATE_BLOCKED: ₹$retailAmount for ${_maskPhone(mobile)} within 60s');
+              throw StateError('Duplicate transaction detected: A recharge of ₹$retailAmount was already processed within the last 60 seconds.');
             }
           }
         }
@@ -115,6 +128,7 @@ class QuickRechargeDialog extends StatefulWidget {
     // 4. Server-Authoritative Execution via Supabase Recharge Bridge
     final client = RechargeBackendBridge.supabaseClient;
     if (client == null) {
+      debugPrint('[RECHARGE_SAVE] BACKEND_CLIENT_UNCONFIGURED: Supabase client is null');
       await RechargeRecoveryEngine.markFailed(idempotencyKey, 'Backend client unconfigured');
       throw StateError('Authoritative recharge backend client unconfigured. Local commits strictly prohibited.');
     }
@@ -123,15 +137,19 @@ class QuickRechargeDialog extends StatefulWidget {
     final challenge = await client.requestChallenge(
       shopId: shopId,
       deviceId: devId,
+      ownerUid: ownerUid,
     );
 
     // 4.2 Generate Hardware ECDSA P-256 signature over canonical payload
+    debugPrint('[RECHARGE_SAVE] SIGNING_STARTED');
     final debitAmountPaise = costPaise > 0 ? costPaise : retailPaise;
     final canonicalData = '$targetWalletId:$idempotencyKey:$debitAmountPaise:$fundingType';
     final canonicalPayload = 'PROCESS_DEBIT:$shopId:$ownerUid:$devId:${challenge.nonce}:$canonicalData';
     final signature = await sec.signRawPayload(canonicalPayload);
+    debugPrint('[RECHARGE_SAVE] SIGNING_COMPLETED');
 
     // 4.3 Execute atomic server-side wallet debit
+    debugPrint('[RECHARGE_SAVE] BACKEND_REQUEST_STARTED');
     final res = await client.processDebit(
       shopId: shopId,
       walletId: targetWalletId,
@@ -155,6 +173,7 @@ class QuickRechargeDialog extends StatefulWidget {
       partyKey: partyKey,
       partyName: partyName,
     );
+    debugPrint('[RECHARGE_SAVE] BACKEND_RESPONSE_RECEIVED: success=${res['success']}');
 
     if (res['success'] != true) {
       final errMsg = res['error']?.toString() ?? 'Server rejected recharge transaction.';
@@ -227,6 +246,7 @@ class QuickRechargeDialog extends StatefulWidget {
 
     // Save non-authoritative read cache to Hive
     await Db.recharges.put(idempotencyKey, entry);
+    debugPrint('[RECHARGE_SAVE] TRANSACTION_PERSISTED: id=$idempotencyKey');
 
     // Step 5.1 Mark completely settled and purge from pending outbox journal
     await RechargeRecoveryEngine.markSettled(idempotencyKey);
@@ -248,6 +268,7 @@ class QuickRechargeDialog extends StatefulWidget {
 
 class _QuickRechargeDialogState extends State<QuickRechargeDialog> {
   final _formKey = GlobalKey<FormState>();
+  final _scrollController = ScrollController();
   final _mobileController = TextEditingController();
   final _amountController = TextEditingController();
   final _costController = TextEditingController();
@@ -260,6 +281,7 @@ class _QuickRechargeDialogState extends State<QuickRechargeDialog> {
   String _selectedPartyName = '';
   bool _isCustomCost = false;
   bool _isSubmitting = false;
+  String? _dialogError;
 
   final Map<String, double> _defaultMargins = {
     'Jio': 0.030, // 3.0%
@@ -284,6 +306,7 @@ class _QuickRechargeDialogState extends State<QuickRechargeDialog> {
     _amountController.dispose();
     _costController.dispose();
     _notesController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -419,17 +442,44 @@ class _QuickRechargeDialogState extends State<QuickRechargeDialog> {
   }
 
   Future<void> _submitRecharge() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_paymentMode == 'Credit / Due' && _selectedPartyKey == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('കടത്തിന് കസ്റ്റമറെ തിരഞ്ഞെടുക്കണം (Select customer for Due)'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+    debugPrint('[RECHARGE_SAVE] BUTTON_PRESSED');
+    if (_isSubmitting) {
+      debugPrint('[RECHARGE_SAVE] SUBMISSION_ALREADY_IN_PROGRESS: duplicate tap ignored');
       return;
     }
 
+    setState(() {
+      _dialogError = null;
+    });
+
+    debugPrint('[RECHARGE_SAVE] VALIDATION_STARTED');
+    final formValid = _formKey.currentState?.validate() ?? false;
+    if (!formValid) {
+      final mLen = _mobileController.text.trim().length;
+      final aText = _amountController.text.trim();
+      debugPrint('[RECHARGE_SAVE] VALIDATION_FAILED: Form invalid (mobile length: $mLen, amount: "$aText")');
+      setState(() {
+        _dialogError = 'ദയവായി ആവശ്യമായ വിവരങ്ങൾ കൃത്യമായി നൽകുക (Please enter valid 10-digit number & amount)';
+      });
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+      return;
+    }
+
+    if (_paymentMode == 'Credit / Due' && _selectedPartyKey == null) {
+      debugPrint('[RECHARGE_SAVE] VALIDATION_FAILED: Customer not selected for Credit / Due');
+      setState(() {
+        _dialogError = 'കടത്തിന് കസ്റ്റമറെ തിരഞ്ഞെടുക്കണം (Select customer for Due)';
+      });
+      return;
+    }
+
+    debugPrint('[RECHARGE_SAVE] VALIDATION_PASSED');
     setState(() => _isSubmitting = true);
 
     try {
@@ -449,6 +499,8 @@ class _QuickRechargeDialogState extends State<QuickRechargeDialog> {
         partyName: _selectedPartyName,
         notes: _notesController.text.trim(),
       );
+
+      debugPrint('[RECHARGE_SAVE] UI_SUCCESS');
 
       if (mounted) {
         Navigator.pop(context);
@@ -472,13 +524,23 @@ class _QuickRechargeDialogState extends State<QuickRechargeDialog> {
           ),
         );
       }
-    } catch (e) {
+    } catch (e, stack) {
+      debugPrint('[RECHARGE_SAVE] ERROR: $e');
+      debugPrint('[RECHARGE_SAVE] STACK: $stack');
       if (mounted) {
-        setState(() => _isSubmitting = false);
+        final cleanMsg = e.toString()
+            .replaceFirst('Exception: ', '')
+            .replaceFirst('Bad state: ', '')
+            .replaceFirst('StateError: ', '');
+        setState(() {
+          _isSubmitting = false;
+          _dialogError = cleanMsg;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('റീചാർജ് പരാജയപ്പെട്ടു: $e'),
+            content: Text('റീചാർജ് പരാജയപ്പെട്ടു: $cleanMsg'),
             backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -561,6 +623,7 @@ class _QuickRechargeDialogState extends State<QuickRechargeDialog> {
               // Scrollable Form Content
               Flexible(
                 child: SingleChildScrollView(
+                  controller: _scrollController,
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -933,36 +996,71 @@ class _QuickRechargeDialogState extends State<QuickRechargeDialog> {
                   borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
                   border: Border(top: BorderSide(color: TekColors.border)),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    TextButton(
-                      onPressed: _isSubmitting ? null : () => Navigator.pop(context),
-                      child: const Text('റദ്ദാക്കുക (Cancel)', style: TextStyle(color: Colors.white70)),
-                    ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: TekColors.primaryBlue,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    if (_dialogError != null) ...[
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withAlpha(40),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.redAccent.withAlpha(160)),
                         ),
-                        onPressed: _isSubmitting ? null : _submitRecharge,
-                        icon: _isSubmitting
-                            ? const SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                              )
-                            : const Icon(Icons.check_rounded, size: 18),
-                        label: Text(
-                          _isSubmitting ? 'സേവ് ചെയ്യുന്നു...' : 'സേവ് ചെയ്യുക (Save)',
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _dialogError!,
+                                style: const TextStyle(
+                                  color: Colors.redAccent,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
+                    ],
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: _isSubmitting ? null : () => Navigator.pop(context),
+                          child: const Text('റദ്ദാക്കുക (Cancel)', style: TextStyle(color: Colors.white70)),
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: _isSubmitting
+                                  ? TekColors.primaryBlue.withAlpha(160)
+                                  : TekColors.primaryBlue,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            onPressed: _isSubmitting ? null : _submitRecharge,
+                            icon: _isSubmitting
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.check_rounded, size: 18),
+                            label: Text(
+                              _isSubmitting ? 'സേവ് ചെയ്യുന്നു...' : 'സേവ് ചെയ്യുക (Save)',
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

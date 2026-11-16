@@ -214,8 +214,10 @@ class RechargeRecoveryEngine {
           final sec = DeviceSecurityService.instance;
           final devId = sec.deviceId;
 
+          final ownerUid = journal['ownerUid']?.toString() ?? 'owner_staging_001';
+
           // Request challenge to safely query or re-verify idempotency
-          final challenge = await client.requestChallenge(shopId: shopId, deviceId: devId);
+          final challenge = await client.requestChallenge(shopId: shopId, deviceId: devId, ownerUid: ownerUid);
           final debitAmountPaise = ((costPrice > 0 ? costPrice : retailAmount) * 100).round();
           final targetWalletId = 'WALLET_${operator.toUpperCase()}';
           const fundingType = 'ownPrepaid';
