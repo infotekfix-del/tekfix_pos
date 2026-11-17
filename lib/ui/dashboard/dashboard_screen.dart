@@ -188,27 +188,31 @@ class _TekDashboardScreenState extends State<TekDashboardScreen> {
         return 0;
       case 'Sale / POS':
         return 1;
-      case 'Items / Stock':
+      case 'Daily Sales & EOD':
         return 2;
-      case 'Services / Repairs':
+      case 'Quick Recharge':
         return 3;
-      case 'Customer Management':
+      case 'Items / Stock':
+        return 4;
+      case 'Services / Repairs':
         return 5;
+      case 'Customer Management':
+        return 6;
       case 'Staff Management':
-        return 8;
+        return 9;
       case 'Payment Reminders':
-        return 14;
-      case 'After-Sales Follow-ups':
         return 15;
-      case 'App Updates & Releases':
+      case 'After-Sales Follow-ups':
         return 16;
-      case 'Backup & Sync':
+      case 'App Updates & Releases':
         return 17;
-      case 'Audit / Change History':
+      case 'Backup & Sync':
         return 18;
+      case 'Audit / Change History':
+        return 19;
       case 'Settings & Print':
       case 'System Settings':
-        return 19;
+        return 20;
       default:
         return null;
     }

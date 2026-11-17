@@ -25,6 +25,7 @@ import 'auth/login_gate.dart';
 import 'core/device.dart';
 import 'recharge/recharge_backend_bridge.dart';
 import 'recharge/recharge_recovery_engine.dart';
+import 'recharge/quick_recharge_screen.dart';
 import 'recharge/supabase_recharge_bridge_client.dart';
 import 'security/device_security_service.dart';
 import 'security/staging_identity_service.dart';
@@ -1239,7 +1240,7 @@ class NavCategory {
   });
 }
 
-List<NavCategory> _getNavCategories(String shopId, {bool isOwner = false}) => [
+List<NavCategory> getNavCategories(String shopId, {bool isOwner = false}) => [
       NavCategory(
         title: 'Core POS & Operations',
         icon: Icons.storefront_rounded,
@@ -1249,6 +1250,9 @@ List<NavCategory> _getNavCategories(String shopId, {bool isOwner = false}) => [
               'Sale / POS', Icons.point_of_sale_rounded, SaleView()),
           AppModule('Daily Sales & EOD', Icons.receipt_long_rounded,
               DailySalesLedgerView(shopId: shopId)),
+          if (isOwner)
+            const AppModule('Quick Recharge', Icons.flash_on_rounded,
+                QuickRechargeScreen()),
           const AppModule(
               'Items / Stock', Icons.inventory_2_rounded, ItemsView()),
           const AppModule(
@@ -1435,7 +1439,7 @@ class _AppShellState extends State<AppShell> {
       );
     }
 
-    final categories = _getNavCategories(auth.shopId, isOwner: owner);
+    final categories = getNavCategories(auth.shopId, isOwner: owner);
     final mods = categories.expand((c) => c.items).toList();
     final wide = MediaQuery.of(context).size.width >= 900;
 
@@ -1495,7 +1499,14 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  String _getSidebarActiveLabel(int index) {
+  String _getSidebarActiveLabel(int index, [List<AppModule>? mods]) {
+    if (mods != null && index >= 0 && index < mods.length) {
+      final label = mods[index].label;
+      if (label == 'Home') return 'Dashboard';
+      if (label == 'Staff & Attendance') return 'Staff Management';
+      if (label == 'Parties') return 'Customer Management';
+      return label;
+    }
     switch (index) {
       case 0:
         return 'Dashboard';
@@ -1504,54 +1515,57 @@ class _AppShellState extends State<AppShell> {
       case 2:
         return 'Daily Sales & EOD';
       case 3:
-        return 'Items / Stock';
+        return 'Quick Recharge';
       case 4:
-        return 'Services / Repairs';
+        return 'Items / Stock';
       case 5:
-        return 'Customer Returns';
+        return 'Services / Repairs';
       case 6:
-        return 'Purchase Bills';
+        return 'Customer Returns';
       case 7:
-        return 'Expenses';
+        return 'Purchase Bills';
       case 8:
-        return 'Daily Rent Ledger';
+        return 'Expenses';
       case 9:
-        return 'Owner Salary & Drawings';
+        return 'Daily Rent Ledger';
       case 10:
-        return 'Purchase & Expense';
+        return 'Owner Salary & Drawings';
       case 11:
-        return 'Parties';
+        return 'Purchase & Expense';
       case 12:
-        return 'Cash & Bank';
+        return 'Parties';
       case 13:
-        return 'Reports';
+        return 'Cash & Bank';
       case 14:
-      case 15:
-      case 16:
-      case 17:
-      case 18:
-      case 19:
-        return 'Staff Management';
-      case 20:
-        return 'Payment Reminders';
-      case 21:
-        return 'After-Sales Follow-ups';
-      case 22:
-        return 'App Updates & Releases';
-      case 23:
-        return 'Backup & Sync';
-      case 24:
-        return 'Audit / Change History';
-      case 25:
-        return 'Settings & Print';
-      case 26:
-        return 'Trusted Devices';
+        return 'Reports';
       default:
         return '';
     }
   }
 
-  int _getSidebarItemIndex(String item) {
+  int _getSidebarItemIndex(String item, [List<AppModule>? mods]) {
+    if (mods != null) {
+      final exactIdx = mods.indexWhere(
+          (m) => m.label.trim().toLowerCase() == item.trim().toLowerCase());
+      if (exactIdx != -1) return exactIdx;
+
+      final target = switch (item) {
+        'Dashboard' || 'Home' => 'Home',
+        'Daily Sales Ledger / Orders' || 'Daily Sales & EOD' => 'Daily Sales & EOD',
+        'Quick Recharge' => 'Quick Recharge',
+        'Customer Management' || 'Parties' => 'Parties',
+        'Staff Management' || 'Staff & Attendance' => 'Staff & Attendance',
+        'Shop Rent' || 'Daily Rent Ledger' => 'Daily Rent Ledger',
+        'Owner Drawings' || 'Owner Salary & Drawings' => 'Owner Salary & Drawings',
+        'System Settings' || 'Settings & Print' => 'Settings & Print',
+        _ => '',
+      };
+      if (target.isNotEmpty) {
+        final aliasIdx = mods.indexWhere((m) => m.label == target);
+        if (aliasIdx != -1) return aliasIdx;
+      }
+    }
+
     switch (item) {
       case 'Dashboard':
       case 'Home':
@@ -1561,49 +1575,33 @@ class _AppShellState extends State<AppShell> {
       case 'Daily Sales & EOD':
       case 'Daily Sales Ledger / Orders':
         return 2;
-      case 'Items / Stock':
+      case 'Quick Recharge':
         return 3;
-      case 'Services / Repairs':
+      case 'Items / Stock':
         return 4;
-      case 'Customer Returns':
+      case 'Services / Repairs':
         return 5;
-      case 'Purchase Bills':
+      case 'Customer Returns':
         return 6;
-      case 'Expenses':
+      case 'Purchase Bills':
         return 7;
+      case 'Expenses':
+        return 8;
       case 'Daily Rent Ledger':
       case 'Shop Rent':
-        return 8;
+        return 9;
       case 'Owner Salary & Drawings':
       case 'Owner Drawings':
-        return 9;
-      case 'Purchase & Expense':
         return 10;
+      case 'Purchase & Expense':
+        return 11;
       case 'Customer Management':
       case 'Parties':
-        return 11;
-      case 'Cash & Bank':
         return 12;
-      case 'Reports':
+      case 'Cash & Bank':
         return 13;
-      case 'Staff Management':
-      case 'Staff & Attendance':
+      case 'Reports':
         return 14;
-      case 'Payment Reminders':
-        return 20;
-      case 'After-Sales Follow-ups':
-        return 21;
-      case 'App Updates & Releases':
-        return 22;
-      case 'Backup & Sync':
-        return 23;
-      case 'Audit / Change History':
-        return 24;
-      case 'Settings & Print':
-      case 'System Settings':
-        return 25;
-      case 'Trusted Devices':
-        return 26;
       default:
         return 0;
     }
@@ -1649,9 +1647,9 @@ class _AppShellState extends State<AppShell> {
                       children: [
                         // Left Fixed Sidebar
                         TekSidebar(
-                          activeItem: _getSidebarActiveLabel(safeIndex),
+                          activeItem: _getSidebarActiveLabel(safeIndex, mods),
                           onItemSelected: (item) {
-                            final idx = _getSidebarItemIndex(item);
+                            final idx = _getSidebarItemIndex(item, mods);
                             setState(() => _index = idx);
                           },
                           pendingAttendanceCount: pendingAttendance,

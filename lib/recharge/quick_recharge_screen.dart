@@ -14,7 +14,7 @@ import 'wallet_distributor_dialogs.dart';
 
 /// ============================================================================
 /// TEKFIX ERP - QUICK RECHARGE & UTILITY ACCOUNTING DASHBOARD
-/// PHASE 1: UI & Navigation Framework (Read-Only / Placeholder Mode)
+/// Fully Live, Real-Time Recharge Accounting, Operator Wallets & Reconciliation
 /// ============================================================================
 
 enum RechargeOperatorBrand {
@@ -35,22 +35,83 @@ class QuickRechargeScreen extends StatefulWidget {
 class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
   RechargeFundingType _selectedFundingType =
       RechargeFundingType.distributorCredit;
-  RechargeOperatorBrand _selectedOperator = RechargeOperatorBrand.jio;
-  final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+  final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 2);
 
-  // Placeholder Data for Phase 1 UI Showcase
-  final double _todayRechargeTotal = 4850.00;
-  final double _todayCashCollection = 3600.00;
-  final double _todayUpiCollection = 1250.00;
-  final int _totalTransactionsCount = 18;
-  final double _totalDistributorOutstanding = 8450.00;
-  final double _totalAvailableWalletBalance = 12800.00;
+  bool _isLoading = true;
+  RechargeFinancialReport? _report;
+  DailyReconciliationRecord? _reconciliation;
+  final Map<RechargeOperator, OperatorWallet> _wallets = {};
+  List<DistributorProfile> _distributors = [];
+  AgentPendingReturnSummary? _pendingReturns;
+  DateTime _lastUpdated = DateTime.now();
 
-  // Distributor Settlement Summary Placeholder
-  final double _distributorTotalPayable = 18450.00;
-  final double _distributorAmountPaid = 10000.00;
-  final double _distributorRemainingDue = 8450.00;
-  final String _lastPaymentDate = '05 Nov 2026';
+  @override
+  void initState() {
+    super.initState();
+    _loadLiveDashboardData();
+  }
+
+  Future<void> _loadLiveDashboardData() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+
+    final auth = AuthController.instance;
+    final sId = auth.shopId.isNotEmpty ? auth.shopId : 'tekfix';
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    try {
+      // 1. Generate live daily financial report (transactions, collections, commissions)
+      final report = await RechargeService.instance.generateFinancialReport(
+        shopId: sId,
+        filter: RechargeReportFilter.today(),
+      );
+
+      // 2. Fetch today's daily operator reconciliation record
+      final reconciliation = await RechargeService.instance.getOrCreateDailyReconciliation(
+        shopId: sId,
+        businessDate: today,
+      );
+
+      // 3. Fetch wallets for all 4 primary operators
+      final walletFutures = [
+        RechargeOperator.airtel,
+        RechargeOperator.jio,
+        RechargeOperator.vi,
+        RechargeOperator.bsnl,
+      ].map((op) async {
+        final w = await RechargeService.instance.getWallet(shopId: sId, operator: op);
+        return MapEntry(op, w);
+      });
+      final walletEntries = await Future.wait(walletFutures);
+      _wallets.clear();
+      for (final e in walletEntries) {
+        _wallets[e.key] = e.value;
+      }
+
+      // 4. Fetch distributors & agent pending returns
+      final dists = await RechargeService.instance.getAllDistributors(sId);
+      final pendingSummary = await RechargeService.instance.getAgentPendingReturnsSummary(shopId: sId);
+
+      if (mounted) {
+        setState(() {
+          _report = report;
+          _reconciliation = reconciliation;
+          _distributors = dists;
+          _pendingReturns = pendingSummary;
+          _lastUpdated = DateTime.now();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('[QuickRechargeScreen] Dashboard data loading warning: $e');
+      if (mounted) {
+        setState(() {
+          _lastUpdated = DateTime.now();
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +142,7 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Recharge Accounting is restricted to Shop Owner / Admin.',
+                'Recharge Accounting is strictly restricted to Shop Owner.',
                 style: TextStyle(color: TekColors.textSecondary, fontSize: 13),
               ),
             ],
@@ -97,7 +158,13 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _buildTopAppBar(context),
+            _buildTopAppBar(context, auth),
+            if (_isLoading)
+              const LinearProgressIndicator(
+                color: TekColors.electricCyan,
+                backgroundColor: TekColors.cardBg,
+                minHeight: 2.5,
+              ),
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
@@ -114,15 +181,15 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                     _buildKpiMetricsGrid(isDesktop),
                     const SizedBox(height: 26),
                     _buildSectionHeader(
-                      title: 'Telecom & Utility Operators',
-                      malayalam: 'റീചാർജ് ഓപ്പറേറ്റർമാർ',
+                      title: 'Telecom Operator Wallets',
+                      malayalam: 'ഓപ്പറേറ്റർ വാലറ്റുകൾ (Airtel, Jio, Vi, BSNL)',
                       icon: Icons.cell_tower_rounded,
                       accentColor: TekColors.electricCyan,
                     ),
                     const SizedBox(height: 12),
-                    _buildOperatorCards(isDesktop),
+                    _buildOperatorCards(isDesktop, auth),
                     const SizedBox(height: 26),
-                    _buildDistributorSettlementCard(isDesktop),
+                    _buildDistributorSettlementCard(isDesktop, auth),
                     const SizedBox(height: 26),
                     _buildSectionHeader(
                       title: 'Quick Operations & Management',
@@ -131,9 +198,9 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                       accentColor: TekColors.premiumPurple,
                     ),
                     const SizedBox(height: 12),
-                    _buildNavigationOptionsGrid(isDesktop),
+                    _buildNavigationOptionsGrid(isDesktop, auth),
                     const SizedBox(height: 26),
-                    _buildRecentTransactionsPlaceholder(isDesktop),
+                    _buildRecentTransactionsSection(isDesktop),
                     const SizedBox(height: 40),
                   ],
                 ),
@@ -179,7 +246,10 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                onPressed: () => DailyReconciliationScreen.show(context, shopId: 'tekfix', initialTab: 0),
+                onPressed: () {
+                  DailyReconciliationScreen.show(context, shopId: 'tekfix', initialTab: 0)
+                      .then((_) => _loadLiveDashboardData());
+                },
                 child: const Text('Enter Opening', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
               ),
             ],
@@ -190,24 +260,19 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // 1. TOP APP BAR
+  // 1. TOP APP BAR (HEADER + QUICK ACTIONS)
   // ---------------------------------------------------------------------------
-  Widget _buildTopAppBar(BuildContext context) {
+  Widget _buildTopAppBar(BuildContext context, AuthController auth) {
+    final timeStr = DateFormat('dd MMM yyyy, hh:mm a').format(_lastUpdated);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: const BoxDecoration(
         color: TekColors.sidebarBg,
         border: Border(bottom: BorderSide(color: TekColors.border, width: 1.2)),
       ),
       child: Row(
         children: [
-          IconButton(
-            tooltip: 'Back to Dashboard',
-            icon: const Icon(Icons.arrow_back_rounded,
-                color: TekColors.textPrimary),
-            onPressed: () => Navigator.of(context).maybePop(),
-          ),
-          const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.all(9),
             decoration: BoxDecoration(
@@ -221,8 +286,7 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                 ),
               ],
             ),
-            child: const Icon(Icons.flash_on_rounded,
-                color: Colors.white, size: 22),
+            child: const Icon(Icons.flash_on_rounded, color: Colors.white, size: 22),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -233,40 +297,44 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                 Row(
                   children: [
                     const Text(
-                      'Recharge & Utility Management',
+                      'QUICK RECHARGE',
                       style: TextStyle(
                         color: TekColors.textPrimary,
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: 0.3,
+                        letterSpacing: 0.5,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: TekColors.electricCyan.withValues(alpha: 0.15),
-                        border: Border.all(
-                            color:
-                                TekColors.electricCyan.withValues(alpha: 0.5)),
+                        color: TekColors.success.withValues(alpha: 0.15),
+                        border: Border.all(color: TekColors.success.withValues(alpha: 0.5)),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Text(
-                        'PHASE 1 PREVIEW',
-                        style: TextStyle(
-                          color: TekColors.electricCyan,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                        ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircleAvatar(radius: 3, backgroundColor: TekColors.success),
+                          SizedBox(width: 5),
+                          Text(
+                            'LIVE ACCOUNTING',
+                            style: TextStyle(
+                              color: TekColors.success,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 2),
-                const Text(
-                  'റീചാർജ്, യൂട്ടിലിറ്റി ബില്ലുകൾ & ഡിസ്ട്രിബ്യൂട്ടർ ലഡ്ജർ',
-                  style: TextStyle(
+                Text(
+                  'Owner: ${auth.name.isNotEmpty ? auth.name : "Authorized Owner"} • $timeStr (IST)',
+                  style: const TextStyle(
                     color: TekColors.textSecondary,
                     fontSize: 11.5,
                   ),
@@ -274,27 +342,53 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: TekColors.cardBg,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: TekColors.border),
+          // Refresh Button
+          IconButton(
+            tooltip: 'Refresh Live Balances (പുതുക്കുക)',
+            icon: const Icon(Icons.refresh_rounded, color: TekColors.electricCyan),
+            onPressed: _loadLiveDashboardData,
+          ),
+          const SizedBox(width: 8),
+          // Add Balance Button - Anytime
+          FilledButton.icon(
+            onPressed: () {
+              WalletTopUpDialog.show(
+                context,
+                shopId: auth.shopId.isNotEmpty ? auth.shopId : 'tekfix',
+                staffId: auth.uid,
+                staffName: auth.name,
+              ).then((res) {
+                if (res == true) _loadLiveDashboardData();
+              });
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF10B981),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircleAvatar(radius: 4, backgroundColor: TekColors.success),
-                SizedBox(width: 8),
-                Text(
-                  'Live Float Active',
-                  style: TextStyle(
-                    color: TekColors.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+            icon: const Icon(Icons.add_card_rounded, size: 17),
+            label: const Text(
+              'Add Balance',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // New Quick Recharge Button
+          FilledButton.icon(
+            onPressed: () {
+              QuickRechargeDialog.show(context).then((_) => _loadLiveDashboardData());
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: TekColors.primaryBlue,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            icon: const Icon(Icons.flash_on_rounded, size: 17),
+            label: const Text(
+              'New Recharge',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
             ),
           ),
         ],
@@ -303,7 +397,7 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // 2. FUNDING MODE SELECTOR (OWN PREPAID vs DISTRIBUTOR CREDIT)
+  // 2. FUNDING MODE SELECTOR
   // ---------------------------------------------------------------------------
   Widget _buildFundingModeSelector() {
     return Container(
@@ -488,62 +582,81 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // 3. 6-CARD DASHBOARD KPI GRID
+  // 3. LIVE 6-CARD SUMMARY KPI GRID
   // ---------------------------------------------------------------------------
   Widget _buildKpiMetricsGrid(bool isDesktop) {
+    // 1. Total Recharge Gross (Principal - NOT business income)
+    final todayRecharge = _report?.totalRechargeAmount ?? 0.0;
+
+    // 2. Total Commission (Actual recognized business income)
+    final todayCommission = (_report?.netCommissionIncomePaise ?? 0) / 100.0;
+
+    // 3. Total Available Wallet Float across Airtel, Jio, Vi, BSNL
+    final totalWalletBalance = _wallets.values.fold(0.0, (acc, w) => acc + w.totalBalance);
+
+    // 4. Total Distributor Outstanding
+    final totalDistributorDue = _distributors.fold(0.0, (acc, d) => acc + d.currentOutstanding);
+
+    // 5. Successful Transactions Count
+    final successfulCount = _report?.successfulCount ?? 0;
+
+    // 6. Failed & Pending Transactions Count
+    final failedOrPendingCount = (_report?.failedCount ?? 0) + (_report?.pendingCount ?? 0);
+
     final cards = [
       _buildMetricCard(
-        title: "Today's Recharge",
-        malayalam: 'ഇന്നത്തെ റീചാർജ്',
-        value: currencyFormat.format(_todayRechargeTotal),
+        title: "Today's Total Recharge",
+        malayalam: 'ഇന്നത്തെ റീചാർജ് തുക',
+        value: currencyFormat.format(todayRecharge),
         icon: Icons.payments_rounded,
         gradient: TekColors.cyanBlueGradient,
-        subtext: 'Gross Turnover Handled',
+        subtext: 'Gross Turnover (Not Business Income)',
       ),
       _buildMetricCard(
-        title: 'Cash Collection',
-        malayalam: 'ക്യാഷ് ലഭിച്ചത്',
-        value: currencyFormat.format(_todayCashCollection),
-        icon: Icons.account_balance_wallet_rounded,
+        title: "Today's Commission",
+        malayalam: 'ഇന്നത്തെ യഥാർത്ഥ വരുമാനം',
+        value: currencyFormat.format(todayCommission),
+        icon: Icons.trending_up_rounded,
         gradient: const LinearGradient(
             colors: [Color(0xFF22C55E), Color(0xFF15803D)]),
-        subtext: 'In Physical Counter Drawer',
+        subtext: 'Recognized Business Income',
       ),
       _buildMetricCard(
-        title: 'UPI Collection',
-        malayalam: 'യു.പി.ഐ ലഭിച്ചത്',
-        value: currencyFormat.format(_todayUpiCollection),
-        icon: Icons.qr_code_scanner_rounded,
-        gradient: const LinearGradient(
-            colors: [Color(0xFF38BDF8), Color(0xFF0284C7)]),
-        subtext: 'Direct to Bank Account',
-      ),
-      _buildMetricCard(
-        title: 'Total Transactions',
-        malayalam: 'ആകെ ഇടപാടുകൾ',
-        value: '$_totalTransactionsCount Txns',
-        icon: Icons.receipt_long_rounded,
-        gradient: const LinearGradient(
-            colors: [Color(0xFFA855F7), Color(0xFF7E22CE)]),
-        subtext: '100% Success Rate Today',
-      ),
-      _buildMetricCard(
-        title: 'Distributor Due',
-        malayalam: 'ഡിസ്ട്രിബ്യൂട്ടർ ബാധ്യത',
-        value: currencyFormat.format(_totalDistributorOutstanding),
-        icon: Icons.warning_amber_rounded,
-        gradient: const LinearGradient(
-            colors: [Color(0xFFF59E0B), Color(0xFFB45309)]),
-        subtext: 'Payable on next visit',
-      ),
-      _buildMetricCard(
-        title: 'Available Float',
+        title: 'Available Wallet Float',
         malayalam: 'ലഭ്യമായ വാലറ്റ് തുക',
-        value: currencyFormat.format(_totalAvailableWalletBalance),
+        value: currencyFormat.format(totalWalletBalance),
         icon: Icons.account_balance_rounded,
         gradient: const LinearGradient(
             colors: [Color(0xFF10B981), Color(0xFF047857)]),
-        subtext: 'Across all 5 operator portals',
+        subtext: 'Airtel, Jio, Vi, BSNL Float',
+      ),
+      _buildMetricCard(
+        title: 'Distributor Outstanding',
+        malayalam: 'ഡിസ്ട്രിബ്യൂട്ടർ ബാധ്യത',
+        value: currencyFormat.format(totalDistributorDue),
+        icon: Icons.warning_amber_rounded,
+        gradient: const LinearGradient(
+            colors: [Color(0xFFF59E0B), Color(0xFFB45309)]),
+        subtext: 'Payable on distributor settlement',
+      ),
+      _buildMetricCard(
+        title: 'Successful Transactions',
+        malayalam: 'വിജയകരമായ ഇടപാടുകൾ',
+        value: '$successfulCount Txns',
+        icon: Icons.check_circle_outline_rounded,
+        gradient: const LinearGradient(
+            colors: [Color(0xFF38BDF8), Color(0xFF0284C7)]),
+        subtext: 'Confirmed Ledger Debits',
+      ),
+      _buildMetricCard(
+        title: 'Failed / Pending Txns',
+        malayalam: 'പരാജയപ്പെട്ടവ / റീഫണ്ട്',
+        value: '$failedOrPendingCount Txns',
+        icon: Icons.error_outline_rounded,
+        gradient: failedOrPendingCount > 0
+            ? const LinearGradient(colors: [Color(0xFFEF4444), Color(0xFFB91C1C)])
+            : const LinearGradient(colors: [Color(0xFF6B7280), Color(0xFF4B5563)]),
+        subtext: 'Reversed or in recovery queue',
       ),
     ];
 
@@ -665,74 +778,51 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // 4. OPERATOR CARDS (AIRTEL, JIO, VI, BSNL, OTHER)
+  // 4. OPERATOR WALLET MANAGEMENT CARDS (AIRTEL, JIO, VI, BSNL)
   // ---------------------------------------------------------------------------
-  Widget _buildOperatorCards(bool isDesktop) {
-    const operators = [
-      _OperatorInfo(
-        brand: RechargeOperatorBrand.jio,
-        name: 'Reliance Jio',
-        malayalam: 'ജിയോ പ്രീപെയ്ഡ് & പോസ്റ്റ്പെയ്ഡ്',
-        icon: Icons.signal_cellular_alt_rounded,
-        balance: 5200.00,
-        marginText: '3.0% Commission',
-        primaryColor: Color(0xFF0070F3),
-        gradient: LinearGradient(
-            colors: [Color(0xFF0070F3), Color(0xFF0044A8)]),
-      ),
-      _OperatorInfo(
-        brand: RechargeOperatorBrand.airtel,
+  Widget _buildOperatorCards(bool isDesktop, AuthController auth) {
+    final operators = [
+      (
+        operator: RechargeOperator.airtel,
         name: 'Bharti Airtel',
         malayalam: 'എയർടെൽ പ്രീപെയ്ഡ് & ഡിടിഎച്ച്',
         icon: Icons.network_cell_rounded,
-        balance: 3450.00,
-        marginText: '2.5% Commission',
-        primaryColor: Color(0xFFE50914),
-        gradient: LinearGradient(
-            colors: [Color(0xFFE50914), Color(0xFF990000)]),
+        primaryColor: const Color(0xFFE50914),
+        gradient: const LinearGradient(colors: [Color(0xFFE50914), Color(0xFF990000)]),
       ),
-      _OperatorInfo(
-        brand: RechargeOperatorBrand.vi,
+      (
+        operator: RechargeOperator.jio,
+        name: 'Reliance Jio',
+        malayalam: 'ജിയോ പ്രീപെയ്ഡ് & പോസ്റ്റ്പെയ്ഡ്',
+        icon: Icons.signal_cellular_alt_rounded,
+        primaryColor: const Color(0xFF0070F3),
+        gradient: const LinearGradient(colors: [Color(0xFF0070F3), Color(0xFF0044A8)]),
+      ),
+      (
+        operator: RechargeOperator.vi,
         name: 'Vodafone Idea (Vi)',
         malayalam: 'വി പ്രീപെയ്ഡ് റീചാർജ്',
         icon: Icons.cell_tower_rounded,
-        balance: 2150.00,
-        marginText: '3.5% Commission',
-        primaryColor: Color(0xFFFF5252),
-        gradient: LinearGradient(
-            colors: [Color(0xFFFF5252), Color(0xFFFFB300)]),
+        primaryColor: const Color(0xFFFF5252),
+        gradient: const LinearGradient(colors: [Color(0xFFFF5252), Color(0xFFFFB300)]),
       ),
-      _OperatorInfo(
-        brand: RechargeOperatorBrand.bsnl,
+      (
+        operator: RechargeOperator.bsnl,
         name: 'BSNL Mobile',
         malayalam: 'ബി.എസ്.എൻ.എൽ പ്രീപെയ്ഡ്',
         icon: Icons.signal_wifi_4_bar_rounded,
-        balance: 1200.00,
-        marginText: '4.0% Commission',
-        primaryColor: Color(0xFF16A34A),
-        gradient: LinearGradient(
-            colors: [Color(0xFF16A34A), Color(0xFF0D9488)]),
-      ),
-      _OperatorInfo(
-        brand: RechargeOperatorBrand.otherUtilities,
-        name: 'DTH & Utilities',
-        malayalam: 'കെഎസ്ഇബി, ഡിടിഎച്ച്, ഫാസ്ടാഗ്',
-        icon: Icons.bolt_rounded,
-        balance: 800.00,
-        marginText: '₹10 Flat Service Fee',
-        primaryColor: Color(0xFF8B5CF6),
-        gradient: LinearGradient(
-            colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)]),
+        primaryColor: const Color(0xFF16A34A),
+        gradient: const LinearGradient(colors: [Color(0xFF16A34A), Color(0xFF0D9488)]),
       ),
     ];
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        int cols = 5;
-        if (constraints.maxWidth < 650) {
-          cols = 2;
-        } else if (constraints.maxWidth < 1050) {
-          cols = 3;
+        int cols = 2;
+        if (constraints.maxWidth < 750) {
+          cols = 1;
+        } else if (constraints.maxWidth >= 1400) {
+          cols = 4;
         }
 
         return GridView.builder(
@@ -741,107 +831,224 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: cols,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: isDesktop ? 1.55 : 1.35,
+            crossAxisSpacing: 14,
+            mainAxisSpacing: 14,
+            childAspectRatio: cols == 1 ? 1.85 : 1.32,
           ),
           itemBuilder: (context, i) {
-            final op = operators[i];
-            final isSelected = _selectedOperator == op.brand;
+            final opDef = operators[i];
+            final op = opDef.operator;
+            final wallet = _wallets[op];
+            final opRecon = _reconciliation?.operators[op.name];
 
-            return InkWell(
-              onTap: () {
-                setState(() => _selectedOperator = op.brand);
-                _showOperatorPreviewDialog(op);
-              },
-              borderRadius: BorderRadius.circular(16),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: TekColors.cardBg,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isSelected ? op.primaryColor : TekColors.border,
-                    width: isSelected ? 2.0 : 1.0,
-                  ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: op.primaryColor.withValues(alpha: 0.35),
-                            blurRadius: 14,
-                            offset: const Offset(0, 4),
-                          ),
-                        ]
-                      : TekColors.cardShadow,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(7),
-                          decoration: BoxDecoration(
-                            gradient: op.gradient,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child:
-                              Icon(op.icon, color: Colors.white, size: 18),
-                        ),
-                        if (isSelected)
+            final currentBalance = wallet?.totalBalance ?? 0.0;
+            final openingBalance = (opRecon?.openingBalancePaise ?? 0) / 100.0;
+            final addedToday = ((opRecon?.totalTopupsPaise ?? 0) + (opRecon?.totalCreditsPaise ?? 0)) / 100.0;
+            final debitsToday = (opRecon?.totalDebitsPaise ?? 0) / 100.0;
+            final refundsToday = ((opRecon?.totalDebitReversalsPaise ?? 0) + (opRecon?.totalCreditReversalsPaise ?? 0)) / 100.0;
+            final isClosed = opRecon?.isClosingCompleted ?? false;
+            final closingBalance = isClosed
+                ? (opRecon!.actualClosingBalancePaise / 100.0)
+                : ((opRecon?.expectedClosingBalancePaise ?? 0) / 100.0);
+            final difference = (opRecon?.differencePaise ?? 0) / 100.0;
+
+            final commEnabled = RechargeService.instance.isCommissionEnabled(op.name);
+            final commPercent = RechargeService.instance.getOperatorCommissionPercent(op.name);
+
+            return Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: TekColors.cardBg,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: opDef.primaryColor.withValues(alpha: 0.4), width: 1.2),
+                boxShadow: TekColors.cardShadow,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Top Title & Icon
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: op.primaryColor.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(6),
+                              gradient: opDef.gradient,
+                              borderRadius: BorderRadius.circular(10),
                             ),
-                            child: Text(
-                              'SELECTED',
-                              style: TextStyle(
-                                color: op.primaryColor,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w800,
+                            child: Icon(opDef.icon, color: Colors.white, size: 20),
+                          ),
+                          const SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                opDef.name,
+                                style: const TextStyle(
+                                  color: TekColors.textPrimary,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
-                            ),
+                              Text(
+                                opDef.malayalam,
+                                style: const TextStyle(color: TekColors.textMuted, fontSize: 10),
+                              ),
+                            ],
                           ),
-                      ],
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          op.name,
-                          style: const TextStyle(
-                            color: TekColors.textPrimary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: commEnabled
+                              ? TekColors.success.withValues(alpha: 0.15)
+                              : TekColors.error.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: commEnabled ? TekColors.success : TekColors.error,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
-                        Text(
-                          currencyFormat.format(op.balance),
+                        child: Text(
+                          commEnabled ? '${commPercent.toStringAsFixed(1)}% COMM' : 'COMM OFF',
                           style: TextStyle(
-                            color: op.primaryColor,
-                            fontSize: 15,
+                            color: commEnabled ? TekColors.success : TekColors.error,
+                            fontSize: 10,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
+                      ),
+                    ],
+                  ),
+
+                  // Available Balance Display
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Available Balance / ലഭ്യമായ ബാലൻസ്:',
+                          style: TextStyle(color: TekColors.textSecondary, fontSize: 10.5),
+                        ),
                         const SizedBox(height: 2),
                         Text(
-                          op.marginText,
-                          style: const TextStyle(
-                            color: TekColors.textMuted,
-                            fontSize: 9.5,
+                          currencyFormat.format(currentBalance),
+                          style: TextStyle(
+                            color: opDef.primaryColor,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+
+                  // Daily Movement Mini-Table
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: TekColors.mainBg.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: TekColors.borderSubtle),
+                    ),
+                    child: Column(
+                      children: [
+                        _buildOpDataRow('Opening Balance:', currencyFormat.format(openingBalance)),
+                        _buildOpDataRow('Added Today (+):', currencyFormat.format(addedToday), valueColor: TekColors.success),
+                        _buildOpDataRow('Debited Today (-):', currencyFormat.format(debitsToday), valueColor: TekColors.warning),
+                        _buildOpDataRow('Refunds/Reversals:', currencyFormat.format(refundsToday)),
+                        const Divider(height: 8, color: TekColors.borderSubtle),
+                        _buildOpDataRow(
+                          isClosed ? 'Closing Balance (Final):' : 'Expected Closing:',
+                          currencyFormat.format(closingBalance),
+                          valueColor: isClosed ? TekColors.electricCyan : TekColors.textPrimary,
+                          isBold: true,
+                        ),
+                        if (isClosed && difference != 0.0)
+                          _buildOpDataRow(
+                            'Diff (Actual - Expected):',
+                            '${difference > 0 ? "+" : ""}${currencyFormat.format(difference)}',
+                            valueColor: difference >= 0 ? TekColors.success : TekColors.error,
+                            isBold: true,
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  // Actions Toolbar
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      // Add Balance Button
+                      FilledButton.icon(
+                        onPressed: () {
+                          WalletTopUpDialog.show(
+                            context,
+                            shopId: auth.shopId.isNotEmpty ? auth.shopId : 'tekfix',
+                            staffId: auth.uid,
+                            staffName: auth.name,
+                            initialOperator: op,
+                          ).then((res) {
+                            if (res == true) _loadLiveDashboardData();
+                          });
+                        },
+                        style: FilledButton.styleFrom(
+                          backgroundColor: opDef.primaryColor.withValues(alpha: 0.2),
+                          foregroundColor: opDef.primaryColor,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          side: BorderSide(color: opDef.primaryColor),
+                        ),
+                        icon: const Icon(Icons.add_rounded, size: 14),
+                        label: const Text('Add Balance', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      ),
+                      // Opening Entry Button
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          DailyReconciliationScreen.show(context, shopId: 'tekfix', initialTab: 0)
+                              .then((_) => _loadLiveDashboardData());
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: TekColors.textPrimary,
+                          side: const BorderSide(color: TekColors.borderSubtle),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: const Icon(Icons.login_rounded, size: 13),
+                        label: const Text('Opening', style: TextStyle(fontSize: 10.5)),
+                      ),
+                      // Closing Entry Button
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          DailyReconciliationScreen.show(context, shopId: 'tekfix', initialTab: 2)
+                              .then((_) => _loadLiveDashboardData());
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: TekColors.textPrimary,
+                          side: const BorderSide(color: TekColors.borderSubtle),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: const Icon(Icons.logout_rounded, size: 13),
+                        label: const Text('Closing', style: TextStyle(fontSize: 10.5)),
+                      ),
+                      // View Transactions
+                      IconButton(
+                        tooltip: 'View Operator Transactions',
+                        icon: const Icon(Icons.history_rounded, size: 16, color: TekColors.electricCyan),
+                        onPressed: () {
+                          RechargeReportsScreen.show(context, shopId: auth.shopId.isNotEmpty ? auth.shopId : 'tekfix');
+                        },
+                      ),
+                    ],
+                  ),
+                ],
               ),
             );
           },
@@ -850,10 +1057,41 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
     );
   }
 
+  Widget _buildOpDataRow(String label, String value, {Color? valueColor, bool isBold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 1.5),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: isBold ? TekColors.textPrimary : TekColors.textMuted,
+              fontSize: 10.5,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              color: valueColor ?? (isBold ? TekColors.textPrimary : TekColors.textSecondary),
+              fontSize: 11,
+              fontWeight: isBold ? FontWeight.w800 : FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ---------------------------------------------------------------------------
-  // 5. DISTRIBUTOR SETTLEMENT SECTION
+  // 5. DISTRIBUTOR & AGENT SETTLEMENT SECTION
   // ---------------------------------------------------------------------------
-  Widget _buildDistributorSettlementCard(bool isDesktop) {
+  Widget _buildDistributorSettlementCard(bool isDesktop, AuthController auth) {
+    final totalPayable = _distributors.fold(0.0, (acc, d) => acc + (d.openingPayablePaise / 100.0) + d.totalCreditReceived);
+    final totalPaid = _distributors.fold(0.0, (acc, d) => acc + d.totalPaymentsMade);
+    final totalDue = _distributors.fold(0.0, (acc, d) => acc + d.currentOutstanding);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -868,8 +1106,11 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 12,
             children: [
               Row(
                 children: [
@@ -917,16 +1158,13 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFFF59E0B),
                       foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                     icon: const Icon(Icons.handshake_rounded, size: 15),
                     label: const Text(
                       'Agent Settlement',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w800, fontSize: 11.5),
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5),
                     ),
                   ),
                   OutlinedButton.icon(
@@ -934,16 +1172,13 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: TekColors.electricCyan,
                       side: const BorderSide(color: TekColors.electricCyan),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                     icon: const Icon(Icons.assignment_return_rounded, size: 15),
                     label: const Text(
                       'Recharge Return',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w800, fontSize: 11.5),
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5),
                     ),
                   ),
                   FilledButton.icon(
@@ -951,16 +1186,13 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                     style: FilledButton.styleFrom(
                       backgroundColor: TekColors.elevatedSurface,
                       foregroundColor: TekColors.textPrimary,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                     icon: const Icon(Icons.payment_rounded, size: 15),
                     label: const Text(
                       'Direct Pay',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 11.5),
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5),
                     ),
                   ),
                 ],
@@ -975,27 +1207,21 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                 _buildSettlementStat(
                   label: 'Total Stock Received',
                   malayalam: 'ആകെ ലഭിച്ച സ്റ്റോക്ക്',
-                  value: currencyFormat.format(_distributorTotalPayable),
+                  value: currencyFormat.format(totalPayable),
                   valueColor: TekColors.textPrimary,
                 ),
                 _buildSettlementStat(
                   label: 'Amount Settled / Paid',
                   malayalam: 'ഇതുവരെ നൽകിയത്',
-                  value: currencyFormat.format(_distributorAmountPaid),
+                  value: currencyFormat.format(totalPaid),
                   valueColor: TekColors.success,
                 ),
                 _buildSettlementStat(
                   label: 'Remaining Outstanding',
                   malayalam: 'ഇനി നൽകാനുള്ള ബാക്കി',
-                  value: currencyFormat.format(_distributorRemainingDue),
+                  value: currencyFormat.format(totalDue),
                   valueColor: const Color(0xFFF59E0B),
                   isAlert: true,
-                ),
-                _buildSettlementStat(
-                  label: 'Last Payment Date',
-                  malayalam: 'അവസാന പേയ്‌മെന്റ്',
-                  value: _lastPaymentDate,
-                  valueColor: TekColors.electricCyan,
                 ),
               ];
 
@@ -1011,8 +1237,7 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                       children: metrics
                           .map((m) => Expanded(
                                 child: Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(horizontal: 6),
+                                  padding: const EdgeInsets.symmetric(horizontal: 6),
                                   child: m,
                                 ),
                               ))
@@ -1021,7 +1246,6 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
             },
           ),
           const SizedBox(height: 16),
-          // Feature 3: Operator / Agent Pending Return Breakdown
           _buildPendingReturnBreakdownCard(),
         ],
       ),
@@ -1029,100 +1253,83 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
   }
 
   Widget _buildPendingReturnBreakdownCard() {
-    return FutureBuilder<AgentPendingReturnSummary>(
-      future: RechargeService.instance
-          .getAgentPendingReturnsSummary(shopId: 'tekfix'),
-      builder: (context, snapshot) {
-        final summary = snapshot.data;
-        final totalPending = summary?.totalPendingReturn ?? 0.0;
-        final airtelPending =
-            summary?.getOperatorPendingReturn(RechargeOperator.airtel) ?? 0.0;
-        final jioPending =
-            summary?.getOperatorPendingReturn(RechargeOperator.jio) ?? 0.0;
-        final viPending =
-            summary?.getOperatorPendingReturn(RechargeOperator.vi) ?? 0.0;
-        final bsnlPending =
-            summary?.getOperatorPendingReturn(RechargeOperator.bsnl) ?? 0.0;
+    final summary = _pendingReturns;
+    final totalPending = summary?.totalPendingReturn ?? 0.0;
+    final airtelPending = summary?.getOperatorPendingReturn(RechargeOperator.airtel) ?? 0.0;
+    final jioPending = summary?.getOperatorPendingReturn(RechargeOperator.jio) ?? 0.0;
+    final viPending = summary?.getOperatorPendingReturn(RechargeOperator.vi) ?? 0.0;
+    final bsnlPending = summary?.getOperatorPendingReturn(RechargeOperator.bsnl) ?? 0.0;
 
-        return Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: TekColors.mainBg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: TekColors.borderSubtle),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: TekColors.mainBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: TekColors.borderSubtle),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  const Icon(Icons.pending_actions_rounded,
-                      color: Color(0xFFF59E0B), size: 18),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'Pending Recharge Returns from Operators / Agents (ഏജന്റിൽ നിന്ന് തിരികെ ലഭിക്കാനുള്ള തുക)',
-                      style: TextStyle(
-                        color: TekColors.textPrimary,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+              const Icon(Icons.pending_actions_rounded, color: Color(0xFFF59E0B), size: 18),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Pending Recharge Returns from Operators / Agents (ഏജന്റിൽ നിന്ന് തിരികെ ലഭിക്കാനുള്ള തുക)',
+                  style: TextStyle(
+                    color: TekColors.textPrimary,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.bold,
                   ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0xFFF59E0B)),
-                    ),
-                    child: Text(
-                      'Total: ${currencyFormat.format(totalPending)}',
-                      style: const TextStyle(
-                        color: Color(0xFFF59E0B),
-                        fontWeight: FontWeight.w800,
-                        fontSize: 11.5,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-              const SizedBox(height: 12),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final isWide = constraints.maxWidth >= 600;
-                  final opPills = [
-                    _buildOperatorPendingPill('Airtel Agent', airtelPending,
-                        const Color(0xFFE40000)),
-                    _buildOperatorPendingPill(
-                        'Jio Agent', jioPending, const Color(0xFF0F3E99)),
-                    _buildOperatorPendingPill(
-                        'Vi Agent', viPending, const Color(0xFFED1C24)),
-                    _buildOperatorPendingPill(
-                        'BSNL Agent', bsnlPending, const Color(0xFF0056B3)),
-                  ];
-                  return isWide
-                      ? Row(
-                          children: opPills
-                              .map((p) => Expanded(
-                                  child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 4),
-                                      child: p)))
-                              .toList())
-                      : Column(
-                          children: opPills
-                              .map((p) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 6),
-                                  child: p))
-                              .toList());
-                },
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFFF59E0B)),
+                ),
+                child: Text(
+                  'Total: ${currencyFormat.format(totalPending)}',
+                  style: const TextStyle(
+                    color: Color(0xFFF59E0B),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11.5,
+                  ),
+                ),
               ),
             ],
           ),
-        );
-      },
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 600;
+              final opPills = [
+                _buildOperatorPendingPill('Airtel Agent', airtelPending, const Color(0xFFE40000)),
+                _buildOperatorPendingPill('Jio Agent', jioPending, const Color(0xFF0F3E99)),
+                _buildOperatorPendingPill('Vi Agent', viPending, const Color(0xFFED1C24)),
+                _buildOperatorPendingPill('BSNL Agent', bsnlPending, const Color(0xFF0056B3)),
+              ];
+              return isWide
+                  ? Row(
+                      children: opPills
+                          .map((p) => Expanded(
+                              child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                                  child: p)))
+                          .toList())
+                  : Column(
+                      children: opPills
+                          .map((p) => Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: p))
+                          .toList());
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -1140,14 +1347,12 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
           Row(
             children: [
               Container(
-                  width: 6,
-                  height: 6,
-                  decoration:
-                      BoxDecoration(shape: BoxShape.circle, color: color)),
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+              ),
               const SizedBox(width: 6),
-              Text(name,
-                  style: TextStyle(
-                      color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+              Text(name, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
             ],
           ),
           Text(
@@ -1176,9 +1381,7 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
         color: TekColors.elevatedSurface.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isAlert
-              ? const Color(0xFFF59E0B).withValues(alpha: 0.4)
-              : TekColors.borderSubtle,
+          color: isAlert ? const Color(0xFFF59E0B).withValues(alpha: 0.4) : TekColors.borderSubtle,
         ),
       ),
       child: Column(
@@ -1193,10 +1396,7 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
             ),
           ),
           const SizedBox(height: 1),
-          Text(
-            malayalam,
-            style: const TextStyle(color: TekColors.textMuted, fontSize: 9.5),
-          ),
+          Text(malayalam, style: const TextStyle(color: TekColors.textMuted, fontSize: 9.5)),
           const SizedBox(height: 6),
           FittedBox(
             fit: BoxFit.scaleDown,
@@ -1216,102 +1416,89 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // 6. 8-OPTION NAVIGATION GRID
+  // 6. QUICK OPERATIONS NAVIGATION GRID
   // ---------------------------------------------------------------------------
-  Widget _buildNavigationOptionsGrid(bool isDesktop) {
+  Widget _buildNavigationOptionsGrid(bool isDesktop, AuthController auth) {
+    final sId = auth.shopId.isNotEmpty ? auth.shopId : 'tekfix';
+
     final navItems = [
       _NavItem(
         title: 'Quick Recharge',
-        malayalam: 'ക്വിക്ക് റീചാർജ് എൻട്രി',
+        malayalam: 'റീചാർജ് എൻട്രി',
         icon: Icons.dialpad_rounded,
         gradient: TekColors.cyanBlueGradient,
-        onTap: () => QuickRechargeDialog.show(context),
-      ),
-      _NavItem(
-        title: 'Wallet Management',
-        malayalam: 'വാലറ്റ് മാനേജ്‌മെന്റ്',
-        icon: Icons.account_balance_wallet_rounded,
-        gradient: const LinearGradient(
-            colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)]),
-        onTap: () => WalletLedgerSheet.show(context, shopId: 'tekfix'),
-      ),
-      _NavItem(
-        title: 'Distributor Directory',
-        malayalam: 'ഡിസ്ട്രിബ്യൂട്ടർ ലിസ്റ്റ്',
-        icon: Icons.people_alt_rounded,
-        gradient: const LinearGradient(
-            colors: [Color(0xFFF59E0B), Color(0xFFD97706)]),
-        onTap: () => _showPhasePreviewSheet('Distributor Management',
-            'Distributor contact profiles, GSTINs, and credit terms.'),
-      ),
-      _NavItem(
-        title: 'Distributor Ledger',
-        malayalam: 'ഡിസ്ട്രിബ്യൂട്ടർ ലഡ്ജർ',
-        icon: Icons.menu_book_rounded,
-        gradient: const LinearGradient(
-            colors: [Color(0xFFEC4899), Color(0xFFBE185D)]),
-        onTap: () => DistributorLedgerSheet.show(context, shopId: 'tekfix'),
-      ),
-      _NavItem(
-        title: 'Distributor Payment',
-        malayalam: 'ഡിസ്ട്രിബ്യൂട്ടർ പേയ്‌മെന്റ്',
-        icon: Icons.payments_rounded,
-        gradient: const LinearGradient(
-            colors: [Color(0xFF22C55E), Color(0xFF15803D)]),
-        onTap: _showDistributorPayoutModal,
-      ),
-      _NavItem(
-        title: 'Recharge History',
-        malayalam: 'റിപ്പോർട്ടുകൾ & ചരിത്രം',
-        icon: Icons.analytics_rounded,
-        gradient: const LinearGradient(
-            colors: [Color(0xFF38BDF8), Color(0xFF0369A1)]),
-        onTap: () => RechargeReportsScreen.show(context, shopId: 'tekfix'),
-      ),
-      _NavItem(
-        title: 'Commission Report',
-        malayalam: 'കമ്മീഷൻ റിപ്പോർട്ട്',
-        icon: Icons.trending_up_rounded,
-        gradient: const LinearGradient(
-            colors: [Color(0xFF10B981), Color(0xFF0F766E)]),
-        onTap: () => CommissionReportDialog.show(context, shopId: 'tekfix'),
-      ),
-      _NavItem(
-        title: 'Commission Controls',
-        malayalam: 'കമ്മീഷൻ ഓൺ/ഓഫ് (Owner)',
-        icon: Icons.tune_rounded,
-        gradient: const LinearGradient(
-            colors: [Color(0xFFF59E0B), Color(0xFFD97706)]),
         onTap: () {
-          final auth = AuthController.instance;
-          if (!auth.isOwner) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                backgroundColor: TekColors.error,
-                content: Text('ഉടമയ്ക്ക് മാത്രമേ കമ്മീഷൻ ക്രമീകരണങ്ങൾ മാറ്റാൻ അനുവാദമുള്ളൂ (Owner-Only)'),
-              ),
-            );
-            return;
-          }
-          OperatorCommissionControlDialog.show(context, shopId: auth.shopId.isNotEmpty ? auth.shopId : 'tekfix');
+          QuickRechargeDialog.show(context).then((_) => _loadLiveDashboardData());
         },
       ),
       _NavItem(
-        title: 'Float Recovery (Contra)',
-        malayalam: 'ക്യാഷ് ബാങ്ക് ഡെപ്പോസിറ്റ്',
-        icon: Icons.sync_alt_rounded,
-        gradient: const LinearGradient(
-            colors: [Color(0xFFA855F7), Color(0xFF6B21A8)]),
-        onTap: () => RechargeFloatRecoveryDialog.show(context,
-            shopId: 'tekfix', staffId: 'staff', staffName: 'Staff'),
+        title: 'Add Wallet Balance',
+        malayalam: 'വാലറ്റ് ലോഡ് (Anytime)',
+        icon: Icons.add_card_rounded,
+        gradient: const LinearGradient(colors: [Color(0xFF10B981), Color(0xFF047857)]),
+        onTap: () {
+          WalletTopUpDialog.show(
+            context,
+            shopId: sId,
+            staffId: auth.uid,
+            staffName: auth.name,
+          ).then((res) {
+            if (res == true) _loadLiveDashboardData();
+          });
+        },
       ),
       _NavItem(
         title: 'Daily Reconciliation',
         malayalam: 'ഓപ്പണിംഗ് & ക്ലോസിംഗ്',
         icon: Icons.account_balance_rounded,
-        gradient: const LinearGradient(
-            colors: [Color(0xFF06B6D4), Color(0xFF0E7490)]),
-        onTap: () => DailyReconciliationScreen.show(context, shopId: 'tekfix'),
+        gradient: const LinearGradient(colors: [Color(0xFF06B6D4), Color(0xFF0E7490)]),
+        onTap: () {
+          DailyReconciliationScreen.show(context, shopId: sId)
+              .then((_) => _loadLiveDashboardData());
+        },
+      ),
+      _NavItem(
+        title: 'Commission Controls',
+        malayalam: 'കമ്മീഷൻ ഓൺ/ഓഫ് (Owner)',
+        icon: Icons.tune_rounded,
+        gradient: const LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFD97706)]),
+        onTap: () {
+          OperatorCommissionControlDialog.show(context, shopId: sId)
+              .then((_) => _loadLiveDashboardData());
+        },
+      ),
+      _NavItem(
+        title: 'Recharge Reports & History',
+        malayalam: 'റിപ്പോർട്ടുകൾ & ചരിത്രം',
+        icon: Icons.analytics_rounded,
+        gradient: const LinearGradient(colors: [Color(0xFF38BDF8), Color(0xFF0369A1)]),
+        onTap: () => RechargeReportsScreen.show(context, shopId: sId),
+      ),
+      _NavItem(
+        title: 'Wallet Movement Ledger',
+        malayalam: 'വാലറ്റ് ലഡ്ജർ ചരിത്രം',
+        icon: Icons.account_balance_wallet_rounded,
+        gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)]),
+        onTap: () => WalletLedgerSheet.show(context, shopId: sId),
+      ),
+      _NavItem(
+        title: 'Distributor Directory & Ledger',
+        malayalam: 'ഡിസ്ട്രിബ്യൂട്ടർ ലഡ്ജർ',
+        icon: Icons.menu_book_rounded,
+        gradient: const LinearGradient(colors: [Color(0xFFEC4899), Color(0xFFBE185D)]),
+        onTap: () => DistributorLedgerSheet.show(context, shopId: sId),
+      ),
+      _NavItem(
+        title: 'Float Recovery (Contra)',
+        malayalam: 'ക്യാഷ് ബാങ്ക് ഡെപ്പോസിറ്റ്',
+        icon: Icons.sync_alt_rounded,
+        gradient: const LinearGradient(colors: [Color(0xFFA855F7), Color(0xFF6B21A8)]),
+        onTap: () => RechargeFloatRecoveryDialog.show(
+          context,
+          shopId: sId,
+          staffId: auth.uid,
+          staffName: auth.name,
+        ).then((_) => _loadLiveDashboardData()),
       ),
     ];
 
@@ -1396,47 +1583,10 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // 7. RECENT TRANSACTIONS PLACEHOLDER TABLE
+  // 7. LIVE RECENT RECHARGE TRANSACTIONS SECTION
   // ---------------------------------------------------------------------------
-  Widget _buildRecentTransactionsPlaceholder(bool isDesktop) {
-    const recentTxns = [
-      _TxnPlaceholder(
-        operator: 'Jio Prepaid',
-        number: '98471 23456',
-        amount: 299.00,
-        mode: 'CASH',
-        commission: 8.97,
-        time: '10:45 AM',
-        status: 'SUCCESS',
-      ),
-      _TxnPlaceholder(
-        operator: 'Airtel Unlimited',
-        number: '94470 98765',
-        amount: 719.00,
-        mode: 'UPI',
-        commission: 17.98,
-        time: '11:15 AM',
-        status: 'SUCCESS',
-      ),
-      _TxnPlaceholder(
-        operator: 'KSEB Electricity Bill',
-        number: 'Consumer: 115542',
-        amount: 1420.00,
-        mode: 'CASH',
-        commission: 10.00,
-        time: '12:30 PM',
-        status: 'SUCCESS',
-      ),
-      _TxnPlaceholder(
-        operator: 'Vi Hero Unlimited',
-        number: '97455 11223',
-        amount: 239.00,
-        mode: 'CASH',
-        commission: 8.36,
-        time: '02:10 PM',
-        status: 'SUCCESS',
-      ),
-    ];
+  Widget _buildRecentTransactionsSection(bool isDesktop) {
+    final txns = _report?.transactions ?? [];
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -1449,23 +1599,32 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 12,
             children: [
-              Text(
-                'Recent Recharge Activity (ഇന്നത്തെ ഇടപാടുകൾ)',
-                style: TextStyle(
-                  color: TekColors.textPrimary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
+              const Row(
+                children: [
+                  Icon(Icons.history_rounded, color: TekColors.electricCyan, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Today\'s Recharge Transactions (ഇന്നത്തെ ഇടപാടുകൾ)',
+                    style: TextStyle(
+                      color: TekColors.textPrimary,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
               ),
               Text(
-                'Placeholder Preview',
-                style: TextStyle(
+                '${txns.length} Recorded Today',
+                style: const TextStyle(
                   color: TekColors.electricCyan,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
@@ -1473,57 +1632,110 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
           const SizedBox(height: 12),
           const Divider(height: 1, color: TekColors.borderSubtle),
           const SizedBox(height: 8),
-          ListView.separated(
-            itemCount: recentTxns.length,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            separatorBuilder: (_, __) =>
-                const Divider(height: 12, color: TekColors.borderSubtle),
-            itemBuilder: (context, i) {
-              final t = recentTxns[i];
-              return ListTile(
-                contentPadding: EdgeInsets.zero,
-                dense: true,
-                leading: CircleAvatar(
-                  backgroundColor: t.mode == 'CASH'
-                      ? TekColors.success.withValues(alpha: 0.15)
-                      : TekColors.electricCyan.withValues(alpha: 0.15),
-                  child: Icon(
-                    t.mode == 'CASH'
-                        ? Icons.payments_rounded
-                        : Icons.qr_code_rounded,
-                    color: t.mode == 'CASH'
-                        ? TekColors.success
-                        : TekColors.electricCyan,
-                    size: 18,
-                  ),
+
+          if (txns.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Column(
+                  children: [
+                    const Icon(Icons.receipt_long_outlined, size: 40, color: TekColors.textMuted),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'ഇന്ന് ഇതുവരെ റീചാർജ് ഇടപാടുകൾ ഒന്നും രേഖപ്പെടുത്തിയിട്ടില്ല',
+                      style: TextStyle(color: TekColors.textSecondary, fontSize: 13, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'No recharge transactions recorded yet today.',
+                      style: TextStyle(color: TekColors.textMuted, fontSize: 11),
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: () {
+                        QuickRechargeDialog.show(context).then((_) => _loadLiveDashboardData());
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: TekColors.primaryBlue,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      ),
+                      icon: const Icon(Icons.add_rounded, size: 16),
+                      label: const Text('New Recharge', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
                 ),
-                title: Text(
-                  '${t.operator} • ${t.number}',
-                  style: const TextStyle(
-                    color: TekColors.textPrimary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
+              ),
+            )
+          else
+            ListView.separated(
+              itemCount: txns.take(15).length,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              separatorBuilder: (_, __) => const Divider(height: 12, color: TekColors.borderSubtle),
+              itemBuilder: (context, i) {
+                final t = txns[i];
+                final isCash = t.paymentMode == RechargePaymentMode.cash;
+                final isFailed = t.status == RechargeStatus.failed;
+                final isRefunded = t.status == RechargeStatus.refunded;
+
+                Color statusColor = TekColors.success;
+                if (isFailed) statusColor = TekColors.error;
+                if (isRefunded) statusColor = const Color(0xFFF59E0B);
+                if (t.status == RechargeStatus.pending) statusColor = TekColors.warning;
+
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  leading: CircleAvatar(
+                    backgroundColor: isCash
+                        ? TekColors.success.withValues(alpha: 0.15)
+                        : TekColors.electricCyan.withValues(alpha: 0.15),
+                    child: Icon(
+                      isCash ? Icons.payments_rounded : Icons.qr_code_rounded,
+                      color: isCash ? TekColors.success : TekColors.electricCyan,
+                      size: 18,
+                    ),
                   ),
-                ),
-                subtitle: Text(
-                  '${t.time} • Payment: ${t.mode} • Earned Commission: ${currencyFormat.format(t.commission)}',
-                  style: const TextStyle(
-                    color: TekColors.textSecondary,
-                    fontSize: 11,
+                  title: Row(
+                    children: [
+                      Text(
+                        '${t.operator.displayName} • ${t.customerMobile}',
+                        style: const TextStyle(
+                          color: TekColors.textPrimary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: statusColor.withValues(alpha: 0.6)),
+                        ),
+                        child: Text(
+                          t.status.name.toUpperCase(),
+                          style: TextStyle(color: statusColor, fontSize: 9.5, fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                trailing: Text(
-                  currencyFormat.format(t.amount),
-                  style: const TextStyle(
-                    color: TekColors.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
+                  subtitle: Text(
+                    '${DateFormat('hh:mm a').format(t.createdAt)} • Mode: ${t.paymentMode.name.toUpperCase()} • Ref: ${t.referenceNumber.isNotEmpty ? t.referenceNumber : "N/A"}',
+                    style: const TextStyle(color: TekColors.textSecondary, fontSize: 11),
                   ),
-                ),
-              );
-            },
-          ),
+                  trailing: Text(
+                    currencyFormat.format(t.amount),
+                    style: const TextStyle(
+                      color: TekColors.textPrimary,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                );
+              },
+            ),
         ],
       ),
     );
@@ -1563,182 +1775,35 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
     );
   }
 
-  void _showOperatorPreviewDialog(_OperatorInfo op) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: TekColors.cardBg,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(op.icon, color: op.primaryColor),
-            const SizedBox(width: 10),
-            Text(op.name,
-                style: const TextStyle(color: TekColors.textPrimary)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Malayalam: ${op.malayalam}',
-                style: const TextStyle(
-                    color: TekColors.textSecondary, fontSize: 13)),
-            const SizedBox(height: 8),
-            Text('Available Wallet Balance: ${currencyFormat.format(op.balance)}',
-                style: TextStyle(
-                    color: op.primaryColor,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Text('Margin / Commission: ${op.marginText}',
-                style: const TextStyle(
-                    color: TekColors.textMuted, fontSize: 12)),
-            const SizedBox(height: 14),
-            const Text(
-              'Phase 2 will activate the numeric recharge keypad and live operator plan lookup.',
-              style: TextStyle(
-                  color: TekColors.electricCyan, fontSize: 11.5),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close',
-                style: TextStyle(color: TekColors.textSecondary)),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showDistributorPayoutModal() {
+    final auth = Provider.of<AuthController>(context, listen: false);
     DistributorPaymentDialog.show(
       context,
-      shopId: 'tekfix',
-      staffId: 'staff_1',
-      staffName: 'Staff',
-    );
+      shopId: auth.shopId.isNotEmpty ? auth.shopId : 'tekfix',
+      staffId: auth.uid,
+      staffName: auth.name,
+    ).then((_) => _loadLiveDashboardData());
   }
 
   void _showAgentSettlementModal() {
+    final auth = Provider.of<AuthController>(context, listen: false);
     AgentSettlementDialog.show(
       context,
-      shopId: 'tekfix',
-      staffId: 'staff_1',
-      staffName: 'Staff',
-    ).then((_) {
-      if (mounted) setState(() {});
-    });
+      shopId: auth.shopId.isNotEmpty ? auth.shopId : 'tekfix',
+      staffId: auth.uid,
+      staffName: auth.name,
+    ).then((_) => _loadLiveDashboardData());
   }
 
   void _showRechargeAmountReturnModal() {
+    final auth = Provider.of<AuthController>(context, listen: false);
     RechargeAmountReturnDialog.show(
       context,
-      shopId: 'tekfix',
-      staffId: 'staff_1',
-      staffName: 'Staff',
-    ).then((_) {
-      if (mounted) setState(() {});
-    });
+      shopId: auth.shopId.isNotEmpty ? auth.shopId : 'tekfix',
+      staffId: auth.uid,
+      staffName: auth.name,
+    ).then((_) => _loadLiveDashboardData());
   }
-
-  void _showPhasePreviewSheet(String title, String description) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: TekColors.cardBg,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: TekColors.textPrimary,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: TekColors.premiumPurple.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Text(
-                    'PHASE PREVIEW',
-                    style: TextStyle(
-                      color: TekColors.premiumPurple,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              description,
-              style: const TextStyle(
-                color: TekColors.textSecondary,
-                fontSize: 13,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => Navigator.pop(ctx),
-                style: FilledButton.styleFrom(
-                  backgroundColor: TekColors.primaryBlue,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                child: const Text('Got it'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// -----------------------------------------------------------------------------
-// INTERNAL PLACEHOLDER MODELS FOR PHASE 1 UI
-// -----------------------------------------------------------------------------
-class _OperatorInfo {
-  final RechargeOperatorBrand brand;
-  final String name;
-  final String malayalam;
-  final IconData icon;
-  final double balance;
-  final String marginText;
-  final Color primaryColor;
-  final LinearGradient gradient;
-
-  const _OperatorInfo({
-    required this.brand,
-    required this.name,
-    required this.malayalam,
-    required this.icon,
-    required this.balance,
-    required this.marginText,
-    required this.primaryColor,
-    required this.gradient,
-  });
 }
 
 class _NavItem {
@@ -1756,24 +1821,3 @@ class _NavItem {
     required this.onTap,
   });
 }
-
-class _TxnPlaceholder {
-  final String operator;
-  final String number;
-  final double amount;
-  final String mode;
-  final double commission;
-  final String time;
-  final String status;
-
-  const _TxnPlaceholder({
-    required this.operator,
-    required this.number,
-    required this.amount,
-    required this.mode,
-    required this.commission,
-    required this.time,
-    required this.status,
-  });
-}
-
