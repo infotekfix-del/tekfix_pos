@@ -202,7 +202,7 @@ class AuthController extends ChangeNotifier {
       await Db.settings.put('shop_id', _shopId);
 
       // Staging UAT Mode: Authenticate locally against salted hash
-      if (DefaultFirebaseOptions.isUatMode) {
+      if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
         if (_shopId != StagingIdentityService.defaultShopId) {
           return 'Staging mode only supports shop: ${StagingIdentityService.defaultShopId}';
         }
@@ -233,7 +233,7 @@ class AuthController extends ChangeNotifier {
   /// First-time setup: creates the shop and its owner account.
   Future<String?> createShopOwner(
       String shopId, String name, String email, String password) async {
-    if (DefaultFirebaseOptions.isUatMode) {
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
       return 'ഷോപ്പ് ഉടമ രജിസ്ട്രേഷൻ സ്റ്റേജിംഗ് UAT മോഡിൽ ലഭ്യമല്ല. ദയവായി shop_staging_001 ഉപയോഗിക്കുക. (Shop creation disabled in Staging UAT. Please sign in with shop_staging_001.)';
     }
     final sid = shopId.trim().toLowerCase();
@@ -323,7 +323,7 @@ class AuthController extends ChangeNotifier {
   /// Owner creates a staff login WITHOUT being signed out (uses a 2nd app instance).
   Future<String?> createStaff(
       String name, String email, String password) async {
-    if (DefaultFirebaseOptions.isUatMode) {
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
       return 'Staff account creation is disabled in Staging UAT mode.';
     }
     if (!isOwner) return 'Owner only';
@@ -425,7 +425,7 @@ class AuthController extends ChangeNotifier {
     await Db.settings.put('staff_logged_in', 'false');
     await Db.settings.put('staff_logged_id', '');
     await Db.settings.put('staff_logged_name', '');
-    if (DefaultFirebaseOptions.isUatMode) {
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
       _stagingSignedIn = false;
       _role = Role.staff;
       await Db.settings.put('auth_role', 'none');
