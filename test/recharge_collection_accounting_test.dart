@@ -79,14 +79,14 @@ void main() {
 
       final result = await service.recordCustomerRechargePayment(recharge: recharge);
 
-      // A. Physical Cash Verification: Drawer receives customer money
+      // A. Normal Cash/Bank Isolation: Recharge does NOT touch normal cash or bank
       final updatedCash = (Db.bank.get('cash_in_hand') as num).toDouble();
       final updatedBank = (Db.bank.get('bank_balance') as num).toDouble();
 
-      expect(updatedCash, initialCash + 299.0,
-          reason: 'Physical cash in hand must increase by customer recharge cash');
+      expect(updatedCash, initialCash,
+          reason: 'Normal cash in hand must NEVER increase by recharge transaction amount');
       expect(updatedBank, initialBank,
-          reason: 'Bank balance must not change for cash recharge');
+          reason: 'Normal bank balance must not change for cash recharge');
 
       // B. Accounting Isolation: STRICT NON-REVENUE PASS-THROUGH
       expect(Db.sales.length, initialSalesCount,
@@ -132,12 +132,12 @@ void main() {
 
       final result = await service.recordCustomerRechargePayment(recharge: recharge);
 
-      // A. Bank / UPI Balance Verification
+      // A. Bank / UPI Balance Verification: Normal bank balance must NOT change
       final updatedCash = (Db.bank.get('cash_in_hand') as num).toDouble();
       final updatedBank = (Db.bank.get('bank_balance') as num).toDouble();
 
-      expect(updatedBank, initialBank + 299.0,
-          reason: 'Bank balance must increase by UPI collection');
+      expect(updatedBank, initialBank,
+          reason: 'Normal bank balance must NEVER increase by recharge transaction amount');
       expect(updatedCash, initialCash,
           reason: 'Physical cash must not be touched for UPI recharge');
 
@@ -179,7 +179,8 @@ void main() {
       final result = await service.recordCustomerRechargePayment(recharge: recharge);
 
       final updatedBank = (Db.bank.get('bank_balance') as num).toDouble();
-      expect(updatedBank, initialBank + 599.0);
+      expect(updatedBank, initialBank,
+          reason: 'Normal bank balance must NEVER increase by card recharge amount');
       expect(result.summary.cardCollection, 599.0);
       expect(result.summary.totalCollection, 599.0);
       expect(result.summary.getOperatorCollection(RechargeOperator.vi), 599.0);
@@ -374,7 +375,8 @@ void main() {
 
       // 1. Post original payment
       await service.recordCustomerRechargePayment(recharge: rec);
-      expect((Db.bank.get('cash_in_hand') as num).toDouble(), baselineCash + 349.0);
+      expect((Db.bank.get('cash_in_hand') as num).toDouble(), baselineCash,
+          reason: 'Normal cash in hand must not increase on recharge');
 
       // 2. Perform Refund & Reversal
       final refundResult = await service.refundOrReverseRecharge(
@@ -385,9 +387,9 @@ void main() {
         reason: 'Customer entered wrong number',
       );
 
-      // 3. Physical Cash must be returned to customer
+      // 3. Physical Cash must remain separated and untouched
       expect((Db.bank.get('cash_in_hand') as num).toDouble(), baselineCash,
-          reason: 'Drawer cash must decrement by ₹349 on refund');
+          reason: 'Normal cash in hand remains untouched across recharge and refund');
 
       // 4. Summary adjustments
       expect(refundResult.reversed, isTrue);

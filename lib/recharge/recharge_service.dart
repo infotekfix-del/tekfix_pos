@@ -263,6 +263,11 @@ class RechargeService {
     }
   }
 
+  /// Public accessor to record a wallet ledger entry directly into local cache & Hive box
+  Future<void> recordWalletLedgerEntryDirect(WalletLedgerEntry entry) async {
+    await _recordWalletLedgerEntry(entry);
+  }
+
   Future<int> rehydrateWalletLedgerFromHive({String? shopId}) async {
     int count = 0;
     if (Hive.isBoxOpen(boxRechargeWalletLedger)) {
@@ -1933,64 +1938,17 @@ class RechargeService {
           (recharge.status == RechargeStatus.pending && recharge.customerPaymentCollected);
 
       if (shouldCollectMoney) {
-        final amount = recharge.amount;
         final amountPaise = recharge.amountPaise;
 
         final isCash = recharge.paymentMode == RechargePaymentMode.cash;
         final isUpi = recharge.paymentMode == RechargePaymentMode.upi;
         final isCard = recharge.paymentMode == RechargePaymentMode.card;
 
-        final moveMode = isCash ? 'Cash' : (isUpi ? 'UPI' : 'Bank');
-        try {
-          await Db.moveMoney(
-            moveMode,
-            amount,
-            'Recharge Collection: ${recharge.operator.displayName} ($rechargeId)',
-          );
-        } catch (e) {
-          debugPrint('[RechargeService] Db.moveMoney notice: $e');
-        }
-
-        if (Firebase.apps.isNotEmpty && shopId.isNotEmpty) {
-          try {
-            final firestore = FirebaseFirestore.instance;
-            final ledgerRef = firestore
-                .collection('shops')
-                .doc(shopId)
-                .collection('accounting_cash_bank')
-                .doc('CB_REC_$rechargeId');
-
-            final ledgerData = <String, dynamic>{
-              'id': 'CB_REC_$rechargeId',
-              'type': 'CREDIT',
-              'entryType': 'CREDIT',
-              'transactionCategory': 'RECHARGE_COLLECTION',
-              'category': 'RECHARGE_COLLECTION',
-              'isRecharge': true,
-              'isSalesRevenue': false,
-              'rechargeId': rechargeId,
-              'referenceId': rechargeId,
-              'operator': recharge.operator.displayName,
-              'operatorKey': recharge.operator.name,
-              'customerMobile': recharge.customerMobile,
-              'amount': amount,
-              'amountPaise': amountPaise,
-              'paymentMode': recharge.paymentMode.name.toUpperCase(),
-              'mode': isCash ? 'Cash' : (isUpi ? 'UPI' : 'Bank'),
-              'fundingType': recharge.fundingType.name,
-              'effectiveDate': Timestamp.fromDate(recharge.createdAt),
-              'dateString': dateStr,
-              'createdByUid': recharge.staffId,
-              'createdByName': recharge.staffName,
-              'createdAt': FieldValue.serverTimestamp(),
-              'notes': recharge.notes,
-            };
-
-            await ledgerRef.set(ledgerData, SetOptions(merge: true));
-          } catch (e) {
-            debugPrint('[RechargeService] Firestore accounting voucher notice: $e');
-          }
-        }
+        // CRITICAL FINANCIAL SEPARATION REQUIREMENT:
+        // Recharge transaction amounts and wallet balances must NEVER affect the ERP's
+        // normal Cash in Hand or Bank Balance.
+        // Recharge collections are tracked exclusively in the separate Recharge Accounting ledger
+        // (DailyRechargeCollectionSummary, recharge_transactions, and recharge_wallet_logs).
 
         if (recharge.status == RechargeStatus.success) {
           final opMap = Map<RechargeOperator, int>.from(
@@ -2122,56 +2080,10 @@ class RechargeService {
       if (wasSuccess) {
         final isCash = recharge.paymentMode == RechargePaymentMode.cash;
         final isUpi = recharge.paymentMode == RechargePaymentMode.upi;
-        final moveMode = isCash ? 'Cash' : (isUpi ? 'UPI' : 'Bank');
 
-        try {
-          await Db.moveMoney(
-            moveMode,
-            -recharge.amount,
-            'Recharge Reversal / Refund: ${recharge.operator.displayName} ($rechargeId)',
-          );
-        } catch (e) {
-          debugPrint('[RechargeService] Db.moveMoney refund notice: $e');
-        }
-
-        if (Firebase.apps.isNotEmpty && shopId.isNotEmpty) {
-          try {
-            final firestore = FirebaseFirestore.instance;
-            final ledgerRef = firestore
-                .collection('shops')
-                .doc(shopId)
-                .collection('accounting_cash_bank')
-                .doc('CB_REC_REFUND_$rechargeId');
-
-            final ledgerData = <String, dynamic>{
-              'id': 'CB_REC_REFUND_$rechargeId',
-              'type': 'DEBIT',
-              'entryType': 'DEBIT',
-              'transactionCategory': 'RECHARGE_REFUND',
-              'category': 'RECHARGE_REFUND',
-              'isRecharge': true,
-              'isSalesRevenue': false,
-              'rechargeId': rechargeId,
-              'referenceId': rechargeId,
-              'operator': recharge.operator.displayName,
-              'operatorKey': recharge.operator.name,
-              'amount': recharge.amount,
-              'amountPaise': recharge.amountPaise,
-              'paymentMode': recharge.paymentMode.name.toUpperCase(),
-              'mode': moveMode,
-              'effectiveDate': Timestamp.fromDate(DateTime.now()),
-              'dateString': dateStr,
-              'createdByUid': staffId,
-              'createdByName': staffName,
-              'createdAt': FieldValue.serverTimestamp(),
-              'notes': 'Refund / Reversal: $reason',
-            };
-
-            await ledgerRef.set(ledgerData, SetOptions(merge: true));
-          } catch (e) {
-            debugPrint('[RechargeService] Firestore refund voucher notice: $e');
-          }
-        }
+        // CRITICAL FINANCIAL SEPARATION:
+        // Reversal updates the separate Recharge Accounting summary and operator wallet.
+        // It never mutates normal Cash in Hand or Bank Balance.
 
         final opMap = Map<RechargeOperator, int>.from(
             existingSummary.operatorCollectionsPaise);
@@ -3286,19 +3198,11 @@ class RechargeService {
 
     try {
       final isCash = refundMethod == RechargePaymentMode.cash;
-      final isUpi = refundMethod == RechargePaymentMode.upi;
-      final moveMode = isCash ? 'Cash' : (isUpi ? 'UPI' : 'Bank');
 
-      // 4. Double-entry Money movement: reduces drawer or bank
-      try {
-        await Db.moveMoney(
-          moveMode,
-          -refundAmount,
-          'Recharge Customer Refund: ${existing.operator.displayName} ($rechargeId) - $reason',
-        );
-      } catch (e) {
-        debugPrint('[RechargeService] Db.moveMoney refund notice: $e');
-      }
+      // CRITICAL FINANCIAL SEPARATION:
+      // Recharge refund does NOT reduce normal Cash in Hand or Bank Balance
+      // because recharge collections were never added to normal cash/bank.
+      // Refund is maintained strictly within the separate Recharge Accounting ledger.
 
       final dateStr = existing.dateString.isNotEmpty
           ? existing.dateString
@@ -3373,41 +3277,10 @@ class RechargeService {
               .doc(shopId)
               .collection('recharge_reversals')
               .doc('REV_$refundId');
-          final vRef = firestore
-              .collection('shops')
-              .doc(shopId)
-              .collection('accounting_cash_bank')
-              .doc(voucherId);
-
-          final voucherData = <String, dynamic>{
-            'id': voucherId,
-            'type': 'DEBIT',
-            'entryType': 'DEBIT',
-            'transactionCategory': 'RECHARGE_REFUND',
-            'category': 'RECHARGE_REFUND',
-            'isRecharge': true,
-            'isSalesRevenue': false,
-            'isExpense': false,
-            'rechargeId': rechargeId,
-            'refundId': refundId,
-            'referenceId': rechargeId,
-            'operator': existing.operator.displayName,
-            'amount': refundAmount,
-            'amountPaise': refundPaise,
-            'paymentMode': refundMethod.name.toUpperCase(),
-            'mode': moveMode,
-            'effectiveDate': Timestamp.fromDate(DateTime.now()),
-            'dateString': dateStr,
-            'createdByUid': staffId,
-            'createdByName': staffName,
-            'createdAt': FieldValue.serverTimestamp(),
-            'notes': reason,
-          };
 
           batch.set(recRef, updatedRecharge.toMap(forFirestore: true), SetOptions(merge: true));
           batch.set(refRef, refundRecord.toMap(forFirestore: true));
           batch.set(revRef, reversalEntry.toMap(forFirestore: true));
-          batch.set(vRef, voucherData, SetOptions(merge: true));
 
           await batch.commit();
         } catch (e) {
@@ -4966,10 +4839,24 @@ class RechargeService {
       final diffPaise = actualPaise - expectedPaise;
       final isMismatch = (actualPaise != 0 || prev.isClosingCompleted) && (diffPaise != 0);
 
+      // Sum actual commission earned for this operator on this business date
+      int commPaise = 0;
+      for (final comm in _localCommissions.values) {
+        if (comm.shopId == shopId && comm.operator == op) {
+          final cDate = comm.dateString.isNotEmpty
+              ? comm.dateString
+              : getBusinessDate(utcTime: comm.createdAt.toUtc());
+          if (cDate == businessDate) {
+            commPaise += comm.amountPaise;
+          }
+        }
+      }
+
       updatedOps[op.name] = prev.copyWith(
         totalTopupsPaise: topupsPaise,
         totalCreditsPaise: creditsPaise,
         totalDebitsPaise: debitsPaise,
+        totalCommissionPaise: commPaise,
         totalDebitReversalsPaise: debitReversalsPaise,
         totalCreditReversalsPaise: creditReversalsPaise,
         expectedClosingBalancePaise: expectedPaise,
@@ -5001,6 +4888,45 @@ class RechargeService {
     _localDailyReconciliations[cacheKey] = updatedRecord;
 
     return updatedRecord;
+  }
+
+  /// Calculates authoritative Recharge Accounting totals completely separated from normal ERP Cash & Bank.
+  Future<Map<String, double>> getRechargeAccountingTotals({
+    required String shopId,
+    String? businessDate,
+  }) async {
+    final bDate = businessDate ?? getBusinessDate();
+    final rec = await calculateAutomaticReconciliation(
+      shopId: shopId,
+      businessDate: bDate,
+    );
+    return {
+      'airtelRechargeAmount': rec.airtelRechargeAmount,
+      'jioRechargeAmount': rec.jioRechargeAmount,
+      'viRechargeAmount': rec.viRechargeAmount,
+      'bsnlRechargeAmount': rec.bsnlRechargeAmount,
+      'totalRechargeAmount': rec.totalRechargeAmount,
+      'totalRechargeWalletBalance': rec.totalRechargeWalletBalance,
+      'totalRechargeCommission': rec.totalRechargeCommission,
+    };
+  }
+
+  /// Calculates operator-wise recharge amounts for the given business date.
+  Future<Map<String, double>> getOperatorRechargeAmounts({
+    required String shopId,
+    String? businessDate,
+  }) async {
+    final bDate = businessDate ?? getBusinessDate();
+    final rec = await calculateAutomaticReconciliation(
+      shopId: shopId,
+      businessDate: bDate,
+    );
+    return {
+      'Airtel': rec.airtelRechargeAmount,
+      'Jio': rec.jioRechargeAmount,
+      'Vi': rec.viRechargeAmount,
+      'BSNL': rec.bsnlRechargeAmount,
+    };
   }
 
   /// Record Night Closing Balance for all 4 required operators

@@ -983,6 +983,12 @@ class _DailyReconciliationScreenState extends State<DailyReconciliationScreen>
             const SizedBox(height: 20),
           ],
 
+          // Dedicated Recharge Accounting Separation Summary & 3 Totals
+          _buildRechargeAccountingSeparationSummary(isDesktop),
+
+          // Operator-Wise Recharge Summary (Airtel, Jio, Vi, BSNL)
+          _buildOperatorWiseRechargeTable(isDesktop),
+
           // 4 Operator Closing Cards
           Column(
             children: RechargeService.requiredDailyOperators.map((op) {
@@ -1026,6 +1032,327 @@ class _DailyReconciliationScreenState extends State<DailyReconciliationScreen>
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // SEPARATE RECHARGE ACCOUNTING TOTALS & OPERATOR-WISE SUMMARY
+  // ---------------------------------------------------------------------------
+  Widget _buildRechargeAccountingSeparationSummary(bool isDesktop) {
+    final totalRecharge = _currentRecord?.totalRechargeAmount ?? 0.0;
+    final totalWallet = _currentRecord?.totalRechargeWalletBalance ?? 0.0;
+    final totalCommission = _currentRecord?.totalRechargeCommission ?? 0.0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: TekColors.cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: TekColors.borderSubtle),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: TekColors.electricCyan.withAlpha(30),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.account_balance_wallet_rounded,
+                    color: TekColors.electricCyan, size: 20),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'SEPARATE RECHARGE ACCOUNTING TOTALS',
+                      style: TextStyle(
+                        color: TekColors.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                    Text(
+                      'റീചാർജ് തുകകൾ പ്രത്യേക ലഡ്ജറിലാണ് - സാധാരണ ക്യാഷ്/ബാങ്കുമായി കലരില്ല (Isolated from Cash/Bank)',
+                      style: TextStyle(
+                        color: TekColors.textMuted,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 720;
+              final cards = [
+                _buildSeparationTotalCard(
+                  title: 'Total Recharge Amount',
+                  malayalam: 'ആകെ റീചാർജ് തുക',
+                  amount: totalRecharge,
+                  color: TekColors.electricCyan,
+                  icon: Icons.payments_rounded,
+                  badge: 'Gross Debits',
+                ),
+                _buildSeparationTotalCard(
+                  title: 'Total Recharge Wallet Balance',
+                  malayalam: 'ആകെ വാലറ്റ് ബാക്കി',
+                  amount: totalWallet,
+                  color: const Color(0xFF10B981),
+                  icon: Icons.savings_rounded,
+                  badge: 'Float Balance',
+                ),
+                _buildSeparationTotalCard(
+                  title: 'Total Recharge Commission',
+                  malayalam: 'ലഭിച്ച കമ്മീഷൻ (യഥാർത്ഥ വരുമാനം)',
+                  amount: totalCommission,
+                  color: const Color(0xFFF59E0B),
+                  icon: Icons.monetization_on_rounded,
+                  badge: 'Actual Income Only',
+                ),
+              ];
+              if (isWide) {
+                return Row(
+                  children: cards.map((c) => Expanded(child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: c,
+                  ))).toList(),
+                );
+              } else {
+                return Column(
+                  children: cards.map((c) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: c,
+                  )).toList(),
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSeparationTotalCard({
+    required String title,
+    required String malayalam,
+    required double amount,
+    required Color color,
+    required IconData icon,
+    required String badge,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: TekColors.mainBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withAlpha(80), width: 1.2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 18),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: color.withAlpha(25),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  badge,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            _currencyFormat.format(amount),
+            style: TextStyle(
+              color: color,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: const TextStyle(
+              color: TekColors.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Text(
+            malayalam,
+            style: const TextStyle(
+              color: TekColors.textMuted,
+              fontSize: 10.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOperatorWiseRechargeTable(bool isDesktop) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: TekColors.cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: TekColors.borderSubtle),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'OPERATOR-WISE RECHARGE SUMMARY (ഓപ്പറേറ്റർ തിരിച്ചുള്ള കണക്കുകൾ)',
+            style: TextStyle(
+              color: TekColors.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 600;
+              final opCards = [
+                _buildOperatorSummaryMiniCard(
+                  operatorName: 'Airtel',
+                  rechargeAmount: _currentRecord?.airtelRechargeAmount ?? 0.0,
+                  closingBalance: _currentRecord?.operators[RechargeOperator.airtel.name]?.actualClosingBalance ?? 0.0,
+                  commission: _currentRecord?.operators[RechargeOperator.airtel.name]?.totalCommission ?? 0.0,
+                  color: const Color(0xFFE40000),
+                ),
+                _buildOperatorSummaryMiniCard(
+                  operatorName: 'Jio',
+                  rechargeAmount: _currentRecord?.jioRechargeAmount ?? 0.0,
+                  closingBalance: _currentRecord?.operators[RechargeOperator.jio.name]?.actualClosingBalance ?? 0.0,
+                  commission: _currentRecord?.operators[RechargeOperator.jio.name]?.totalCommission ?? 0.0,
+                  color: const Color(0xFF0F3E99),
+                ),
+                _buildOperatorSummaryMiniCard(
+                  operatorName: 'Vi',
+                  rechargeAmount: _currentRecord?.viRechargeAmount ?? 0.0,
+                  closingBalance: _currentRecord?.operators[RechargeOperator.vi.name]?.actualClosingBalance ?? 0.0,
+                  commission: _currentRecord?.operators[RechargeOperator.vi.name]?.totalCommission ?? 0.0,
+                  color: const Color(0xFFED1C24),
+                ),
+                _buildOperatorSummaryMiniCard(
+                  operatorName: 'BSNL',
+                  rechargeAmount: _currentRecord?.bsnlRechargeAmount ?? 0.0,
+                  closingBalance: _currentRecord?.operators[RechargeOperator.bsnl.name]?.actualClosingBalance ?? 0.0,
+                  commission: _currentRecord?.operators[RechargeOperator.bsnl.name]?.totalCommission ?? 0.0,
+                  color: const Color(0xFF0056B3),
+                ),
+              ];
+              if (isWide) {
+                return Row(
+                  children: opCards.map((c) => Expanded(child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: c,
+                  ))).toList(),
+                );
+              } else {
+                return Column(
+                  children: opCards.map((c) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: c,
+                  )).toList(),
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOperatorSummaryMiniCard({
+    required String operatorName,
+    required double rechargeAmount,
+    required double closingBalance,
+    required double commission,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: TekColors.mainBg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withAlpha(70)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                operatorName,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '$operatorName Recharge Amount:',
+            style: const TextStyle(color: TekColors.textSecondary, fontSize: 10),
+          ),
+          Text(
+            _currencyFormat.format(rechargeAmount),
+            style: const TextStyle(
+              color: TekColors.textPrimary,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Wallet: ${_currencyFormat.format(closingBalance)}',
+                style: const TextStyle(color: TekColors.textMuted, fontSize: 9.5),
+              ),
+              Text(
+                'Comm: ${_currencyFormat.format(commission)}',
+                style: const TextStyle(color: TekColors.success, fontSize: 9.5, fontWeight: FontWeight.bold),
+              ),
+            ],
           ),
         ],
       ),
@@ -1117,8 +1444,9 @@ class _DailyReconciliationScreenState extends State<DailyReconciliationScreen>
               _buildMiniMetric('Opening', entry?.openingBalance ?? 0.0, TekColors.textPrimary),
               _buildMiniMetric('+ Top-ups', entry?.totalTopups ?? 0.0, TekColors.electricCyan),
               _buildMiniMetric('+ Credits', entry?.totalCredits ?? 0.0, TekColors.success),
-              _buildMiniMetric('- Debits', entry?.totalDebits ?? 0.0, TekColors.warning),
+              _buildMiniMetric('- ${op.displayName} Recharge', entry?.totalDebits ?? 0.0, TekColors.warning),
               _buildMiniMetric('+ Rev (Net)', (entry?.totalDebitReversals ?? 0.0) - (entry?.totalCreditReversals ?? 0.0), TekColors.textSecondary),
+              _buildMiniMetric('Comm Earned', entry?.totalCommission ?? 0.0, TekColors.success),
               _buildMiniMetric('Expected Closing', entry?.expectedClosingBalance ?? 0.0, const Color(0xFF818CF8), isBold: true),
             ],
           ),

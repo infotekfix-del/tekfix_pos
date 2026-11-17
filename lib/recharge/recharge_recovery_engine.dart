@@ -656,16 +656,11 @@ class RechargeRecoveryEngine {
     Map<String, dynamic>? journal,
   }) async {
     // 1. Post-confirmation Customer Settlement
-    // Only credit ledger if this transaction was not already committed locally
-    if (paymentMode == 'Cash') {
+    // CRITICAL FINANCIAL SEPARATION: Recharge transactions must NEVER affect
+    // normal ERP Cash in Hand or Bank Balance.
+    if (paymentMode == 'Cash' || paymentMode == 'UPI') {
       if (!hasMoneyMoved(idempotencyKey)) {
-        await Db.moveMoney('Cash', retailAmount,
-            'Recharge Sale (Recovered): $operator $mobile (Txn: $idempotencyKey)');
-      }
-    } else if (paymentMode == 'UPI') {
-      if (!hasMoneyMoved(idempotencyKey)) {
-        await Db.moveMoney('Bank', retailAmount,
-            'Recharge UPI (Recovered): $operator $mobile (Txn: $idempotencyKey)');
+        await markMoneySettled(idempotencyKey);
       }
     } else if (paymentMode == 'Credit / Due') {
       if (partyKey == null || !Db.parties.containsKey(partyKey)) {

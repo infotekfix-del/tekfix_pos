@@ -8,6 +8,7 @@ import '../main.dart' show Db;
 import '../security/device_security_service.dart';
 import '../theme/tek_tokens.dart';
 import 'recharge_backend_bridge.dart';
+import 'recharge_models.dart';
 import 'recharge_recovery_engine.dart';
 import 'recharge_service.dart';
 
@@ -195,14 +196,12 @@ class QuickRechargeDialog extends StatefulWidget {
     // 5. Customer Settlement & Local Non-Authoritative Cache (ONLY after server success)
     // Avoid double counting if this was an idempotent replay of an already processed transaction
     if (!isIdempotentReplay || !Db.recharges.containsKey(idempotencyKey)) {
-      if (paymentMode == 'Cash') {
+      // CRITICAL FINANCIAL SEPARATION REQUIREMENT:
+      // Recharge transactions and recharge wallet balances must NEVER affect
+      // the ERP's normal Cash in Hand or Bank Balance.
+      // Recharge amounts are maintained strictly in the separate Recharge Accounting ledger.
+      if (paymentMode == 'Cash' || paymentMode == 'UPI') {
         if (!RechargeRecoveryEngine.hasMoneyMoved(idempotencyKey)) {
-          await Db.moveMoney('Cash', retailAmount, 'Recharge Sale: $operator $mobile (Txn: $idempotencyKey)');
-          await RechargeRecoveryEngine.markMoneySettled(idempotencyKey);
-        }
-      } else if (paymentMode == 'UPI') {
-        if (!RechargeRecoveryEngine.hasMoneyMoved(idempotencyKey)) {
-          await Db.moveMoney('Bank', retailAmount, 'Recharge UPI: $operator $mobile (Txn: $idempotencyKey)');
           await RechargeRecoveryEngine.markMoneySettled(idempotencyKey);
         }
       } else if (paymentMode == 'Credit / Due') {
@@ -253,6 +252,33 @@ class QuickRechargeDialog extends StatefulWidget {
     // Save non-authoritative read cache to Hive
     await Db.recharges.put(idempotencyKey, entry);
     debugPrint('[RECHARGE_SAVE] TRANSACTION_PERSISTED: id=$idempotencyKey');
+
+    // Record into local Recharge Wallet Ledger (Completely separate from ERP Cash/Bank)
+    try {
+      final opEnum = RechargeOperator.fromString(operator);
+      final wId = RechargeService.getWalletId(opEnum);
+      final walletBalAfter = (res['balanceAfterPaise'] ?? res['totalBalancePaise'] ?? res['total_balance_paise'] ?? 0) as int;
+      final walletEntry = WalletLedgerEntry(
+        txnId: (res['txn_key'] ?? idempotencyKey).toString(),
+        shopId: shopId,
+        walletId: wId,
+        operator: opEnum,
+        fundingType: RechargeFundingType.distributorCredit,
+        entryType: 'RECHARGE_DEBIT',
+        amount: effectiveCostPrice,
+        amountPaise: costPaise,
+        balanceBeforePaise: walletBalAfter + costPaise,
+        balanceAfterPaise: walletBalAfter,
+        referenceId: (res['txn_key'] ?? idempotencyKey).toString(),
+        description: 'Recharge $operator: $mobile (Retail: ₹$retailAmount, Comm: ₹$profit)',
+        staffId: AuthController.instance.uid,
+        staffName: AuthController.instance.name,
+        timestamp: now,
+      );
+      await RechargeService.instance.recordWalletLedgerEntryDirect(walletEntry);
+    } catch (e) {
+      debugPrint('[RECHARGE_SAVE] Local wallet ledger recording notice: $e');
+    }
 
     // Step 5.1 Mark completely settled and purge from pending outbox journal
     await RechargeRecoveryEngine.markSettled(idempotencyKey);

@@ -2018,6 +2018,7 @@ class DailyOperatorBalanceEntry {
   final bool isReviewedByOwner;
   final String? reviewedBy;
   final DateTime? reviewedAt;
+  final int totalCommissionPaise;
 
   const DailyOperatorBalanceEntry({
     required this.operator,
@@ -2042,6 +2043,7 @@ class DailyOperatorBalanceEntry {
     this.isReviewedByOwner = false,
     this.reviewedBy,
     this.reviewedAt,
+    this.totalCommissionPaise = 0,
   });
 
   double get openingBalance => openingBalancePaise / 100.0;
@@ -2049,6 +2051,9 @@ class DailyOperatorBalanceEntry {
   double get totalTopups => totalTopupsPaise / 100.0;
   double get totalCredits => totalCreditsPaise / 100.0;
   double get totalDebits => totalDebitsPaise / 100.0;
+  double get rechargeAmount => totalDebits;
+  int get rechargeAmountPaise => totalDebitsPaise;
+  double get totalCommission => totalCommissionPaise / 100.0;
   double get totalDebitReversals => totalDebitReversalsPaise / 100.0;
   double get totalCreditReversals => totalCreditReversalsPaise / 100.0;
   double get expectedClosingBalance => expectedClosingBalancePaise / 100.0;
@@ -2072,6 +2077,7 @@ class DailyOperatorBalanceEntry {
       'totalTopupsPaise': totalTopupsPaise,
       'totalCreditsPaise': totalCreditsPaise,
       'totalDebitsPaise': totalDebitsPaise,
+      'totalCommissionPaise': totalCommissionPaise,
       'totalDebitReversalsPaise': totalDebitReversalsPaise,
       'totalCreditReversalsPaise': totalCreditReversalsPaise,
       'expectedClosingBalancePaise': expectedClosingBalancePaise,
@@ -2107,6 +2113,7 @@ class DailyOperatorBalanceEntry {
       totalTopupsPaise: (map['totalTopupsPaise'] as num?)?.toInt() ?? 0,
       totalCreditsPaise: (map['totalCreditsPaise'] as num?)?.toInt() ?? 0,
       totalDebitsPaise: (map['totalDebitsPaise'] as num?)?.toInt() ?? 0,
+      totalCommissionPaise: (map['totalCommissionPaise'] as num?)?.toInt() ?? 0,
       totalDebitReversalsPaise: (map['totalDebitReversalsPaise'] as num?)?.toInt() ?? 0,
       totalCreditReversalsPaise: (map['totalCreditReversalsPaise'] as num?)?.toInt() ?? 0,
       expectedClosingBalancePaise: (map['expectedClosingBalancePaise'] as num?)?.toInt() ?? 0,
@@ -2133,6 +2140,7 @@ class DailyOperatorBalanceEntry {
     int? totalTopupsPaise,
     int? totalCreditsPaise,
     int? totalDebitsPaise,
+    int? totalCommissionPaise,
     int? totalDebitReversalsPaise,
     int? totalCreditReversalsPaise,
     int? expectedClosingBalancePaise,
@@ -2157,6 +2165,7 @@ class DailyOperatorBalanceEntry {
       totalTopupsPaise: totalTopupsPaise ?? this.totalTopupsPaise,
       totalCreditsPaise: totalCreditsPaise ?? this.totalCreditsPaise,
       totalDebitsPaise: totalDebitsPaise ?? this.totalDebitsPaise,
+      totalCommissionPaise: totalCommissionPaise ?? this.totalCommissionPaise,
       totalDebitReversalsPaise: totalDebitReversalsPaise ?? this.totalDebitReversalsPaise,
       totalCreditReversalsPaise: totalCreditReversalsPaise ?? this.totalCreditReversalsPaise,
       expectedClosingBalancePaise: expectedClosingBalancePaise ?? this.expectedClosingBalancePaise,
@@ -2281,6 +2290,29 @@ class DailyReconciliationRecord {
   bool get isOpeningComplete => openingStatus == 'completed';
   bool get isClosingComplete => closingStatus == 'completed';
   bool get hasMismatch => operators.values.any((op) => op.isMismatch);
+
+  // Operator-wise recharge amounts (completely isolated from normal ERP Cash & Bank)
+  double get airtelRechargeAmount => (operators['airtel']?.totalDebits ?? 0.0);
+  double get jioRechargeAmount => (operators['jio']?.totalDebits ?? 0.0);
+  double get viRechargeAmount => (operators['vi']?.totalDebits ?? 0.0);
+  double get bsnlRechargeAmount => (operators['bsnl']?.totalDebits ?? 0.0);
+
+  // Total Recharge Amount across all 4 operators
+  double get totalRechargeAmount =>
+      airtelRechargeAmount + jioRechargeAmount + viRechargeAmount + bsnlRechargeAmount;
+
+  // Total Recharge Wallet Balance across all 4 operators
+  double get totalRechargeWalletBalance => operators.values.fold(
+      0.0,
+      (acc, op) =>
+          acc +
+          (op.isClosingCompleted
+              ? op.actualClosingBalance
+              : op.expectedClosingBalance));
+
+  // Total Recharge Commission (actual recognized income only)
+  double get totalRechargeCommission =>
+      operators.values.fold(0.0, (acc, op) => acc + op.totalCommission);
 
   Map<String, dynamic> toMap({bool forFirestore = false}) {
     return {
