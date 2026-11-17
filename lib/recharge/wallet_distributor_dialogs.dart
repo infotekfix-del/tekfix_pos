@@ -1807,3 +1807,982 @@ class DistributorPaymentReceiptDialog extends StatelessWidget {
   }
 }
 
+// =============================================================================
+// OPERATOR AGENT SETTLEMENT DIALOG (WITH RECHARGE ADJUSTMENT)
+// =============================================================================
+
+class AgentSettlementDialog extends StatefulWidget {
+  final String shopId;
+  final String staffId;
+  final String staffName;
+  final DistributorProfile? preselectedDistributor;
+
+  const AgentSettlementDialog({
+    super.key,
+    required this.shopId,
+    required this.staffId,
+    required this.staffName,
+    this.preselectedDistributor,
+  });
+
+  static Future<bool?> show(
+    BuildContext context, {
+    required String shopId,
+    required String staffId,
+    required String staffName,
+    DistributorProfile? preselectedDistributor,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AgentSettlementDialog(
+        shopId: shopId,
+        staffId: staffId,
+        staffName: staffName,
+        preselectedDistributor: preselectedDistributor,
+      ),
+    );
+  }
+
+  @override
+  State<AgentSettlementDialog> createState() => _AgentSettlementDialogState();
+}
+
+class _AgentSettlementDialogState extends State<AgentSettlementDialog> {
+  late String _selectedDistId;
+  DistributorProfile? _distributor;
+  String _paymentMode = 'CASH'; // CASH, BANK, UPI
+  final _totalPayableController = TextEditingController();
+  final _adjustmentController = TextEditingController();
+  final _refController = TextEditingController();
+  final _notesController = TextEditingController();
+  bool _loading = true;
+  bool _submitting = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDistId =
+        widget.preselectedDistributor?.id ?? 'DIST_APEX_AIRTEL';
+    _distributor = widget.preselectedDistributor;
+    _loadDistributor();
+  }
+
+  @override
+  void dispose() {
+    _totalPayableController.dispose();
+    _adjustmentController.dispose();
+    _refController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadDistributor() async {
+    setState(() => _loading = true);
+    final dist = await RechargeService.instance
+        .getDistributor(shopId: widget.shopId, distributorId: _selectedDistId);
+    if (mounted) {
+      setState(() {
+        _distributor = dist;
+        _loading = false;
+        if (_totalPayableController.text.isEmpty && dist.currentOutstanding > 0) {
+          _totalPayableController.text = dist.currentOutstanding.toStringAsFixed(2);
+        }
+      });
+    }
+  }
+
+  double get _totalPayable =>
+      double.tryParse(_totalPayableController.text.trim()) ?? 0.0;
+  double get _adjustment =>
+      double.tryParse(_adjustmentController.text.trim()) ?? 0.0;
+  double get _actualPayment =>
+      (_totalPayable - _adjustment).clamp(0.0, double.infinity);
+
+  Future<void> _submit() async {
+    if (_totalPayable <= 0) {
+      setState(() => _errorMessage =
+          'സാധുവായ ആകെ തുക നൽകുക (Enter a valid total payable amount)');
+      return;
+    }
+    if (_adjustment < 0) {
+      setState(() => _errorMessage =
+          'റീചാർജ് അഡ്ജസ്റ്റ്മെന്റ് നെഗറ്റീവ് ആകരുത് (Adjustment cannot be negative)');
+      return;
+    }
+    if (_adjustment > _totalPayable) {
+      setState(() => _errorMessage =
+          'റീചാർജ് അഡ്ജസ്റ്റ്മെന്റ് ആകെ തുകയേക്കാൾ കൂടരുത് (Adjustment cannot exceed total payable)');
+      return;
+    }
+
+    setState(() {
+      _submitting = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final res = await RechargeService.instance.recordAgentSettlement(
+        shopId: widget.shopId,
+        distributorId: _selectedDistId,
+        totalPayable: _totalPayable,
+        rechargeAdjustment: _adjustment,
+        paymentMode: _paymentMode,
+        staffId: widget.staffId,
+        staffName: widget.staffName,
+        referenceNumber: _refController.text.trim().isNotEmpty
+            ? _refController.text.trim()
+            : null,
+        notes: _notesController.text.trim().isNotEmpty
+            ? _notesController.text.trim()
+            : 'Agent settlement: Total ₹$_totalPayable, Adj ₹$_adjustment',
+      );
+
+      if (mounted) {
+        Navigator.of(context).pop(true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '✅ ഏജന്റ് സെറ്റിൽമെന്റ് പൂർത്തിയായി (Settled ₹${res.actualPayment.toStringAsFixed(2)}, Adj ₹${res.rechargeAdjustment.toStringAsFixed(2)})',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: TekColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currency = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+    final outstanding = _distributor?.currentOutstanding ?? 0.0;
+    final pendingReturn = _distributor?.pendingReturn ?? 0.0;
+
+    return AlertDialog(
+      backgroundColor: TekColors.cardBg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      title: const Row(
+        children: [
+          Icon(Icons.handshake_rounded, color: Color(0xFFF59E0B), size: 24),
+          SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Operator Agent Settlement',
+                  style: TextStyle(
+                    color: TekColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  'റീചാർജ് അഡ്ജസ്റ്റ്മെന്റ് & ക്യാഷ് സെറ്റിൽമെന്റ്',
+                  style: TextStyle(
+                    color: TekColors.textSecondary,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 480,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_errorMessage != null)
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: TekColors.error.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: TekColors.error),
+                  ),
+                  child: Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: TekColors.error, fontSize: 12),
+                  ),
+                ),
+
+              // Distributor Selector
+              const Text('Select Operator Agent / Distributor:',
+                  style: TextStyle(
+                      color: TekColors.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: TekColors.mainBg,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: TekColors.borderSubtle),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedDistId,
+                    isExpanded: true,
+                    dropdownColor: TekColors.cardBg,
+                    items: DistributorItem.defaultPresets.map((item) {
+                      return DropdownMenuItem<String>(
+                        value: item.id,
+                        child: Text(
+                          '${item.name} (${item.defaultOperator})',
+                          style: const TextStyle(
+                              color: TekColors.textPrimary, fontSize: 13),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setState(() => _selectedDistId = val);
+                        _loadDistributor();
+                      }
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Live Status Card
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: TekColors.mainBg,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: TekColors.borderSubtle),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Current Outstanding Payable:',
+                              style: TextStyle(
+                                  color: TekColors.textMuted, fontSize: 10.5)),
+                          Text(
+                            _loading ? '...' : currency.format(outstanding),
+                            style: const TextStyle(
+                              color: Color(0xFFF59E0B),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Existing Pending Return:',
+                              style: TextStyle(
+                                  color: TekColors.textMuted, fontSize: 10.5)),
+                          Text(
+                            _loading ? '...' : currency.format(pendingReturn),
+                            style: const TextStyle(
+                              color: TekColors.electricCyan,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Row: Total Payable & Recharge Adjustment
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Total Payable (₹):',
+                            style: TextStyle(
+                                color: TekColors.textSecondary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: _totalPayableController,
+                          keyboardType:
+                              const TextInputType.numberWithOptions(decimal: true),
+                          style: const TextStyle(
+                              color: TekColors.textPrimary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15),
+                          decoration: InputDecoration(
+                            prefixText: '₹ ',
+                            prefixStyle: const TextStyle(
+                                color: TekColors.electricCyan, fontSize: 15),
+                            hintText: '1000.00',
+                            filled: true,
+                            fillColor: TekColors.mainBg,
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 10),
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                          ),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Recharge Adj (₹):',
+                            style: TextStyle(
+                                color: TekColors.textSecondary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: _adjustmentController,
+                          keyboardType:
+                              const TextInputType.numberWithOptions(decimal: true),
+                          style: const TextStyle(
+                              color: Color(0xFFF59E0B),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15),
+                          decoration: InputDecoration(
+                            prefixText: '₹ ',
+                            prefixStyle: const TextStyle(
+                                color: Color(0xFFF59E0B), fontSize: 15),
+                            hintText: '500.00',
+                            filled: true,
+                            fillColor: TekColors.mainBg,
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 10),
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                          ),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Dynamic Calculation Result Card
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: TekColors.electricCyan.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                      color: TekColors.electricCyan.withValues(alpha: 0.4)),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Actual Cash / Bank Payout:',
+                            style: TextStyle(
+                                color: TekColors.textPrimary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13)),
+                        Text(
+                          currency.format(_actualPayment),
+                          style: const TextStyle(
+                            color: TekColors.electricCyan,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Recharge Return Pending from Agent:',
+                            style: TextStyle(
+                                color: TekColors.textMuted, fontSize: 11)),
+                        Text(
+                          currency.format(_adjustment),
+                          style: const TextStyle(
+                            color: Color(0xFFF59E0B),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Payment Mode Selector
+              const Text('Payment Outflow Source:',
+                  style: TextStyle(
+                      color: TekColors.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              Row(
+                children: ['CASH', 'BANK', 'UPI'].map((mode) {
+                  final isSel = _paymentMode == mode;
+                  return Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: InkWell(
+                        onTap: () => setState(() => _paymentMode = mode),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 9),
+                          decoration: BoxDecoration(
+                            color: isSel
+                                ? TekColors.electricCyan.withValues(alpha: 0.2)
+                                : TekColors.mainBg,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isSel
+                                  ? TekColors.electricCyan
+                                  : TekColors.borderSubtle,
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              mode,
+                              style: TextStyle(
+                                color: isSel
+                                    ? TekColors.electricCyan
+                                    : TekColors.textSecondary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 12),
+
+              // Reference / Cheque No
+              TextField(
+                controller: _refController,
+                style: const TextStyle(
+                    color: TekColors.textPrimary, fontSize: 13),
+                decoration: InputDecoration(
+                  labelText: 'Reference / Invoice # (Optional)',
+                  labelStyle: const TextStyle(
+                      color: TekColors.textMuted, fontSize: 12),
+                  filled: true,
+                  fillColor: TekColors.mainBg,
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _submitting ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel',
+              style: TextStyle(color: TekColors.textSecondary)),
+        ),
+        FilledButton.icon(
+          onPressed: _submitting ? null : _submit,
+          icon: _submitting
+              ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.black))
+              : const Icon(Icons.check_circle_rounded, size: 16),
+          label: Text(
+            _submitting
+                ? 'Processing...'
+                : 'Confirm Settlement (₹${_actualPayment.toStringAsFixed(2)})',
+          ),
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFFF59E0B),
+            foregroundColor: Colors.black,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// =============================================================================
+// RECHARGE AMOUNT RETURN DIALOG (AGENT RETURNS MONEY)
+// =============================================================================
+
+class RechargeAmountReturnDialog extends StatefulWidget {
+  final String shopId;
+  final String staffId;
+  final String staffName;
+  final DistributorProfile? preselectedDistributor;
+
+  const RechargeAmountReturnDialog({
+    super.key,
+    required this.shopId,
+    required this.staffId,
+    required this.staffName,
+    this.preselectedDistributor,
+  });
+
+  static Future<bool?> show(
+    BuildContext context, {
+    required String shopId,
+    required String staffId,
+    required String staffName,
+    DistributorProfile? preselectedDistributor,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => RechargeAmountReturnDialog(
+        shopId: shopId,
+        staffId: staffId,
+        staffName: staffName,
+        preselectedDistributor: preselectedDistributor,
+      ),
+    );
+  }
+
+  @override
+  State<RechargeAmountReturnDialog> createState() =>
+      _RechargeAmountReturnDialogState();
+}
+
+class _RechargeAmountReturnDialogState
+    extends State<RechargeAmountReturnDialog> {
+  late String _selectedDistId;
+  DistributorProfile? _distributor;
+  String _returnMode = 'CASH'; // CASH or BANK
+  final _amountController = TextEditingController();
+  final _refController = TextEditingController();
+  final _notesController = TextEditingController();
+  bool _loading = true;
+  bool _submitting = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDistId =
+        widget.preselectedDistributor?.id ?? 'DIST_APEX_AIRTEL';
+    _distributor = widget.preselectedDistributor;
+    _loadDistributor();
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _refController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadDistributor() async {
+    setState(() => _loading = true);
+    final dist = await RechargeService.instance
+        .getDistributor(shopId: widget.shopId, distributorId: _selectedDistId);
+    if (mounted) {
+      setState(() {
+        _distributor = dist;
+        _loading = false;
+        if (_amountController.text.isEmpty && dist.pendingReturn > 0) {
+          _amountController.text = dist.pendingReturn.toStringAsFixed(2);
+        }
+      });
+    }
+  }
+
+  Future<void> _submit() async {
+    final amt = double.tryParse(_amountController.text.trim()) ?? 0.0;
+    if (amt <= 0) {
+      setState(() => _errorMessage =
+          'സാധുവായ തുക നൽകുക (Enter a valid return amount)');
+      return;
+    }
+
+    setState(() {
+      _submitting = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final res = await RechargeService.instance.recordRechargeAmountReturn(
+        shopId: widget.shopId,
+        distributorId: _selectedDistId,
+        returnAmount: amt,
+        returnMode: _returnMode,
+        staffId: widget.staffId,
+        staffName: widget.staffName,
+        referenceNumber: _refController.text.trim().isNotEmpty
+            ? _refController.text.trim()
+            : null,
+        notes: _notesController.text.trim().isNotEmpty
+            ? _notesController.text.trim()
+            : 'Recharge amount returned by agent via $_returnMode',
+      );
+
+      if (mounted) {
+        Navigator.of(context).pop(true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '✅ ₹${res.returnedAmount.toStringAsFixed(2)} തിരികെ ലഭിച്ചു - $_returnMode ലേക്ക് ക്രെഡിറ്റ് ചെയ്തു (Credited to $_returnMode)',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: TekColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currency = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+    final pendingReturn = _distributor?.pendingReturn ?? 0.0;
+
+    return AlertDialog(
+      backgroundColor: TekColors.cardBg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      title: const Row(
+        children: [
+          Icon(Icons.assignment_return_rounded,
+              color: TekColors.electricCyan, size: 24),
+          SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Recharge Amount Return',
+                  style: TextStyle(
+                    color: TekColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  'ഏജന്റിൽ നിന്ന് തുക തിരികെ ലഭിക്കുന്നത് രേഖപ്പെടുത്തുക',
+                  style: TextStyle(
+                    color: TekColors.textSecondary,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 440,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_errorMessage != null)
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: TekColors.error.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: TekColors.error),
+                  ),
+                  child: Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: TekColors.error, fontSize: 12),
+                  ),
+                ),
+
+              // Distributor Selector
+              const Text('Select Operator Agent / Distributor:',
+                  style: TextStyle(
+                      color: TekColors.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: TekColors.mainBg,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: TekColors.borderSubtle),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedDistId,
+                    isExpanded: true,
+                    dropdownColor: TekColors.cardBg,
+                    items: DistributorItem.defaultPresets.map((item) {
+                      return DropdownMenuItem<String>(
+                        value: item.id,
+                        child: Text(
+                          '${item.name} (${item.defaultOperator})',
+                          style: const TextStyle(
+                              color: TekColors.textPrimary, fontSize: 13),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setState(() => _selectedDistId = val);
+                        _loadDistributor();
+                      }
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Pending Return Notice Banner
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                      color: const Color(0xFFF59E0B).withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Remaining Pending Return:',
+                        style: TextStyle(
+                            color: TekColors.textPrimary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12)),
+                    Text(
+                      _loading ? '...' : currency.format(pendingReturn),
+                      style: const TextStyle(
+                        color: Color(0xFFF59E0B),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Return Amount Input
+              const Text('Amount Returned (₹):',
+                  style: TextStyle(
+                      color: TekColors.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _amountController,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                style: const TextStyle(
+                    color: TekColors.textPrimary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16),
+                decoration: InputDecoration(
+                  prefixText: '₹ ',
+                  prefixStyle: const TextStyle(
+                      color: TekColors.electricCyan, fontSize: 16),
+                  hintText: '500.00',
+                  filled: true,
+                  fillColor: TekColors.mainBg,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Credit To Destination Selector (Cash vs Bank)
+              const Text('Credit Back To:',
+                  style: TextStyle(
+                      color: TekColors.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => setState(() => _returnMode = 'CASH'),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: _returnMode == 'CASH'
+                              ? TekColors.success.withValues(alpha: 0.2)
+                              : TekColors.mainBg,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _returnMode == 'CASH'
+                                ? TekColors.success
+                                : TekColors.borderSubtle,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.payments_rounded,
+                                size: 16,
+                                color: _returnMode == 'CASH'
+                                    ? TekColors.success
+                                    : TekColors.textSecondary),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Cash in Hand',
+                              style: TextStyle(
+                                color: _returnMode == 'CASH'
+                                    ? TekColors.success
+                                    : TekColors.textSecondary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => setState(() => _returnMode = 'BANK'),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: _returnMode == 'BANK'
+                              ? TekColors.electricCyan.withValues(alpha: 0.2)
+                              : TekColors.mainBg,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _returnMode == 'BANK'
+                                ? TekColors.electricCyan
+                                : TekColors.borderSubtle,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.account_balance_rounded,
+                                size: 16,
+                                color: _returnMode == 'BANK'
+                                    ? TekColors.electricCyan
+                                    : TekColors.textSecondary),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Bank Account',
+                              style: TextStyle(
+                                color: _returnMode == 'BANK'
+                                    ? TekColors.electricCyan
+                                    : TekColors.textSecondary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Reference / Remarks
+              TextField(
+                controller: _refController,
+                style: const TextStyle(
+                    color: TekColors.textPrimary, fontSize: 13),
+                decoration: InputDecoration(
+                  labelText: 'Reference # (Optional)',
+                  labelStyle: const TextStyle(
+                      color: TekColors.textMuted, fontSize: 12),
+                  filled: true,
+                  fillColor: TekColors.mainBg,
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _submitting ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel',
+              style: TextStyle(color: TekColors.textSecondary)),
+        ),
+        FilledButton.icon(
+          onPressed: _submitting ? null : _submit,
+          icon: _submitting
+              ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.black))
+              : const Icon(Icons.check_circle_rounded, size: 16),
+          label: Text(
+            _submitting
+                ? 'Processing...'
+                : 'Confirm Return & Credit $_returnMode',
+          ),
+          style: FilledButton.styleFrom(
+            backgroundColor: TekColors.electricCyan,
+            foregroundColor: Colors.black,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+      ],
+    );
+  }
+}
+

@@ -7,6 +7,7 @@ import '../theme/tek_tokens.dart';
 import 'commission_dialogs.dart';
 import 'daily_reconciliation_screen.dart';
 import 'quick_recharge_dialog.dart';
+import 'recharge_models.dart';
 import 'recharge_reports_screen.dart';
 import 'recharge_service.dart';
 import 'wallet_distributor_dialogs.dart';
@@ -15,11 +16,6 @@ import 'wallet_distributor_dialogs.dart';
 /// TEKFIX ERP - QUICK RECHARGE & UTILITY ACCOUNTING DASHBOARD
 /// PHASE 1: UI & Navigation Framework (Read-Only / Placeholder Mode)
 /// ============================================================================
-
-enum RechargeFundingType {
-  ownPrepaidWallet,
-  distributorCredit,
-}
 
 enum RechargeOperatorBrand {
   airtel,
@@ -367,10 +363,10 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                     badge: 'MODE B',
                     badgeColor: TekColors.electricCyan,
                     isSelected: _selectedFundingType ==
-                        RechargeFundingType.ownPrepaidWallet,
+                        RechargeFundingType.ownMoney,
                     onTap: () {
                       setState(() => _selectedFundingType =
-                          RechargeFundingType.ownPrepaidWallet);
+                          RechargeFundingType.ownMoney);
                     },
                   ),
                 ),
@@ -912,21 +908,62 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                   ),
                 ],
               ),
-              FilledButton.icon(
-                onPressed: _showDistributorPayoutModal,
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFFF59E0B),
-                  foregroundColor: Colors.black,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                ),
-                icon: const Icon(Icons.payment_rounded, size: 16),
-                label: const Text(
-                  'Pay Distributor',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
-                ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilledButton.icon(
+                    onPressed: _showAgentSettlementModal,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFF59E0B),
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    icon: const Icon(Icons.handshake_rounded, size: 15),
+                    label: const Text(
+                      'Agent Settlement',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800, fontSize: 11.5),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _showRechargeAmountReturnModal,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: TekColors.electricCyan,
+                      side: const BorderSide(color: TekColors.electricCyan),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    icon: const Icon(Icons.assignment_return_rounded, size: 15),
+                    label: const Text(
+                      'Recharge Return',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800, fontSize: 11.5),
+                    ),
+                  ),
+                  FilledButton.icon(
+                    onPressed: _showDistributorPayoutModal,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: TekColors.elevatedSurface,
+                      foregroundColor: TekColors.textPrimary,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    icon: const Icon(Icons.payment_rounded, size: 15),
+                    label: const Text(
+                      'Direct Pay',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 11.5),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -982,6 +1019,144 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                           .toList(),
                     );
             },
+          ),
+          const SizedBox(height: 16),
+          // Feature 3: Operator / Agent Pending Return Breakdown
+          _buildPendingReturnBreakdownCard(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPendingReturnBreakdownCard() {
+    return FutureBuilder<AgentPendingReturnSummary>(
+      future: RechargeService.instance
+          .getAgentPendingReturnsSummary(shopId: 'tekfix'),
+      builder: (context, snapshot) {
+        final summary = snapshot.data;
+        final totalPending = summary?.totalPendingReturn ?? 0.0;
+        final airtelPending =
+            summary?.getOperatorPendingReturn(RechargeOperator.airtel) ?? 0.0;
+        final jioPending =
+            summary?.getOperatorPendingReturn(RechargeOperator.jio) ?? 0.0;
+        final viPending =
+            summary?.getOperatorPendingReturn(RechargeOperator.vi) ?? 0.0;
+        final bsnlPending =
+            summary?.getOperatorPendingReturn(RechargeOperator.bsnl) ?? 0.0;
+
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: TekColors.mainBg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: TekColors.borderSubtle),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.pending_actions_rounded,
+                      color: Color(0xFFF59E0B), size: 18),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Pending Recharge Returns from Operators / Agents (ഏജന്റിൽ നിന്ന് തിരികെ ലഭിക്കാനുള്ള തുക)',
+                      style: TextStyle(
+                        color: TekColors.textPrimary,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFFF59E0B)),
+                    ),
+                    child: Text(
+                      'Total: ${currencyFormat.format(totalPending)}',
+                      style: const TextStyle(
+                        color: Color(0xFFF59E0B),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth >= 600;
+                  final opPills = [
+                    _buildOperatorPendingPill('Airtel Agent', airtelPending,
+                        const Color(0xFFE40000)),
+                    _buildOperatorPendingPill(
+                        'Jio Agent', jioPending, const Color(0xFF0F3E99)),
+                    _buildOperatorPendingPill(
+                        'Vi Agent', viPending, const Color(0xFFED1C24)),
+                    _buildOperatorPendingPill(
+                        'BSNL Agent', bsnlPending, const Color(0xFF0056B3)),
+                  ];
+                  return isWide
+                      ? Row(
+                          children: opPills
+                              .map((p) => Expanded(
+                                  child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 4),
+                                      child: p)))
+                              .toList())
+                      : Column(
+                          children: opPills
+                              .map((p) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: p))
+                              .toList());
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildOperatorPendingPill(String name, double amount, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: TekColors.cardBg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Container(
+                  width: 6,
+                  height: 6,
+                  decoration:
+                      BoxDecoration(shape: BoxShape.circle, color: color)),
+              const SizedBox(width: 6),
+              Text(name,
+                  style: TextStyle(
+                      color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          Text(
+            currencyFormat.format(amount),
+            style: TextStyle(
+              color: amount > 0 ? const Color(0xFFF59E0B) : TekColors.textMuted,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
           ),
         ],
       ),
@@ -1445,6 +1620,28 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
       staffId: 'staff_1',
       staffName: 'Staff',
     );
+  }
+
+  void _showAgentSettlementModal() {
+    AgentSettlementDialog.show(
+      context,
+      shopId: 'tekfix',
+      staffId: 'staff_1',
+      staffName: 'Staff',
+    ).then((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  void _showRechargeAmountReturnModal() {
+    RechargeAmountReturnDialog.show(
+      context,
+      shopId: 'tekfix',
+      staffId: 'staff_1',
+      staffName: 'Staff',
+    ).then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   void _showPhasePreviewSheet(String title, String description) {

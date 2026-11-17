@@ -560,6 +560,7 @@ class DistributorProfile {
   final int totalCreditReceivedPaise;
   final int totalPaymentsMadePaise;
   final int totalAdjustmentsPaise;
+  final int pendingReturnPaise;
   final DateTime? lastPaymentDate;
   final DateTime updatedAt;
 
@@ -574,6 +575,7 @@ class DistributorProfile {
     this.totalCreditReceivedPaise = 0,
     this.totalPaymentsMadePaise = 0,
     this.totalAdjustmentsPaise = 0,
+    this.pendingReturnPaise = 0,
     this.lastPaymentDate,
     required this.updatedAt,
   });
@@ -587,6 +589,7 @@ class DistributorProfile {
   double get currentOutstanding => currentOutstandingPaise / 100.0;
   double get totalCreditReceived => totalCreditReceivedPaise / 100.0;
   double get totalPaymentsMade => totalPaymentsMadePaise / 100.0;
+  double get pendingReturn => pendingReturnPaise / 100.0;
 
   Map<String, dynamic> toMap({bool forFirestore = true}) => {
         'id': id,
@@ -599,6 +602,8 @@ class DistributorProfile {
         'totalCreditReceivedPaise': totalCreditReceivedPaise,
         'totalPaymentsMadePaise': totalPaymentsMadePaise,
         'totalAdjustmentsPaise': totalAdjustmentsPaise,
+        'pendingReturnPaise': pendingReturnPaise,
+        'pendingReturn': pendingReturn,
         'currentOutstandingPaise': currentOutstandingPaise,
         'currentOutstanding': currentOutstanding,
         'lastPaymentDate': lastPaymentDate != null
@@ -635,6 +640,8 @@ class DistributorProfile {
           (m['totalPaymentsMadePaise'] as num?)?.toInt() ?? 0,
       totalAdjustmentsPaise:
           (m['totalAdjustmentsPaise'] as num?)?.toInt() ?? 0,
+      pendingReturnPaise:
+          (m['pendingReturnPaise'] as num?)?.toInt() ?? 0,
       lastPaymentDate: parseDt(m['lastPaymentDate']),
       updatedAt: parseDt(m['updatedAt']) ?? DateTime.now(),
     );
@@ -654,6 +661,7 @@ class DistributorProfile {
     int? totalCreditReceivedPaise,
     int? totalPaymentsMadePaise,
     int? totalAdjustmentsPaise,
+    int? pendingReturnPaise,
     DateTime? lastPaymentDate,
     DateTime? updatedAt,
   }) {
@@ -671,6 +679,8 @@ class DistributorProfile {
           totalPaymentsMadePaise ?? this.totalPaymentsMadePaise,
       totalAdjustmentsPaise:
           totalAdjustmentsPaise ?? this.totalAdjustmentsPaise,
+      pendingReturnPaise:
+          pendingReturnPaise ?? this.pendingReturnPaise,
       lastPaymentDate: lastPaymentDate ?? this.lastPaymentDate,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -694,6 +704,10 @@ class DistributorLedgerEntry {
   final String staffId;
   final String staffName;
   final DateTime timestamp;
+  final int? rechargeAdjustmentPaise;
+  final int? actualPaymentPaise;
+  final int? pendingReturnBeforePaise;
+  final int? pendingReturnAfterPaise;
 
   const DistributorLedgerEntry({
     required this.entryId,
@@ -711,7 +725,16 @@ class DistributorLedgerEntry {
     required this.staffId,
     required this.staffName,
     required this.timestamp,
+    this.rechargeAdjustmentPaise,
+    this.actualPaymentPaise,
+    this.pendingReturnBeforePaise,
+    this.pendingReturnAfterPaise,
   });
+
+  double get rechargeAdjustment => (rechargeAdjustmentPaise ?? 0) / 100.0;
+  double get actualPayment => (actualPaymentPaise ?? 0) / 100.0;
+  double get pendingReturnBefore => (pendingReturnBeforePaise ?? 0) / 100.0;
+  double get pendingReturnAfter => (pendingReturnAfterPaise ?? 0) / 100.0;
 
   Map<String, dynamic> toMap({bool forFirestore = true}) => {
         'entryId': entryId,
@@ -728,6 +751,12 @@ class DistributorLedgerEntry {
         'description': description,
         'staffId': staffId,
         'staffName': staffName,
+        'rechargeAdjustmentPaise': rechargeAdjustmentPaise,
+        'rechargeAdjustment': rechargeAdjustment,
+        'actualPaymentPaise': actualPaymentPaise,
+        'actualPayment': actualPayment,
+        'pendingReturnBeforePaise': pendingReturnBeforePaise,
+        'pendingReturnAfterPaise': pendingReturnAfterPaise,
         'timestamp': forFirestore
             ? Timestamp.fromDate(timestamp)
             : timestamp.toIso8601String(),
@@ -761,12 +790,39 @@ class DistributorLedgerEntry {
       staffId: m['staffId']?.toString() ?? 'staff',
       staffName: m['staffName']?.toString() ?? 'Staff',
       timestamp: parseDt(m['timestamp']),
+      rechargeAdjustmentPaise: (m['rechargeAdjustmentPaise'] as num?)?.toInt(),
+      actualPaymentPaise: (m['actualPaymentPaise'] as num?)?.toInt(),
+      pendingReturnBeforePaise: (m['pendingReturnBeforePaise'] as num?)?.toInt(),
+      pendingReturnAfterPaise: (m['pendingReturnAfterPaise'] as num?)?.toInt(),
     );
   }
 
   factory DistributorLedgerEntry.fromFirestore(
       DocumentSnapshot<Map<String, dynamic>> doc) {
     return DistributorLedgerEntry.fromMap(doc.data() ?? {}, doc.id);
+  }
+}
+
+/// Operator Agent Pending Return Summary
+class AgentPendingReturnSummary {
+  final int totalPendingReturnPaise;
+  final Map<RechargeOperator, int> operatorPendingReturnsPaise;
+  final Map<String, int> distributorPendingReturnsPaise;
+
+  const AgentPendingReturnSummary({
+    required this.totalPendingReturnPaise,
+    required this.operatorPendingReturnsPaise,
+    required this.distributorPendingReturnsPaise,
+  });
+
+  double get totalPendingReturn => totalPendingReturnPaise / 100.0;
+
+  double getOperatorPendingReturn(RechargeOperator op) {
+    return (operatorPendingReturnsPaise[op] ?? 0) / 100.0;
+  }
+
+  double getDistributorPendingReturn(String distId) {
+    return (distributorPendingReturnsPaise[distId] ?? 0) / 100.0;
   }
 }
 

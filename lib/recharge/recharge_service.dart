@@ -1090,6 +1090,9 @@ class RechargeService {
       );
 
       final updatedDist = currentDist.copyWith(
+        defaultOperator: currentDist.defaultOperator == RechargeOperator.other
+            ? operator
+            : currentDist.defaultOperator,
         totalCreditReceivedPaise:
             currentDist.totalCreditReceivedPaise + amountPaise,
         updatedAt: DateTime.now(),
@@ -1677,6 +1680,419 @@ class RechargeService {
   }
 
   // ---------------------------------------------------------------------------
+  // 5B. OPERATOR AGENT SETTLEMENT & RECHARGE AMOUNT RETURN WORKFLOW
+  // ---------------------------------------------------------------------------
+
+  /// Execute Operator Agent Settlement with Recharge Adjustment
+  /// Example:
+  /// - Total Payable: ₹1,000
+  /// - Recharge Adjustment: ₹500
+  /// - Actual Cash/Bank Payment: ₹500
+  ///
+  /// Mathematical & Financial Rules:
+  /// 1. Distributor liability reduced by full ₹1,000 (settles payable).
+  /// 2. Store Cash in Hand or Bank reduced ONLY by actual payment (₹500).
+  /// 3. Pending return from agent increased by ₹500 (recharge adjustment).
+  Future<
+      ({
+        DistributorProfile distributor,
+        DistributorLedgerEntry entry,
+        DistributorPaymentReceipt receipt,
+        double actualPayment,
+        double rechargeAdjustment,
+        double pendingReturn,
+        bool isFullSettlement
+      })> recordAgentSettlement({
+    required String shopId,
+    required String distributorId,
+    required double totalPayable,
+    required double rechargeAdjustment,
+    required String paymentMode, // CASH, BANK, UPI
+    required String staffId,
+    required String staffName,
+    String? referenceNumber,
+    String notes = 'Agent Settlement with Recharge Adjustment',
+    String? staffRole,
+  }) async {
+    if (staffRole != null && staffRole != 'owner' && staffRole != 'admin') {
+      throw Exception(
+          'അനധികൃത പ്രവർത്തനം: ഏജന്റ് സെറ്റിൽമെന്റ് നടത്താൻ ഉടമയ്ക്ക് മാത്രമേ അനുവാദമുള്ളൂ (Unauthorized: Only Owner or Admin can execute agent settlement)');
+    }
+
+    if (totalPayable <= 0) {
+      throw ArgumentError('ആകെ നൽകേണ്ട തുക പോസിറ്റീവ് ആയിരിക്കണം (Total payable must be positive)');
+    }
+    if (rechargeAdjustment < 0) {
+      throw ArgumentError('റീചാർജ് അഡ്ജസ്റ്റ്മെന്റ് നെഗറ്റീവ് ആകരുത് (Recharge adjustment cannot be negative)');
+    }
+    if (rechargeAdjustment > totalPayable) {
+      throw ArgumentError('റീചാർജ് അഡ്ജസ്റ്റ്മെന്റ് ആകെ തുകയേക്കാൾ കൂടരുത് (Recharge adjustment cannot exceed total payable)');
+    }
+
+    final actualPayment = totalPayable - rechargeAdjustment;
+    final payablePaise = (totalPayable * 100).round();
+    final adjPaise = (rechargeAdjustment * 100).round();
+    final actualPaymentPaise = (actualPayment * 100).round();
+
+    final txnId = referenceNumber?.isNotEmpty == true
+        ? referenceNumber!
+        : 'SETTLE_${DateTime.now().millisecondsSinceEpoch}_${_uuid.v4().substring(0, 6)}';
+
+    if (_inFlightOperations.contains(txnId) ||
+        _localDistributorLedger.any((e) =>
+            e.referenceNumber == txnId || e.entryId == 'DL_$txnId')) {
+      throw Exception('ഈ സെറ്റിൽമെന്റ് ഇതിനകം പ്രോസസ്സ് ചെയ്തു (Duplicate settlement blocked: $txnId)');
+    }
+    _inFlightOperations.add(txnId);
+
+    try {
+      final currentDist = await getDistributor(
+          shopId: shopId, distributorId: distributorId);
+
+      final beforePaise = currentDist.currentOutstandingPaise;
+      final afterPaise = (beforePaise - payablePaise).clamp(0, 1 << 62);
+      final isFullSettlement = afterPaise == 0;
+
+      final pendingBeforePaise = currentDist.pendingReturnPaise;
+      final pendingAfterPaise = pendingBeforePaise + adjPaise;
+
+      final updatedDist = currentDist.copyWith(
+        totalPaymentsMadePaise:
+            currentDist.totalPaymentsMadePaise + actualPaymentPaise,
+        totalAdjustmentsPaise:
+            currentDist.totalAdjustmentsPaise + adjPaise,
+        pendingReturnPaise: pendingAfterPaise,
+        lastPaymentDate: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final ledgerEntry = DistributorLedgerEntry(
+        entryId: 'DL_$txnId',
+        shopId: shopId,
+        distributorId: distributorId,
+        distributorName: currentDist.name,
+        entryType: 'AGENT_SETTLEMENT',
+        amount: totalPayable,
+        amountPaise: payablePaise,
+        paymentMode: paymentMode.toUpperCase(),
+        outstandingBeforePaise: beforePaise,
+        outstandingAfterPaise: afterPaise,
+        rechargeAdjustmentPaise: adjPaise,
+        actualPaymentPaise: actualPaymentPaise,
+        pendingReturnBeforePaise: pendingBeforePaise,
+        pendingReturnAfterPaise: pendingAfterPaise,
+        referenceNumber: txnId,
+        description:
+            'Agent Settlement: Total ₹${totalPayable.toStringAsFixed(2)}, Adj ₹${rechargeAdjustment.toStringAsFixed(2)}, Paid ₹${actualPayment.toStringAsFixed(2)} via $paymentMode: $notes',
+        staffId: staffId,
+        staffName: staffName,
+        timestamp: DateTime.now(),
+      );
+
+      // Firestore Atomic Commit
+      if (Firebase.apps.isNotEmpty && shopId.isNotEmpty) {
+        try {
+          final firestore = FirebaseFirestore.instance;
+          final distRef = firestore
+              .collection('shops')
+              .doc(shopId)
+              .collection('recharge_distributors')
+              .doc(distributorId);
+          final dLogRef = firestore
+              .collection('shops')
+              .doc(shopId)
+              .collection('recharge_distributor_ledger')
+              .doc('DL_$txnId');
+
+          final normMode = paymentMode.toUpperCase() == 'CASH'
+              ? 'Cash'
+              : (paymentMode.toUpperCase() == 'UPI' ? 'UPI' : 'Bank');
+
+          await firestore.runTransaction((transaction) async {
+            final snap = await transaction.get(dLogRef);
+            if (snap.exists) {
+              throw Exception('Duplicate settlement transaction: $txnId');
+            }
+
+            transaction.set(distRef, updatedDist.toMap(forFirestore: true),
+                SetOptions(merge: true));
+            transaction.set(dLogRef, ledgerEntry.toMap(forFirestore: true));
+
+            if (actualPayment > 0) {
+              final voucherRef = firestore
+                  .collection('shops')
+                  .doc(shopId)
+                  .collection('accounting_cash_bank')
+                  .doc('CB_SETTLE_$txnId');
+
+              final voucherData = <String, dynamic>{
+                'id': 'CB_SETTLE_$txnId',
+                'type': 'DEBIT',
+                'entryType': 'DEBIT',
+                'transactionCategory': 'AGENT_SETTLEMENT',
+                'category': 'AGENT_SETTLEMENT',
+                'isRecharge': true,
+                'isExpense': false,
+                'isSalesRevenue': false,
+                'distributorId': distributorId,
+                'distributorName': currentDist.name,
+                'amount': actualPayment,
+                'amountPaise': actualPaymentPaise,
+                'totalPayable': totalPayable,
+                'rechargeAdjustment': rechargeAdjustment,
+                'paymentMode': paymentMode.toUpperCase(),
+                'mode': normMode,
+                'effectiveDate': Timestamp.fromDate(DateTime.now()),
+                'createdByUid': staffId,
+                'createdByName': staffName,
+                'createdAt': FieldValue.serverTimestamp(),
+                'notes': notes,
+              };
+              transaction.set(voucherRef, voucherData, SetOptions(merge: true));
+            }
+          });
+        } catch (e) {
+          debugPrint('[RechargeService] Firestore agent settlement notice: $e');
+        }
+      }
+
+      // Money Out: Only actual cash/bank payout is deducted from store till!
+      if (actualPayment > 0) {
+        try {
+          final mode = paymentMode.toUpperCase() == 'CASH'
+              ? 'Cash'
+              : (paymentMode.toUpperCase() == 'UPI' ? 'UPI' : 'Bank');
+          await Db.moveMoney(
+              mode, -actualPayment, 'Agent Settlement: ${currentDist.name} ($txnId)');
+        } catch (_) {}
+      }
+
+      _localDistributors['${shopId}_$distributorId'] = updatedDist;
+      _localDistributorLedger.add(ledgerEntry);
+
+      final receipt = DistributorPaymentReceipt(
+        receiptNo: 'REC_SETTLE_$txnId',
+        distributorId: distributorId,
+        distributorName: currentDist.name,
+        operatorName: currentDist.defaultOperator.displayName,
+        paymentDate: DateTime.now(),
+        amount: actualPayment,
+        amountPaise: actualPaymentPaise,
+        paymentMode: paymentMode.toUpperCase(),
+        previousOutstanding: beforePaise / 100.0,
+        remainingOutstanding: afterPaise / 100.0,
+        referenceNumber: txnId,
+        staffName: staffName,
+        notes: notes,
+      );
+
+      return (
+        distributor: updatedDist,
+        entry: ledgerEntry,
+        receipt: receipt,
+        actualPayment: actualPayment,
+        rechargeAdjustment: rechargeAdjustment,
+        pendingReturn: pendingAfterPaise / 100.0,
+        isFullSettlement: isFullSettlement,
+      );
+    } finally {
+      _inFlightOperations.remove(txnId);
+    }
+  }
+
+  /// Record Recharge Amount Return from Operator Agent
+  /// When agent returns the ₹500 recharge adjustment, credit it back to
+  /// Cash in Hand or selected Bank Account, and clear the pending return liability.
+  Future<
+      ({
+        DistributorProfile distributor,
+        DistributorLedgerEntry entry,
+        double returnedAmount,
+        double remainingPendingReturn,
+      })> recordRechargeAmountReturn({
+    required String shopId,
+    required String distributorId,
+    required double returnAmount,
+    required String returnMode, // CASH, BANK, UPI
+    required String staffId,
+    required String staffName,
+    String? referenceNumber,
+    String notes = 'Recharge Amount Return from Agent',
+    String? staffRole,
+    String? selectedBankAccountId,
+  }) async {
+    if (staffRole != null && staffRole != 'owner' && staffRole != 'admin') {
+      throw Exception(
+          'അനധികൃത പ്രവർത്തനം: ഏജന്റ് റീഫണ്ട് സ്വീകരിക്കാൻ ഉടമയ്ക്ക് മാത്രമേ അനുവാദമുള്ളൂ (Unauthorized: Only Owner or Admin can record agent recharge returns)');
+    }
+
+    if (returnAmount <= 0) {
+      throw ArgumentError('തിരികെ ലഭിച്ച തുക പോസിറ്റീവ് ആയിരിക്കണം (Return amount must be positive)');
+    }
+
+    final returnPaise = (returnAmount * 100).round();
+    final txnId = referenceNumber?.isNotEmpty == true
+        ? referenceNumber!
+        : 'RET_${DateTime.now().millisecondsSinceEpoch}_${_uuid.v4().substring(0, 6)}';
+
+    if (_inFlightOperations.contains(txnId) ||
+        _localDistributorLedger.any((e) =>
+            e.referenceNumber == txnId || e.entryId == 'DL_$txnId')) {
+      throw Exception('ഈ റിട്ടേൺ ഇതിനകം പ്രോസസ്സ് ചെയ്തു (Duplicate return blocked: $txnId)');
+    }
+    _inFlightOperations.add(txnId);
+
+    try {
+      final currentDist = await getDistributor(
+          shopId: shopId, distributorId: distributorId);
+
+      final pendingBeforePaise = currentDist.pendingReturnPaise;
+      final pendingAfterPaise = (pendingBeforePaise - returnPaise).clamp(0, 1 << 62);
+
+      final updatedDist = currentDist.copyWith(
+        pendingReturnPaise: pendingAfterPaise,
+        updatedAt: DateTime.now(),
+      );
+
+      final normMode = returnMode.toUpperCase() == 'CASH'
+          ? 'Cash'
+          : (returnMode.toUpperCase() == 'UPI' ? 'UPI' : 'Bank');
+
+      final ledgerEntry = DistributorLedgerEntry(
+        entryId: 'DL_$txnId',
+        shopId: shopId,
+        distributorId: distributorId,
+        distributorName: currentDist.name,
+        entryType: 'RECHARGE_AMOUNT_RETURN',
+        amount: returnAmount,
+        amountPaise: returnPaise,
+        paymentMode: normMode.toUpperCase(),
+        outstandingBeforePaise: currentDist.currentOutstandingPaise,
+        outstandingAfterPaise: currentDist.currentOutstandingPaise,
+        rechargeAdjustmentPaise: 0,
+        actualPaymentPaise: returnPaise,
+        pendingReturnBeforePaise: pendingBeforePaise,
+        pendingReturnAfterPaise: pendingAfterPaise,
+        referenceNumber: txnId,
+        description:
+            'Recharge Amount Return from ${currentDist.name}: ₹${returnAmount.toStringAsFixed(2)} to $normMode: $notes',
+        staffId: staffId,
+        staffName: staffName,
+        timestamp: DateTime.now(),
+      );
+
+      // Firestore Atomic Commit
+      if (Firebase.apps.isNotEmpty && shopId.isNotEmpty) {
+        try {
+          final firestore = FirebaseFirestore.instance;
+          final distRef = firestore
+              .collection('shops')
+              .doc(shopId)
+              .collection('recharge_distributors')
+              .doc(distributorId);
+          final dLogRef = firestore
+              .collection('shops')
+              .doc(shopId)
+              .collection('recharge_distributor_ledger')
+              .doc('DL_$txnId');
+
+          final voucherRef = firestore
+              .collection('shops')
+              .doc(shopId)
+              .collection('accounting_cash_bank')
+              .doc('CB_RET_$txnId');
+
+          final voucherData = <String, dynamic>{
+            'id': 'CB_RET_$txnId',
+            'type': 'CREDIT',
+            'entryType': 'CREDIT',
+            'transactionCategory': 'RECHARGE_AMOUNT_RETURN',
+            'category': 'RECHARGE_AMOUNT_RETURN',
+            'isRecharge': true,
+            'isExpense': false,
+            'isSalesRevenue': false,
+            'distributorId': distributorId,
+            'distributorName': currentDist.name,
+            'amount': returnAmount,
+            'amountPaise': returnPaise,
+            'paymentMode': normMode.toUpperCase(),
+            'mode': normMode,
+            'bankAccountId': selectedBankAccountId,
+            'effectiveDate': Timestamp.fromDate(DateTime.now()),
+            'createdByUid': staffId,
+            'createdByName': staffName,
+            'createdAt': FieldValue.serverTimestamp(),
+            'notes': notes,
+          };
+
+          await firestore.runTransaction((transaction) async {
+            final snap = await transaction.get(dLogRef);
+            if (snap.exists) {
+              throw Exception('Duplicate return transaction: $txnId');
+            }
+
+            transaction.set(distRef, updatedDist.toMap(forFirestore: true),
+                SetOptions(merge: true));
+            transaction.set(dLogRef, ledgerEntry.toMap(forFirestore: true));
+            transaction.set(voucherRef, voucherData, SetOptions(merge: true));
+          });
+        } catch (e) {
+          debugPrint('[RechargeService] Firestore recharge return notice: $e');
+        }
+      }
+
+      // Money In: Credit returned amount back to Cash in Hand or selected Bank Account!
+      try {
+        await Db.moveMoney(
+            normMode, returnAmount, 'Recharge Return from Agent: ${currentDist.name} ($txnId)');
+      } catch (_) {}
+
+      _localDistributors['${shopId}_$distributorId'] = updatedDist;
+      _localDistributorLedger.add(ledgerEntry);
+
+      return (
+        distributor: updatedDist,
+        entry: ledgerEntry,
+        returnedAmount: returnAmount,
+        remainingPendingReturn: pendingAfterPaise / 100.0,
+      );
+    } finally {
+      _inFlightOperations.remove(txnId);
+    }
+  }
+
+  /// Get pending recharge return amounts from each operator/agent
+  Future<AgentPendingReturnSummary> getAgentPendingReturnsSummary({
+    required String shopId,
+  }) async {
+    final distributors = await getAllDistributors(shopId);
+
+    int totalPendingPaise = 0;
+    final Map<RechargeOperator, int> opMap = {
+      RechargeOperator.airtel: 0,
+      RechargeOperator.jio: 0,
+      RechargeOperator.vi: 0,
+      RechargeOperator.bsnl: 0,
+      RechargeOperator.other: 0,
+    };
+    final Map<String, int> distMap = {};
+
+    for (final d in distributors) {
+      final pPaise = d.pendingReturnPaise;
+      distMap[d.id] = pPaise;
+      totalPendingPaise += pPaise;
+      final currentOp = opMap[d.defaultOperator] ?? 0;
+      opMap[d.defaultOperator] = currentOp + pPaise;
+    }
+
+    return AgentPendingReturnSummary(
+      totalPendingReturnPaise: totalPendingPaise,
+      operatorPendingReturnsPaise: opMap,
+      distributorPendingReturnsPaise: distMap,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // 6. DISTRIBUTOR PROFILE CRUD & MANAGEMENT
   // ---------------------------------------------------------------------------
   Future<DistributorProfile> getDistributor({
@@ -1710,10 +2126,24 @@ class RechargeService {
     // Preset lookup
     final preset = DistributorItem.defaultPresets.firstWhere(
       (d) => d.id == distributorId,
-      orElse: () => DistributorItem(
-        id: distributorId,
-        name: 'Distributor $distributorId',
-      ),
+      orElse: () {
+        String defaultOp = '';
+        final lower = distributorId.toLowerCase();
+        if (lower.contains('airtel')) {
+          defaultOp = 'Airtel';
+        } else if (lower.contains('jio')) {
+          defaultOp = 'Jio';
+        } else if (lower.contains('vi')) {
+          defaultOp = 'Vi';
+        } else if (lower.contains('bsnl')) {
+          defaultOp = 'BSNL';
+        }
+        return DistributorItem(
+          id: distributorId,
+          name: 'Distributor $distributorId',
+          defaultOperator: defaultOp,
+        );
+      },
     );
 
     final defaultProfile = DistributorProfile(
