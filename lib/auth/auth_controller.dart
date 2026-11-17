@@ -32,7 +32,7 @@ class AuthController extends ChangeNotifier {
 
   bool get isStaffLoggedIn => Db.setting('staff_logged_in') == 'true';
   bool get signedIn =>
-      (DefaultFirebaseOptions.isUatMode &&
+      ((DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) &&
           _stagingSignedIn &&
           _shopId.isNotEmpty &&
           _role == Role.owner) ||

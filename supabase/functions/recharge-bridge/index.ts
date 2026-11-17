@@ -2095,6 +2095,80 @@ serve(async (req: Request) => {
       });
     }
 
+    // ------------------------------------------------------------------------
+    // ENDPOINT 14: POST /get-commission-controls (READ-ONLY OWNER AUTHENTICATED)
+    // ------------------------------------------------------------------------
+    if (pathname.endsWith("/get-commission-controls")) {
+      const { data, error } = await supabase.rpc("recharge_get_commission_controls", {
+        p_shop_id: shopId,
+      });
+
+      if (error) return jsonResponse({ error: error.message }, 500);
+      return jsonResponse({ success: true, controls: data || [] });
+    }
+
+    // ------------------------------------------------------------------------
+    // ENDPOINT 15: POST /update-commission-control (HARDWARE ECDSA SIGNED)
+    // ------------------------------------------------------------------------
+    if (pathname.endsWith("/update-commission-control")) {
+      const {
+        operator,
+        isEnabled,
+        marginBasisPoints,
+        reason,
+        ownerName,
+        deviceId,
+        deviceSignature,
+        nonce,
+      } = body;
+
+      if (!operator || typeof isEnabled !== "boolean") {
+        return jsonResponse({ error: "operator and isEnabled (boolean) are mandatory" }, 400);
+      }
+
+      if (!reason || typeof reason !== "string" || reason.trim().length < 5) {
+        return jsonResponse({ error: "Reason is mandatory (min 5 characters)" }, 400);
+      }
+
+      const normOp = operator.toUpperCase().trim();
+      const validOps = ["AIRTEL", "JIO", "VI", "BSNL", "OTHER"];
+      if (!validOps.includes(normOp)) {
+        return jsonResponse({ error: `Invalid operator: ${operator}. Allowed: ${validOps.join(", ")}` }, 400);
+      }
+
+      const bpsStr = (marginBasisPoints !== null && marginBasisPoints !== undefined) ? String(marginBasisPoints) : "";
+      const canonicalData = `${normOp}:${isEnabled}:${bpsStr}:${reason.trim()}`;
+
+      // Enforce Hardware ECDSA
+      const hwAuth = await enforceHardwareSecurity({
+        shopId,
+        callerUid,
+        deviceId,
+        nonce,
+        deviceSignature,
+        operationType: "UPDATE_COMMISSION_CONTROL",
+        canonicalData,
+      });
+
+      if (!hwAuth.valid) {
+        return jsonResponse({ error: hwAuth.error }, hwAuth.status || 403);
+      }
+
+      const { data, error } = await supabase.rpc("recharge_update_commission_control", {
+        p_shop_id: shopId,
+        p_operator: normOp,
+        p_is_enabled: isEnabled,
+        p_margin_basis_points: marginBasisPoints !== undefined ? marginBasisPoints : null,
+        p_owner_uid: callerUid,
+        p_owner_name: ownerName || "Owner",
+        p_device_id: deviceId || "UNKNOWN_DEVICE",
+        p_reason: reason.trim(),
+      });
+
+      if (error) return jsonResponse({ error: error.message }, 400);
+      return jsonResponse(data);
+    }
+
     return jsonResponse({ error: `Unknown endpoint: ${pathname}` }, 404);
   } catch (err: any) {
     console.error("[recharge-bridge] Handler exception:", err);

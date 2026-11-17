@@ -2388,5 +2388,83 @@ class DailyReconciliationRecord {
   }
 }
 
+/// ============================================================================
+/// TEKFIX ERP - PHASE 17.1: OPERATOR COMMISSION CONTROL MODEL
+/// Server-Authoritative Owner-Controlled Commission ON/OFF & Margin Settings
+/// ============================================================================
+class OperatorCommissionControl {
+  final String shopId;
+  final String operator; // AIRTEL, JIO, VI, BSNL, OTHER
+  final bool isEnabled;
+  final int marginBasisPoints; // e.g. 300 = 3.00%
+  final DateTime updatedAt;
+  final String updatedByUid;
+
+  const OperatorCommissionControl({
+    required this.shopId,
+    required this.operator,
+    required this.isEnabled,
+    required this.marginBasisPoints,
+    required this.updatedAt,
+    required this.updatedByUid,
+  });
+
+  /// Commission percentage as decimal for calculations (e.g. 3.0% -> 0.03)
+  double get marginMultiplier => marginBasisPoints / 10000.0;
+
+  /// Commission percentage display (e.g. 3.00)
+  double get marginPercent => marginBasisPoints / 100.0;
+
+  factory OperatorCommissionControl.fromMap(Map<String, dynamic> map) {
+    int parseBps(dynamic val) {
+      if (val is int) return val;
+      if (val is num) return val.round();
+      if (val is String) return int.tryParse(val) ?? 300;
+      return 300;
+    }
+
+    final rawOp = (map['operator']?.toString() ?? 'OTHER').toUpperCase().trim();
+    return OperatorCommissionControl(
+      shopId: map['shopId']?.toString() ?? map['shop_id']?.toString() ?? '',
+      operator: rawOp,
+      isEnabled: map['isEnabled'] == true || map['is_enabled'] == true,
+      marginBasisPoints: parseBps(map['marginBasisPoints'] ?? map['margin_basis_points']),
+      updatedAt: DateTime.tryParse(map['updatedAt']?.toString() ?? map['updated_at']?.toString() ?? '') ?? DateTime.now(),
+      updatedByUid: map['updatedByUid']?.toString() ?? map['updated_by_uid']?.toString() ?? '',
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'shopId': shopId,
+      'operator': operator,
+      'isEnabled': isEnabled,
+      'marginBasisPoints': marginBasisPoints,
+      'marginPercent': marginPercent,
+      'updatedAt': updatedAt.toIso8601String(),
+      'updatedByUid': updatedByUid,
+    };
+  }
+
+  OperatorCommissionControl copyWith({
+    String? shopId,
+    String? operator,
+    bool? isEnabled,
+    int? marginBasisPoints,
+    DateTime? updatedAt,
+    String? updatedByUid,
+  }) {
+    return OperatorCommissionControl(
+      shopId: shopId ?? this.shopId,
+      operator: operator ?? this.operator,
+      isEnabled: isEnabled ?? this.isEnabled,
+      marginBasisPoints: marginBasisPoints ?? this.marginBasisPoints,
+      updatedAt: updatedAt ?? this.updatedAt,
+      updatedByUid: updatedByUid ?? this.updatedByUid,
+    );
+  }
+}
+
+
 
 

@@ -1102,6 +1102,26 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
         onTap: () => CommissionReportDialog.show(context, shopId: 'tekfix'),
       ),
       _NavItem(
+        title: 'Commission Controls',
+        malayalam: 'കമ്മീഷൻ ഓൺ/ഓഫ് (Owner)',
+        icon: Icons.tune_rounded,
+        gradient: const LinearGradient(
+            colors: [Color(0xFFF59E0B), Color(0xFFD97706)]),
+        onTap: () {
+          final auth = AuthController.instance;
+          if (!auth.isOwner) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                backgroundColor: TekColors.error,
+                content: Text('ഉടമയ്ക്ക് മാത്രമേ കമ്മീഷൻ ക്രമീകരണങ്ങൾ മാറ്റാൻ അനുവാദമുള്ളൂ (Owner-Only)'),
+              ),
+            );
+            return;
+          }
+          OperatorCommissionControlDialog.show(context, shopId: auth.shopId.isNotEmpty ? auth.shopId : 'tekfix');
+        },
+      ),
+      _NavItem(
         title: 'Float Recovery (Contra)',
         malayalam: 'ക്യാഷ് ബാങ്ക് ഡെപ്പോസിറ്റ്',
         icon: Icons.sync_alt_rounded,

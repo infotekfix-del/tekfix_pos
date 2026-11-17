@@ -52,7 +52,149 @@ class RechargeService {
   final Map<String, CustomerRefundRecord> _localRefunds = {};
   final List<ReversalLedgerEntry> _localReversals = [];
   final Map<String, DailyReconciliationRecord> _localDailyReconciliations = {};
+  final Map<String, OperatorCommissionControl> _localCommissionControls = {};
   bool enforceDailyOpeningBalance = true;
+
+  /// Default baseline margins when controls are not yet loaded
+  static const Map<String, int> defaultMarginBasisPoints = {
+    'JIO': 300,    // 3.00%
+    'AIRTEL': 280, // 2.80%
+    'VI': 350,     // 3.50%
+    'BSNL': 400,   // 4.00%
+    'OTHER': 300,  // 3.00%
+  };
+
+  /// Check whether commission is enabled for an operator
+  bool isCommissionEnabled(String operator) {
+    final norm = operator.toUpperCase().trim();
+    final ctrl = _localCommissionControls[norm];
+    if (ctrl != null) {
+      return ctrl.isEnabled;
+    }
+    return true; // Default ON
+  }
+
+  /// Get commission margin percent (e.g. 3.00 for 3%)
+  double getOperatorCommissionPercent(String operator) {
+    final norm = operator.toUpperCase().trim();
+    final ctrl = _localCommissionControls[norm];
+    if (ctrl != null) {
+      return ctrl.marginPercent;
+    }
+    final defaultBps = defaultMarginBasisPoints[norm] ?? 300;
+    return defaultBps / 100.0;
+  }
+
+  /// Get commission margin basis points (e.g. 300 for 3%)
+  int getOperatorCommissionBasisPoints(String operator) {
+    final norm = operator.toUpperCase().trim();
+    final ctrl = _localCommissionControls[norm];
+    if (ctrl != null) {
+      return ctrl.marginBasisPoints;
+    }
+    return defaultMarginBasisPoints[norm] ?? 300;
+  }
+
+  /// Fetch operator commission controls (Server-Authoritative)
+  Future<List<OperatorCommissionControl>> getCommissionControls({
+    required String shopId,
+    bool forceRefresh = false,
+  }) async {
+    if (!forceRefresh && _localCommissionControls.isNotEmpty) {
+      return _localCommissionControls.values.toList();
+    }
+
+    if (RechargeBackendBridge.isSupabaseMode && RechargeBackendBridge.supabaseClient != null) {
+      try {
+        final list = await RechargeBackendBridge.supabaseClient!.getCommissionControls(shopId: shopId);
+        _localCommissionControls.clear();
+        for (final item in list) {
+          final ctrl = OperatorCommissionControl.fromMap(item);
+          _localCommissionControls[ctrl.operator] = ctrl;
+        }
+        return _localCommissionControls.values.toList();
+      } catch (e) {
+        debugPrint('[RechargeService] getCommissionControls error: $e');
+      }
+    }
+
+    // Fallback: Populate defaults if cache empty
+    if (_localCommissionControls.isEmpty) {
+      for (final entry in defaultMarginBasisPoints.entries) {
+        _localCommissionControls[entry.key] = OperatorCommissionControl(
+          shopId: shopId,
+          operator: entry.key,
+          isEnabled: true,
+          marginBasisPoints: entry.value,
+          updatedAt: DateTime.now(),
+          updatedByUid: 'default',
+        );
+      }
+    }
+    return _localCommissionControls.values.toList();
+  }
+
+  /// Update commission control for an operator with hardware ECDSA signing
+  Future<Map<String, dynamic>> updateCommissionControl({
+    required String shopId,
+    required String operator,
+    required bool isEnabled,
+    int? marginBasisPoints,
+    required String reason,
+    required String deviceId,
+    required String deviceSignature,
+    required String nonce,
+    String? ownerName,
+  }) async {
+    final norm = operator.toUpperCase().trim();
+    if (RechargeBackendBridge.isSupabaseMode && RechargeBackendBridge.supabaseClient != null) {
+      final res = await RechargeBackendBridge.supabaseClient!.updateCommissionControl(
+        shopId: shopId,
+        operator: norm,
+        isEnabled: isEnabled,
+        marginBasisPoints: marginBasisPoints,
+        reason: reason,
+        deviceId: deviceId,
+        deviceSignature: deviceSignature,
+        nonce: nonce,
+        ownerName: ownerName,
+      );
+
+      // Update local cache
+      final existing = _localCommissionControls[norm];
+      final newBps = marginBasisPoints ?? existing?.marginBasisPoints ?? (defaultMarginBasisPoints[norm] ?? 300);
+      _localCommissionControls[norm] = OperatorCommissionControl(
+        shopId: shopId,
+        operator: norm,
+        isEnabled: isEnabled,
+        marginBasisPoints: newBps,
+        updatedAt: DateTime.now(),
+        updatedByUid: ownerName ?? 'Owner',
+      );
+
+      return res;
+    }
+
+    // Local fallback for offline/testing
+    final existing = _localCommissionControls[norm];
+    final newBps = marginBasisPoints ?? existing?.marginBasisPoints ?? (defaultMarginBasisPoints[norm] ?? 300);
+    final ctrl = OperatorCommissionControl(
+      shopId: shopId,
+      operator: norm,
+      isEnabled: isEnabled,
+      marginBasisPoints: newBps,
+      updatedAt: DateTime.now(),
+      updatedByUid: ownerName ?? 'Owner',
+    );
+    _localCommissionControls[norm] = ctrl;
+    return {'success': true, 'operator': norm, 'isEnabled': isEnabled, 'marginBasisPoints': newBps};
+  }
+
+  /// Reset commission controls for testing
+  @visibleForTesting
+  void resetCommissionControlsForTesting() {
+    _localCommissionControls.clear();
+  }
 
   void disableOpeningBalanceGateForTesting() {
     enforceDailyOpeningBalance = false;

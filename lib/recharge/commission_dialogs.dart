@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../auth/auth_controller.dart';
+import '../security/device_security_service.dart';
 import '../theme/tek_tokens.dart';
+import 'recharge_backend_bridge.dart';
 import 'recharge_models.dart';
 import 'recharge_service.dart';
 
@@ -811,3 +814,685 @@ class _CommissionReportDialogState extends State<CommissionReportDialog> {
     );
   }
 }
+
+/// ============================================================================
+/// TEKFIX ERP - PHASE 17.1: OPERATOR COMMISSION CONTROL DIALOG (OWNER-ONLY)
+/// Server-Authoritative Individual Operator Commission ON/OFF & Margin Controls
+/// ============================================================================
+class OperatorCommissionControlDialog extends StatefulWidget {
+  final String shopId;
+
+  const OperatorCommissionControlDialog({
+    super.key,
+    required this.shopId,
+  });
+
+  static Future<void> show(BuildContext context, {required String shopId}) {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => OperatorCommissionControlDialog(shopId: shopId),
+    );
+  }
+
+  @override
+  State<OperatorCommissionControlDialog> createState() =>
+      _OperatorCommissionControlDialogState();
+}
+
+class _OperatorCommissionControlDialogState
+    extends State<OperatorCommissionControlDialog> {
+  bool _loading = true;
+  String? _errorMessage;
+  List<OperatorCommissionControl> _controls = [];
+
+  final List<Map<String, dynamic>> _operatorMeta = [
+    {
+      'code': 'AIRTEL',
+      'name': 'Bharti Airtel',
+      'malayalam': 'എയർടെൽ',
+      'icon': Icons.network_cell_rounded,
+      'color': const Color(0xFFE50914),
+      'defaultBps': 280,
+    },
+    {
+      'code': 'JIO',
+      'name': 'Reliance Jio',
+      'malayalam': 'ജിയോ',
+      'icon': Icons.signal_cellular_alt_rounded,
+      'color': const Color(0xFF0070F3),
+      'defaultBps': 300,
+    },
+    {
+      'code': 'VI',
+      'name': 'Vodafone Idea (Vi)',
+      'malayalam': 'വി',
+      'icon': Icons.cell_tower_rounded,
+      'color': const Color(0xFFFF5252),
+      'defaultBps': 350,
+    },
+    {
+      'code': 'BSNL',
+      'name': 'BSNL Mobile',
+      'malayalam': 'ബി.എസ്.എൻ.എൽ',
+      'icon': Icons.signal_wifi_4_bar_rounded,
+      'color': const Color(0xFF16A34A),
+      'defaultBps': 400,
+    },
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadControls();
+  }
+
+  Future<void> _loadControls() async {
+    setState(() {
+      _loading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final list = await RechargeService.instance.getCommissionControls(
+        shopId: widget.shopId,
+        forceRefresh: true,
+      );
+      if (mounted) {
+        setState(() {
+          _controls = list;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  OperatorCommissionControl _getControlFor(String opCode, int defaultBps) {
+    return _controls.firstWhere(
+      (c) => c.operator == opCode,
+      orElse: () => OperatorCommissionControl(
+        shopId: widget.shopId,
+        operator: opCode,
+        isEnabled: true,
+        marginBasisPoints: defaultBps,
+        updatedAt: DateTime.now(),
+        updatedByUid: 'default',
+      ),
+    );
+  }
+
+  Future<void> _onToggle(String opCode, bool currentVal, int currentBps) async {
+    final auth = AuthController.instance;
+    if (!auth.isOwner) {
+      _showError('ഉടമയ്ക്ക് മാത്രമേ കമ്മീഷൻ ക്രമീകരണം മാറ്റാൻ അനുവാദമുള്ളൂ (Owner-Only)');
+      return;
+    }
+
+    final sec = DeviceSecurityService.instance;
+    if (!sec.isEnrolledLocally) {
+      _showError('വിശ്വസനീയ ഉപകരണം നിർബന്ധമാണ് (Trusted Device Required)');
+      return;
+    }
+
+    final targetVal = !currentVal;
+    final meta = _operatorMeta.firstWhere((m) => m['code'] == opCode);
+    final opName = meta['name'] as String;
+
+    final actionDescription = targetVal
+        ? '$opName കമ്മീഷൻ ON ചെയ്യുകയാണോ? ഭാവി റീചാർജുകൾക്ക് $currentBps bps (${(currentBps / 100.0).toStringAsFixed(2)}%) കമ്മീഷൻ ലഭിക്കും.'
+        : '$opName കമ്മീഷൻ OFF ചെയ്യുകയാണോ? ഭാവി റീചാർജുകൾക്ക് കമ്മീഷൻ ലഭിക്കില്ല (0%), എന്നാൽ സേവ് ചെയ്ത മാർജിൻ (${(currentBps / 100.0).toStringAsFixed(2)}%) നിലനിർത്തും.';
+
+    final reason = await _promptReasonDialog(
+      title: targetVal ? 'കമ്മീഷൻ ഓൺ ചെയ്യുക (Enable Commission)' : 'കമ്മീഷൻ ഓഫ് ചെയ്യുക (Disable Commission)',
+      actionDescription: actionDescription,
+      confirmLabel: targetVal ? 'കമ്മീഷൻ ON ചെയ്യുക' : 'കമ്മീഷൻ OFF ചെയ്യുക',
+      confirmColor: targetVal ? TekColors.success : TekColors.error,
+    );
+
+    if (reason == null || reason.trim().length < 5) {
+      if (reason != null) {
+        _showError('മാറ്റത്തിനുള്ള കാരണം നിർബന്ധമാണ് - ചുരുങ്ങിയത് 5 അക്ഷരങ്ങൾ (Reason min 5 chars required)');
+      }
+      return;
+    }
+
+    await _executeCommissionUpdate(
+      opCode: opCode,
+      isEnabled: targetVal,
+      marginBps: currentBps,
+      reason: reason.trim(),
+    );
+  }
+
+  Future<void> _onEditPercentage(String opCode, bool currentVal, int currentBps) async {
+    final auth = AuthController.instance;
+    if (!auth.isOwner) {
+      _showError('ഉടമയ്ക്ക് മാത്രമേ കമ്മീഷൻ ക്രമീകരണം മാറ്റാൻ അനുവാദമുള്ളൂ (Owner-Only)');
+      return;
+    }
+
+    final sec = DeviceSecurityService.instance;
+    if (!sec.isEnrolledLocally) {
+      _showError('വിശ്വസനീയ ഉപകരണം നിർബന്ധമാണ് (Trusted Device Required)');
+      return;
+    }
+
+    final meta = _operatorMeta.firstWhere((m) => m['code'] == opCode);
+    final opName = meta['name'] as String;
+
+    final result = await _promptPercentageDialog(
+      opName: opName,
+      currentPercent: currentBps / 100.0,
+    );
+
+    if (result == null) return;
+
+    final newBps = (result.percent * 100).round();
+    await _executeCommissionUpdate(
+      opCode: opCode,
+      isEnabled: currentVal,
+      marginBps: newBps,
+      reason: result.reason,
+    );
+  }
+
+  Future<void> _executeCommissionUpdate({
+    required String opCode,
+    required bool isEnabled,
+    required int marginBps,
+    required String reason,
+  }) async {
+    setState(() => _loading = true);
+
+    try {
+      final auth = AuthController.instance;
+      final sec = DeviceSecurityService.instance;
+      final devId = sec.deviceId;
+      final client = RechargeBackendBridge.supabaseClient;
+
+      String nonce = 'NONCE_LOCAL_MOCK';
+      String signature = 'SIG_LOCAL_MOCK';
+
+      if (RechargeBackendBridge.isSupabaseMode && client != null) {
+        final challenge = await client.requestChallenge(
+          shopId: widget.shopId,
+          deviceId: devId,
+          ownerUid: auth.uid,
+        );
+        nonce = challenge.nonce;
+
+        final canonicalData = '$opCode:$isEnabled:$marginBps:$reason';
+        final canonicalPayload = 'UPDATE_COMMISSION_CONTROL:${widget.shopId}:${auth.uid}:$devId:$nonce:$canonicalData';
+        signature = await sec.signRawPayload(canonicalPayload);
+      }
+
+      final res = await RechargeService.instance.updateCommissionControl(
+        shopId: widget.shopId,
+        operator: opCode,
+        isEnabled: isEnabled,
+        marginBasisPoints: marginBps,
+        reason: reason,
+        deviceId: devId,
+        deviceSignature: signature,
+        nonce: nonce,
+        ownerName: auth.name.isNotEmpty ? auth.name : 'Owner',
+      );
+
+      await _loadControls();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: TekColors.success,
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Colors.white),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '$opCode കമ്മീഷൻ വിജയകരമായി അപ്‌ഡേറ്റ് ചെയ്തു (Audit ID: ${res['auditId'] ?? 'AUD_RECORDED'})',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        _showError('ക്രമീകരണം മാറ്റുന്നതിൽ പരാജയപ്പെട്ടു: $e');
+      }
+    }
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: TekColors.error,
+        content: Text(msg, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  Future<String?> _promptReasonDialog({
+    required String title,
+    required String actionDescription,
+    required String confirmLabel,
+    required Color confirmColor,
+  }) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: TekColors.cardBg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(title, style: const TextStyle(color: TekColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(actionDescription, style: const TextStyle(color: TekColors.textSecondary, fontSize: 13, height: 1.4)),
+            const SizedBox(height: 16),
+            const Text(
+              'മാറ്റത്തിനുള്ള കാരണം നൽകുക (Mandatory Reason - min 5 chars):',
+              style: TextStyle(color: TekColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: controller,
+              style: const TextStyle(color: TekColors.textPrimary, fontSize: 13),
+              maxLines: 2,
+              decoration: InputDecoration(
+                hintText: 'ഉദാ: ഡിസ്ട്രിബ്യൂട്ടർ മാർജിൻ കുറച്ചു / ഓഫർ തീർന്നു',
+                hintStyle: const TextStyle(color: TekColors.textMuted, fontSize: 12),
+                filled: true,
+                fillColor: TekColors.elevatedSurface,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: TekColors.border)),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: TekColors.primary)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text('റദ്ദാക്കുക (Cancel)', style: TextStyle(color: TekColors.textMuted)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: confirmColor),
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: Text(confirmLabel, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<({double percent, String reason})?> _promptPercentageDialog({
+    required String opName,
+    required double currentPercent,
+  }) async {
+    final percentController = TextEditingController(text: currentPercent.toStringAsFixed(2));
+    final reasonController = TextEditingController();
+
+    return showDialog<({double percent, String reason})>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: TekColors.cardBg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('$opName കമ്മീഷൻ ശതമാനം മാറ്റുക', style: const TextStyle(color: TekColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('നിലവിലെ നിരക്ക്: ${currentPercent.toStringAsFixed(2)}%', style: const TextStyle(color: TekColors.textSecondary, fontSize: 13)),
+            const SizedBox(height: 12),
+            const Text('പുതിയ ശതമാനം (New %):', style: TextStyle(color: TekColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            TextField(
+              controller: percentController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: const TextStyle(color: TekColors.textPrimary, fontSize: 14, fontWeight: FontWeight.bold),
+              decoration: InputDecoration(
+                suffixText: '%',
+                filled: true,
+                fillColor: TekColors.elevatedSurface,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: TekColors.border)),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: TekColors.primary)),
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text('മാറ്റത്തിനുള്ള കാരണം (Reason - min 5 chars):', style: TextStyle(color: TekColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            TextField(
+              controller: reasonController,
+              style: const TextStyle(color: TekColors.textPrimary, fontSize: 13),
+              maxLines: 2,
+              decoration: InputDecoration(
+                hintText: 'ഉദാ: ഡിസ്ട്രിബ്യൂട്ടർ ഇൻസെന്റീവ് വർദ്ധിപ്പിച്ചു',
+                hintStyle: const TextStyle(color: TekColors.textMuted, fontSize: 12),
+                filled: true,
+                fillColor: TekColors.elevatedSurface,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: TekColors.border)),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: TekColors.primary)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text('റദ്ദാക്കുക (Cancel)', style: TextStyle(color: TekColors.textMuted)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: TekColors.primary),
+            onPressed: () {
+              final p = double.tryParse(percentController.text.trim());
+              final r = reasonController.text.trim();
+              if (p == null || p < 0 || p > 20) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('ശതമാനം 0 നും 20 നും ഇടയിൽ നൽകുക (0% - 20%)')),
+                );
+                return;
+              }
+              if (r.length < 5) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('കാരണം നിർബന്ധമാണ് (ചുരുങ്ങിയത് 5 അക്ഷരങ്ങൾ)')),
+                );
+                return;
+              }
+              Navigator.pop(ctx, (percent: p, reason: r));
+            },
+            child: const Text('സേവ് ചെയ്യുക', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Fail-closed authorization check
+    final auth = AuthController.instance;
+    if (!auth.isOwner) {
+      return AlertDialog(
+        backgroundColor: TekColors.cardBg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.gpp_bad_rounded, color: TekColors.error),
+            SizedBox(width: 8),
+            Text('പ്രവേശനാനുമതി നിഷേധിച്ചു (Access Denied)'),
+          ],
+        ),
+        content: const Text(
+          'റീചാർജ് കമ്മീഷൻ ക്രമീകരണങ്ങൾ മാറ്റാൻ കടയുടമയ്ക്ക് (Owner) മാത്രമേ അനുവാദമുള്ളൂ. സ്റ്റാഫ് അക്കൗണ്ടുകൾക്ക് ഇതിൽ പ്രവേശനമില്ല.',
+          style: TextStyle(color: TekColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('ശരി (OK)'),
+          ),
+        ],
+      );
+    }
+
+    return Dialog(
+      backgroundColor: TekColors.cardBg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 580, maxHeight: 680),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: TekColors.primary.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.tune_rounded, color: TekColors.primary, size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'ഓപ്പറേറ്റർ കമ്മീഷൻ നിയന്ത്രണം',
+                          style: TextStyle(color: TekColors.textPrimary, fontSize: 17, fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Owner Commission Control (Server-Authoritative)',
+                          style: TextStyle(color: TekColors.textMuted, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded, color: TekColors.textMuted),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: TekColors.elevatedSurface,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: TekColors.border),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.shield_rounded, color: TekColors.success, size: 16),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'ഓരോ ഓപ്പറേറ്ററുടെയും കമ്മീഷൻ സ്വതന്ത്രമായി ഓൺ/ഓഫ് ചെയ്യാം. മാറ്റങ്ങൾ തത്സമയം സെർവറിൽ സുരക്ഷിതമായി രേഖപ്പെടുത്തപ്പെടും.',
+                        style: TextStyle(color: TekColors.textSecondary, fontSize: 11.5, height: 1.35),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              // Main List
+              Expanded(
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _errorMessage != null
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.error_outline_rounded, color: TekColors.error, size: 36),
+                                const SizedBox(height: 8),
+                                Text(_errorMessage!, style: const TextStyle(color: TekColors.error, fontSize: 13)),
+                                const SizedBox(height: 12),
+                                ElevatedButton.icon(
+                                  onPressed: _loadControls,
+                                  icon: const Icon(Icons.refresh_rounded, size: 16),
+                                  label: const Text('വീണ്ടും ശ്രമിക്കുക (Retry)'),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.separated(
+                            itemCount: _operatorMeta.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 12),
+                            itemBuilder: (ctx, idx) {
+                              final meta = _operatorMeta[idx];
+                              final opCode = meta['code'] as String;
+                              final opName = meta['name'] as String;
+                              final opMal = meta['malayalam'] as String;
+                              final opColor = meta['color'] as Color;
+                              final opIcon = meta['icon'] as IconData;
+                              final defaultBps = meta['defaultBps'] as int;
+
+                              final ctrl = _getControlFor(opCode, defaultBps);
+                              final isEnabled = ctrl.isEnabled;
+                              final bps = ctrl.marginBasisPoints;
+                              final percent = ctrl.marginPercent;
+
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                decoration: BoxDecoration(
+                                  color: TekColors.elevatedSurface,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: isEnabled
+                                        ? opColor.withValues(alpha: 0.35)
+                                        : TekColors.border.withValues(alpha: 0.5),
+                                    width: isEnabled ? 1.5 : 1.0,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    // Operator Icon
+                                    Container(
+                                      width: 44,
+                                      height: 44,
+                                      decoration: BoxDecoration(
+                                        color: opColor.withValues(alpha: isEnabled ? 0.15 : 0.05),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(
+                                        opIcon,
+                                        color: isEnabled ? opColor : TekColors.textMuted,
+                                        size: 22,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 14),
+
+                                    // Operator Name & Details
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Text(
+                                                opName,
+                                                style: TextStyle(
+                                                  color: isEnabled ? TekColors.textPrimary : TekColors.textMuted,
+                                                  fontSize: 14.5,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: isEnabled
+                                                      ? TekColors.success.withValues(alpha: 0.15)
+                                                      : TekColors.error.withValues(alpha: 0.15),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: Text(
+                                                  isEnabled ? 'COMMISSION ON' : 'OFF (0%)',
+                                                  style: TextStyle(
+                                                    color: isEnabled ? TekColors.success : TekColors.error,
+                                                    fontSize: 9.5,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Row(
+                                            children: [
+                                              Text(
+                                                '$opMal  •  മാർജിൻ: ',
+                                                style: const TextStyle(color: TekColors.textSecondary, fontSize: 11.5),
+                                              ),
+                                              Text(
+                                                '${percent.toStringAsFixed(2)}% ($bps bps)',
+                                                style: TextStyle(
+                                                  color: isEnabled ? opColor : TekColors.textMuted,
+                                                  fontSize: 11.5,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                              if (!isEnabled)
+                                                const Text(
+                                                  ' (സേവ് ചെയ്തിരിക്കുന്നു)',
+                                                  style: TextStyle(color: TekColors.textMuted, fontSize: 10.5, fontStyle: FontStyle.italic),
+                                                ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
+                                    // Edit percentage button
+                                    IconButton(
+                                      tooltip: 'ശതമാനം മാറ്റുക (Edit Margin %)',
+                                      onPressed: () => _onEditPercentage(opCode, isEnabled, bps),
+                                      icon: const Icon(Icons.edit_note_rounded, color: TekColors.primary, size: 22),
+                                    ),
+
+                                    // Switch Toggle
+                                    Switch(
+                                      value: isEnabled,
+                                      activeThumbColor: TekColors.success,
+                                      inactiveThumbColor: TekColors.textMuted,
+                                      onChanged: (val) => _onToggle(opCode, isEnabled, bps),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+              ),
+
+              const SizedBox(height: 16),
+              // Footer
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TextButton.icon(
+                    onPressed: _loadControls,
+                    icon: const Icon(Icons.refresh_rounded, size: 16, color: TekColors.textMuted),
+                    label: const Text('പുതുക്കുക (Refresh)', style: TextStyle(color: TekColors.textMuted, fontSize: 12)),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: TekColors.elevatedSurface,
+                      side: const BorderSide(color: TekColors.border),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('പൂർത്തിയായി (Done)', style: TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+

@@ -9,6 +9,7 @@ import '../security/device_security_service.dart';
 import '../theme/tek_tokens.dart';
 import 'recharge_backend_bridge.dart';
 import 'recharge_recovery_engine.dart';
+import 'recharge_service.dart';
 
 /// Modal dialog for recording instant mobile, utility, and DTH recharges
 /// with full cash flow accounting and margin/profit tracking.
@@ -118,10 +119,12 @@ class QuickRechargeDialog extends StatefulWidget {
       notes: notes,
     );
 
+    final commEnabled = RechargeService.instance.isCommissionEnabled(operator);
+    final effectiveCostPrice = commEnabled ? costPrice : retailAmount;
     final retailPaise = (retailAmount * 100).round();
-    final costPaise = (costPrice * 100).round();
-    final profit = retailAmount - costPrice;
-    final commissionPaise = ((retailAmount - costPrice) * 100).round();
+    final costPaise = (effectiveCostPrice * 100).round();
+    final profit = commEnabled ? (retailAmount - effectiveCostPrice) : 0.0;
+    final commissionPaise = commEnabled ? ((retailAmount - effectiveCostPrice) * 100).round() : 0;
     final targetWalletId = 'WALLET_${operator.toUpperCase()}';
     const fundingType = 'ownPrepaid';
 
@@ -217,6 +220,7 @@ class QuickRechargeDialog extends StatefulWidget {
     }
 
     final entry = {
+      'success': true,
       'id': idempotencyKey,
       'rechargeId': idempotencyKey,
       'serverTxnKey': res['txn_key'] ?? idempotencyKey,
@@ -230,10 +234,12 @@ class QuickRechargeDialog extends StatefulWidget {
       'retailAmount': retailAmount,
       'amount': retailAmount,
       'amountPaise': retailPaise,
-      'costPrice': costPrice,
+      'costPrice': effectiveCostPrice,
       'costPricePaise': costPaise,
+      'amount_paise': costPaise,
       'commission': profit,
       'commissionEarnedPaise': commissionPaise,
+      'commission_earned_paise': commissionPaise,
       'paymentMode': paymentMode,
       'partyKey': partyKey,
       'partyName': partyName,
@@ -241,7 +247,7 @@ class QuickRechargeDialog extends StatefulWidget {
       'status': 'SUCCESS',
       'serverConfirmed': true,
       'idempotentReplay': isIdempotentReplay,
-      'walletBalanceAfterPaise': res['balanceAfterPaise'] ?? res['totalBalancePaise'],
+      'walletBalanceAfterPaise': res['balanceAfterPaise'] ?? res['totalBalancePaise'] ?? res['total_balance_paise'],
     };
 
     // Save non-authoritative read cache to Hive
@@ -283,14 +289,6 @@ class _QuickRechargeDialogState extends State<QuickRechargeDialog> {
   bool _isSubmitting = false;
   String? _dialogError;
 
-  final Map<String, double> _defaultMargins = {
-    'Jio': 0.030, // 3.0%
-    'Airtel': 0.028, // 2.8%
-    'Vi': 0.035, // 3.5%
-    'BSNL': 0.040, // 4.0%
-    'Other / DTH': 0.030, // 3.0%
-  };
-
   final List<int> _quickAmounts = [199, 239, 299, 666, 719, 859, 2999];
 
   @override
@@ -314,9 +312,15 @@ class _QuickRechargeDialogState extends State<QuickRechargeDialog> {
     if (_isCustomCost) return;
     final amt = double.tryParse(_amountController.text.trim()) ?? 0.0;
     if (amt > 0) {
-      final margin = _defaultMargins[_operator] ?? 0.03;
-      final cost = amt * (1.0 - margin);
-      _costController.text = cost.toStringAsFixed(2);
+      final commEnabled = RechargeService.instance.isCommissionEnabled(_operator);
+      if (commEnabled) {
+        final margin = RechargeService.instance.getOperatorCommissionPercent(_operator) / 100.0;
+        final cost = amt * (1.0 - margin);
+        _costController.text = cost.toStringAsFixed(2);
+      } else {
+        // Commission OFF: Cost is full retail amount (0% commission)
+        _costController.text = amt.toStringAsFixed(2);
+      }
     } else {
       _costController.clear();
     }
@@ -485,8 +489,12 @@ class _QuickRechargeDialogState extends State<QuickRechargeDialog> {
     try {
       final mobile = _mobileController.text.trim();
       final retail = _retailAmount;
-      final cost = _costPrice > 0 ? _costPrice : (retail * (1.0 - (_defaultMargins[_operator] ?? 0.03)));
-      final profit = retail - cost;
+      final commEnabled = RechargeService.instance.isCommissionEnabled(_operator);
+      final margin = RechargeService.instance.getOperatorCommissionPercent(_operator) / 100.0;
+      final cost = _costPrice > 0
+          ? _costPrice
+          : (commEnabled ? (retail * (1.0 - margin)) : retail);
+      final profit = commEnabled ? (retail - cost) : 0.0;
 
       await QuickRechargeDialog.recordRecharge(
         mobile: mobile,
@@ -914,31 +922,46 @@ class _QuickRechargeDialogState extends State<QuickRechargeDialog> {
                           const SizedBox(width: 12),
                           // Profit Badge
                           Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF10B981).withAlpha(25),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: const Color(0xFF10B981).withAlpha(100)),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'കമ്മീഷൻ / ലാഭം',
-                                    style: TextStyle(color: Colors.white70, fontSize: 10.5),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '₹${_commission.toStringAsFixed(2)}',
-                                    style: const TextStyle(
-                                      color: Color(0xFF34D399),
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
+                            child: Builder(
+                              builder: (ctx) {
+                                final commEnabled = RechargeService.instance.isCommissionEnabled(_operator);
+                                return Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: commEnabled
+                                        ? const Color(0xFF10B981).withAlpha(25)
+                                        : Colors.grey.withAlpha(25),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: commEnabled
+                                          ? const Color(0xFF10B981).withAlpha(100)
+                                          : Colors.grey.withAlpha(80),
                                     ),
                                   ),
-                                ],
-                              ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        commEnabled ? 'കമ്മീഷൻ / ലാഭം' : 'കമ്മീഷൻ OFF (0%)',
+                                        style: TextStyle(
+                                          color: commEnabled ? Colors.white70 : Colors.orangeAccent,
+                                          fontSize: 10.5,
+                                          fontWeight: commEnabled ? FontWeight.normal : FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        commEnabled ? '₹${_commission.toStringAsFixed(2)}' : '₹0.00',
+                                        style: TextStyle(
+                                          color: commEnabled ? const Color(0xFF34D399) : Colors.grey,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
                             ),
                           ),
                         ],

@@ -380,4 +380,41 @@ class SupabaseRechargeBridgeClient {
     if (list == null) return [];
     return list.cast<Map<String, dynamic>>();
   }
+
+  /// Fetch operator commission controls (Read-Only Owner Authenticated)
+  Future<List<Map<String, dynamic>>> getCommissionControls({
+    required String shopId,
+  }) async {
+    final res = await _post('get-commission-controls', {
+      'shopId': shopId,
+    });
+    final list = res['controls'] as List<dynamic>?;
+    if (list == null) return [];
+    return list.cast<Map<String, dynamic>>();
+  }
+
+  /// Update operator commission control (Hardware ECDSA Signed)
+  Future<Map<String, dynamic>> updateCommissionControl({
+    required String shopId,
+    required String operator,
+    required bool isEnabled,
+    int? marginBasisPoints,
+    required String reason,
+    required String deviceId,
+    required String deviceSignature,
+    required String nonce,
+    String? ownerName,
+  }) async {
+    return await _post('update-commission-control', {
+      'shopId': shopId,
+      'operator': operator,
+      'isEnabled': isEnabled,
+      if (marginBasisPoints != null) 'marginBasisPoints': marginBasisPoints,
+      'reason': reason,
+      'deviceId': deviceId,
+      'deviceSignature': deviceSignature,
+      'nonce': nonce,
+      if (ownerName != null) 'ownerName': ownerName,
+    });
+  }
 }
