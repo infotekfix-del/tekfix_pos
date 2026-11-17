@@ -24,6 +24,7 @@ import 'auth/auth_controller.dart';
 import 'auth/login_gate.dart';
 import 'core/device.dart';
 import 'recharge/recharge_backend_bridge.dart';
+import 'recharge/recharge_recovery_engine.dart';
 import 'recharge/supabase_recharge_bridge_client.dart';
 import 'security/device_security_service.dart';
 import 'security/staging_identity_service.dart';
@@ -603,6 +604,15 @@ Future<void> main() async {
       }
     } catch (e) {
       debugPrint('[TekFix Startup] DeviceSecurityService init warning: $e');
+    }
+
+    // 4.2 Run RechargeRecoveryEngine startup reconciliation
+    try {
+      debugPrint('[TekFix Startup] 4.2 Running RechargeRecoveryEngine pending settlement reconciliation...');
+      final recovered = await RechargeRecoveryEngine.reconcilePendingSettlements();
+      debugPrint('[TekFix Startup] 4.2 RechargeRecoveryEngine reconciled $recovered pending item(s)');
+    } catch (e) {
+      debugPrint('[TekFix Startup] RechargeRecoveryEngine reconciliation warning: $e');
     }
 
     // 6. Custom on-screen error builder
