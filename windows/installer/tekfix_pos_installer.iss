@@ -3,7 +3,7 @@
 ; Supports silent in-app automatic upgrades, desktop shortcuts, and data preservation.
 
 #ifndef MyAppVersion
-#define MyAppVersion "1.0.14"
+#define MyAppVersion "1.0.29"
 #endif
 
 #define MyAppName "TekFix ERP"
