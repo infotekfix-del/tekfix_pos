@@ -1391,12 +1391,15 @@ class _OperatorCommissionControlDialogState
                                         children: [
                                           Row(
                                             children: [
-                                              Text(
-                                                opName,
+                                              Flexible(
+                                                  child: Text(
+                                                    opName,
+                                                    overflow: TextOverflow.ellipsis,
                                                 style: TextStyle(
                                                   color: isEnabled ? TekColors.textPrimary : TekColors.textMuted,
                                                   fontSize: 14.5,
                                                   fontWeight: FontWeight.bold,
+                                                  ),
                                                 ),
                                               ),
                                               const SizedBox(width: 8),
@@ -1420,7 +1423,9 @@ class _OperatorCommissionControlDialogState
                                             ],
                                           ),
                                           const SizedBox(height: 3),
-                                          Row(
+                                          Wrap(
+                                            crossAxisAlignment: WrapCrossAlignment.center,
+                                            spacing: 4,
                                             children: [
                                               Text(
                                                 '$opMal  •  മാർജിൻ: ',
@@ -1468,8 +1473,9 @@ class _OperatorCommissionControlDialogState
 
               const SizedBox(height: 16),
               // Footer
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   TextButton.icon(
                     onPressed: _loadControls,
