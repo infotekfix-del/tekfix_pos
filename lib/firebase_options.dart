@@ -60,15 +60,24 @@ class DefaultFirebaseOptions {
   static const String expectedSupabaseEdgeUrl =
       'https://mwhsvidbrfkryuiwhnev.supabase.co/functions/v1/recharge-bridge';
 
+  /// Authorized Supabase Production Project Reference (ap-south-1 Mumbai)
+  static const String expectedProductionSupabaseProjectRef = 'bxjlqcqcjfifzjrqpcov';
+
+  /// Authorized Supabase Production Edge Function Base URL
+  static const String expectedProductionSupabaseEdgeUrl =
+      'https://bxjlqcqcjfifzjrqpcov.supabase.co/functions/v1/recharge-bridge';
+
   /// Raw compile-time environment definition for production Supabase Edge URL
   static const String _rawProdEdgeUrl =
       String.fromEnvironment('SUPABASE_PROD_EDGE_URL', defaultValue: '');
 
   /// Authorized Supabase Production Edge Function Base URL.
-  /// In production builds, SUPABASE_PROD_EDGE_URL must be explicitly provided.
+  /// In production builds, defaults to the verified production instance (bxjlqcqcjfifzjrqpcov).
+  /// Can be overridden via --dart-define=SUPABASE_PROD_EDGE_URL=<url>.
   /// Never falls back to staging URL (mwhsvidbrfkryuiwhnev).
   static String get productionSupabaseEdgeUrl {
-    final url = _rawProdEdgeUrl.trim();
+    final raw = _rawProdEdgeUrl.trim();
+    final url = raw.isNotEmpty ? raw : expectedProductionSupabaseEdgeUrl;
     if (url.isEmpty) {
       throw StateError(
         'CRITICAL CONFIGURATION ERROR: SUPABASE_PROD_EDGE_URL is not configured. '

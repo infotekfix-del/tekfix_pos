@@ -505,20 +505,26 @@ Future<void> main() async {
             '[TekFix Startup] 2. Firebase initialized with offline persistence');
 
         // Configure Supabase Recharge Bridge for Production using genuine Firebase Auth ID Tokens
-        final prodEdgeUrl = DefaultFirebaseOptions.productionSupabaseEdgeUrl;
-        final prodClient = SupabaseRechargeBridgeClient(
-          edgeFunctionBaseUrl: prodEdgeUrl,
-          getFirebaseIdToken: () async {
-            final user = FirebaseAuth.instance.currentUser;
-            if (user == null) return null;
-            return await user.getIdToken();
-          },
-        );
-        RechargeBackendBridge.configure(
-          mode: RechargeBackendMode.supabaseEdgeFunction,
-          supabaseClient: prodClient,
-        );
-        debugPrint('[TekFix Startup] 2. Production Supabase Recharge Bridge configured successfully ($prodEdgeUrl)');
+        try {
+          final prodEdgeUrl = DefaultFirebaseOptions.productionSupabaseEdgeUrl;
+          final prodClient = SupabaseRechargeBridgeClient(
+            edgeFunctionBaseUrl: prodEdgeUrl,
+            getFirebaseIdToken: () async {
+              final user = FirebaseAuth.instance.currentUser;
+              if (user == null) return null;
+              return await user.getIdToken();
+            },
+          );
+          RechargeBackendBridge.configure(
+            mode: RechargeBackendMode.supabaseEdgeFunction,
+            supabaseClient: prodClient,
+          );
+          debugPrint('[TekFix Startup] 2. Production Supabase Recharge Bridge configured successfully ($prodEdgeUrl)');
+        } on StateError catch (se) {
+          debugPrint('[TekFix Startup] 2. Production Supabase Recharge Bridge configuration warning: $se');
+        } catch (bridgeErr) {
+          debugPrint('[TekFix Startup] 2. Production Supabase Recharge Bridge initialization failed: $bridgeErr');
+        }
       } on StateError catch (se) {
         debugPrint('[TekFix Startup] 2. CRITICAL PRODUCTION FAILURE: $se');
         rethrow;
@@ -677,6 +683,11 @@ Future<void> main() async {
   }, (error, stack) {
     debugPrint('[TekFix FATAL Uncaught Zone Error] $error');
     debugPrint('[TekFix FATAL StackTrace] $stack');
+    try {
+      runApp(TekFixStartupErrorApp(error: error, stackTrace: stack));
+    } catch (e) {
+      debugPrint('[TekFix FATAL Startup Error App Mount Failed] $e');
+    }
   });
 }
 
@@ -764,6 +775,102 @@ class TekFixApp extends StatelessWidget {
           }
           return null;
         },
+      ),
+    );
+  }
+}
+
+/// Fallback Startup Error App that prevents a blank white screen when an unhandled
+/// exception or platform failure occurs during startup initialization.
+class TekFixStartupErrorApp extends StatelessWidget {
+  final Object error;
+  final StackTrace? stackTrace;
+
+  const TekFixStartupErrorApp({
+    super.key,
+    required this.error,
+    this.stackTrace,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'TekFix ERP & POS - Startup Error',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: const Color(0xFF0F172A),
+      ),
+      home: Scaffold(
+        backgroundColor: const Color(0xFF0F172A),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.amberAccent,
+                  size: 56,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'ആപ്പ് ആരംഭിക്കുന്നതിൽ തകരാർ സംഭവിച്ചു',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'TekFix ERP Startup Initialization Error',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E293B),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: SingleChildScrollView(
+                      child: SelectableText(
+                        '$error\n\n${stackTrace ?? ""}',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text(
+                    'വീണ്ടും ശ്രമിക്കുക (Retry Startup)',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  onPressed: () => main(),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
