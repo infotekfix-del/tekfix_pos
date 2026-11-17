@@ -1,4 +1,7 @@
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive/hive.dart';
+import 'package:tekfix_erp_pos/main.dart';
 import 'package:tekfix_erp_pos/recharge/recharge_models.dart';
 import 'package:tekfix_erp_pos/recharge/recharge_service.dart';
 
@@ -7,6 +10,26 @@ void main() {
 
   const testShopId = 'test_shop_tekfix';
   final service = RechargeService.instance;
+  late Directory tempDir;
+
+  setUpAll(() async {
+    tempDir = await Directory.systemTemp.createTemp('tekfix_phase3_test_');
+    Hive.init(tempDir.path);
+    for (final b in allBoxes) {
+      if (!Hive.isBoxOpen(b)) {
+        await Hive.openBox(b);
+      }
+    }
+  });
+
+  tearDownAll(() async {
+    try {
+      await Hive.close();
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    } catch (_) {}
+  });
 
   setUp(() {
     service.resetLocalCacheForTesting();

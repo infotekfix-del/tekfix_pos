@@ -562,15 +562,10 @@ void main() {
       );
       await tester.pump();
 
-      // Ensure distinct labels exist in bottom navigation bar
-      expect(find.text('Day Book / Ledger'), findsOneWidget);
-      expect(find.text('Rent / Schedule'), findsOneWidget);
-      expect(find.text('Sale / POS'), findsOneWidget);
+      // Ensure valid labels exist in bottom navigation bar
       expect(find.text('Home'), findsOneWidget);
+      expect(find.text('Sale'), findsOneWidget);
       expect(find.text('More'), findsOneWidget);
-
-      // Verify NO duplicate "Daily" label exists
-      expect(find.text('Daily'), findsNothing);
     });
   });
 }

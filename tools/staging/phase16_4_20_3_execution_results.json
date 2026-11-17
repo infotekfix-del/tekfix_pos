@@ -1,0 +1,98 @@
+{
+  "timestamp": "2026-11-16T16:00:51.040Z",
+  "scorecard": {
+    "TEST 1": "PASS (Preserved from Phase 16.4.20 Run - UTR_E2E_01_1794842182068)",
+    "TEST 2": "PASS (Preserved from Phase 16.4.20 Run - ₹50,000 Rejection)",
+    "TEST 3": "PASS",
+    "TEST 4": "PASS",
+    "TEST 5": "PASS",
+    "TEST 6": "PASS",
+    "TEST 7": "PASS",
+    "TEST 8": "PASS",
+    "TEST 9": "PASS"
+  },
+  "testDetails": {
+    "TEST 3": {
+      "purpose": "Concurrent Requests Competing for Limited Balance (Race Prevention)",
+      "preBank": 1000,
+      "postBank": 300,
+      "requestA": {
+        "amount": 700,
+        "status": 200,
+        "success": true
+      },
+      "requestB": {
+        "amount": 600,
+        "status": 400,
+        "success": false
+      },
+      "winningAmount": 700,
+      "result": "PASS"
+    },
+    "TEST 4": {
+      "purpose": "Idempotency Replay (Identical Reference and Payload)",
+      "status": 200,
+      "idempotent_replay": true,
+      "bankUnchanged": true,
+      "walletUnchanged": true,
+      "balancePaise": 300000,
+      "result": "PASS"
+    },
+    "TEST 5": {
+      "purpose": "Conflicting Idempotency Payload Rejection",
+      "status": 400,
+      "error": "Idempotency conflict: reference already processed with different payload",
+      "bankUnchanged": true,
+      "result": "PASS"
+    },
+    "TEST 6": {
+      "purpose": "Response Loss & Recovery Re-Query",
+      "status": 200,
+      "idempotent_replay": true,
+      "result": "PASS"
+    },
+    "TEST 7": {
+      "purpose": "Automatic Rollback Compensation on Downstream Supabase Failure",
+      "status": 400,
+      "error": "Wallet WALLET_NON_EXISTENT_FORCE_FAIL for shop shop_staging_001 not found",
+      "preBank": 300,
+      "postBank": 300,
+      "bankRestored": true,
+      "voucherStatus": "CANCELLED",
+      "depositCreated": false,
+      "result": "PASS"
+    },
+    "TEST 8": {
+      "purpose": "SyncEngine Retail Delta Isolation via Relative Deduction Formula",
+      "formula": "delta = local_balance - (old_last_synced - topup_amount)",
+      "retailAmount": 500,
+      "topUpAmount": 300,
+      "expectedFinal": 5200,
+      "result": "PASS"
+    },
+    "TEST 9": {
+      "purpose": "Security and Authorization Perimeter Enforcement",
+      "unauthenticated": {
+        "status": 401,
+        "pass": true
+      },
+      "staffBlocked": {
+        "status": 401,
+        "pass": true
+      },
+      "invalidDeviceBlocked": {
+        "status": 400,
+        "pass": true
+      },
+      "tamperedSigBlocked": {
+        "status": 403,
+        "pass": true
+      },
+      "unauthorizedShopBlocked": {
+        "status": 403,
+        "pass": true
+      },
+      "result": "PASS"
+    }
+  }
+}
