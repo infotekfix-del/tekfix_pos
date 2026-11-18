@@ -39,6 +39,11 @@ class AuthController extends ChangeNotifier {
       (_user != null && _shopId.isNotEmpty) ||
       isStaffLoggedIn;
   bool get isOwner => signedIn && !isStaffLoggedIn && _role == Role.owner;
+
+  /// users/{uid}.role == 'admin' (Firestore rules already treat admin as
+  /// owner). Used by the Customer CRM permissions.
+  bool get isAdmin =>
+      signedIn && !isStaffLoggedIn && Db.setting('auth_is_admin') == 'true';
   bool get loading => _loading;
   Role get role => isStaffLoggedIn ? Role.staff : _role;
   String get name => isStaffLoggedIn ? Db.setting('staff_logged_name') : _name;
@@ -173,6 +178,8 @@ class AuthController extends ChangeNotifier {
       final d = snap.data();
       if (d != null && d['active'] != false) {
         _role = d['role'] == 'owner' ? Role.owner : Role.staff;
+        await Db.settings
+            .put('auth_is_admin', d['role'] == 'admin' ? 'true' : 'false');
         _name = '${d['name'] ?? u.email ?? ''}';
         await Db.settings
             .put('auth_role', _role == Role.owner ? 'owner' : 'staff');
@@ -425,6 +432,7 @@ class AuthController extends ChangeNotifier {
     await Db.settings.put('staff_logged_in', 'false');
     await Db.settings.put('staff_logged_id', '');
     await Db.settings.put('staff_logged_name', '');
+    await Db.settings.put('auth_is_admin', 'false');
     if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
       _stagingSignedIn = false;
       _role = Role.staff;

@@ -71,6 +71,13 @@ import 'rent/daily_rent_history_view.dart';
 import 'owner/owner_ledger_view.dart';
 import 'barcode/barcode_print_dialog.dart';
 import 'repairs/service_bill_dialog.dart';
+import 'crm/crm_app.dart';
+import 'crm/customer_crm.dart';
+import 'crm/customer_models.dart';
+import 'crm/pos_customer_panel.dart';
+import 'crm/customer_history_screen.dart';
+import 'crm/customer_search.dart';
+import 'crm/crm_messaging_screen.dart';
 export 'utils/tek_helpers.dart';
 export 'theme/tek_tokens.dart';
 export 'ui/dashboard/dashboard_screen.dart';
@@ -619,6 +626,14 @@ Future<void> main() async {
       debugPrint('[TekFix Startup] 4.2 RechargeRecoveryEngine reconciled $recovered pending item(s)');
     } catch (e) {
       debugPrint('[TekFix Startup] RechargeRecoveryEngine reconciliation warning: $e');
+    }
+
+    // 4.4 Customer CRM: phone -> customer indexes (local, rebuildable)
+    try {
+      await startCustomerCrm();
+      debugPrint('[TekFix Startup] 4.4 Customer CRM indexes ready');
+    } catch (e) {
+      debugPrint('[TekFix Startup] Customer CRM warning: $e');
     }
 
     // 6. Custom on-screen error builder
@@ -1298,14 +1313,20 @@ List<NavCategory> getNavCategories(String shopId, {bool isOwner = false}) => [
               OwnerOrdersView(shopId: shopId)),
         ],
       ),
-      const NavCategory(
+      NavCategory(
         title: 'Customer Management',
         icon: Icons.support_agent_rounded,
         items: [
-          AppModule('Payment Reminders', Icons.notification_important_rounded,
-              RemindersScreen()),
-          AppModule('After-Sales Follow-ups', Icons.mark_chat_read_rounded,
+          const AppModule('Payment Reminders',
+              Icons.notification_important_rounded, RemindersScreen()),
+          const AppModule('After-Sales Follow-ups', Icons.mark_chat_read_rounded,
               FollowupsScreen()),
+          if (isOwner)
+            const AppModule('Customer Offers (WhatsApp)', Icons.campaign_rounded,
+                CrmMessagingScreen()),
+          if (isOwner)
+            const AppModule('Customer CRM Tools', Icons.manage_search_rounded,
+                CrmToolsScreen()),
         ],
       ),
       NavCategory(
@@ -1962,7 +1983,9 @@ class HomeView extends StatelessWidget {
 // 2. SALE / POS
 // -----------------------------------------------------------------------------
 class SaleView extends StatefulWidget {
-  const SaleView({super.key});
+  /// Pre-fills the customer phone (e.g. "New bill" from customer history).
+  final String? initialPhone;
+  const SaleView({super.key, this.initialPhone});
 
   @override
   State<SaleView> createState() => _SaleViewState();
@@ -1981,8 +2004,38 @@ class _SaleViewState extends State<SaleView> {
   String _q = '';
   bool _busy = false;
 
+  // Customer CRM: phone lookup + auto-fill (lib/crm/pos_customer_panel.dart)
+  late final PosCustomerController _crmCtrl = PosCustomerController(
+    name: _name,
+    phone: _phone,
+    onLinked: (c, prevId) {
+      if (!mounted) return;
+      setState(() {
+        if (c != null) {
+          _partyKey = c.key;
+          _partyId = c.id;
+        } else if (prevId != null && _partyId == prevId) {
+          _partyKey = null;
+          _partyId = null;
+        }
+      });
+    },
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    final ph = widget.initialPhone;
+    if (ph != null && ph.isNotEmpty) {
+      _phone.text = ph;
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => mounted ? _crmCtrl.lookupNow() : null);
+    }
+  }
+
   @override
   void dispose() {
+    _crmCtrl.dispose();
     for (final c in [_search, _name, _phone, _discount, _cashCtrl, _upiCtrl]) {
       c.dispose();
     }
@@ -2118,7 +2171,7 @@ class _SaleViewState extends State<SaleView> {
       toast(context, 'ലഭിച്ച തുക ബില്ലിനേക്കാൾ കൂടുതലാണ്', error: true);
       return null;
     }
-    if (due > 0 && _partyKey == null) {
+    if (due > 0 && _partyKey == null && !_crmCtrl.willHaveCustomer) {
       toast(context,
           'ബാക്കി തുകയുണ്ട് — Cash/UPI നൽകുക, അല്ലെങ്കിൽ കസ്റ്റമറെ തിരഞ്ഞെടുക്കുക (Credit)',
           error: true);
@@ -2130,6 +2183,22 @@ class _SaleViewState extends State<SaleView> {
         toast(context, '${line['name']} — സ്റ്റോക്ക് ലഭ്യമല്ല', error: true);
         return null;
       }
+    }
+
+    // Customer CRM: find or create the customer for this phone (optional).
+    CrmCustomer? crmCustomer;
+    try {
+      crmCustomer = await _crmCtrl.resolveForBill();
+    } on FormatException catch (e) {
+      if (mounted) toast(context, e.message, error: true);
+      return null;
+    } on DuplicatePhoneException catch (e) {
+      if (mounted) toast(context, e.message, error: true);
+      return null;
+    }
+    if (crmCustomer != null && _partyId == null) {
+      _partyKey = crmCustomer.key;
+      _partyId = crmCustomer.id;
     }
 
     _busy = true;
@@ -2156,6 +2225,9 @@ class _SaleViewState extends State<SaleView> {
         'customerName':
             _name.text.trim().isEmpty ? 'Walk-in Customer' : _name.text.trim(),
         'customerPhone': _phone.text.trim(),
+        // CRM: customerId (uuid) + normalised phone + name snapshot
+        ...CustomerCrm.saleFields(crmCustomer, name: _name.text.trim()),
+        '_id': CustomerCrm.newId(),
         'partyKey': _partyKey,
         'partyId': _partyId,
         'items': _cart.map((e) => Map<String, dynamic>.from(e)).toList(),
@@ -2170,7 +2242,8 @@ class _SaleViewState extends State<SaleView> {
         'status': 'SOLD',
         ...ActivityLog.stamp(),
       };
-      await Db.sales.add(bill);
+      final saleKey = await Db.sales.add(bill);
+      await CustomerCrm.maybeInstance?.indexSaleNow(saleKey, bill);
       await Db.logAction(
           action: 'Sale Created',
           entity: 'Invoice',
@@ -2287,8 +2360,11 @@ class _SaleViewState extends State<SaleView> {
               : 'Linked: ${_name.text}'),
         ),
         const SizedBox(height: 10),
-        tf(_name, 'കസ്റ്റമർ പേര്', onChanged: (_) => upd(() {})),
-        tf(_phone, 'മൊബൈൽ നമ്പർ', phone: true, onChanged: (_) => upd(() {})),
+        PosCustomerPanel(
+          controller: _crmCtrl,
+          onChanged: () => upd(() {}),
+          onFullHistory: (c) => openCustomerHistory(context, c.id),
+        ),
         const Divider(),
         if (_cart.isEmpty)
           const Padding(
@@ -3243,6 +3319,10 @@ void showPartyForm(BuildContext context,
       text: party?['customIntervalDays'] != null
           ? '${party!['customIntervalDays']}'
           : '');
+  // Customer CRM fields (Phase 5): consent, opt-out, birthday
+  bool waOptIn = party?['whatsappOptIn'] != false;
+  bool doNotMessage = party?['doNotMessage'] == true;
+  String birthday = '${party?['birthday'] ?? ''}';
 
   formDialog(
     context,
@@ -3300,6 +3380,42 @@ void showPartyForm(BuildContext context,
           ),
           tf(customInterval, 'Custom Interval (ദിവസങ്ങൾ - optional)',
               number: true),
+          const Divider(),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('WhatsApp ഓഫറുകൾ അയക്കാം (WhatsApp opt-in)'),
+            value: waOptIn && !doNotMessage,
+            onChanged: doNotMessage ? null : (v) => set(() => waOptIn = v),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('മെസ്സേജ് അയക്കരുത് (Do not message / STOP)'),
+            value: doNotMessage,
+            onChanged: (v) => set(() => doNotMessage = v),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('ജന്മദിനം (Birthday — optional)'),
+            subtitle: Text(birthday.isEmpty ? 'തിരഞ്ഞെടുത്തിട്ടില്ല' : birthday),
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              if (birthday.isNotEmpty)
+                IconButton(
+                    icon: const Icon(Icons.clear, size: 18),
+                    onPressed: () => set(() => birthday = '')),
+              const Icon(Icons.cake_outlined),
+            ]),
+            onTap: () async {
+              final d = await showDatePicker(
+                context: context,
+                initialDate: DateTime.tryParse(birthday) ?? DateTime(1995),
+                firstDate: DateTime(1920),
+                lastDate: DateTime.now(),
+              );
+              if (d != null) {
+                set(() => birthday = DateFormat('yyyy-MM-dd').format(d));
+              }
+            },
+          ),
         ],
       ],
     ),
@@ -3316,7 +3432,32 @@ void showPartyForm(BuildContext context,
         'customIntervalDays': int.tryParse(customInterval.text.trim()),
         'reminderCount': party?['reminderCount'] ?? 0,
         'lastReminderAt': party?['lastReminderAt'],
+        if (type == 'Customer') ...{
+          'whatsappOptIn': waOptIn && !doNotMessage,
+          'doNotMessage': doNotMessage,
+          'birthday': birthday.isEmpty ? null : birthday,
+        },
       };
+      // Customer CRM: normalised unique phone, uuid, CRM fields kept on edit.
+      final crm = CustomerCrm.maybeInstance;
+      if (crm != null) {
+        try {
+          payload.addAll(crm.prepareCustomerParty(payload, existing: party));
+        } on FormatException catch (e) {
+          return e.message;
+        } on DuplicatePhoneException catch (e) {
+          if (context.mounted &&
+              await confirm(context,
+                  '${e.message}\n\nനിലവിലുള്ള കസ്റ്റമറെ തുറക്കണോ? (Open the existing customer?)',
+                  yes: 'തുറക്കുക (Open)') &&
+              context.mounted) {
+            final ex = Db.parties.get(e.existing.key);
+            showPartyForm(context, e.existing.key,
+                ex == null ? null : Map<String, dynamic>.from(ex as Map));
+          }
+          return e.message;
+        }
+      }
       if (party == null) {
         final k = await Db.parties.add(payload);
         await Db.logAction(
@@ -3464,12 +3605,14 @@ class _PartiesViewState extends State<PartiesView>
             }
           }
 
-          final all = entriesOf(Db.parties).where((e) {
-            if (_q.isEmpty) return true;
-            return '${e.value['name']} ${e.value['phone']}'
-                .toLowerCase()
-                .contains(_q);
-          }).toList();
+          // CRM search: name, full phone or last digits; Malayalam-safe
+          final all = entriesOf(Db.parties)
+              .where((e) => _q.isEmpty || partyMatchScore(e.value, _q) > 0)
+              .toList();
+          if (_q.isNotEmpty) {
+            all.sort((a, b) => partyMatchScore(b.value, _q)
+                .compareTo(partyMatchScore(a.value, _q)));
+          }
 
           final customers = all.where((e) {
             final isCust = e.value['type'] != 'Supplier';
@@ -3588,7 +3731,8 @@ class _PartiesViewState extends State<PartiesView>
                         onChanged: (v) =>
                             setState(() => _q = v.trim().toLowerCase()),
                         decoration: const InputDecoration(
-                          hintText: 'പേര് / ഫോൺ തിരയുക (Search name / phone)',
+                          hintText:
+                              'പേര് / ഫോൺ / അവസാന 4 അക്കം (Name / phone / last 4 digits)',
                           prefixIcon: Icon(Icons.search, size: 20),
                           isDense: true,
                           contentPadding: EdgeInsets.symmetric(
@@ -3660,7 +3804,9 @@ class _PartiesViewState extends State<PartiesView>
         final bal = _d(p['balance']);
         return AppCard(
           margin: const EdgeInsets.only(bottom: 8),
-          onTap: () => showPartyForm(context, e.key, p),
+          onTap: () => isSupplier || !openCustomerHistoryForParty(context, p)
+              ? showPartyForm(context, e.key, p)
+              : null,
           child: Row(
             children: [
               CircleAvatar(
@@ -3681,6 +3827,10 @@ class _PartiesViewState extends State<PartiesView>
                     Text(
                         '${isSupplier ? 'Supplier' : 'Customer'} • ${p['phone'] ?? ''}',
                         style: TextStyle(fontSize: 12, color: _muted(context))),
+                    if (!isSupplier && lastPurchaseLabelForParty(p) != null)
+                      Text(lastPurchaseLabelForParty(p)!,
+                          style:
+                              TextStyle(fontSize: 11, color: _muted(context))),
                   ],
                 ),
               ),
@@ -3693,6 +3843,12 @@ class _PartiesViewState extends State<PartiesView>
                 onSelected: (v) async {
                   if (v == 'pay') {
                     showPartyPayment(context, e.key, p);
+                  } else if (v == 'history') {
+                    if (!openCustomerHistoryForParty(context, p)) {
+                      toast(context,
+                          'ഹിസ്റ്ററി ലഭ്യമല്ല — CRM Tools-ൽ migration നടത്തുക (History not available yet)',
+                          error: true);
+                    }
                   } else if (v == 'edit') {
                     showPartyForm(context, e.key, p);
                   } else if (v == 'remind') {
@@ -3722,6 +3878,10 @@ class _PartiesViewState extends State<PartiesView>
                   if (!isSupplier && bal > 0.005)
                     const PopupMenuItem(
                         value: 'remind', child: Text('WhatsApp reminder')),
+                  if (!isSupplier)
+                    const PopupMenuItem(
+                        value: 'history',
+                        child: Text('ഹിസ്റ്ററി (Purchase history)')),
                   const PopupMenuItem(value: 'edit', child: Text('Edit')),
                   const PopupMenuItem(value: 'delete', child: Text('Delete')),
                 ],

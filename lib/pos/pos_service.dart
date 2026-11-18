@@ -10,6 +10,8 @@ import '../main.dart' show Db;
 import '../utils/tek_helpers.dart';
 import '../inventory/consumables_service.dart';
 import 'pos_models.dart';
+import '../crm/customer_crm.dart';
+import '../crm/customer_models.dart';
 
 class PosService {
   PosService._();
@@ -454,11 +456,22 @@ class PosService {
         );
       }
 
+      // Customer CRM: link / create the customer by phone (never blocks a sale)
+      CrmCustomer? crmCustomer;
+      try {
+        crmCustomer = await CustomerCrm.maybeInstance?.resolveForBill(
+            phoneRaw: customerPhone, name: customerName);
+      } catch (e) {
+        debugPrint('[PosService] CRM link skipped: $e');
+      }
+
       final billData = <String, dynamic>{
         'invoice': invoiceId,
         'createdAt': now.toIso8601String(),
         'customerName': invoice.customerName,
         'customerPhone': invoice.customerPhone,
+        if (crmCustomer != null) ...CustomerCrm.saleFields(crmCustomer),
+        '_id': CustomerCrm.newId(),
         'items': lineMaps,
         'subtotal': subtotal,
         'discount': discount,
@@ -476,7 +489,8 @@ class PosService {
         if (serviceJobId != null) 'serviceBill': true,
       };
 
-      await Db.sales.add(billData);
+      final saleKey = await Db.sales.add(billData);
+      await CustomerCrm.maybeInstance?.indexSaleNow(saleKey, billData);
 
       // 4c. Update Service Job in Hive
       if (serviceJobId != null && serviceJobId.isNotEmpty) {

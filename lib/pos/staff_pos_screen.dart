@@ -13,6 +13,8 @@ import 'daily_sales_ledger_view.dart';
 import 'pos_models.dart';
 import 'pos_service.dart';
 import '../returns/returns_dashboard_view.dart';
+import '../crm/pos_customer_panel.dart';
+import '../crm/customer_history_screen.dart';
 
 class StaffPosScreen extends StatefulWidget {
   final String shopId;
@@ -38,6 +40,8 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
   final _searchCtrl = TextEditingController();
   final _custNameCtrl = TextEditingController();
   final _custPhoneCtrl = TextEditingController();
+  late final PosCustomerController _crmCtrl =
+      PosCustomerController(name: _custNameCtrl, phone: _custPhoneCtrl);
   final _cashReceivedCtrl = TextEditingController();
   final _splitCashCtrl = TextEditingController();
   final _splitUpiCtrl = TextEditingController();
@@ -109,6 +113,7 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _crmCtrl.dispose();
     _custNameCtrl.dispose();
     _custPhoneCtrl.dispose();
     _cashReceivedCtrl.dispose();
@@ -611,40 +616,10 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Customer details (Optional)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _custNameCtrl,
-                          style: const TextStyle(color: TekColors.textPrimary),
-                          decoration: const InputDecoration(
-                            labelText: TekStrings.customerName,
-                            labelStyle:
-                                TextStyle(color: TekColors.textSecondary),
-                            prefixIcon: Icon(Icons.person_outline,
-                                size: 18, color: TekColors.secondary),
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: TextField(
-                          controller: _custPhoneCtrl,
-                          keyboardType: TextInputType.phone,
-                          style: const TextStyle(color: TekColors.textPrimary),
-                          decoration: const InputDecoration(
-                            labelText: TekStrings.customerPhone,
-                            labelStyle:
-                                TextStyle(color: TekColors.textSecondary),
-                            prefixIcon: Icon(Icons.phone_outlined,
-                                size: 18, color: TekColors.secondary),
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                    ],
+                  // Customer details (Optional) — CRM phone lookup
+                  PosCustomerPanel(
+                    controller: _crmCtrl,
+                    onFullHistory: (c) => openCustomerHistory(context, c.id),
                   ),
                   const SizedBox(height: 16),
 

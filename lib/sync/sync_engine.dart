@@ -23,6 +23,8 @@ import '../main.dart'
         boxReturns,
         boxPurchaseBills,
         boxVendorPayments;
+import '../crm/crm_messaging.dart'
+    show kBoxCrmTemplates, kBoxCrmCampaigns, kBoxMessageLog, kBoxCrmSettings;
 
 enum SyncState { synced, syncing, offline, error }
 
@@ -33,14 +35,17 @@ class _Col {
   final bool staffOwnRowsOnly; // staff pull only rows with staffId == uid
   final int
       windowDays; // first pull on a new device fetches only this many days (0 = all)
+  final bool
+      soft; // optional feature collection: a listen error never fails sync
   const _Col(this.box, this.name,
       {this.counter,
       this.ownerOnlyRead = false,
       this.staffOwnRowsOnly = false,
-      this.windowDays = 0});
+      this.windowDays = 0,
+      this.soft = false});
 }
 
-const _cols = <_Col>[
+const _allCols = <_Col>[
   _Col(boxItems, 'items', counter: 'stock'),
   _Col(boxParties, 'parties', counter: 'balance'),
   _Col(boxSales, 'sales', staffOwnRowsOnly: true, windowDays: 90),
@@ -53,7 +58,20 @@ const _cols = <_Col>[
   _Col(boxReturns, 'returns'),
   _Col(boxPurchaseBills, 'purchase_bills', ownerOnlyRead: true),
   _Col(boxVendorPayments, 'vendor_payments', ownerOnlyRead: true),
+  // Customer CRM (Phase 5). Boxes are opened by startCustomerCrm().
+  _Col(kBoxCrmTemplates, 'message_templates', soft: true),
+  _Col(kBoxCrmSettings, 'crm_settings', soft: true),
+  _Col(kBoxCrmCampaigns, 'campaigns', ownerOnlyRead: true, soft: true),
+  _Col(kBoxMessageLog, 'message_log',
+      ownerOnlyRead: true, windowDays: 90, soft: true),
 ];
+
+/// Collections whose Hive box is open (a missing optional box never breaks
+/// sync).
+List<_Col> get _cols => [
+      for (final c in _allCols)
+        if (Hive.isBoxOpen(c.box)) c
+    ];
 
 const _uuid = Uuid();
 const _metaKeys = {'_u', '_by', '_st'};
@@ -822,7 +840,13 @@ class SyncEngine extends ChangeNotifier {
           lastSyncAt = DateTime.now();
           _refreshState();
         }
-      }, onError: (e) => _fail('${c.name}: $e')));
+      }, onError: (e) {
+        if (c.soft) {
+          debugPrint('[SyncEngine] optional ${c.name} not synced: $e');
+          return;
+        }
+        _fail('${c.name}: $e');
+      }));
     }
     if (_owner) _listenBank();
   }

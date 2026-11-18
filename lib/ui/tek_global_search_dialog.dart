@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../main.dart' show Db, rs;
 import '../theme/tek_tokens.dart';
+import '../crm/customer_history_screen.dart';
+import '../crm/customer_crm.dart';
+import '../crm/customer_search.dart';
 
 /// Interactive Global Search Dialog accessible via Ctrl+K or search bar
 class TekGlobalSearchDialog extends StatefulWidget {
@@ -55,17 +58,33 @@ class _TekGlobalSearchDialogState extends State<TekGlobalSearchDialog> {
       }
     }
 
-    // 2. Search in Parties / Customers
+    // 2. Search in Parties / Customers (CRM: name, full phone or last digits,
+    //    Malayalam-safe; customers ranked + last purchase shown)
     final matchedParties = <Map<String, dynamic>>[];
     if (query.isNotEmpty) {
-      for (final v in Db.parties.values) {
-        if (v is Map) {
-          final name = '${v['name'] ?? ''}'.toLowerCase();
-          final phone = '${v['phone'] ?? ''}'.toLowerCase();
-          if (name.contains(query) || phone.contains(query)) {
-            matchedParties.add(Map<String, dynamic>.from(v));
-            if (matchedParties.length >= 5) break;
-          }
+      final crm = CustomerCrm.maybeInstance;
+      final seen = <dynamic>{};
+      for (final h in crm?.searchCustomers(_query, limit: 5) ?? const []) {
+        final p = Db.parties.get(h.customer.key);
+        if (p is! Map) continue;
+        seen.add(h.customer.key);
+        matchedParties.add({
+          ...Map<String, dynamic>.from(p),
+          '__sub': 'Phone: ${h.customer.phone.isEmpty ? 'N/A' : h.customer.phone}'
+              ' | ${lastPurchaseLabel(h.customer, lastSale: h.lastSale)}',
+        });
+      }
+      for (final k in Db.parties.keys) {
+        if (matchedParties.length >= 5) break;
+        final v = Db.parties.get(k);
+        if (v is! Map || seen.contains(k)) continue;
+        // suppliers, and customers not yet indexed by the CRM
+        if (crm != null && v['type'] != 'Supplier' &&
+            v['_id'] != null && crm.byId('${v['_id']}') != null) {
+          continue;
+        }
+        if (partyMatchScore(v, _query) > 0) {
+          matchedParties.add(Map<String, dynamic>.from(v));
         }
       }
     }
@@ -253,11 +272,16 @@ class _TekGlobalSearchDialogState extends State<TekGlobalSearchDialog> {
                             icon: Icons.person_rounded,
                             iconColor: TekColors.success,
                             title: '${party['name'] ?? 'Customer'}',
-                            subtitle:
+                            subtitle: party['__sub'] as String? ??
                                 'Phone: ${party['phone'] ?? 'N/A'} | Balance: ${rs(party['balance'] ?? 0)}',
                             onTap: () {
-                              Navigator.pop(context);
-                              widget.onNavigateModule?.call(5); // PartiesView
+                              final nav = Navigator.of(context);
+                              nav.pop();
+                              // CRM: customers open their purchase history
+                              if (!openCustomerHistoryForParty(
+                                  nav.context, party)) {
+                                widget.onNavigateModule?.call(5); // PartiesView
+                              }
                             },
                           ),
                       ],

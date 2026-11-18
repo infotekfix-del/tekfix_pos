@@ -392,6 +392,34 @@ service cloud.firestore {
       }
 
       // -------------------------------------------------------------
+      // 17b. CUSTOMER CRM (customers live in /parties above)
+      // Staff/biller: read templates + settings, write message log entries.
+      // Owner/admin: everything. Nothing is readable without sign-in AND
+      // shop membership, so customer phone numbers never leak.
+      // -------------------------------------------------------------
+      match /message_templates/{id} {
+        allow read: if isShopMember(shop);
+        allow create, update, delete: if isOwner(shop);
+      }
+
+      match /crm_settings/{id} {
+        allow read: if isShopMember(shop);
+        allow create, update, delete: if isOwner(shop);
+      }
+
+      match /campaigns/{id} {
+        allow read, create, update, delete: if isOwner(shop);
+      }
+
+      match /message_log/{id} {
+        allow read: if isOwner(shop);
+        allow create: if isShopMember(shop) &&
+          request.resource.data.customerId is string &&
+          request.resource.data.status in ['sent', 'skipped', 'failed'];
+        allow update, delete: if isOwner(shop);
+      }
+
+      // -------------------------------------------------------------
       // 18. RECHARGE & UTILITY ACCOUNTING MODULE
       // -------------------------------------------------------------
       // Wallets: Owner can create/top-up balances (non-negative); Direct staff updates are strictly DENIED.
