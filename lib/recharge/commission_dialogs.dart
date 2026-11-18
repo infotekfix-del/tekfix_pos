@@ -936,6 +936,7 @@ class _OperatorCommissionControlDialogState
     }
 
     final targetVal = !currentVal;
+    debugPrint('[CommissionControl] toggle $opCode: $currentVal -> $targetVal (bps=$currentBps)');
     final meta = _operatorMeta.firstWhere((m) => m['code'] == opCode);
     final opName = meta['name'] as String;
 
@@ -950,6 +951,7 @@ class _OperatorCommissionControlDialogState
       confirmColor: targetVal ? TekColors.success : TekColors.error,
     );
 
+    debugPrint('[CommissionControl] reason dialog returned: ${reason == null ? 'CANCELLED' : '"$reason" (${reason.trim().length} chars)'}');
     if (reason == null || reason.trim().length < 5) {
       if (reason != null) {
         _showError('മാറ്റത്തിനുള്ള കാരണം നിർബന്ധമാണ് - ചുരുങ്ങിയത് 5 അക്ഷരങ്ങൾ (Reason min 5 chars required)');
@@ -998,6 +1000,7 @@ class _OperatorCommissionControlDialogState
     required String reason,
   }) async {
     setState(() => _loading = true);
+    debugPrint('[CommissionControl] sending update $opCode enabled=$isEnabled bps=$marginBps supabase=${RechargeBackendBridge.isSupabaseMode}');
 
     try {
       final auth = AuthController.instance;
@@ -1033,6 +1036,7 @@ class _OperatorCommissionControlDialogState
         ownerName: auth.name.isNotEmpty ? auth.name : 'Owner',
       );
 
+      debugPrint('[CommissionControl] update OK for $opCode: $res');
       await _loadControls();
 
       if (mounted) {
@@ -1054,7 +1058,8 @@ class _OperatorCommissionControlDialogState
           ),
         );
       }
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[CommissionControl] update FAILED for $opCode: $e\n$st');
       if (mounted) {
         setState(() => _loading = false);
         _showError('ക്രമീകരണം മാറ്റുന്നതിൽ പരാജയപ്പെട്ടു: $e');
@@ -1063,6 +1068,7 @@ class _OperatorCommissionControlDialogState
   }
 
   void _showError(String msg) {
+    debugPrint('[CommissionControl] ERROR shown to user: $msg');
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: TekColors.error,
@@ -1078,52 +1084,78 @@ class _OperatorCommissionControlDialogState
     required Color confirmColor,
   }) async {
     final controller = TextEditingController();
-    return showDialog<String>(
+    bool showValidation = false;
+    final result = await showDialog<String>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: TekColors.cardBg,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(title, style: const TextStyle(color: TekColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(actionDescription, style: const TextStyle(color: TekColors.textSecondary, fontSize: 13, height: 1.4)),
-            const SizedBox(height: 16),
-            const Text(
-              'മാറ്റത്തിനുള്ള കാരണം നൽകുക (Mandatory Reason - min 5 chars):',
-              style: TextStyle(color: TekColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final len = controller.text.trim().length;
+          final isValid = len >= 5;
+
+          void submit() {
+            if (!isValid) {
+              setDialogState(() => showValidation = true);
+              return;
+            }
+            Navigator.pop(ctx, controller.text.trim());
+          }
+
+          return AlertDialog(
+            backgroundColor: TekColors.cardBg,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text(title, style: const TextStyle(color: TekColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(actionDescription, style: const TextStyle(color: TekColors.textSecondary, fontSize: 13, height: 1.4)),
+                const SizedBox(height: 16),
+                const Text(
+                  'മാറ്റത്തിനുള്ള കാരണം നൽകുക (Mandatory Reason - min 5 chars):',
+                  style: TextStyle(color: TekColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  style: const TextStyle(color: TekColors.textPrimary, fontSize: 13),
+                  maxLines: 2,
+                  onChanged: (_) => setDialogState(() {}),
+                  decoration: InputDecoration(
+                    hintText: 'ഉദാ: ഡിസ്ട്രിബ്യൂട്ടർ മാർജിൻ കുറച്ചു / ഓഫർ തീർന്നു',
+                    hintStyle: const TextStyle(color: TekColors.textMuted, fontSize: 12),
+                    errorText: showValidation && !isValid
+                        ? 'ചുരുങ്ങിയത് 5 അക്ഷരങ്ങൾ വേണം (min 5 chars) — $len/5'
+                        : null,
+                    helperText: isValid ? null : '$len/5',
+                    helperStyle: const TextStyle(color: TekColors.textMuted, fontSize: 11),
+                    filled: true,
+                    fillColor: TekColors.elevatedSurface,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: TekColors.border)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: TekColors.primary)),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: controller,
-              style: const TextStyle(color: TekColors.textPrimary, fontSize: 13),
-              maxLines: 2,
-              decoration: InputDecoration(
-                hintText: 'ഉദാ: ഡിസ്ട്രിബ്യൂട്ടർ മാർജിൻ കുറച്ചു / ഓഫർ തീർന്നു',
-                hintStyle: const TextStyle(color: TekColors.textMuted, fontSize: 12),
-                filled: true,
-                fillColor: TekColors.elevatedSurface,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: TekColors.border)),
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: TekColors.primary)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text('റദ്ദാക്കുക (Cancel)', style: TextStyle(color: TekColors.textMuted)),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, null),
-            child: const Text('റദ്ദാക്കുക (Cancel)', style: TextStyle(color: TekColors.textMuted)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: confirmColor),
-            onPressed: () => Navigator.pop(ctx, controller.text),
-            child: Text(confirmLabel, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isValid ? confirmColor : confirmColor.withValues(alpha: 0.45),
+                ),
+                onPressed: submit,
+                child: Text(confirmLabel, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
       ),
     );
+    return result;
   }
 
   Future<({double percent, String reason})?> _promptPercentageDialog({

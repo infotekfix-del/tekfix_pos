@@ -209,14 +209,6 @@ class TekSidebar extends StatelessWidget {
                   isActive: activeItem == 'Owner Salary & Drawings',
                   onTap: () => onItemSelected?.call('Owner Salary & Drawings'),
                 ),
-                // Phase 13.3.3: Owner-Only Trusted Devices Management
-                if (AuthController.instance.isOwner)
-                  _buildNavItem(
-                    label: 'Trusted Devices',
-                    icon: Icons.devices_other_rounded,
-                    isActive: activeItem == 'Trusted Devices',
-                    onTap: () => onItemSelected?.call('Trusted Devices'),
-                  ),
 
                 const SizedBox(height: 18),
 

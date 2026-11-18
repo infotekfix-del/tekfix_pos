@@ -15,9 +15,15 @@ import 'recharge_service.dart';
 /// Modal dialog for recording instant mobile, utility, and DTH recharges
 /// with full cash flow accounting and margin/profit tracking.
 class QuickRechargeDialog extends StatefulWidget {
-  const QuickRechargeDialog({super.key});
+  /// Wallet bucket to debit. Defaults to Own Prepaid when opened without a selector.
+  final RechargeFundingType fundingType;
 
-  static Future<void> show(BuildContext context) {
+  const QuickRechargeDialog({super.key, this.fundingType = RechargeFundingType.ownMoney});
+
+  static Future<void> show(
+    BuildContext context, {
+    RechargeFundingType fundingType = RechargeFundingType.ownMoney,
+  }) {
     if (!AuthController.instance.isOwner) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -30,7 +36,7 @@ class QuickRechargeDialog extends StatefulWidget {
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => const QuickRechargeDialog(),
+      builder: (ctx) => QuickRechargeDialog(fundingType: fundingType),
     );
   }
 
@@ -57,6 +63,7 @@ class QuickRechargeDialog extends StatefulWidget {
     String partyName = '',
     String notes = '',
     String? customIdempotencyKey,
+    RechargeFundingType funding = RechargeFundingType.ownMoney,
   }) async {
     // 1. Role-based Authorization: Must be authenticated Shop Owner
     debugPrint('[RECHARGE_SAVE] OWNER_AUTH_CHECK');
@@ -122,7 +129,8 @@ class QuickRechargeDialog extends StatefulWidget {
     final profit = commEnabled ? (retailAmount - effectiveCostPrice) : 0.0;
     final commissionPaise = commEnabled ? ((retailAmount - effectiveCostPrice) * 100).round() : 0;
     final targetWalletId = 'WALLET_${operator.toUpperCase()}';
-    const fundingType = 'ownPrepaid';
+    final fundingType = funding == RechargeFundingType.distributorCredit ? 'distributorCredit' : 'ownPrepaid';
+    debugPrint('[RECHARGE_SAVE] FUNDING_TYPE: $fundingType');
 
     // 4. Server-Authoritative Execution via Supabase Recharge Bridge
     final client = RechargeBackendBridge.supabaseClient;
@@ -258,7 +266,7 @@ class QuickRechargeDialog extends StatefulWidget {
         shopId: shopId,
         walletId: wId,
         operator: opEnum,
-        fundingType: RechargeFundingType.distributorCredit,
+        fundingType: funding,
         entryType: 'RECHARGE_DEBIT',
         amount: effectiveCostPrice,
         amountPaise: costPaise,
@@ -527,6 +535,7 @@ class _QuickRechargeDialogState extends State<QuickRechargeDialog> {
         partyKey: _selectedPartyKey,
         partyName: _selectedPartyName,
         notes: _notesController.text.trim(),
+        funding: widget.fundingType,
       );
 
       debugPrint('[RECHARGE_SAVE] UI_SUCCESS');

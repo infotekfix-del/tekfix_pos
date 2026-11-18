@@ -377,7 +377,7 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
           // New Quick Recharge Button
           FilledButton.icon(
             onPressed: () {
-              QuickRechargeDialog.show(context).then((_) => _loadLiveDashboardData());
+              QuickRechargeDialog.show(context, fundingType: _selectedFundingType).then((_) => _loadLiveDashboardData());
             },
             style: FilledButton.styleFrom(
               backgroundColor: TekColors.primaryBlue,
@@ -1428,7 +1428,7 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
         icon: Icons.dialpad_rounded,
         gradient: TekColors.cyanBlueGradient,
         onTap: () {
-          QuickRechargeDialog.show(context).then((_) => _loadLiveDashboardData());
+          QuickRechargeDialog.show(context, fundingType: _selectedFundingType).then((_) => _loadLiveDashboardData());
         },
       ),
       _NavItem(
@@ -1653,7 +1653,7 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                     const SizedBox(height: 12),
                     FilledButton.icon(
                       onPressed: () {
-                        QuickRechargeDialog.show(context).then((_) => _loadLiveDashboardData());
+                        QuickRechargeDialog.show(context, fundingType: _selectedFundingType).then((_) => _loadLiveDashboardData());
                       },
                       style: FilledButton.styleFrom(
                         backgroundColor: TekColors.primaryBlue,

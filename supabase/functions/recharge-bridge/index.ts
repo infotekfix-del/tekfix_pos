@@ -33,6 +33,11 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "
 // Identity Modes: Must be explicitly configured.
 const RAW_STAGING_MODE = Deno.env.get("STAGING_IDENTITY_MODE");
 const STAGING_IDENTITY_MODE = RAW_STAGING_MODE === "true";
+
+// Trusted-device enforcement switch. OFF by default (owner decision, 2026-11-18):
+// money operations require owner login + shop whitelist only, not a registered
+// device signature. Set secret TRUSTED_DEVICE_ENFORCEMENT=on to re-enable.
+const TRUSTED_DEVICE_ENFORCEMENT = (Deno.env.get("TRUSTED_DEVICE_ENFORCEMENT") || "off").trim().toLowerCase() === "on";
 const STAGING_JWT_SECRET = Deno.env.get("STAGING_JWT_SECRET") || "";
 const STAGING_BOOTSTRAP_SECRET = Deno.env.get("STAGING_BOOTSTRAP_SECRET") || "";
 const FIREBASE_PROJECT_ID = Deno.env.get("FIREBASE_PROJECT_ID") || "";
@@ -583,6 +588,13 @@ async function enforceHardwareSecurity({
   operationType: string;
   canonicalData: string;
 }): Promise<{ valid: boolean; error?: string; status?: number }> {
+  if (!TRUSTED_DEVICE_ENFORCEMENT) {
+    // Device gate disabled: caller is already JWT-authenticated as a whitelisted owner.
+    // deviceId is still recorded by each RPC for the audit trail.
+    console.log(`[device-gate:off] ${operationType} allowed for owner=${callerUid} device=${deviceId || "UNKNOWN"}`);
+    return { valid: true };
+  }
+
   if (!deviceId || typeof deviceId !== "string" || deviceId.trim() === "") {
     return { valid: false, error: "Trusted Device Required: deviceId is missing or empty.", status: 403 };
   }
@@ -1039,6 +1051,15 @@ serve(async (req: Request) => {
           expiresAt,
           isBootstrap: true,
         });
+      }
+
+      // Device gate disabled: issue a plain nonce without requiring device registration
+      if (!TRUSTED_DEVICE_ENFORCEMENT) {
+        const nonce = `NONCE_${Date.now()}_${crypto.randomUUID().replace(/-/g, "")}`;
+        const ttlSeconds = 300;
+        const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+        await saveChallengeNonce(nonce, shopId, deviceId, ownerUid || "UNKNOWN_OWNER", ttlSeconds);
+        return jsonResponse({ success: true, nonce, expiresAt });
       }
 
       // Case 2: Standard Challenge for Registered Device

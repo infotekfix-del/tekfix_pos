@@ -69,7 +69,6 @@ import 'expenses/expense_models.dart';
 import 'expenses/expense_cleanup_dialog.dart';
 import 'rent/daily_rent_history_view.dart';
 import 'owner/owner_ledger_view.dart';
-import 'owner/owner_trusted_devices_screen.dart';
 import 'barcode/barcode_print_dialog.dart';
 import 'repairs/service_bill_dialog.dart';
 export 'utils/tek_helpers.dart';
@@ -1320,9 +1319,6 @@ List<NavCategory> getNavCategories(String shopId, {bool isOwner = false}) => [
           const AppModule(
               'Audit / Change History', Icons.history_rounded, AuditLogView()),
           const AppModule('Settings & Print', Icons.settings_rounded, SettingsView()),
-          if (isOwner)
-            const AppModule(
-                'Trusted Devices', Icons.devices_other_rounded, OwnerTrustedDevicesScreen()),
         ],
       ),
     ];
