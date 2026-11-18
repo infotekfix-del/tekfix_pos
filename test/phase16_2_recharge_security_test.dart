@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
@@ -12,7 +11,6 @@ import 'package:tekfix_erp_pos/recharge/quick_recharge_dialog.dart';
 import 'package:tekfix_erp_pos/recharge/recharge_backend_bridge.dart';
 import 'package:tekfix_erp_pos/recharge/supabase_recharge_bridge_client.dart';
 import 'package:tekfix_erp_pos/security/device_security_service.dart';
-import 'package:tekfix_erp_pos/security/platform_hardware_key_store.dart';
 import 'package:tekfix_erp_pos/security/staging_identity_service.dart';
 
 void main() {
@@ -269,54 +267,51 @@ void main() {
     });
 
     // ------------------------------------------------------------------------
-    // 3. Unenrolled Mobile Rejected
+    // 3. Owner on unenrolled mobile CAN execute recharge (device enrollment removed)
     // ------------------------------------------------------------------------
-    test('3. Unenrolled mobile is strictly rejected before server commit', () async {
+    test('3. Owner on any device (unenrolled) can execute recharge - no enrollment gate', () async {
       DeviceSecurityService.overridePlatformForTesting = DevicePlatformType.android;
       final sec = DeviceSecurityService.instance;
       await sec.init();
-      await sec.setEnrolledLocally(false); // Unenrolled!
+      await sec.setEnrolledLocally(false); // Not enrolled — must still succeed as Owner
 
-      expect(
-        () => QuickRechargeDialog.recordRecharge(
-          mobile: '9876543210',
-          operator: 'Jio',
-          serviceType: 'Prepaid',
-          retailAmount: 299.0,
-          costPrice: 290.03,
-          paymentMode: 'Cash',
-        ),
-        throwsA(isA<StateError>().having((e) => e.message, 'message', contains('Trusted device enrollment required'))),
+      final entry = await QuickRechargeDialog.recordRecharge(
+        mobile: '9876543210',
+        operator: 'Jio',
+        serviceType: 'Prepaid',
+        retailAmount: 299.0,
+        costPrice: 290.03,
+        paymentMode: 'Cash',
       );
 
-      // Verify ZERO financial writes occurred
-      expect(Db.recharges.isEmpty, isTrue);
-      expect(Db.bank.get('cash_in_hand'), isNull);
+      // Owner auth is the sole gate — device enrollment is irrelevant
+      expect(entry['status'], equals('SUCCESS'));
+      expect(entry['serverConfirmed'], isTrue);
+      expect(entry['amount'], equals(299.0));
     });
 
     // ------------------------------------------------------------------------
-    // 4. Unenrolled Laptop Rejected
+    // 4. Owner on unenrolled laptop CAN execute recharge (device enrollment removed)
     // ------------------------------------------------------------------------
-    test('4. Unenrolled laptop is strictly rejected before server commit', () async {
+    test('4. Owner on any laptop/desktop (unenrolled) can execute recharge - no enrollment gate', () async {
       DeviceSecurityService.overridePlatformForTesting = DevicePlatformType.windows;
       final sec = DeviceSecurityService.instance;
       await sec.init();
-      await sec.setEnrolledLocally(false); // Unenrolled!
+      await sec.setEnrolledLocally(false); // Not enrolled — must still succeed as Owner
 
-      expect(
-        () => QuickRechargeDialog.recordRecharge(
-          mobile: '9876543210',
-          operator: 'Airtel',
-          serviceType: 'Prepaid',
-          retailAmount: 199.0,
-          costPrice: 193.43,
-          paymentMode: 'UPI',
-        ),
-        throwsA(isA<StateError>().having((e) => e.message, 'message', contains('Trusted device enrollment required'))),
+      final entry = await QuickRechargeDialog.recordRecharge(
+        mobile: '9876543221',
+        operator: 'Airtel',
+        serviceType: 'Prepaid',
+        retailAmount: 199.0,
+        costPrice: 193.43,
+        paymentMode: 'UPI',
       );
 
-      expect(Db.recharges.isEmpty, isTrue);
-      expect(Db.bank.get('bank_balance'), isNull);
+      // Owner auth is the sole gate — device enrollment is irrelevant
+      expect(entry['status'], equals('SUCCESS'));
+      expect(entry['serverConfirmed'], isTrue);
+      expect(entry['paymentMode'], equals('UPI'));
     });
 
     // ------------------------------------------------------------------------
@@ -421,7 +416,8 @@ void main() {
       );
 
       expect(entry1['idempotentReplay'], isFalse);
-      expect(Db.bank.get('cash_in_hand'), equals(1299.0));
+      // Financial separation: recharge must NOT affect cash_in_hand
+      expect(Db.bank.get('cash_in_hand'), equals(1000.0));
 
       // 2. Replay with identical idempotencyKey
       final entry2 = await QuickRechargeDialog.recordRecharge(
@@ -435,8 +431,8 @@ void main() {
       );
 
       expect(entry2['idempotentReplay'], isTrue);
-      // Cash MUST remain 1299.0 (NOT 1598.0)
-      expect(Db.bank.get('cash_in_hand'), equals(1299.0));
+      // Cash MUST remain 1000.0 (financial isolation preserved)
+      expect(Db.bank.get('cash_in_hand'), equals(1000.0));
     });
 
     // ------------------------------------------------------------------------
@@ -494,7 +490,7 @@ void main() {
     // ------------------------------------------------------------------------
     // 12. Cash Transaction
     // ------------------------------------------------------------------------
-    test('12. Cash recharge updates cash_in_hand and does NOT affect Db.sales', () async {
+    test('12. Cash recharge preserves cash_in_hand and does NOT affect Db.sales', () async {
       await Db.bank.put('cash_in_hand', 500.0);
 
       final entry = await QuickRechargeDialog.recordRecharge(
@@ -507,7 +503,8 @@ void main() {
       );
 
       expect(entry['status'], equals('SUCCESS'));
-      expect(Db.bank.get('cash_in_hand'), equals(739.0));
+      // Strict financial separation: recharge money must never affect normal cash in hand
+      expect(Db.bank.get('cash_in_hand'), equals(500.0));
 
       // Turnover invariant: Db.sales must remain completely untouched
       expect(Db.sales.isEmpty, isTrue);
@@ -516,7 +513,7 @@ void main() {
     // ------------------------------------------------------------------------
     // 13. UPI Transaction
     // ------------------------------------------------------------------------
-    test('13. UPI recharge updates bank_balance and does NOT affect Db.sales', () async {
+    test('13. UPI recharge preserves bank_balance and does NOT affect Db.sales', () async {
       await Db.bank.put('bank_balance', 2000.0);
 
       final entry = await QuickRechargeDialog.recordRecharge(
@@ -529,7 +526,8 @@ void main() {
       );
 
       expect(entry['status'], equals('SUCCESS'));
-      expect(Db.bank.get('bank_balance'), equals(2666.0));
+      // Strict financial separation: recharge money must never affect bank balance
+      expect(Db.bank.get('bank_balance'), equals(2000.0));
       expect(Db.sales.isEmpty, isTrue);
     });
 

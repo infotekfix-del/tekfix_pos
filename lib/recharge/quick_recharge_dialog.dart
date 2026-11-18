@@ -67,14 +67,9 @@ class QuickRechargeDialog extends StatefulWidget {
     }
     debugPrint('[RECHARGE_SAVE] OWNER_AUTH_CHECK_PASSED: uid=${auth.uid}, shop=${auth.shopId}');
 
-    // 2. Hardware Device Security: Must be an enrolled trusted device (1 mobile + 1 laptop)
-    debugPrint('[RECHARGE_SAVE] DEVICE_SECURITY_CHECK');
+    // 2. Device Audit ID: stable per-device identifier for audit trail (no enrollment gate)
     final sec = DeviceSecurityService.instance;
-    if (!sec.isEnrolledLocally) {
-      debugPrint('[RECHARGE_SAVE] DEVICE_SECURITY_CHECK_FAILED: deviceId=${sec.deviceId}, isEnrolled=false');
-      throw StateError('Trusted device enrollment required: This device is not authorized for recharge transactions.');
-    }
-    debugPrint('[RECHARGE_SAVE] DEVICE_SECURITY_CHECK_PASSED: deviceId=${sec.deviceId}');
+    debugPrint('[RECHARGE_SAVE] DEVICE_ID_RESOLVED: deviceId=${sec.deviceId}');
 
     // 2.1 Fast Client-Side Duplicate Tap Prevention (60-second safety window)
     if (customIdempotencyKey == null) {

@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
@@ -345,23 +344,24 @@ void main() {
     });
 
     // ------------------------------------------------------------------------
-    // 6. Device Security: Unenrolled device rejection (Fail-closed)
+    // 6. Device Security: Owner on any device succeeds (enrollment gate removed)
     // ------------------------------------------------------------------------
-    test('6. Unenrolled device is rejected fail-closed before server call', () async {
+    test('6. Owner on unenrolled device succeeds - device enrollment no longer required', () async {
       final sec = DeviceSecurityService.instance;
-      await sec.setEnrolledLocally(false);
+      await sec.setEnrolledLocally(false); // Not enrolled
 
-      expect(
-        () => QuickRechargeDialog.recordRecharge(
-          mobile: '9847999888',
-          operator: 'Jio',
-          serviceType: 'Prepaid',
-          retailAmount: 199.0,
-          costPrice: 191.04,
-          paymentMode: 'Cash',
-        ),
-        throwsA(isA<StateError>().having((e) => e.message, 'message', contains('enrollment required'))),
+      // Owner auth is now the sole authorization mechanism
+      final entry = await QuickRechargeDialog.recordRecharge(
+        mobile: '9847999888',
+        operator: 'Jio',
+        serviceType: 'Prepaid',
+        retailAmount: 199.0,
+        costPrice: 191.04,
+        paymentMode: 'Cash',
       );
+
+      expect(entry['status'], equals('SUCCESS'),
+          reason: 'Owner can recharge from any device without enrollment');
     });
 
     // ------------------------------------------------------------------------

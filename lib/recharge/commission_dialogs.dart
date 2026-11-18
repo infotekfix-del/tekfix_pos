@@ -935,12 +935,6 @@ class _OperatorCommissionControlDialogState
       return;
     }
 
-    final sec = DeviceSecurityService.instance;
-    if (!sec.isEnrolledLocally) {
-      _showError('വിശ്വസനീയ ഉപകരണം നിർബന്ധമാണ് (Trusted Device Required)');
-      return;
-    }
-
     final targetVal = !currentVal;
     final meta = _operatorMeta.firstWhere((m) => m['code'] == opCode);
     final opName = meta['name'] as String;
@@ -975,12 +969,6 @@ class _OperatorCommissionControlDialogState
     final auth = AuthController.instance;
     if (!auth.isOwner) {
       _showError('ഉടമയ്ക്ക് മാത്രമേ കമ്മീഷൻ ക്രമീകരണം മാറ്റാൻ അനുവാദമുള്ളൂ (Owner-Only)');
-      return;
-    }
-
-    final sec = DeviceSecurityService.instance;
-    if (!sec.isEnrolledLocally) {
-      _showError('വിശ്വസനീയ ഉപകരണം നിർബന്ധമാണ് (Trusted Device Required)');
       return;
     }
 
