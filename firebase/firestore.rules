@@ -724,7 +724,11 @@ service cloud.firestore {
             'meta',
             'owner_withdrawals',
             'trusted_devices',
-            'device_challenges'
+            'device_challenges',
+            'staff',
+            'message_templates',
+            'crm_settings',
+            'campaigns'
           ]);
         allow delete: if isOwner(shop) &&
           !(request.path[5] in [
@@ -740,47 +744,143 @@ service cloud.firestore {
             'recharge_daily_collections',
             'recharge_daily_reconciliation',
             'trusted_devices',
-            'device_challenges'
+            'device_challenges',
+            'staff',
+            'message_templates',
+            'crm_settings',
+            'campaigns'
           ]);
       }
     }
 
     // -------------------------------------------------------------
     // Global In-App Configuration
+    // Read: Any signed-in user
+    // Write: Only UIDs explicitly listed in app_config/admins
     // -------------------------------------------------------------
     match /app_config/{doc} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow write: if isSignedIn() &&
+        exists(/databases/$(db)/documents/app_config/admins) &&
+        request.auth.uid in get(/databases/$(db)/documents/app_config/admins).data.uids;
     }
 
     // -------------------------------------------------------------
-    // Root Fallback Collections (Protected by isSignedIn)
+    // Root Fallback Collections (Deprecated / Restricted)
+    // Root collections must not be accessible to arbitrary users.
+    // Writes are completely denied.
+    // Reads are restricted to shop members if the doc has a valid shopId.
     // -------------------------------------------------------------
-    match /products/{id} { allow read, write: if isSignedIn(); }
-    match /stock_units/{id} { allow read, write: if isSignedIn(); }
-    match /purchase_bills/{id} {
-      allow read, write: if isSignedIn();
-      match /items/{itemId} { allow read, write: if isSignedIn(); }
+    function isDocShopMember(data) {
+      return isSignedIn() &&
+        'shopId' in data &&
+        data.shopId != null &&
+        isShopMember(data.shopId);
     }
-    match /vendor_ledger/{id} { allow read, write: if isSignedIn(); }
-    match /accounting_cash_bank/{id} { allow read, write: if isSignedIn(); }
-    match /parties/{id} { allow read, write: if isSignedIn(); }
-    match /staff/{id} { allow read, write: if isSignedIn(); }
-    match /staff_attendance/{id} { allow read, write: if isSignedIn(); }
-    match /salary_payments/{id} { allow read, write: if isSignedIn(); }
-    match /daily_registers/{id} { allow read, write: if isSignedIn(); }
-    match /daily_sales/{id} { allow read, write: if isSignedIn(); }
-    match /daily_sales_ledger/{id} { allow read, write: if isSignedIn(); }
-    match /sales_orders/{id} { allow read, write: if isSignedIn(); }
-    match /sales_invoices/{id} { allow read, write: if isSignedIn(); }
-    match /sales/{id} { allow read, write: if isSignedIn(); }
-    match /payment_records/{id} { allow read, write: if isSignedIn(); }
-    match /payments/{id} { allow read, write: if isSignedIn(); }
-    match /service_jobs/{id} { allow read, write: if isSignedIn(); }
-    match /services/{id} { allow read, write: if isSignedIn(); }
-    match /inventory/{id} { allow read, write: if isSignedIn(); }
-    match /inventory_logs/{id} { allow read, write: if isSignedIn(); }
-    match /counters/{id} { allow read, write: if isSignedIn(); }
-    match /audit_logs/{id} { allow read, write: if isSignedIn(); }
+
+    match /products/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
+    match /stock_units/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
+    match /purchase_bills/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+      match /items/{itemId} {
+        allow read: if isSignedIn() &&
+          exists(/databases/$(db)/documents/purchase_bills/$(id)) &&
+          isDocShopMember(get(/databases/$(db)/documents/purchase_bills/$(id)).data);
+        allow write: if false;
+      }
+      match /payments/{payId} {
+        allow read: if isSignedIn() &&
+          exists(/databases/$(db)/documents/purchase_bills/$(id)) &&
+          isDocShopMember(get(/databases/$(db)/documents/purchase_bills/$(id)).data);
+        allow write: if false;
+      }
+    }
+    match /vendor_ledger/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
+    match /accounting_cash_bank/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
+    match /parties/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
+    match /staff/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
+    match /staff_attendance/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
+    match /salary_payments/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
+    match /daily_registers/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
+    match /daily_sales/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
+    match /daily_sales_ledger/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
+    match /sales_orders/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
+    match /sales_invoices/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
+    match /sales/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
+    match /payment_records/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
+    match /payments/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
+    match /service_jobs/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
+    match /services/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
+    match /inventory/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
+    match /inventory_logs/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
+    match /counters/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
+    match /audit_logs/{id} {
+      allow read: if isDocShopMember(resource.data);
+      allow write: if false;
+    }
   }
 }

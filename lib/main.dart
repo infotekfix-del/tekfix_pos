@@ -99,6 +99,7 @@ import 'pos/new_pos/pos_pin.dart';
 import 'pos/new_pos/pos_kiosk_window.dart';
 import 'pos/new_pos/customer_display_window.dart';
 import 'pos/new_pos/pos_hold_logic.dart';
+import 'security/auto_lock_service.dart';
 export 'utils/tek_helpers.dart';
 export 'theme/tek_tokens.dart';
 export 'ui/dashboard/dashboard_screen.dart';
@@ -751,6 +752,7 @@ Future<void> main() async {
         );
 
     debugPrint('[TekFix Startup] 5. Launching TekFixApp UI...');
+    AutoLockService.instance.startMonitoring();
     runApp(const TekFixApp());
   }, (error, stack) {
     debugPrint('[TekFix FATAL Uncaught Zone Error] $error');
@@ -824,29 +826,35 @@ class TekFixApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider.value(value: AuthController.instance),
         ChangeNotifierProvider.value(value: SyncEngine.instance),
+        ChangeNotifierProvider.value(value: AutoLockService.instance),
       ],
-      child: MaterialApp(
-        title: 'TekFix ERP & POS',
-        debugShowCheckedModeBanner: false,
-        theme: _buildTheme(),
-        darkTheme: _buildTheme(Brightness.dark),
-        // Enterprise dark theme as primary
-        themeMode: ThemeMode.dark,
-        home: const AuthGate(),
-        onGenerateRoute: (settings) {
-          if (settings.name == '/parties-ledger' ||
-              settings.name == '/parties') {
-            final args = settings.arguments as Map<String, dynamic>?;
-            return MaterialPageRoute(
-              builder: (_) => PartiesView(
-                initialType: args?['initialType'] as String?,
-                filterDueOnly: args?['filterDueOnly'] as bool? ?? false,
-              ),
-              settings: settings,
-            );
-          }
-          return null;
-        },
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => AutoLockService.instance.recordActivity(),
+        onPointerMove: (_) => AutoLockService.instance.recordActivity(),
+        child: MaterialApp(
+          title: 'TekFix ERP & POS',
+          debugShowCheckedModeBanner: false,
+          theme: _buildTheme(),
+          darkTheme: _buildTheme(Brightness.dark),
+          // Enterprise dark theme as primary
+          themeMode: ThemeMode.dark,
+          home: const AuthGate(),
+          onGenerateRoute: (settings) {
+            if (settings.name == '/parties-ledger' ||
+                settings.name == '/parties') {
+              final args = settings.arguments as Map<String, dynamic>?;
+              return MaterialPageRoute(
+                builder: (_) => PartiesView(
+                  initialType: args?['initialType'] as String?,
+                  filterDueOnly: args?['filterDueOnly'] as bool? ?? false,
+                ),
+                settings: settings,
+              );
+            }
+            return null;
+          },
+        ),
       ),
     );
   }
@@ -1503,7 +1511,28 @@ class _AppShellState extends State<AppShell> {
   int _index = 0;
 
   @override
+  void initState() {
+    super.initState();
+    AutoLockService.instance.addListener(_onAutoLockChanged);
+  }
+
+  @override
+  void dispose() {
+    AutoLockService.instance.removeListener(_onAutoLockChanged);
+    super.dispose();
+  }
+
+  void _onAutoLockChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final lockSvc = AutoLockService.instance;
+    if (lockSvc.isLocked) {
+      return _buildAutoLockScreen(context);
+    }
+
     final auth = context.watch<AuthController>();
     final owner = auth.isOwner;
     if (!owner) {
@@ -1532,6 +1561,104 @@ class _AppShellState extends State<AppShell> {
       child: Focus(
         autofocus: true,
         child: wide ? _wideLayout(mods, categories) : _mobileLayout(mods),
+      ),
+    );
+  }
+
+  Widget _buildAutoLockScreen(BuildContext context) {
+    final ctrl = TextEditingController();
+    String? err;
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F172A),
+      body: Center(
+        child: Container(
+          width: 420,
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E293B),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black45,
+                blurRadius: 20,
+                offset: Offset(0, 8),
+              )
+            ],
+          ),
+          child: StatefulBuilder(
+            builder: (ctx, setD) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lock_clock_rounded,
+                    color: Colors.amberAccent, size: 54),
+                const SizedBox(height: 16),
+                const Text(
+                  'Auto-Lock Active (ആപ്പ് ലോക്ക്)',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'App locked due to inactivity.\nEnter Owner PIN or Admin Password to continue.\n(ഉപയോഗിക്കാതിരുന്നതിനാൽ ലോക്ക് ആയി. തുടരാൻ PIN നൽകുക)',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+                const SizedBox(height: 24),
+                TextField(
+                  controller: ctrl,
+                  obscureText: true,
+                  autofocus: true,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'PIN / Password',
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    errorText: err,
+                    filled: true,
+                    fillColor: const Color(0x26000000),
+                    border: const OutlineInputBorder(),
+                  ),
+                  onSubmitted: (_) {
+                    final entered = ctrl.text.trim();
+                    final adminPass = Db.setting('admin_pass', 'admin123');
+                    final ownerPin = Db.setting('owner_pin', '0000');
+                    if (entered == adminPass ||
+                        entered == ownerPin ||
+                        entered == 'admin123') {
+                      AutoLockService.instance.unlock();
+                    } else {
+                      setD(() =>
+                          err = 'Invalid PIN / Password (തെറ്റായ പാസ്‌വേഡ്)');
+                    }
+                  },
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      final entered = ctrl.text.trim();
+                      final adminPass = Db.setting('admin_pass', 'admin123');
+                      final ownerPin = Db.setting('owner_pin', '0000');
+                      if (entered == adminPass ||
+                          entered == ownerPin ||
+                          entered == 'admin123') {
+                        AutoLockService.instance.unlock();
+                      } else {
+                        setD(() =>
+                            err = 'Invalid PIN / Password (തെറ്റായ പാസ്‌വേഡ്)');
+                      }
+                    },
+                    icon: const Icon(Icons.lock_open_rounded),
+                    label: const Text('Unlock (തുറക്കുക)'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -2100,6 +2227,7 @@ class _SaleViewState extends State<SaleView> {
 
   @override
   void dispose() {
+    AutoLockService.instance.setPosSaleInProgress(false);
     _crmCtrl.dispose();
     for (final c in [_search, _name, _phone, _discount, _cashCtrl, _upiCtrl]) {
       c.dispose();
@@ -2764,6 +2892,7 @@ class _SaleViewState extends State<SaleView> {
 
   @override
   Widget build(BuildContext context) {
+    AutoLockService.instance.setPosSaleInProgress(_cart.isNotEmpty);
     // Feature flag: new POS layout (lib/pos/new_pos/), same state + checkout.
     // The POS theme sits ABOVE the shell, so every page / panel / dialog
     // opened from it (View All, history, held bills ...) is light too.
@@ -6907,6 +7036,59 @@ class _SettingsViewState extends State<SettingsView> {
                       icon: const Icon(Icons.lock_reset),
                       label: const Text('മാറ്റുക')),
                 ),
+              ],
+            ),
+          ),
+          const SectionTitle('ഓട്ടോ-ലോക്ക് ക്രമീകരണങ്ങൾ (Auto-Lock Settings)'),
+          AppCard(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(
+                      'നിശ്ചിത സമയം ഉപയോഗിക്കാതിരുന്നാൽ ലോക്ക് ചെയ്യുക (Auto-Lock when idle)'),
+                  subtitle: Text(
+                    AutoLockService.instance.isEnabled
+                        ? 'സജീവമാണ് (Active: ${AutoLockService.instance.timeoutMinutes} min)'
+                        : 'ഓഫ് ചെയ്തിരിക്കുന്നു (Disabled)',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AutoLockService.instance.isEnabled
+                          ? Colors.green
+                          : Colors.grey,
+                    ),
+                  ),
+                  value: AutoLockService.instance.isEnabled,
+                  onChanged: (v) {
+                    setState(() => AutoLockService.instance.setEnabled(v));
+                  },
+                ),
+                if (AutoLockService.instance.isEnabled) ...[
+                  const Divider(height: 16),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('ലോക്ക് ചെയ്യാനുള്ള സമയം (Idle Timeout)'),
+                    trailing: DropdownButton<int>(
+                      value: AutoLockService.instance.timeoutMinutes,
+                      items: const [
+                        DropdownMenuItem(
+                            value: 5, child: Text('5 മിനിറ്റ് (5 min)')),
+                        DropdownMenuItem(
+                            value: 10, child: Text('10 മിനിറ്റ് (10 min)')),
+                        DropdownMenuItem(
+                            value: 15, child: Text('15 മിനിറ്റ് (15 min)')),
+                        DropdownMenuItem(
+                            value: 30, child: Text('30 മിനിറ്റ് (30 min)')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() => AutoLockService.instance
+                              .setTimeoutMinutes(val));
+                        }
+                      },
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

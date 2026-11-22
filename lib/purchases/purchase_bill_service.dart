@@ -319,23 +319,25 @@ class PurchaseBillService {
           }
         }
 
-        // Also check root products collection
+        // Also check root products collection (safe fallback for legacy docs)
         if (barcode != null && barcode.trim().isNotEmpty) {
-          final rootSnap = await fs
-              .collection('products')
-              .where('barcode', isEqualTo: barcode.trim())
-              .limit(1)
-              .get();
-          if (rootSnap.docs.isNotEmpty) {
-            final d = rootSnap.docs.first;
-            return {
-              'id': d.id,
-              'name': d.data()['name'] ?? name,
-              'data': d.data(),
-              'matchType': 'EXACT_BARCODE',
-              'status': ProductMatchStatus.matched,
-            };
-          }
+          try {
+            final rootSnap = await fs
+                .collection('products')
+                .where('barcode', isEqualTo: barcode.trim())
+                .limit(1)
+                .get();
+            if (rootSnap.docs.isNotEmpty) {
+              final d = rootSnap.docs.first;
+              return {
+                'id': d.id,
+                'name': d.data()['name'] ?? name,
+                'data': d.data(),
+                'matchType': 'EXACT_BARCODE',
+                'status': ProductMatchStatus.matched,
+              };
+            }
+          } catch (_) {}
         }
       }
     } catch (e) {
@@ -899,7 +901,6 @@ class PurchaseBillService {
             .doc(sId)
             .collection('purchase_bills')
             .doc(billId);
-        final rootBillRef = firestore.collection('purchase_bills').doc(billId);
 
         final vDocId =
             vendorKey?.toString() ?? 'VENDOR_${now.millisecondsSinceEpoch}';
@@ -1010,8 +1011,6 @@ class PurchaseBillService {
               };
 
               transaction.set(newProdRef, prodPayload);
-              transaction.set(
-                  firestore.collection('products').doc(newProdId), prodPayload);
             } else {
               final pId = it.matchedProductId!;
               resolvedItemMap[it] = pId;
@@ -1034,8 +1033,6 @@ class PurchaseBillService {
               };
 
               transaction.set(pRef, updateMap, SetOptions(merge: true));
-              transaction.set(firestore.collection('products').doc(pId),
-                  updateMap, SetOptions(merge: true));
             }
           }
 
@@ -1063,8 +1060,6 @@ class PurchaseBillService {
             };
 
             transaction.set(suRef, suData);
-            transaction.set(
-                firestore.collection('stock_units').doc(imei), suData);
           }
 
           // Bill document
@@ -1112,7 +1107,6 @@ class PurchaseBillService {
           };
 
           transaction.set(billRef, billPayload);
-          transaction.set(rootBillRef, billPayload);
 
           for (final it in items) {
             final pId = resolvedItemMap[it] ?? it.id;
@@ -1166,17 +1160,12 @@ class PurchaseBillService {
             'createdAt': FieldValue.serverTimestamp(),
           };
           transaction.set(ledgerBillRef, ledgerBillData);
-          transaction.set(
-              firestore.collection('vendor_ledger').doc('VL_${billId}_BILL'),
-              ledgerBillData);
 
           if (paidAmountPaise > 0) {
             final payDocId = paymentsList.isNotEmpty
                 ? paymentsList.first.paymentId
                 : 'PAY_${now.millisecondsSinceEpoch}';
             final billPayRef = billRef.collection('payments').doc(payDocId);
-            final rootBillPayRef =
-                rootBillRef.collection('payments').doc(payDocId);
             final billPayData = <String, dynamic>{
               'id': payDocId,
               'paymentId': payDocId,
@@ -1198,7 +1187,6 @@ class PurchaseBillService {
               'createdAt': FieldValue.serverTimestamp(),
             };
             transaction.set(billPayRef, billPayData);
-            transaction.set(rootBillPayRef, billPayData);
 
             final ledgerPayRef = firestore
                 .collection('shops')
@@ -1225,9 +1213,6 @@ class PurchaseBillService {
               'createdAt': FieldValue.serverTimestamp(),
             };
             transaction.set(ledgerPayRef, ledgerPayData);
-            transaction.set(
-                firestore.collection('vendor_ledger').doc('VL_${billId}_PAY'),
-                ledgerPayData);
 
             final cashBankRef = firestore
                 .collection('shops')
@@ -1251,9 +1236,6 @@ class PurchaseBillService {
               'createdAt': FieldValue.serverTimestamp(),
             };
             transaction.set(cashBankRef, cashBankData);
-            transaction.set(
-                firestore.collection('accounting_cash_bank').doc('CB_$billId'),
-                cashBankData);
           }
 
           final auditRef = firestore
@@ -1284,9 +1266,6 @@ class PurchaseBillService {
             'createdAt': FieldValue.serverTimestamp(),
           };
           transaction.set(auditRef, auditData);
-          transaction.set(
-              firestore.collection('audit_logs').doc('AUDIT_BILL_$billId'),
-              auditData);
         });
       } catch (e) {
         debugPrint('[PurchaseBillService] Cloud sync deferred/offline: $e');
@@ -1673,10 +1652,8 @@ class PurchaseBillService {
             .doc(sId)
             .collection('purchase_bills')
             .doc(billId);
-        final rootDocRef = firestore.collection('purchase_bills').doc(billId);
         final billMap = updatedBill.toMap();
         await docRef.set(billMap, SetOptions(merge: true));
-        await rootDocRef.set(billMap, SetOptions(merge: true));
 
         final itemsCol = docRef.collection('items');
         for (final item in processedItems) {
@@ -1689,10 +1666,6 @@ class PurchaseBillService {
         if (newPayment != null) {
           final payMap = newPayment.toMap();
           await docRef
-              .collection('payments')
-              .doc(newPayment.paymentId)
-              .set(payMap, SetOptions(merge: true));
-          await rootDocRef
               .collection('payments')
               .doc(newPayment.paymentId)
               .set(payMap, SetOptions(merge: true));
@@ -1721,10 +1694,6 @@ class PurchaseBillService {
             'createdAt': FieldValue.serverTimestamp(),
           };
           await ledgerPayRef.set(ledgerPayData, SetOptions(merge: true));
-          await firestore
-              .collection('vendor_ledger')
-              .doc('VL_${billId}_${newPayment.paymentId}')
-              .set(ledgerPayData, SetOptions(merge: true));
 
           final cashBankRef = firestore
               .collection('shops')
@@ -1748,10 +1717,6 @@ class PurchaseBillService {
             'createdAt': FieldValue.serverTimestamp(),
           };
           await cashBankRef.set(cashBankData, SetOptions(merge: true));
-          await firestore
-              .collection('accounting_cash_bank')
-              .doc('CB_${billId}_${newPayment.paymentId}')
-              .set(cashBankData, SetOptions(merge: true));
         }
 
         // Mirror the vendor payable to the same `parties` doc that bill
@@ -2180,7 +2145,6 @@ class PurchaseBillService {
             .doc(sId)
             .collection('purchase_bills')
             .doc(billId);
-        final rootBillRef = firestore.collection('purchase_bills').doc(billId);
         final partyRef = firestore
             .collection('shops')
             .doc(sId)
@@ -2247,9 +2211,7 @@ class PurchaseBillService {
           // WRITE PHASE
           // 1. Payment subcollection
           final billPayRef = billRef.collection('payments').doc(payId);
-          final rootBillPayRef = rootBillRef.collection('payments').doc(payId);
           transaction.set(billPayRef, payment.toMap());
-          transaction.set(rootBillPayRef, payment.toMap());
 
           // 2. Bill document updates
           final billUpdates = <String, dynamic>{
@@ -2263,7 +2225,6 @@ class PurchaseBillService {
             'updatedAt': FieldValue.serverTimestamp(),
           };
           transaction.set(billRef, billUpdates, SetOptions(merge: true));
-          transaction.set(rootBillRef, billUpdates, SetOptions(merge: true));
 
           // 3. Vendor current balance updates
           final vendorUpdates = <String, dynamic>{
@@ -2303,9 +2264,6 @@ class PurchaseBillService {
             'createdAt': FieldValue.serverTimestamp(),
           };
           transaction.set(ledgerPayRef, ledgerPayData);
-          transaction.set(
-              firestore.collection('vendor_ledger').doc('VL_$payId'),
-              ledgerPayData);
 
           // 5. Accounting Cash/Bank entry
           final cashBankRef = firestore
@@ -2332,9 +2290,6 @@ class PurchaseBillService {
             'createdAt': FieldValue.serverTimestamp(),
           };
           transaction.set(cashBankRef, cashBankData);
-          transaction.set(
-              firestore.collection('accounting_cash_bank').doc('CB_$payId'),
-              cashBankData);
         });
       } catch (e) {
         debugPrint(
@@ -2913,7 +2868,6 @@ class PurchaseBillService {
             .doc(sId)
             .collection('purchase_bills')
             .doc(billId);
-        final rootDocRef = firestore.collection('purchase_bills').doc(billId);
         final voidUpdate = {
           'isVoided': true,
           'paymentStatus': 'voided',
@@ -2924,7 +2878,6 @@ class PurchaseBillService {
           'updatedAt': now.toIso8601String(),
         };
         await docRef.set(voidUpdate, SetOptions(merge: true));
-        await rootDocRef.set(voidUpdate, SetOptions(merge: true));
       } catch (e) {
         debugPrint('[PurchaseBillService] Firestore void update notice: $e');
       }

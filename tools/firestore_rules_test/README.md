@@ -7,4 +7,4 @@ Needs Java 17+ and Node. Run before every `firebase deploy --only firestore:rule
     npm install
     npm test
 
-Expected: `25 passed, 0 failed`.
+Expected: `42 passed, 0 failed`.

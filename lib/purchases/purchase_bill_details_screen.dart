@@ -1708,6 +1708,7 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
     // mistake, and a rounded figure (1,279 for 1,278.50) exceeds the limit.
     final amountCtrl = TextEditingController();
     final reasonCtrl = TextEditingController();
+    final selectedQuantities = <String, int>{};
     String returnType = 'credit_note';
     bool submitting = false;
 
@@ -1737,105 +1738,265 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
             ],
           ),
           content: SizedBox(
-            width: 460,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0x2600D4FF),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0x4D00D4FF)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Bill: ${bill.billNumber} • Total: ₹${bill.grandTotal.toStringAsFixed(2)}',
-                        style: DashboardTypography.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Return ID: $returnId • Max Return Allowed: ₹${(remainingReturnPaise / 100.0).toStringAsFixed(2)}',
-                        style: DashboardTypography.inter(
-                            fontSize: 11, color: DashboardColors.neonBlue),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: amountCtrl,
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold),
-                  decoration: InputDecoration(
-                    labelText: 'Return Amount (₹) *',
-                    hintText:
-                        'Max ₹${(remainingReturnPaise / 100.0).toStringAsFixed(2)}',
-                    hintStyle: const TextStyle(color: Colors.white38),
-                    labelStyle: TextStyle(color: Colors.white70),
-                    prefixText: '₹ ',
-                    prefixStyle: TextStyle(
-                        color: DashboardColors.neonOrange,
-                        fontWeight: FontWeight.bold),
-                    filled: true,
-                    fillColor: Color(0x26000000),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text('Settlement Type *',
-                    style: DashboardTypography.inter(
-                        fontSize: 12, color: DashboardColors.textLight)),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0x26000000),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0x33FFFFFF)),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      isExpanded: true,
-                      dropdownColor: const Color(0xFF1E293B),
-                      value: returnType,
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'credit_note',
-                          child: Text('Credit Note (Reduce Vendor Payable)',
-                              style: TextStyle(color: Colors.white)),
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0x2600D4FF),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0x4D00D4FF)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Bill: ${bill.billNumber} • Total: ₹${bill.grandTotal.toStringAsFixed(2)}',
+                          style: DashboardTypography.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white),
                         ),
-                        DropdownMenuItem(
-                          value: 'cash_refund',
-                          child: Text('Cash / Bank Refund Received',
-                              style: TextStyle(color: Colors.white)),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Return ID: $returnId • Max Return Allowed: ₹${(remainingReturnPaise / 100.0).toStringAsFixed(2)}',
+                          style: DashboardTypography.inter(
+                              fontSize: 11, color: DashboardColors.neonBlue),
                         ),
                       ],
-                      onChanged: (val) =>
-                          setD(() => returnType = val ?? 'credit_note'),
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: reasonCtrl,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
-                    labelText: 'Reason for Return (റിട്ടേൺ കാരണം) *',
-                    labelStyle: TextStyle(color: Colors.white70),
-                    filled: true,
-                    fillColor: Color(0x26000000),
-                    border: OutlineInputBorder(),
+                  if (bill.items.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      'Select Items to Return (സാധനങ്ങൾ തിരഞ്ഞെടുക്കുക):',
+                      style: DashboardTypography.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      constraints: const BoxConstraints(maxHeight: 160),
+                      decoration: BoxDecoration(
+                        color: const Color(0x1AFFFFFF),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0x33FFFFFF)),
+                      ),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: bill.items.length,
+                        separatorBuilder: (_, __) =>
+                            const Divider(height: 1, color: Color(0x1AFFFFFF)),
+                        itemBuilder: (ctx, idx) {
+                          final item = bill.items[idx];
+                          final q = selectedQuantities[item.id] ?? 0;
+                          final isSelected = q > 0;
+                          final rate = item.purchaseRate;
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            child: Row(
+                              children: [
+                                Checkbox(
+                                  value: isSelected,
+                                  activeColor: DashboardColors.neonOrange,
+                                  onChanged: (checked) {
+                                    setD(() {
+                                      if (checked == true) {
+                                        selectedQuantities[item.id] =
+                                            item.quantity;
+                                      } else {
+                                        selectedQuantities.remove(item.id);
+                                      }
+                                      final totalPaise =
+                                          bill.items.fold<int>(0, (sum, it) {
+                                        final qty =
+                                            selectedQuantities[it.id] ?? 0;
+                                        return sum +
+                                            (qty *
+                                                    (it.purchaseRate * 100)
+                                                        .round());
+                                      });
+                                      if (totalPaise > 0) {
+                                        amountCtrl.text = (totalPaise / 100.0)
+                                            .toStringAsFixed(2);
+                                      }
+                                    });
+                                  },
+                                ),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item.name,
+                                        style: DashboardTypography.inter(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        'Rate: ₹${rate.toStringAsFixed(2)} • Billed: ${item.quantity}',
+                                        style: DashboardTypography.inter(
+                                          fontSize: 11,
+                                          color: DashboardColors.textLight,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (isSelected) ...[
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.remove_circle_outline,
+                                      size: 18,
+                                      color: Colors.white70,
+                                    ),
+                                    onPressed: q > 1
+                                        ? () {
+                                            setD(() {
+                                              selectedQuantities[item.id] =
+                                                  q - 1;
+                                              final totalPaise = bill.items
+                                                  .fold<int>(0, (sum, it) {
+                                                final qty =
+                                                    selectedQuantities[it.id] ??
+                                                        0;
+                                                return sum +
+                                                    (qty *
+                                                            (it.purchaseRate *
+                                                                    100)
+                                                                .round());
+                                              });
+                                              amountCtrl.text =
+                                                  (totalPaise / 100.0)
+                                                      .toStringAsFixed(2);
+                                            });
+                                          }
+                                        : null,
+                                  ),
+                                  Text(
+                                    '$q',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.add_circle_outline,
+                                      size: 18,
+                                      color: Colors.white70,
+                                    ),
+                                    onPressed: q < item.quantity
+                                        ? () {
+                                            setD(() {
+                                              selectedQuantities[item.id] =
+                                                  q + 1;
+                                              final totalPaise = bill.items
+                                                  .fold<int>(0, (sum, it) {
+                                                final qty =
+                                                    selectedQuantities[it.id] ??
+                                                        0;
+                                                return sum +
+                                                    (qty *
+                                                            (it.purchaseRate *
+                                                                    100)
+                                                                .round());
+                                              });
+                                              amountCtrl.text =
+                                                  (totalPaise / 100.0)
+                                                      .toStringAsFixed(2);
+                                            });
+                                          }
+                                        : null,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: amountCtrl,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold),
+                    decoration: InputDecoration(
+                      labelText: 'Return Amount (₹) *',
+                      hintText:
+                          'Max ₹${(remainingReturnPaise / 100.0).toStringAsFixed(2)}',
+                      hintStyle: const TextStyle(color: Colors.white38),
+                      labelStyle: TextStyle(color: Colors.white70),
+                      prefixText: '₹ ',
+                      prefixStyle: TextStyle(
+                          color: DashboardColors.neonOrange,
+                          fontWeight: FontWeight.bold),
+                      filled: true,
+                      fillColor: Color(0x26000000),
+                      border: OutlineInputBorder(),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  Text('Settlement Type *',
+                      style: DashboardTypography.inter(
+                          fontSize: 12, color: DashboardColors.textLight)),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0x26000000),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0x33FFFFFF)),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        isExpanded: true,
+                        dropdownColor: const Color(0xFF1E293B),
+                        value: returnType,
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'credit_note',
+                            child: Text('Credit Note (Reduce Vendor Payable)',
+                                style: TextStyle(color: Colors.white)),
+                          ),
+                          DropdownMenuItem(
+                            value: 'cash_refund',
+                            child: Text('Cash / Bank Refund Received',
+                                style: TextStyle(color: Colors.white)),
+                          ),
+                        ],
+                        onChanged: (val) =>
+                            setD(() => returnType = val ?? 'credit_note'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: reasonCtrl,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(
+                      labelText: 'Reason for Return (റിട്ടേൺ കാരണം) *',
+                      labelStyle: TextStyle(color: Colors.white70),
+                      filled: true,
+                      fillColor: Color(0x26000000),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           actions: [
@@ -1864,10 +2025,52 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                             error: true);
                         return;
                       }
+
+                      // If items were selected, ensure amount does not exceed items value
+                      final hasSelectedItems =
+                          selectedQuantities.values.any((q) => q > 0);
+                      if (hasSelectedItems) {
+                        final itemsTotalPaise =
+                            bill.items.fold<int>(0, (sum, it) {
+                          final q = selectedQuantities[it.id] ?? 0;
+                          return sum + (q * (it.purchaseRate * 100).round());
+                        });
+                        if (amtPaise > itemsTotalPaise) {
+                          toast(
+                              context,
+                              'Return amount cannot exceed selected items total (തുക തിരഞ്ഞെടുത്ത സാധനങ്ങളുടെ മൂല്യത്തേക്കാൾ കൂടുതലാണ്)',
+                              error: true);
+                          return;
+                        }
+                      }
+
                       if (reasonCtrl.text.trim().isEmpty) {
                         toast(context, 'Please enter a reason for the return',
                             error: true);
                         return;
+                      }
+
+                      final selectedReturnItems = <PurchaseBillItem>[];
+                      for (final item in bill.items) {
+                        final q = selectedQuantities[item.id] ?? 0;
+                        if (q > 0) {
+                          selectedReturnItems.add(PurchaseBillItem(
+                            id: item.id,
+                            itemKey: item.itemKey,
+                            itemId: item.itemId,
+                            name: item.name,
+                            category: item.category,
+                            brand: item.brand,
+                            model: item.model,
+                            quantity: q,
+                            purchaseUnit: item.purchaseUnit,
+                            conversionFactor: item.conversionFactor,
+                            purchaseRate: item.purchaseRate,
+                            sellingPrice: item.sellingPrice,
+                            taxPercent: item.taxPercent,
+                            hsnCode: item.hsnCode,
+                          ));
+                        }
                       }
 
                       setD(() => submitting = true);
@@ -1881,6 +2084,7 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                           returnReference: returnId,
                           reason: reasonCtrl.text.trim(),
                           returnType: returnType,
+                          items: selectedReturnItems,
                           staffId: auth.uid,
                           staffName:
                               auth.name.isNotEmpty ? auth.name : 'Owner',

@@ -37,12 +37,15 @@ class _Col {
       windowDays; // first pull on a new device fetches only this many days (0 = all)
   final bool
       soft; // optional feature collection: a listen error never fails sync
+  final bool
+      ownerOnlyPush; // staff devices never push these collections to cloud
   const _Col(this.box, this.name,
       {this.counter,
       this.ownerOnlyRead = false,
       this.staffOwnRowsOnly = false,
       this.windowDays = 0,
-      this.soft = false});
+      this.soft = false,
+      this.ownerOnlyPush = false});
 }
 
 const _allCols = <_Col>[
@@ -51,7 +54,7 @@ const _allCols = <_Col>[
   _Col(boxSales, 'sales', staffOwnRowsOnly: true, windowDays: 90),
   _Col(boxPurchases, 'purchases', ownerOnlyRead: true),
   _Col(boxExpenses, 'expenses', ownerOnlyRead: true),
-  _Col(boxStaff, 'staff', ownerOnlyRead: true),
+  _Col(boxStaff, 'staff', ownerOnlyRead: true, ownerOnlyPush: true),
   _Col(boxServices, 'services'),
   _Col(boxStockMoves, 'stock_moves', ownerOnlyRead: true, windowDays: 30),
   _Col(boxAudit, 'activity_logs', ownerOnlyRead: true, windowDays: 30),
@@ -59,9 +62,10 @@ const _allCols = <_Col>[
   _Col(boxPurchaseBills, 'purchase_bills', ownerOnlyRead: true),
   _Col(boxVendorPayments, 'vendor_payments', ownerOnlyRead: true),
   // Customer CRM (Phase 5). Boxes are opened by startCustomerCrm().
-  _Col(kBoxCrmTemplates, 'message_templates', soft: true),
-  _Col(kBoxCrmSettings, 'crm_settings', soft: true),
-  _Col(kBoxCrmCampaigns, 'campaigns', ownerOnlyRead: true, soft: true),
+  _Col(kBoxCrmTemplates, 'message_templates', soft: true, ownerOnlyPush: true),
+  _Col(kBoxCrmSettings, 'crm_settings', soft: true, ownerOnlyPush: true),
+  _Col(kBoxCrmCampaigns, 'campaigns',
+      ownerOnlyRead: true, soft: true, ownerOnlyPush: true),
   _Col(kBoxMessageLog, 'message_log',
       ownerOnlyRead: true, windowDays: 90, soft: true),
 ];
@@ -486,6 +490,10 @@ class SyncEngine extends ChangeNotifier {
   }
 
   void _enqueueRaw(String box, String id, String op) {
+    if (!_owner) {
+      final col = _allCols.where((c) => c.box == box).firstOrNull;
+      if (col != null && col.ownerOnlyPush) return;
+    }
     final k = '$box|$id';
     final prev = _outbox.get(k);
     if (prev is Map && prev['op'] == 'delete' && op == 'upsert') return;
@@ -561,6 +569,9 @@ class SyncEngine extends ChangeNotifier {
             continue;
           }
           final col = _cols.firstWhere((c) => c.box == box);
+          if (!_owner && col.ownerOnlyPush) {
+            continue;
+          }
           final kk = '$box|$id';
           final ref = _fs.doc('shops/$_shop/${col.name}/$id');
           if (op == 'delete') {
@@ -712,8 +723,8 @@ class SyncEngine extends ChangeNotifier {
 
       final col = _cols.firstWhere((c) => c.box == box,
           orElse: () => const _Col('', ''));
-      if (col.box.isEmpty) {
-        // Unknown box / legacy queue item -> safe drop to avoid blocking
+      if (col.box.isEmpty || (!_owner && col.ownerOnlyPush)) {
+        // Unknown box / legacy queue item / owner-only push on staff -> safe drop to avoid blocking
         await _outbox.delete(k);
         droppedCount++;
         continue;
@@ -1015,5 +1026,14 @@ class SyncEngine extends ChangeNotifier {
     } else {
       await syncNow();
     }
+  }
+
+  @visibleForTesting
+  Future<void> initForTesting({required bool isOwner}) async {
+    await openBoxes();
+    await _meta.put('seed_done', true);
+    _owner = isOwner;
+    _running = true;
+    _watchLocal();
   }
 }

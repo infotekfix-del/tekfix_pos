@@ -13,6 +13,15 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'shops/S1'), { ownerUid: 'own', name: 'Shop' });
   await setDoc(doc(db, 'shops/S1/users/own'), { role: 'owner', active: true, approved: true });
   await setDoc(doc(db, 'shops/S1/users/st'), { role: 'staff', active: true, approved: true, name: 'Anu' });
+  await setDoc(doc(db, 'shops/S2'), { ownerUid: 'own2', name: 'Shop 2' });
+  await setDoc(doc(db, 'shops/S2/users/own2'), { role: 'owner', active: true, approved: true });
+
+  await setDoc(doc(db, 'app_config/version'), { version: '1.0.0' });
+  await setDoc(doc(db, 'app_config/admins'), { uids: ['adminUid'] });
+
+  await setDoc(doc(db, 'purchase_bills/pb1'), { shopId: 'S1', total: 500 });
+  await setDoc(doc(db, 'purchase_bills/pb_no_shop'), { total: 500 });
+  await setDoc(doc(db, 'products/p1'), { shopId: 'S1', name: 'Screen' });
 });
 
 const as = (uid) => env.authenticatedContext(uid).firestore();
@@ -73,17 +82,55 @@ await check('staff cannot read campaigns',
   assertFails(getDoc(doc(as('st2'), 'shops/S1/campaigns/c1'))));
 await check('owner writes settings',
   assertSucceeds(setDoc(doc(as('own'), 'shops/S1/settings/main'), { gstOn: true })));
-// 6. Staff sync keeps working
+// 6. Staff sync keeps working for allowed collections, owner-only push restricted
 await check('deactivated staff loses access',
   assertFails(setDoc(doc(as('st'), 'shops/S1/sales/s9'), { total: 1 })));
 await check('staff sync: sales',
   assertSucceeds(setDoc(doc(as('st2'), 'shops/S1/sales/s1'), { total: 100 })));
-await check('staff sync: staff box',
-  assertSucceeds(setDoc(doc(as('st2'), 'shops/S1/staff/st2'), { name: 'Anu' })));
+await check('staff cannot write staff box',
+  assertFails(setDoc(doc(as('st2'), 'shops/S1/staff/st2'), { name: 'Anu' })));
+await check('owner writes staff box',
+  assertSucceeds(setDoc(doc(as('own'), 'shops/S1/staff/st2'), { name: 'Anu' })));
+await check('staff cannot write message_templates',
+  assertFails(setDoc(doc(as('st2'), 'shops/S1/message_templates/t1'), { text: 'hi' })));
+await check('owner writes message_templates',
+  assertSucceeds(setDoc(doc(as('own'), 'shops/S1/message_templates/t1'), { text: 'hi' })));
+await check('staff cannot write crm_settings',
+  assertFails(setDoc(doc(as('st2'), 'shops/S1/crm_settings/s1'), { autoSend: true })));
+await check('owner writes crm_settings',
+  assertSucceeds(setDoc(doc(as('own'), 'shops/S1/crm_settings/s1'), { autoSend: true })));
+await check('staff cannot write campaigns',
+  assertFails(setDoc(doc(as('st2'), 'shops/S1/campaigns/c1'), { title: 'Offer' })));
+await check('owner writes campaigns',
+  assertSucceeds(setDoc(doc(as('own'), 'shops/S1/campaigns/c1'), { title: 'Offer' })));
 await check('staff sync: unknown collection (returns)',
   assertSucceeds(setDoc(doc(as('st2'), 'shops/S1/returns/r1'), { amount: 10 })));
 await check('stranger cannot read shop sales',
   assertFails(getDoc(doc(as('evil'), 'shops/S1/sales/s1'))));
+
+// 7. Global app_config
+await check('signed-in user can read app_config/version',
+  assertSucceeds(getDoc(doc(as('st2'), 'app_config/version'))));
+await check('non-admin user cannot write app_config/version',
+  assertFails(setDoc(doc(as('st2'), 'app_config/version'), { version: '2.0.0' })));
+await check('admin user can write app_config/version',
+  assertSucceeds(setDoc(doc(as('adminUid'), 'app_config/version'), { version: '2.0.0' })));
+
+// 8. Root fallback collections (Restricted & Scoped)
+await check('stranger cannot read root purchase_bills',
+  assertFails(getDoc(doc(as('evil'), 'purchase_bills/pb1'))));
+await check('stranger cannot write root purchase_bills',
+  assertFails(setDoc(doc(as('evil'), 'purchase_bills/pb1'), { total: 100 })));
+await check('stranger cannot write root products',
+  assertFails(setDoc(doc(as('evil'), 'products/p1'), { name: 'Hacked' })));
+await check('owner cannot write root purchase_bills',
+  assertFails(setDoc(doc(as('own'), 'purchase_bills/pb1'), { total: 100 })));
+await check('shop member can read root purchase_bills with their shopId',
+  assertSucceeds(getDoc(doc(as('own'), 'purchase_bills/pb1'))));
+await check('other shop member cannot read root purchase_bills of another shop',
+  assertFails(getDoc(doc(as('own2'), 'purchase_bills/pb1'))));
+await check('cannot read root purchase_bills without shopId',
+  assertFails(getDoc(doc(as('own'), 'purchase_bills/pb_no_shop'))));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await env.cleanup();
