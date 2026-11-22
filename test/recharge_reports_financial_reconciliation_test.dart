@@ -547,10 +547,12 @@ void main() {
         ),
       );
 
-      expect(Db.cash, equals(3299.0));
+      // Separation rule: ERP cash unchanged; the Daily Register adds the ₹299.
+      expect(Db.cash, equals(3000.0));
+      final physicalDrawerCash = Db.cash + 299.0;
 
       const openingFloat = 1000.0;
-      final netDrawerHandover = Db.cash - openingFloat;
+      final netDrawerHandover = physicalDrawerCash - openingFloat;
       expect(netDrawerHandover, equals(2299.0)); // Exactly ₹2,000 retail + ₹299 recharge cash!
       expect(openingFloat, equals(1000.0)); // Float preserved!
     });

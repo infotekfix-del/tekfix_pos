@@ -191,10 +191,10 @@ void main() {
 
       final rec1 = await RechargeRecoveryEngine.reconcilePendingSettlements();
       print('  Reconciliation Count: $rec1');
-      print('  After Recovery Cash: ₹${Db.bank.get('cash_in_hand')} (Expected: 5299.0)');
+      print('  After Recovery Cash: ₹${Db.bank.get('cash_in_hand')} (Expected: 5000.0, separation rule)');
       print('  After Recovery Db.recharges: ${Db.recharges.containsKey(txn1)}');
       print('  After Recovery Outbox Cleared: ${!Db.rechargeQueue.containsKey(txn1)}');
-      expect(Db.bank.get('cash_in_hand'), equals(5299.0));
+      expect(Db.bank.get('cash_in_hand'), equals(5000.0)); // separation rule
       expect(Db.recharges.containsKey(txn1), isTrue);
 
       // SCENARIO 2: Cash Moved, Crash Before Db.recharges Write

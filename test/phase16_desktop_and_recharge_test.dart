@@ -338,8 +338,9 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Recharge & Utility Management'), findsOneWidget);
-      expect(find.text('Telecom & Utility Operators'), findsOneWidget);
+      // Current screen titles (Quick Recharge v2).
+      expect(find.text('QUICK RECHARGE'), findsOneWidget);
+      expect(find.text('Telecom Operator Wallets'), findsOneWidget);
       expect(find.text('Quick Operations & Management'), findsOneWidget);
     });
 
@@ -367,7 +368,7 @@ void main() {
         paymentMode: 'Cash',
       );
       expect(cashEntry['paymentMode'], equals('Cash'));
-      expect(Db.bank.get('cash_in_hand'), equals(1299.0));
+      expect(Db.bank.get('cash_in_hand'), equals(1000.0)); // separation rule
 
       // UPI recharge
       final upiEntry = await QuickRechargeDialog.recordRecharge(
@@ -379,7 +380,7 @@ void main() {
         paymentMode: 'UPI',
       );
       expect(upiEntry['paymentMode'], equals('UPI'));
-      expect(Db.bank.get('bank_balance'), equals(5666.0));
+      expect(Db.bank.get('bank_balance'), equals(5000.0)); // separation rule
     });
 
     // ------------------------------------------------------------------------
@@ -511,7 +512,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('ഉടമയ്ക്ക് മാത്രമുള്ള വിവരങ്ങൾ (Owner Only Area)'), findsOneWidget);
-      expect(find.text('Recharge Accounting is restricted to Shop Owner / Admin.'), findsOneWidget);
+      expect(find.text('Recharge Accounting is strictly restricted to Shop Owner.'), findsOneWidget);
     });
 
     // ------------------------------------------------------------------------

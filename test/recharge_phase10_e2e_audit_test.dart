@@ -117,8 +117,9 @@ void main() {
       expect(walletDebitResult.wallet.ownPrepaidBalance, equals(4701.0));
       expect(walletDebitResult.wallet.totalBalance, equals(4701.0));
 
-      // Customer Cash Collection: Physical drawer increases by ₹299 -> 1,000 + 299 = ₹1,299
-      expect(Db.cash, equals(1299.0));
+      // Separation rule: ERP cash is unchanged; the ₹299 is reported in the
+      // collection summary and counted by the Daily Register.
+      expect(Db.cash, equals(1000.0));
       expect(paymentResult.summary.cashCollection, equals(299.0));
       expect(paymentResult.summary.totalCollection, equals(299.0));
 
@@ -180,8 +181,8 @@ void main() {
 
       // Wallet reduced by ₹299: 10,000 - 299 = ₹9,701
       expect(debitResult.wallet.distributorCreditBalance, equals(9701.0));
-      // Bank/UPI increased by ₹299: 10,000 + 299 = ₹10,299
-      expect(Db.bankBalance, equals(10299.0));
+      // Separation rule: ERP bank unchanged; UPI collection is in the summary.
+      expect(Db.bankBalance, equals(10000.0));
       expect(upiPaymentResult.summary.upiCollection, equals(299.0));
 
       // 3. Make ₹1,000 distributor settlement payment (via Cash Drawer)
@@ -253,9 +254,9 @@ void main() {
       await service.processRechargeDebit(
         recharge: recharge,
       );
-      // Customer payment collected in drawer -> 1,000 + 399 = ₹1,399
+      // Customer payment collected (separation rule: ERP cash unchanged)
       await service.recordCustomerRechargePayment(recharge: recharge);
-      expect(Db.cash, equals(1399.0));
+      expect(Db.cash, equals(1000.0));
 
       // 3. Recharge Fails on operator network -> Trigger full failure and customer cash refund workflow
       final failureResult = await service.processRechargeFailureAndReversal(
@@ -468,13 +469,18 @@ void main() {
           bankDeposit -
           cashExpenses;
 
-      expect(Db.cash, equals(expectedClosingPhysicalCash));
-      expect(Db.cash, equals(4548.0));
+      // Separation rule: ERP cash excludes recharge collections and refunds
+      // (498 - 100 = 398); the Daily Register adds that net recharge cash.
+      expect(Db.cash, equals(expectedClosingPhysicalCash - (rechargeCash - customerCashRefund)));
+      expect(Db.cash, equals(4150.0));
+      final physicalDrawerCash = Db.cash + (rechargeCash - customerCashRefund);
+      expect(physicalDrawerCash, equals(expectedClosingPhysicalCash));
+      expect(physicalDrawerCash, equals(4548.0));
 
       // 10. EOD Cash Float Closing Handover:
       // The ₹1,000 float remains in the drawer for tomorrow's opening.
       // Net Cash to handover / deposit = Closing Physical Cash - Opening Float
-      final netCashHandover = Db.cash - openingFloat;
+      final netCashHandover = physicalDrawerCash - openingFloat;
       expect(netCashHandover, equals(3548.0));
       expect(openingFloat, equals(1000.0)); // Float is preserved and never counted twice!
     });

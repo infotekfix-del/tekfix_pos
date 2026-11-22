@@ -54,7 +54,10 @@ service cloud.firestore {
         request.resource.data.ownerUid == request.auth.uid ||
         isOwner(shop)
       );
-      allow update: if isShopMember(shop);
+      // Only the owner may change the shop document, and nobody can move
+      // ownerUid from the client (staff could otherwise make themselves owner).
+      allow update: if isOwner(shop) &&
+        request.resource.data.get('ownerUid', null) == resource.data.get('ownerUid', null);
       allow delete: if isOwner(shop);
 
       // 1. Service Jobs & Invoices (Service Checkout / Sale to Customer)
@@ -256,7 +259,18 @@ service cloud.firestore {
       // 5. Users and authentication
       match /users/{uid} {
         allow read: if isShopMember(shop);
-        allow create, update: if isShopMember(shop) || (isSignedIn() && request.auth.uid == uid);
+        // Owner/admin manage all users. A signed-in user may create only their
+        // own OWNER record while registering a brand-new shop in the same
+        // batch (shop did not exist before, and its ownerUid is them).
+        allow create: if isOwner(shop) || (
+          isSignedIn() && request.auth.uid == uid &&
+          request.resource.data.get('role', '') == 'owner' &&
+          !exists(/databases/$(db)/documents/shops/$(shop)) &&
+          getAfter(/databases/$(db)/documents/shops/$(shop)).data.ownerUid == request.auth.uid);
+        // Users may edit their own record but never their role or approval.
+        allow update: if isOwner(shop) || (
+          isSignedIn() && request.auth.uid == uid &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'active', 'approved']));
         allow delete: if isOwner(shop);
       }
 
@@ -686,7 +700,8 @@ service cloud.firestore {
 
       // Universal catch-all for any other shop subcollections
       match /{document=**} {
-        allow read: if isShopMember(shop);
+        allow read: if isShopMember(shop) &&
+          !(request.path[5] in ['campaigns', 'message_log', 'trusted_devices', 'device_challenges']);
         allow create, update: if isShopMember(shop) &&
           !(request.path[5] in [
             'recharge_wallets',
@@ -699,7 +714,17 @@ service cloud.firestore {
             'recharge_commissions',
             'recharge_float_deposits',
             'recharge_daily_collections',
-            'recharge_daily_reconciliation'
+            'recharge_daily_reconciliation',
+            // Owner-only collections that have their own rules above. Firestore
+            // allows a request if ANY matching rule allows it, so without this
+            // list the catch-all would let staff rewrite roles and settings.
+            'users',
+            'salary_payments',
+            'settings',
+            'meta',
+            'owner_withdrawals',
+            'trusted_devices',
+            'device_challenges'
           ]);
         allow delete: if isOwner(shop) &&
           !(request.path[5] in [
@@ -713,7 +738,9 @@ service cloud.firestore {
             'recharge_commissions',
             'recharge_float_deposits',
             'recharge_daily_collections',
-            'recharge_daily_reconciliation'
+            'recharge_daily_reconciliation',
+            'trusted_devices',
+            'device_challenges'
           ]);
       }
     }

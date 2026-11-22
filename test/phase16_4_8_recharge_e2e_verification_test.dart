@@ -597,9 +597,10 @@ void main() {
       // Customer payment handled
       final result = await service.recordCustomerRechargePayment(recharge: recharge);
 
-      // Rule 1: Physical Cash increases by customer recharge cash
+      // Rule 1 (separation rule, cbae208): ERP cash in hand is unchanged;
+      // the recharge cash is reported in the collection summary instead.
       final cashInHand = (Db.bank.get('cash_in_hand') as num).toDouble();
-      expect(cashInHand, 5000.0 + 299.0);
+      expect(cashInHand, 5000.0);
 
       // Rule 2: STRICT NON-REVENUE PASS-THROUGH: Zero retail sales created
       expect(Db.sales.length, 0, reason: 'Recharge gross turnover must NEVER be added to retail sales revenue');

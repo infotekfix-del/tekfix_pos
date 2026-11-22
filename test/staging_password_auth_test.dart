@@ -2,11 +2,18 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:tekfix_erp_pos/auth/auth_controller.dart';
+import 'package:tekfix_erp_pos/firebase_options.dart';
 import 'package:tekfix_erp_pos/main.dart' show Db, boxSettings;
 import 'package:tekfix_erp_pos/security/staging_identity_service.dart';
 
+// Staging password reset / UAT sign-in exist only in UAT builds
+// (--dart-define=TEKFIX_ENV=staging_uat or TEKFIX_UAT=true). In the default
+// production build they are refused, which test 6 checks.
+const _uatOnly = 'staging-only: run with --dart-define=TEKFIX_ENV=staging_uat';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  final uat = DefaultFirebaseOptions.isUatMode;
   late Directory tempDir;
 
   setUpAll(() async {
@@ -35,7 +42,7 @@ void main() {
       expect(auth.verifyStagingPassword('WrongPassword123'), isFalse);
     });
 
-    test('2. Password reset fails closed on invalid master recovery PIN', () async {
+    test('2. Password reset fails closed on invalid master recovery PIN', skip: uat ? false : _uatOnly, () async {
       final auth = AuthController.instance;
       final err = await auth.resetStagingOwnerPassword(
         recoveryPin: '0000',
@@ -45,7 +52,7 @@ void main() {
       expect(err, contains('റിക്കവറി പിൻ തെറ്റാണ്'));
     });
 
-    test('3. Password reset fails closed on short password (< 6 chars)', () async {
+    test('3. Password reset fails closed on short password (< 6 chars)', skip: uat ? false : _uatOnly, () async {
       final auth = AuthController.instance;
       final err = await auth.resetStagingOwnerPassword(
         recoveryPin: '9999',
@@ -55,7 +62,7 @@ void main() {
       expect(err, contains('കുറഞ്ഞത് 6 അക്ഷരങ്ങൾ'));
     });
 
-    test('4. Password reset succeeds with PIN 9999 and updates active password', () async {
+    test('4. Password reset succeeds with PIN 9999 and updates active password', skip: uat ? false : _uatOnly, () async {
       final auth = AuthController.instance;
       const newPass = 'OwnerSecret2026!';
 
@@ -72,7 +79,7 @@ void main() {
       expect(auth.verifyStagingPassword(AuthController.defaultStagingPassword), isFalse);
     });
 
-    test('5. Staging UAT mode sign-in succeeds with valid credentials and updates session', () async {
+    test('5. Staging UAT mode sign-in succeeds with valid credentials and updates session', skip: uat ? false : _uatOnly, () async {
       final auth = AuthController.instance;
 
       // Attempt with wrong password
@@ -125,6 +132,13 @@ void main() {
 
       // Verify session invariants for AppShell routing
       expect(auth.signedIn && auth.isOwner, isTrue, reason: 'AppShell route guard must pass');
+    });
+
+    test('6. Production build refuses the staging password reset (fails closed)', skip: uat ? 'production-only check' : false, () async {
+      final auth = AuthController.instance;
+      final err = await auth.resetStagingOwnerPassword(recoveryPin: '9999', newPassword: 'AnyPassword2026');
+      expect(err, contains('prohibited in production'));
+      expect(auth.verifyStagingPassword('AnyPassword2026'), isFalse, reason: 'nothing changed');
     });
   });
 }

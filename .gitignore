@@ -126,3 +126,7 @@ tools/staging/staging.local*.json
 staging.local.json
 staging.local*.json
 
+
+# Firestore rules test tooling
+tools/firestore_rules_test/node_modules/
+tools/firestore_rules_test/*.log

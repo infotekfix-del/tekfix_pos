@@ -31,6 +31,18 @@ class AppUpdateInfo {
   }) : windowsUrl = windowsUrl ??
             'https://github.com/infotekfix-del/tekfix_pos/releases/tag/v$latestVersion';
 
+  /// Official release location. Update links anywhere else are ignored, so a
+  /// tampered app_config/version document cannot push a fake installer.
+  static const String trustedReleasePrefix = 'https://github.com/infotekfix-del/tekfix_pos/';
+
+  static bool isTrustedUpdateUrl(String url) {
+    final u = Uri.tryParse(url.trim());
+    if (u == null || u.scheme != 'https' || u.host != 'github.com') return false;
+    if (u.userInfo.isNotEmpty || (u.hasPort && u.port != 443)) return false;
+    final path = u.path;
+    return path.startsWith('/infotekfix-del/tekfix_pos/') && !path.contains('..');
+  }
+
   factory AppUpdateInfo.fromFirestore(Map<String, dynamic> data) {
     final rawBuild = data['latest_build_number'];
     final buildNum = rawBuild is int
@@ -41,11 +53,16 @@ class AppUpdateInfo {
     return AppUpdateInfo(
       latestVersion: ver,
       latestBuildNumber: buildNum,
-      apkUrl: (data['apk_url'] ?? '').toString().trim(),
-      windowsUrl: (data['windows_url'] ??
-              'https://github.com/infotekfix-del/tekfix_pos/releases/tag/v$ver')
-          .toString()
-          .trim(),
+      // Untrusted links are dropped (no update offered) instead of opened.
+      apkUrl: () {
+        final u = (data['apk_url'] ?? '').toString().trim();
+        return isTrustedUpdateUrl(u) ? u : '';
+      }(),
+      windowsUrl: () {
+        final fallback = 'https://github.com/infotekfix-del/tekfix_pos/releases/tag/v$ver';
+        final u = (data['windows_url'] ?? fallback).toString().trim();
+        return isTrustedUpdateUrl(u) ? u : fallback;
+      }(),
       releaseNotes: (data['release_notes'] ??
               'പുതിയ ഫീച്ചറുകളും പരിഹാരങ്ങളും ഉൾപ്പെടുത്തിയിട്ടുണ്ട്.\n(New features and performance improvements included.)')
           .toString(),
@@ -298,6 +315,13 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
       return;
     }
 
+    // Only the official release location may be installed (defence in depth).
+    if (!AppUpdateInfo.isTrustedUpdateUrl(apkUrl)) {
+      setState(() => _errorMessage =
+          'വിശ്വസനീയമല്ലാത്ത ഡൗൺലോഡ് ലിങ്ക് (Untrusted download link blocked)');
+      return;
+    }
+
     // Clean up any stale subscription or previous running download
     try {
       await _otaSubscription?.cancel();
@@ -423,6 +447,18 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('ഡൗൺലോഡ് ലിങ്ക് ലഭ്യമല്ല (Download URL is missing)'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!AppUpdateInfo.isTrustedUpdateUrl(rawUrl)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('വിശ്വസനീയമല്ലാത്ത ഡൗൺലോഡ് ലിങ്ക് (Untrusted download link blocked)'),
             backgroundColor: Colors.red,
           ),
         );

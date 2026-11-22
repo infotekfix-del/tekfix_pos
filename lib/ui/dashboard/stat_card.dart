@@ -49,13 +49,13 @@ class _TekStatCardState extends State<TekStatCard> {
   @override
   Widget build(BuildContext context) {
     final change = (widget.changeText ?? '').trim();
-    final pillColor =
-        widget.isPositive ? DashboardColors.neonGreen : DashboardColors.neonPink;
+    final pillColor = widget.isPositive
+        ? DashboardColors.neonGreen
+        : DashboardColors.neonPink;
 
     return MouseRegion(
-      cursor: widget.onTap != null
-          ? SystemMouseCursors.click
-          : MouseCursor.defer,
+      cursor:
+          widget.onTap != null ? SystemMouseCursors.click : MouseCursor.defer,
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: AnimatedContainer(
@@ -63,9 +63,8 @@ class _TekStatCardState extends State<TekStatCard> {
         curve: Curves.easeOutCubic,
         transform: Matrix4.translationValues(0, _isHovered ? -2 : 0, 0),
         decoration: BoxDecoration(
-          color: _isHovered
-              ? DashboardColors.surfaceAlt
-              : DashboardColors.surface,
+          color:
+              _isHovered ? DashboardColors.surfaceAlt : DashboardColors.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: _isHovered
@@ -149,69 +148,82 @@ class _TekStatCardState extends State<TekStatCard> {
 
                   const SizedBox(height: 8),
 
-                  // Footer: change pill (if real) + subtitle, sparkline on the right
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      if (change.isNotEmpty) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: pillColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                widget.isPositive
-                                    ? Icons.arrow_upward_rounded
-                                    : Icons.arrow_downward_rounded,
-                                size: 11,
-                                color: pillColor,
+                  // Footer: change pill (if real) + subtitle, sparkline on the right.
+                  // On narrow cards (small phones) the sparkline is dropped and
+                  // the pill may shrink, so the row never overflows.
+                  LayoutBuilder(builder: (context, box) {
+                    final showSpark = _hasSparkline && box.maxWidth >= 200;
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        if (change.isNotEmpty) ...[
+                          Flexible(
+                            flex: 0,
+                            fit: FlexFit.loose,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: pillColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(20),
                               ),
-                              const SizedBox(width: 2),
-                              Text(
-                                change,
-                                style: DashboardTypography.inter(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: pillColor,
-                                ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    widget.isPositive
+                                        ? Icons.arrow_upward_rounded
+                                        : Icons.arrow_downward_rounded,
+                                    size: 11,
+                                    color: pillColor,
+                                  ),
+                                  const SizedBox(width: 2),
+                                  Flexible(
+                                    child: Text(
+                                      change,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: DashboardTypography.inter(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: pillColor,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      Expanded(
-                        child: Text(
-                          widget.subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: DashboardTypography.malayalam(
-                            fontSize: 12,
-                            color: DashboardColors.textMuted,
-                            height: 1.35,
-                          ),
-                        ),
-                      ),
-                      if (_hasSparkline) ...[
-                        const SizedBox(width: 8),
-                        SizedBox(
-                          width: 72,
-                          height: 24,
-                          child: CustomPaint(
-                            painter: _MiniSparklinePainter(
-                              color: widget.accentColor,
-                              data: widget.sparklineData!,
+                          const SizedBox(width: 8),
+                        ],
+                        Expanded(
+                          child: Text(
+                            widget.subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: DashboardTypography.malayalam(
+                              fontSize: 12,
+                              color: DashboardColors.textMuted,
+                              height: 1.35,
                             ),
                           ),
                         ),
+                        if (showSpark) ...[
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 72,
+                            height: 24,
+                            child: CustomPaint(
+                              painter: _MiniSparklinePainter(
+                                color: widget.accentColor,
+                                data: widget.sparklineData!,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
-                  ),
+                    );
+                  }),
                 ],
               ),
             ),

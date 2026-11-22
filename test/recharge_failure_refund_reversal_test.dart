@@ -195,7 +195,7 @@ void main() {
       );
 
       await service.recordCustomerRechargePayment(recharge: recharge);
-      expect(Db.cash, equals(3299.0)); // Cash increased by ₹299
+      expect(Db.cash, equals(3000.0)); // separation rule: ERP cash unchanged
 
       // 2. Process cash refund of ₹299 back to customer
       final refundResult = await service.processCustomerRefund(
@@ -246,7 +246,7 @@ void main() {
       );
 
       await service.recordCustomerRechargePayment(recharge: recharge);
-      expect(Db.bankBalance, equals(15499.0));
+      expect(Db.bankBalance, equals(15000.0)); // separation rule
       expect(Db.cash, equals(3000.0)); // Untouched
 
       // 2. Process UPI refund of ₹499
@@ -291,7 +291,7 @@ void main() {
       );
 
       await service.recordCustomerRechargePayment(recharge: recharge);
-      expect(Db.bankBalance, equals(initialBank + 599.0));
+      expect(Db.bankBalance, equals(initialBank)); // separation rule
       expect(Db.cash, equals(initialCash));
 
       // 2. Process Bank refund
@@ -477,7 +477,7 @@ void main() {
 
       expect(result.recharge.status, equals(RechargeStatus.success));
       expect(result.recharge.customerPaymentCollected, isTrue);
-      expect(Db.cash, equals(initialCash + 299.0)); // Physical cash drawer increased!
+      expect(Db.cash, equals(initialCash)); // separation rule: ERP cash unchanged
     });
 
     // -------------------------------------------------------------------------
@@ -678,7 +678,7 @@ void main() {
       );
       await service.recordCustomerRechargePayment(recharge: recB);
 
-      expect(Db.cash, equals(3798.0)); // 3000 + 299 + 499 = 3798
+      expect(Db.cash, equals(3000.0)); // separation rule
 
       // Customer B cancelled: Refund ₹499 cash
       await service.processCustomerRefund(
@@ -691,11 +691,25 @@ void main() {
         reason: 'Customer cancelled',
       );
 
-      expect(Db.cash, equals(3299.0)); // 3798 - 499 = 3299
+      expect(Db.cash, equals(3000.0)); // separation rule: ERP cash unchanged
+
+      // The Daily Register adds recharge cash separately: collections minus
+      // cash refunds of these entries = 299 + 499 - 499 = ₹299.
+      var netRechargePaise = 0;
+      for (final e in service.getLocalRecharges(shopId: testShopId)) {
+        if (!e.rechargeId.startsWith('REC_EOD_')) continue;
+        if (e.paymentMode == RechargePaymentMode.cash && e.customerPaymentCollected) {
+          netRechargePaise += e.amountPaise;
+        }
+        if (e.refundMethod == RechargePaymentMode.cash.name) {
+          netRechargePaise -= ((e.refundAmount ?? 0) * 100).round();
+        }
+      }
+      expect(netRechargePaise, 29900);
 
       // Verify EOD handover calculation
       const retainedFloat = 1000.0;
-      final totalPhysicalCash = Db.cash;
+      final totalPhysicalCash = Db.cash + netRechargePaise / 100.0;
       final netCashHandover = totalPhysicalCash - retainedFloat;
 
       expect(totalPhysicalCash, equals(3299.0));

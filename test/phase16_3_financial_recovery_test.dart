@@ -200,8 +200,9 @@ void main() {
       final recovered = await RechargeRecoveryEngine.reconcilePendingSettlements();
       expect(recovered, equals(1));
 
-      // Verify clean settlement after recovery
-      expect(Db.bank.get('cash_in_hand'), equals(1299.0));
+      // Verify clean settlement after recovery. Recharge money never moves the
+      // ERP cash/bank (separation rule, cbae208); the Daily Register counts it.
+      expect(Db.bank.get('cash_in_hand'), equals(1000.0));
       expect(Db.recharges.containsKey(testKey), isTrue);
       expect(Db.rechargeQueue.containsKey(testKey), isFalse);
     });
@@ -232,7 +233,7 @@ void main() {
       final recovered = await RechargeRecoveryEngine.reconcilePendingSettlements();
       expect(recovered, equals(1));
 
-      expect(Db.bank.get('bank_balance'), equals(2666.0));
+      expect(Db.bank.get('bank_balance'), equals(2000.0)); // separation rule
       expect(Db.recharges.containsKey(testKey), isTrue);
       expect(Db.rechargeQueue.containsKey(testKey), isFalse);
     });
@@ -253,7 +254,7 @@ void main() {
       );
 
       expect(entry1['status'], equals('SUCCESS'));
-      expect(Db.bank.get('cash_in_hand'), equals(1199.0));
+      expect(Db.bank.get('cash_in_hand'), equals(1000.0)); // separation rule
 
       // Attempt immediate duplicate replay with the SAME idempotency key
       final replay = await QuickRechargeDialog.recordRecharge(
@@ -267,14 +268,14 @@ void main() {
       );
 
       expect(replay['idempotentReplay'], isTrue);
-      // Cash in hand must still be exactly 1199.0 (NO DOUBLE POSTING)
-      expect(Db.bank.get('cash_in_hand'), equals(1199.0));
+      // Cash in hand must still be exactly 1000.0 (nothing posted, no double posting)
+      expect(Db.bank.get('cash_in_hand'), equals(1000.0));
     });
 
     // ------------------------------------------------------------------------
     // 4. Cash Recharge Financial Integrity
     // ------------------------------------------------------------------------
-    test('4. Cash recharge updates cash_in_hand and strictly leaves Db.sales at 0', () async {
+    test('4. Cash recharge leaves ERP cash_in_hand and Db.sales unchanged', () async {
       await Db.bank.put('cash_in_hand', 500.0);
 
       final entry = await QuickRechargeDialog.recordRecharge(
@@ -290,14 +291,14 @@ void main() {
       expect(entry['costPrice'], equals(290.03));
       expect(entry['commission'], closeTo(8.97, 0.01));
 
-      expect(Db.bank.get('cash_in_hand'), equals(799.0));
+      expect(Db.bank.get('cash_in_hand'), equals(500.0)); // separation rule
       expect(Db.sales.isEmpty, isTrue, reason: 'Recharge principal must never inflate retail sales turnover');
     });
 
     // ------------------------------------------------------------------------
     // 5. UPI Recharge Financial Integrity
     // ------------------------------------------------------------------------
-    test('5. UPI recharge updates bank_balance and strictly leaves Db.sales at 0', () async {
+    test('5. UPI recharge leaves ERP bank_balance and Db.sales unchanged', () async {
       await Db.bank.put('bank_balance', 1000.0);
 
       final entry = await QuickRechargeDialog.recordRecharge(
@@ -310,7 +311,7 @@ void main() {
       );
 
       expect(entry['commission'], closeTo(18.65, 0.01));
-      expect(Db.bank.get('bank_balance'), equals(1666.0));
+      expect(Db.bank.get('bank_balance'), equals(1000.0)); // separation rule
       expect(Db.sales.isEmpty, isTrue, reason: 'Recharge principal must never inflate retail sales turnover');
     });
 
