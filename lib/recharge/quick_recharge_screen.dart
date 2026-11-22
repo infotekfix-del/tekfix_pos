@@ -3,10 +3,16 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../auth/auth_controller.dart';
+import '../main.dart' show Db;
 import '../theme/tek_tokens.dart';
 import 'commission_dialogs.dart';
 import 'daily_reconciliation_screen.dart';
 import 'quick_recharge_dialog.dart';
+import 'recharge_accounting_backend.dart';
+import 'recharge_accounting_service.dart';
+import 'recharge_period_accounting.dart';
+import 'recharge_edit_dialog.dart';
+import 'recharge_period_widgets.dart';
 import 'recharge_models.dart';
 import 'recharge_reports_screen.dart';
 import 'recharge_service.dart';
@@ -33,8 +39,11 @@ class QuickRechargeScreen extends StatefulWidget {
 }
 
 class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
-  RechargeFundingType _selectedFundingType =
-      RechargeFundingType.distributorCredit;
+  // One balance per operator (petty-cash style): every recharge uses the
+  // operator wallet's own balance; no Mode A / Mode B choice is shown.
+  // Distributor dues are tracked separately in the settlement table.
+  static const bool _showFundingModeSelector = false;
+  RechargeFundingType _selectedFundingType = RechargeFundingType.ownMoney;
   final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 2);
 
   bool _isLoading = true;
@@ -44,6 +53,14 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
   List<DistributorProfile> _distributors = [];
   AgentPendingReturnSummary? _pendingReturns;
   DateTime _lastUpdated = DateTime.now();
+
+  // Period reconciliation & operator-wise settlement (server-authoritative)
+  Map<RechargeOperator, OperatorPeriodState>? _period;
+  String? _periodError;
+  SettlementSummary? _settlement;
+  String? _settlementError;
+  ExcessSummary? _excess; // separate Excess account (morning + closing)
+  TopUpCommissionSummary? _topUpCommission; // distributor refill commission (profit)
 
   @override
   void initState() {
@@ -60,6 +77,10 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
     try {
+      // 0. Always re-read wallets from the server and load saved recharges from local storage
+      RechargeService.instance.invalidateWalletCache(shopId: sId);
+      await RechargeService.instance.rehydrateFromHive(defaultShopId: sId);
+
       // 1. Generate live daily financial report (transactions, collections, commissions)
       final report = await RechargeService.instance.generateFinancialReport(
         shopId: sId,
@@ -92,12 +113,52 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
       final dists = await RechargeService.instance.getAllDistributors(sId);
       final pendingSummary = await RechargeService.instance.getAgentPendingReturnsSummary(shopId: sId);
 
+      // 5. Period state & operator-wise settlement (read-only server calls)
+      Map<RechargeOperator, OperatorPeriodState>? period;
+      String? periodError;
+      SettlementSummary? settlement;
+      String? settlementError;
+      ExcessSummary? excess;
+      TopUpCommissionSummary? topUpCommission;
+      // No default-shop fallback for accounting: the real shop id is required.
+      final accShop = auth.shopId;
+      if (accShop.isEmpty) {
+        periodError = settlementError = 'Shop not selected (ഷോപ്പ് ഇല്ല)';
+      } else {
+        try {
+          period = await RechargeAccountingService.instance.periodState(accShop);
+        } catch (e) {
+          periodError = accountingErrorText(e);
+        }
+        try {
+          settlement = await RechargeAccountingService.instance.settlement(accShop);
+        } catch (e) {
+          settlementError = accountingErrorText(e);
+        }
+        try {
+          excess = await RechargeAccountingService.instance.excessSummary(accShop);
+        } catch (_) {
+          excess = null; // card shows "—" until the server route is deployed
+        }
+        try {
+          topUpCommission = await RechargeAccountingService.instance.topUpCommissionSummary(accShop);
+        } catch (_) {
+          topUpCommission = null;
+        }
+      }
+
       if (mounted) {
         setState(() {
           _report = report;
           _reconciliation = reconciliation;
           _distributors = dists;
           _pendingReturns = pendingSummary;
+          _period = period;
+          _periodError = periodError;
+          _settlement = settlement;
+          _settlementError = settlementError;
+          _excess = excess;
+          _topUpCommission = topUpCommission;
           _lastUpdated = DateTime.now();
           _isLoading = false;
         });
@@ -176,8 +237,10 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildOpeningStatusBanner(),
-                    _buildFundingModeSelector(),
-                    const SizedBox(height: 20),
+                    if (_showFundingModeSelector) ...[
+                      _buildFundingModeSelector(),
+                      const SizedBox(height: 20),
+                    ],
                     _buildKpiMetricsGrid(isDesktop),
                     const SizedBox(height: 26),
                     _buildSectionHeader(
@@ -187,7 +250,21 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                       accentColor: TekColors.electricCyan,
                     ),
                     const SizedBox(height: 12),
+                    if (_periodError != null) ...[
+                      _buildPeriodUnavailableNotice(_periodError!),
+                      const SizedBox(height: 12),
+                    ],
                     _buildOperatorCards(isDesktop, auth),
+                    const SizedBox(height: 26),
+                    OperatorRechargeBreakdown(shopId: auth.shopId),
+                    const SizedBox(height: 26),
+                    DistributorSettlementTable(
+                      summary: _settlement,
+                      error: _friendlySettlementError,
+                      onPay: _openDistributorPayment,
+                      onClearOld: _clearOldDues,
+                      onOpeningDues: _openingDues,
+                    ),
                     const SizedBox(height: 26),
                     _buildDistributorSettlementCard(isDesktop, auth),
                     const SizedBox(height: 26),
@@ -212,7 +289,89 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
     );
   }
 
+  String? get _friendlySettlementError {
+    final e = _settlementError;
+    if (e == null) return null;
+    return e.contains('Unknown endpoint')
+        ? 'Server update not deployed yet (സെർവർ അപ്ഡേറ്റ് ആയിട്ടില്ല)'
+        : e;
+  }
+
+  /// Shown once (not per card) when period data cannot be loaded.
+  Widget _buildPeriodUnavailableNotice(String error) {
+    final notDeployed = error.contains('Unknown endpoint');
+    return Container(
+      key: const ValueKey('period-unavailable-notice'),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: kPeriodOrange.withAlpha(18),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kPeriodOrange.withAlpha(110)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud_off_rounded, color: kPeriodOrange, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              notDeployed
+                  ? 'Morning / closing and distributor settlement need the new server update, which is not deployed yet. Old daily figures are shown below. (സെർവർ അപ്ഡേറ്റ് ആയിട്ടില്ല)'
+                  : 'Period data unavailable: $error',
+              style: const TextStyle(color: kPeriodOrange, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Period workflow banner: operators whose morning balance is not entered
+  /// (or whose previous verified closing is missing) for the open period.
+  Widget _buildPeriodMorningBanner(Map<RechargeOperator, OperatorPeriodState> period) {
+    final missing = [
+      for (final op in kPeriodOperators)
+        if (period[op] != null && (period[op]!.previousClosing == null || period[op]!.morning == null)) op,
+    ];
+    if (missing.isEmpty) return const SizedBox.shrink();
+    return Container(
+      key: const ValueKey('period-morning-banner'),
+      margin: const EdgeInsets.only(bottom: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: kPeriodOrange.withAlpha(20),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kPeriodOrange.withAlpha(120)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.wb_sunny_rounded, color: kPeriodOrange, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'രാവിലെ ബാലൻസ് ബാക്കി (Morning balance not entered): ${missing.map(operatorShortName).join(', ')}',
+              style: const TextStyle(color: kPeriodOrange, fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kPeriodOrange,
+              foregroundColor: TekColors.mainBg,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => _openMorning(missing.first),
+            child: Text('Enter ${operatorShortName(missing.first)}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildOpeningStatusBanner() {
+    final period = _period;
+    if (period != null) return _buildPeriodMorningBanner(period);
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
     return FutureBuilder<bool>(
       future: RechargeService.instance.isOpeningComplete(shopId: 'tekfix', businessDate: today),
@@ -582,63 +741,110 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // 3. LIVE 6-CARD SUMMARY KPI GRID
+  // 3. LIVE SUMMARY KPI GRID (volume, wallet, settlement, commission)
   // ---------------------------------------------------------------------------
   Widget _buildKpiMetricsGrid(bool isDesktop) {
-    // 1. Total Recharge Gross (Principal - NOT business income)
-    final todayRecharge = _report?.totalRechargeAmount ?? 0.0;
+    final shop = AuthController.instance.shopId;
+    final acc = RechargeAccountingService.instance;
 
-    // 2. Total Commission (Actual recognized business income)
-    final todayCommission = (_report?.netCommissionIncomePaise ?? 0) / 100.0;
+    // A. Recharge volume (face value of successful recharges, IST dates)
+    final today = acc.volume(shop, istRangeFor(RechargePeriodFilter.today));
+    final cumulative = acc.volume(shop, istRangeFor(RechargePeriodFilter.allTime));
 
-    // 3. Total Available Wallet Float across Airtel, Jio, Vi, BSNL
-    final totalWalletBalance = _wallets.values.fold(0.0, (acc, w) => acc + w.totalBalance);
+    // B. Operator wallet balance from the fresh start: verified openings plus
+    //    the new ledger. Falls back to the old live wallets only when period
+    //    data cannot be loaded.
+    final period = _period;
+    final freshWalletPaise = period?.values
+        .where((st) => st.previousClosing != null)
+        .fold<int>(0, (a, st) => a + st.closing().expectedClosingPaise);
+    final walletPaise = freshWalletPaise ??
+        _wallets.values.fold<int>(0, (a, w) => a + w.totalBalancePaise);
+    final openingPaise =
+        period?.values.fold<int>(0, (a, st) => a + (st.previousClosing?.actualPaise ?? 0));
 
-    // 4. Total Distributor Outstanding
-    final totalDistributorDue = _distributors.fold(0.0, (acc, d) => acc + d.currentOutstanding);
+    // C. Distributor settlement (operator-wise, never netted)
+    final st = _settlement;
 
-    // 5. Successful Transactions Count
+    final todayCommission = _report?.netCommissionIncomePaise ?? 0;
     final successfulCount = _report?.successfulCount ?? 0;
-
-    // 6. Failed & Pending Transactions Count
     final failedOrPendingCount = (_report?.failedCount ?? 0) + (_report?.pendingCount ?? 0);
 
     final cards = [
       _buildMetricCard(
         title: "Today's Total Recharge",
         malayalam: 'ഇന്നത്തെ റീചാർജ് തുക',
-        value: currencyFormat.format(todayRecharge),
+        value: formatInrPaise(today.grossPaise),
         icon: Icons.payments_rounded,
         gradient: TekColors.cyanBlueGradient,
-        subtext: 'Gross Turnover (Not Business Income)',
+        subtext: 'Refunds ${formatInrPaise(today.refundsPaise)} • Net ${formatInrPaise(today.netPaise)}',
       ),
       _buildMetricCard(
-        title: "Today's Commission",
-        malayalam: 'ഇന്നത്തെ യഥാർത്ഥ വരുമാനം',
-        value: currencyFormat.format(todayCommission),
-        icon: Icons.trending_up_rounded,
-        gradient: const LinearGradient(
-            colors: [Color(0xFF22C55E), Color(0xFF15803D)]),
-        subtext: 'Recognized Business Income',
+        title: 'Cumulative Total Recharge',
+        malayalam: 'ഇതുവരെയുള്ള ആകെ റീചാർജ്',
+        value: formatInrPaise(cumulative.grossPaise),
+        icon: Icons.all_inclusive_rounded,
+        gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF4F46E5)]),
+        subtext: 'Since $kRechargeFreshStartIstDate • Net ${formatInrPaise(cumulative.netPaise)}',
       ),
       _buildMetricCard(
-        title: 'Available Wallet Float',
-        malayalam: 'ലഭ്യമായ വാലറ്റ് തുക',
-        value: currencyFormat.format(totalWalletBalance),
+        title: 'Total Operator Wallet Balance',
+        malayalam: 'ഓപ്പറേറ്റർ വാലറ്റ് ആകെ',
+        value: formatInrPaise(walletPaise),
         icon: Icons.account_balance_rounded,
-        gradient: const LinearGradient(
-            colors: [Color(0xFF10B981), Color(0xFF047857)]),
-        subtext: 'Airtel, Jio, Vi, BSNL Float',
+        gradient: const LinearGradient(colors: [Color(0xFF10B981), Color(0xFF047857)]),
+        subtext: openingPaise == null
+            ? 'Live: Airtel + Jio + Vi + BSNL'
+            : 'From new start • Openings ${formatInrPaise(openingPaise)}',
       ),
       _buildMetricCard(
         title: 'Distributor Outstanding',
-        malayalam: 'ഡിസ്ട്രിബ്യൂട്ടർ ബാധ്യത',
-        value: currencyFormat.format(totalDistributorDue),
+        malayalam: 'ഡിസ്ട്രിബ്യൂട്ടർക്ക് നൽകാനുള്ളത്',
+        value: st == null ? '—' : formatInrPaise(st.outstandingPaise),
         icon: Icons.warning_amber_rounded,
-        gradient: const LinearGradient(
-            colors: [Color(0xFFF59E0B), Color(0xFFB45309)]),
-        subtext: 'Payable on distributor settlement',
+        gradient: const LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFB45309)]),
+        subtext: st == null ? (_friendlySettlementError ?? 'Loading…') : 'Operator-wise, not netted',
       ),
+      _buildMetricCard(
+        title: 'Distributor Advance / Excess',
+        malayalam: 'മുൻകൂർ / അധികം നൽകിയത്',
+        value: st == null ? '—' : formatInrPaise(st.advancePaise),
+        icon: Icons.savings_rounded,
+        gradient: const LinearGradient(colors: [Color(0xFF60A5FA), Color(0xFF2563EB)]),
+        subtext: st == null ? (_friendlySettlementError ?? 'Loading…') : 'Net position ${formatInrPaise(st.netPositionPaise)} (info)',
+      ),
+      _buildMetricCard(
+        title: 'Top-up Commission (Profit)',
+        malayalam: 'ടോപ്പ്-അപ്പ് കമ്മീഷൻ (ലാഭം)',
+        value: _topUpCommission == null
+            ? '—'
+            : formatInrPaise(_topUpCommission!.inRange(istRangeFor(RechargePeriodFilter.today))),
+        icon: Icons.percent_rounded,
+        gradient: const LinearGradient(colors: [Color(0xFF22C55E), Color(0xFF15803D)]),
+        subtext: _topUpCommission == null
+            ? 'Not loaded'
+            : 'Today • Total ${formatInrPaise(_topUpCommission!.totalPaise)} (₹39 per ₹1,000 refill)',
+      ),
+      _buildMetricCard(
+        title: 'Recharge Excess',
+        malayalam: 'എക്സസ് (പ്രത്യേക കണക്ക്)',
+        value: _excess == null ? '—' : formatInrPaise(_excess!.totalPaise),
+        icon: Icons.add_card_rounded,
+        gradient: const LinearGradient(colors: [Color(0xFF14B8A6), Color(0xFF0F766E)]),
+        subtext: _excess == null
+            ? 'Not loaded'
+            : 'Morning ${formatInrPaise(_excess!.bySource(ExcessSource.morning))} • Closing ${formatInrPaise(_excess!.bySource(ExcessSource.closing))} • not profit',
+      ),
+      if (kRechargeCommissionInEntry)
+        _buildMetricCard(
+          title: "Today's Commission",
+          malayalam: 'ഇന്നത്തെ യഥാർത്ഥ വരുമാനം',
+          value: formatInrPaise(todayCommission),
+          icon: Icons.trending_up_rounded,
+          gradient: const LinearGradient(
+              colors: [Color(0xFF22C55E), Color(0xFF15803D)]),
+          subtext: 'Recognized Business Income',
+        ),
       _buildMetricCard(
         title: 'Successful Transactions',
         malayalam: 'വിജയകരമായ ഇടപാടുകൾ',
@@ -662,11 +868,13 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        int cols = 3;
+        int cols = 4;
         if (constraints.maxWidth < 680) {
           cols = 1;
         } else if (constraints.maxWidth < 1100) {
           cols = 2;
+        } else if (constraints.maxWidth < 1400) {
+          cols = 3;
         }
 
         return GridView.count(
@@ -737,11 +945,15 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    Text(
-                      malayalam,
-                      style: const TextStyle(
-                        color: TekColors.textMuted,
-                        fontSize: 10,
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        malayalam,
+                        style: const TextStyle(
+                          color: TekColors.textMuted,
+                          fontSize: 10,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -825,22 +1037,20 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
           cols = 4;
         }
 
-        return GridView.builder(
-          itemCount: operators.length,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: cols,
-            crossAxisSpacing: 14,
-            mainAxisSpacing: 14,
-            childAspectRatio: cols == 1 ? 1.85 : 1.32,
-          ),
-          itemBuilder: (context, i) {
+        // Cards size to their content (no fixed aspect ratio), so extra
+        // period rows or notices can never overflow the card.
+        final itemWidth = (constraints.maxWidth - 14 * (cols - 1)) / cols - 0.5;
+        Widget cardFor(int i) {
             final opDef = operators[i];
             final op = opDef.operator;
             final wallet = _wallets[op];
             final opRecon = _reconciliation?.operators[op.name];
 
+            // From the fresh start: the balance follows the verified opening
+            // and the new ledger (not the old system wallet figure).
+            final freshBalancePaise = _period?[op]?.previousClosing == null
+                ? null
+                : _period![op]!.closing().expectedClosingPaise;
             final currentBalance = wallet?.totalBalance ?? 0.0;
             final openingBalance = (opRecon?.openingBalancePaise ?? 0) / 100.0;
             final addedToday = ((opRecon?.totalTopupsPaise ?? 0) + (opRecon?.totalCreditsPaise ?? 0)) / 100.0;
@@ -851,6 +1061,15 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                 ? (opRecon!.actualClosingBalancePaise / 100.0)
                 : ((opRecon?.expectedClosingBalancePaise ?? 0) / 100.0);
             final difference = (opRecon?.differencePaise ?? 0) / 100.0;
+
+            // Period figures (server-authoritative period state)
+            final pst = _period?[op];
+            final pClosing = pst?.closing();
+            final pMorning = pst?.morning;
+            final todayOpPaise = RechargeAccountingService.instance
+                .volume(AuthController.instance.shopId, istRangeFor(RechargePeriodFilter.today))
+                .of(op)
+                .grossPaise;
 
             final commEnabled = RechargeService.instance.isCommissionEnabled(op.name);
             final commPercent = RechargeService.instance.getOperatorCommissionPercent(op.name);
@@ -901,6 +1120,8 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                           ),
                         ],
                       ),
+                      // Commission is not used by this shop: chip hidden.
+                      if (kRechargeCommissionInEntry)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
@@ -936,7 +1157,9 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          currencyFormat.format(currentBalance),
+                          freshBalancePaise != null
+                              ? formatInrPaise(freshBalancePaise)
+                              : (_period != null ? '—' : currencyFormat.format(currentBalance)),
                           style: TextStyle(
                             color: opDef.primaryColor,
                             fontSize: 20,
@@ -956,28 +1179,67 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: TekColors.borderSubtle),
                     ),
-                    child: Column(
-                      children: [
-                        _buildOpDataRow('Opening Balance:', currencyFormat.format(openingBalance)),
-                        _buildOpDataRow('Added Today (+):', currencyFormat.format(addedToday), valueColor: TekColors.success),
-                        _buildOpDataRow('Debited Today (-):', currencyFormat.format(debitsToday), valueColor: TekColors.warning),
-                        _buildOpDataRow('Refunds/Reversals:', currencyFormat.format(refundsToday)),
-                        const Divider(height: 8, color: TekColors.borderSubtle),
-                        _buildOpDataRow(
-                          isClosed ? 'Closing Balance (Final):' : 'Expected Closing:',
-                          currencyFormat.format(closingBalance),
-                          valueColor: isClosed ? TekColors.electricCyan : TekColors.textPrimary,
-                          isBold: true,
-                        ),
-                        if (isClosed && difference != 0.0)
-                          _buildOpDataRow(
-                            'Diff (Actual - Expected):',
-                            '${difference > 0 ? "+" : ""}${currencyFormat.format(difference)}',
-                            valueColor: difference >= 0 ? TekColors.success : TekColors.error,
-                            isBold: true,
+                    child: pst == null
+                        ? Column(
+                            children: [
+                              _buildOpDataRow('Opening Balance:', currencyFormat.format(openingBalance)),
+                              _buildOpDataRow('Added Today (+):', currencyFormat.format(addedToday), valueColor: TekColors.success),
+                              _buildOpDataRow('Debited Today (-):', currencyFormat.format(debitsToday), valueColor: TekColors.warning),
+                              _buildOpDataRow('Refunds/Reversals:', currencyFormat.format(refundsToday)),
+                              const Divider(height: 8, color: TekColors.borderSubtle),
+                              _buildOpDataRow(
+                                isClosed ? 'Closing Balance (Final):' : 'Expected Closing:',
+                                currencyFormat.format(closingBalance),
+                                valueColor: isClosed ? TekColors.electricCyan : TekColors.textPrimary,
+                                isBold: true,
+                              ),
+                              if (isClosed && difference != 0.0)
+                                _buildOpDataRow(
+                                  'Diff (Actual - Expected):',
+                                  '${difference > 0 ? "+" : ""}${currencyFormat.format(difference)}',
+                                  valueColor: difference >= 0 ? TekColors.success : TekColors.error,
+                                  isBold: true,
+                                ),
+                            ],
+                          )
+                        : Column(
+                            children: [
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: PeriodStatusChip(
+                                  pst.previousClosing == null
+                                      ? MorningStatus.previousClosingMissing.label
+                                      : (pMorning?.status ?? MorningStatus.notEntered).label,
+                                  pst.previousClosing == null
+                                      ? kPeriodRed
+                                      : morningStatusColor(pMorning?.status ?? MorningStatus.notEntered),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              _buildOpDataRow('Opening (prev. verified closing):',
+                                  pst.previousClosing == null ? 'Missing' : formatInrPaise(pClosing!.openingPaise),
+                                  valueColor: pst.previousClosing == null ? TekColors.error : null),
+                              _buildOpDataRow('Morning balance:',
+                                  pMorning == null ? 'Not entered' : formatInrPaise(pMorning.morningActualPaise)),
+                              _buildOpDataRow('Net top-up (confirmed):',
+                                  pMorning == null ? '-' : formatInrPaise(pMorning.classifiedPaise),
+                                  valueColor: TekColors.success),
+                              _buildOpDataRow("Today's recharge:", formatInrPaise(todayOpPaise),
+                                  valueColor: TekColors.warning),
+                              const Divider(height: 8, color: TekColors.borderSubtle),
+                              // No verified opening yet: nothing can be expected.
+                              _buildOpDataRow('Expected closing:',
+                                  pst.previousClosing == null
+                                      ? '—'
+                                      : formatInrPaise(pClosing!.expectedClosingPaise),
+                                  isBold: true),
+                              if (pClosing!.pendingDebitsPaise != 0)
+                                _buildOpDataRow('Pending (debited):', formatInrPaise(pClosing.pendingDebitsPaise),
+                                    valueColor: kPeriodOrange),
+                              _buildOpDataRow('Actual closing / variance:', 'At night closing',
+                                  valueColor: TekColors.textMuted),
+                            ],
                           ),
-                      ],
-                    ),
                   ),
 
                   // Actions Toolbar
@@ -1008,27 +1270,40 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                         icon: const Icon(Icons.add_rounded, size: 14),
                         label: const Text('Add Balance', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                       ),
-                      // Opening Entry Button
+                      // Morning Entry Button (period workflow)
                       OutlinedButton.icon(
-                        onPressed: () {
-                          DailyReconciliationScreen.show(context, shopId: 'tekfix', initialTab: 0)
-                              .then((_) => _loadLiveDashboardData());
-                        },
+                        key: ValueKey('op-morning-${op.name}'),
+                        onPressed: () => _openMorning(op),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: TekColors.textPrimary,
                           side: const BorderSide(color: TekColors.borderSubtle),
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
-                        icon: const Icon(Icons.login_rounded, size: 13),
-                        label: const Text('Opening', style: TextStyle(fontSize: 10.5)),
+                        icon: const Icon(Icons.wb_sunny_rounded, size: 13),
+                        label: Text(pst != null && pst.previousClosing == null ? 'Reference' : 'Morning',
+                            style: const TextStyle(fontSize: 10.5)),
                       ),
-                      // Closing Entry Button
+                      // Fresh start: system wallet differs from the verified balance
+                      if (freshBalancePaise != null &&
+                          wallet != null &&
+                          wallet.totalBalancePaise != freshBalancePaise)
+                        FilledButton.icon(
+                          key: ValueKey('op-align-${op.name}'),
+                          onPressed: () => _alignWallet(op),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: kPeriodOrange,
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          icon: const Icon(Icons.sync_alt_rounded, size: 13),
+                          label: const Text('Align wallet', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
+                        ),
+                      // Night Closing Button (period workflow)
                       OutlinedButton.icon(
-                        onPressed: () {
-                          DailyReconciliationScreen.show(context, shopId: 'tekfix', initialTab: 2)
-                              .then((_) => _loadLiveDashboardData());
-                        },
+                        key: ValueKey('op-closing-${op.name}'),
+                        onPressed: () => _openClosing(op),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: TekColors.textPrimary,
                           side: const BorderSide(color: TekColors.borderSubtle),
@@ -1037,6 +1312,13 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                         ),
                         icon: const Icon(Icons.logout_rounded, size: 13),
                         label: const Text('Closing', style: TextStyle(fontSize: 10.5)),
+                      ),
+                      // Fix a top-up saved as own money that came from a distributor
+                      IconButton(
+                        key: ValueKey('op-reclass-${op.name}'),
+                        tooltip: 'Change top-up source: Own → Distributor (സോഴ്സ് മാറ്റുക)',
+                        icon: const Icon(Icons.swap_horiz_rounded, size: 16, color: kPeriodOrange),
+                        onPressed: () => _openReclassify(op),
                       ),
                       // View Transactions
                       IconButton(
@@ -1051,7 +1333,15 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                 ],
               ),
             );
-          },
+        }
+
+        return Wrap(
+          spacing: 14,
+          runSpacing: 14,
+          children: [
+            for (var i = 0; i < operators.length; i++)
+              SizedBox(width: itemWidth, child: cardFor(i)),
+          ],
         );
       },
     );
@@ -1088,9 +1378,7 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
   // 5. DISTRIBUTOR & AGENT SETTLEMENT SECTION
   // ---------------------------------------------------------------------------
   Widget _buildDistributorSettlementCard(bool isDesktop, AuthController auth) {
-    final totalPayable = _distributors.fold(0.0, (acc, d) => acc + (d.openingPayablePaise / 100.0) + d.totalCreditReceived);
-    final totalPaid = _distributors.fold(0.0, (acc, d) => acc + d.totalPaymentsMade);
-    final totalDue = _distributors.fold(0.0, (acc, d) => acc + d.currentOutstanding);
+    // Totals now live in the operator-wise Distributor Settlement table above.
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1198,52 +1486,6 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                 ],
               ),
             ],
-          ),
-          const SizedBox(height: 18),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isNarrow = constraints.maxWidth < 650;
-              final metrics = [
-                _buildSettlementStat(
-                  label: 'Total Stock Received',
-                  malayalam: 'ആകെ ലഭിച്ച സ്റ്റോക്ക്',
-                  value: currencyFormat.format(totalPayable),
-                  valueColor: TekColors.textPrimary,
-                ),
-                _buildSettlementStat(
-                  label: 'Amount Settled / Paid',
-                  malayalam: 'ഇതുവരെ നൽകിയത്',
-                  value: currencyFormat.format(totalPaid),
-                  valueColor: TekColors.success,
-                ),
-                _buildSettlementStat(
-                  label: 'Remaining Outstanding',
-                  malayalam: 'ഇനി നൽകാനുള്ള ബാക്കി',
-                  value: currencyFormat.format(totalDue),
-                  valueColor: const Color(0xFFF59E0B),
-                  isAlert: true,
-                ),
-              ];
-
-              return isNarrow
-                  ? Column(
-                      children: metrics
-                          .map((m) => Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: m,
-                              ))
-                          .toList())
-                  : Row(
-                      children: metrics
-                          .map((m) => Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                                  child: m,
-                                ),
-                              ))
-                          .toList(),
-                    );
-            },
           ),
           const SizedBox(height: 16),
           _buildPendingReturnBreakdownCard(),
@@ -1368,56 +1610,6 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
     );
   }
 
-  Widget _buildSettlementStat({
-    required String label,
-    required String malayalam,
-    required String value,
-    required Color valueColor,
-    bool isAlert = false,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: TekColors.elevatedSurface.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isAlert ? const Color(0xFFF59E0B).withValues(alpha: 0.4) : TekColors.borderSubtle,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: TekColors.textSecondary,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 1),
-          Text(malayalam, style: const TextStyle(color: TekColors.textMuted, fontSize: 9.5)),
-          const SizedBox(height: 6),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              value,
-              style: TextStyle(
-                color: valueColor,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // 6. QUICK OPERATIONS NAVIGATION GRID
-  // ---------------------------------------------------------------------------
   Widget _buildNavigationOptionsGrid(bool isDesktop, AuthController auth) {
     final sId = auth.shopId.isNotEmpty ? auth.shopId : 'tekfix';
 
@@ -1682,6 +1874,8 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                 if (isFailed) statusColor = TekColors.error;
                 if (isRefunded) statusColor = const Color(0xFFF59E0B);
                 if (t.status == RechargeStatus.pending) statusColor = TekColors.warning;
+                final isCorrected = t.status == RechargeStatus.corrected;
+                if (isCorrected) statusColor = TekColors.textMuted;
 
                 return ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -1725,13 +1919,33 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                     '${DateFormat('hh:mm a').format(t.createdAt)} • Mode: ${t.paymentMode.name.toUpperCase()} • Ref: ${t.referenceNumber.isNotEmpty ? t.referenceNumber : "N/A"}',
                     style: const TextStyle(color: TekColors.textSecondary, fontSize: 11),
                   ),
-                  trailing: Text(
-                    currencyFormat.format(t.amount),
-                    style: const TextStyle(
-                      color: TekColors.textPrimary,
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w800,
-                    ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        currencyFormat.format(t.amount),
+                        style: TextStyle(
+                          color: isCorrected ? TekColors.textMuted : TekColors.textPrimary,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                          decoration: isCorrected ? TextDecoration.lineThrough : null,
+                        ),
+                      ),
+                      if (t.status == RechargeStatus.success)
+                        IconButton(
+                          key: ValueKey('edit-recharge-${t.rechargeId}'),
+                          tooltip: 'Edit (തിരുത്തുക)',
+                          icon: const Icon(Icons.edit_rounded, size: 18, color: TekColors.electricCyan),
+                          onPressed: () => _editRecharge(t),
+                        ),
+                      if (t.status == RechargeStatus.pending)
+                        IconButton(
+                          key: ValueKey('cancel-recharge-${t.rechargeId}'),
+                          tooltip: 'Wrong entry - cancel (തെറ്റായ എൻട്രി റദ്ദാക്കുക)',
+                          icon: const Icon(Icons.undo_rounded, size: 18, color: TekColors.error),
+                          onPressed: () => _cancelWrongRecharge(t),
+                        ),
+                    ],
                   ),
                 );
               },
@@ -1775,15 +1989,456 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
     );
   }
 
-  void _showDistributorPayoutModal() {
-    final auth = Provider.of<AuthController>(context, listen: false);
-    DistributorPaymentDialog.show(
-      context,
-      shopId: auth.shopId.isNotEmpty ? auth.shopId : 'tekfix',
-      staffId: auth.uid,
-      staffName: auth.name,
-    ).then((_) => _loadLiveDashboardData());
+  // ---------------------------------------------------------------------------
+  // PERIOD RECONCILIATION & OPERATOR-WISE SETTLEMENT ACTIONS (owner, online)
+  // ---------------------------------------------------------------------------
+  AccountingActor get _actor {
+    final a = AuthController.instance;
+    return AccountingActor(uid: a.uid, name: a.name, isOwner: a.isOwner);
   }
+
+  bool _accountingReady() {
+    final shop = AuthController.instance.shopId;
+    if (shop.isEmpty || _period == null) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+        content: Text(_periodError ?? 'Period data is still loading (കാത്തിരിക്കുക)'),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _openMorning(RechargeOperator op) async {
+    if (!_accountingReady()) return;
+    final st = _period![op]!;
+    final shop = AuthController.instance.shopId;
+    final changed = st.previousClosing == null
+        ? await ReferenceBalanceDialog.show(context, shopId: shop, actor: _actor, operator: op)
+        : await MorningEntryDialog.show(context,
+            shopId: shop, actor: _actor, state: st, distributors: _distributors);
+    if (changed == true) _loadLiveDashboardData();
+  }
+
+  Future<void> _openReclassify(RechargeOperator op) async {
+    if (!_accountingReady()) return;
+    final shop = AuthController.instance.shopId;
+    final changed = await ReclassifyTopUpDialog.show(context,
+        shopId: shop, actor: _actor, operator: op, distributors: _distributors);
+    if (changed == true) _loadLiveDashboardData();
+  }
+
+  Future<void> _openClosing(RechargeOperator op) async {
+    if (!_accountingReady()) return;
+    final st = _period![op]!;
+    final shop = AuthController.instance.shopId;
+    final changed = st.previousClosing == null
+        ? await ReferenceBalanceDialog.show(context, shopId: shop, actor: _actor, operator: op)
+        : await ClosingEntryDialog.show(context, shopId: shop, actor: _actor, state: st);
+    if (changed == true) _loadLiveDashboardData();
+  }
+
+  Future<void> _openDistributorPayment([SettlementAccount? account]) async {
+    final shop = AuthController.instance.shopId;
+    if (shop.isEmpty) return;
+    final ok = await DistributorPaymentV2Dialog.show(
+      context,
+      shopId: shop,
+      actor: _actor,
+      distributors: _distributors,
+      summary: _settlement,
+      initialDistributorId: account?.distributorId,
+      initialOperator: account == null || account.operator == RechargeOperator.other
+          ? null
+          : account.operator,
+    );
+    if (ok == true) _loadLiveDashboardData();
+  }
+
+  /// Fresh start: records (on the server, with a reason) that an account's old
+  /// dues were settled outside the system. A credit reversal: no cash, wallet
+  /// or recharge figure changes; the entry stays in the audit trail.
+  Future<void> _clearOldDues(SettlementAccount a) async {
+    final shop = AuthController.instance.shopId;
+    if (shop.isEmpty || a.outstandingPaise <= 0 || a.operator == RechargeOperator.other) return;
+    const reason =
+        'Old dues settled outside the system before fresh start ($kRechargeFreshStartIstDate)';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: TekColors.cardBg,
+        title: Text('Clear old dues – ${a.distributorName}',
+            style: const TextStyle(color: TekColors.textPrimary, fontSize: 16)),
+        content: Text(
+          '${operatorShortName(a.operator)}: ${formatInrPaise(a.outstandingPaise)} will be marked as settled before the new start.\n'
+          'No cash, bank or wallet balance changes. It is saved with this reason:\n"$reason"\n\n'
+          'പഴയ ബാക്കി തീർത്തതായി രേഖപ്പെടുത്തും. പണമോ വാലറ്റോ മാറില്ല.',
+          style: const TextStyle(color: TekColors.textSecondary, fontSize: 13),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel (വേണ്ട)')),
+          FilledButton(
+            key: const ValueKey('clear-old-confirm'),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Clear (തീർക്കുക)'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await RechargeAccountingService.instance.distributorCreditReversal(
+        shopId: shop,
+        actor: _actor,
+        distributorId: a.distributorId,
+        operator: a.operator,
+        amountPaise: a.outstandingPaise,
+        reason: reason,
+        referenceNo: 'FRESH_START_$kRechargeFreshStartIstDate',
+      );
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+          content: Text('${a.distributorName}: old dues cleared'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+      _loadLiveDashboardData();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+          content: Text(accountingErrorText(e)),
+          backgroundColor: kPeriodRed,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
+  }
+
+  /// Wrong entry (e.g. wrong operator): marks the recharge failed on the
+  /// server, which returns the debit to that operator's wallet. The customer's
+  /// money is untouched (recharge money is kept out of ERP cash); a Credit/Due
+  /// entry's customer due is reversed. Then the correct recharge is entered
+  /// again as usual.
+  /// Owner edit of a saved recharge: details on the server, or a correction
+  /// followed by the New Recharge form pre-filled with the old values.
+  Future<void> _editRecharge(RechargeEntry t) async {
+    final shop = AuthController.instance.shopId;
+    if (shop.isEmpty) return;
+    final prefill = RechargeEntryEditor.prefillFor(t);
+    final outcome = await RechargeEditDialog.show(context, shopId: shop, actor: _actor, entry: t);
+    if (!mounted) return;
+    if (outcome == RechargeEditOutcome.detailsSaved) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(const SnackBar(
+        content: Text('Saved (സേവ് ചെയ്തു)'),
+        behavior: SnackBarBehavior.floating,
+      ));
+      _loadLiveDashboardData();
+    } else if (outcome == RechargeEditOutcome.corrected) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+        content: Text('Corrected. ${formatInrPaise(t.amountPaise)} returned to the wallet. Now save the correct recharge. '
+            '(ഇനി ശരിയായ റീചാർജ് സേവ് ചെയ്യുക)'),
+        behavior: SnackBarBehavior.floating,
+      ));
+      _loadLiveDashboardData();
+      await QuickRechargeDialog.show(context, fundingType: _selectedFundingType, prefill: prefill);
+      if (mounted) _loadLiveDashboardData();
+    }
+  }
+
+  Future<void> _cancelWrongRecharge(RechargeEntry t) async {
+    final shop = AuthController.instance.shopId;
+    if (shop.isEmpty) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: TekColors.cardBg,
+        title: const Text('Cancel wrong entry? (തെറ്റായ എൻട്രി റദ്ദാക്കണോ?)',
+            style: TextStyle(color: TekColors.textPrimary, fontSize: 16)),
+        content: Text(
+          '${t.operator.displayName} - ${t.customerMobile} - ${formatInrPaise(t.amountPaise)}\n\n'
+          'This entry is marked failed and ${formatInrPaise(t.amountPaise)} goes back to the ${operatorShortName(t.operator)} wallet. '
+          'Then enter the recharge again with the correct operator.\n\n'
+          'ഈ എൻട്രി റദ്ദാകും, തുക ${operatorShortName(t.operator)} വാലറ്റിലേക്ക് തിരികെ വരും. '
+          'ശേഷം ശരിയായ ഓപ്പറേറ്റർ തിരഞ്ഞെടുത്ത് വീണ്ടും റീചാർജ് ചേർക്കുക.',
+          style: const TextStyle(color: TekColors.textSecondary, fontSize: 13),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No (വേണ്ട)')),
+          FilledButton(
+            key: const ValueKey('cancel-recharge-confirm'),
+            style: FilledButton.styleFrom(backgroundColor: TekColors.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Cancel entry (റദ്ദാക്കുക)'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await RechargeAccountingService.instance.failedRechargeReversal(
+        shopId: shop,
+        actor: _actor,
+        rechargeId: t.rechargeId,
+        reason: 'Wrong entry cancelled by owner (wrong operator / details)',
+      );
+      // Local copy follows the server: status FAILED.
+      final raw = Db.recharges.get(t.rechargeId);
+      if (raw is Map) {
+        final map = Map<String, dynamic>.from(raw);
+        map['status'] = 'FAILED';
+        map['notes'] = '${map['notes'] ?? ''} [Cancelled: wrong entry]'.trim();
+        map['updatedAt'] = DateTime.now().toIso8601String();
+        await Db.recharges.put(t.rechargeId, map);
+        RechargeService.instance.registerConfirmedRecharge(map, t.rechargeId);
+        // A Credit/Due entry had added the amount to the customer's due.
+        final partyKey = map['partyKey'];
+        if ((map['paymentMode']?.toString() ?? '') == 'Credit / Due' &&
+            partyKey != null &&
+            Db.parties.containsKey(partyKey)) {
+          await Db.adjustParty(partyKey, -t.amount);
+        }
+      }
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+          content: Text('Cancelled. ${formatInrPaise(t.amountPaise)} returned to ${operatorShortName(t.operator)} wallet. Now enter the correct recharge.'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+      _loadLiveDashboardData();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+          content: Text(accountingErrorText(e)),
+          backgroundColor: kPeriodRed,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
+  }
+
+  /// Fresh start: sets the system wallet (used to check recharge debits) to
+  /// the verified balance, split into own money and distributor credit.
+  Future<void> _alignWallet(RechargeOperator op) async {
+    final shop = AuthController.instance.shopId;
+    final st = _period?[op];
+    if (shop.isEmpty || st == null || st.previousClosing == null) return;
+    final verified = st.closing().expectedClosingPaise;
+    final owed = _settlement?.accounts
+            .where((a) => a.operator == op)
+            .fold<int>(0, (a, x) => a + x.outstandingPaise) ??
+        0;
+    // Single-balance mode: the whole verified balance is the wallet balance.
+    final defaultCredit = _showFundingModeSelector ? (owed < verified ? owed : verified) : 0;
+    String rs(int p) => '${p ~/ 100}.${(p % 100).toString().padLeft(2, '0')}';
+    final creditCtl = TextEditingController(text: rs(defaultCredit));
+    String? error;
+    final credit = await showDialog<int>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+        final c = parseRupeesToPaise(creditCtl.text);
+        final own = c == null ? null : verified - c;
+        return AlertDialog(
+          backgroundColor: TekColors.cardBg,
+          title: Text('Align wallet - ${operatorShortName(op)}',
+              style: const TextStyle(color: TekColors.textPrimary, fontSize: 16)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'System wallet now: ${formatInrPaise(_wallets[op]?.totalBalancePaise ?? 0)} (old figure)\n'
+                'Verified balance: ${formatInrPaise(verified)}\n\n'
+                'The system wallet is set to the verified balance so recharges are checked against the real amount. '
+                'This is not a top-up: expected closing and recharge totals do not change.\n'
+                'സിസ്റ്റം വാലറ്റ് യഥാർത്ഥ ബാലൻസിലേക്ക് ശരിയാക്കും. ഇത് top-up അല്ല.',
+                style: const TextStyle(color: TekColors.textSecondary, fontSize: 12.5),
+              ),
+              if (_showFundingModeSelector) ...[
+              const SizedBox(height: 12),
+              TextField(
+                key: const ValueKey('align-credit'),
+                controller: creditCtl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                style: const TextStyle(color: TekColors.textPrimary),
+                decoration: const InputDecoration(
+                    labelText: 'Of which distributor credit (ഡിസ്ട്രിബ്യൂട്ടർ ക്രെഡിറ്റ്)', prefixText: 'Rs '),
+                onChanged: (_) => setLocal(() {}),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                own == null || own < 0
+                    ? 'Own money: -'
+                    : 'Own money (സ്വന്തം പണം): ${formatInrPaise(own)}',
+                style: const TextStyle(color: TekColors.textPrimary, fontWeight: FontWeight.w700),
+              ),
+              ],
+              if (error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(error!, style: const TextStyle(color: kPeriodRed, fontSize: 12)),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel (വേണ്ട)')),
+            FilledButton(
+              key: const ValueKey('align-save'),
+              onPressed: () {
+                final cc = parseRupeesToPaise(creditCtl.text);
+                if (cc == null || cc < 0 || cc > verified) {
+                  setLocal(() => error = 'Credit must be between 0 and ${formatInrPaise(verified)}');
+                  return;
+                }
+                Navigator.pop(ctx, cc);
+              },
+              child: const Text('Align (ശരിയാക്കുക)'),
+            ),
+          ],
+        );
+      }),
+    );
+    _disposeAfterDialog([creditCtl]);
+    if (credit == null || !mounted) return;
+    try {
+      await RechargeAccountingService.instance.alignWallet(
+        shopId: shop,
+        actor: _actor,
+        operator: op,
+        ownPaise: verified - credit,
+        creditPaise: credit,
+        reason: 'Fresh start ($kRechargeFreshStartIstDate): system wallet set to the verified balance',
+      );
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+          content: Text('${operatorShortName(op)} wallet aligned to ${formatInrPaise(verified)}'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+      _loadLiveDashboardData();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+          content: Text(accountingErrorText(e)),
+          backgroundColor: kPeriodRed,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
+  }
+
+  /// A closed dialog still uses its text fields during the exit animation;
+  /// disposing them at once trips a framework assertion (red error screen in
+  /// debug builds). Dispose them after the animation instead.
+  static void _disposeAfterDialog(List<TextEditingController> ctls) {
+    Future<void>.delayed(const Duration(milliseconds: 500), () {
+      for (final c in ctls) {
+        c.dispose();
+      }
+    });
+  }
+
+  /// Fresh start: dues still owed to a distributor from before the new start.
+  /// Payable only: the wallet credit is already in the verified opening.
+  Future<void> _openingDues(SettlementAccount a) async {
+    final shop = AuthController.instance.shopId;
+    if (shop.isEmpty || a.operator == RechargeOperator.other) return;
+    final amountCtl = TextEditingController();
+    final reasonCtl = TextEditingController(
+        text: 'Owed before fresh start ($kRechargeFreshStartIstDate); wallet already in opening balance');
+    String? error;
+    final paise = await showDialog<int>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          backgroundColor: TekColors.cardBg,
+          title: Text('Opening dues - ${a.distributorName} (${operatorShortName(a.operator)})',
+              style: const TextStyle(color: TekColors.textPrimary, fontSize: 16)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Amount you still owe this distributor from before the new start. '
+                'Only the distributor balance goes up. The wallet does not change, because this credit is already in your opening balance.\n'
+                'പുതിയ തുടക്കത്തിന് മുമ്പുള്ള, ഇപ്പോഴും കൊടുക്കാനുള്ള തുക. വാലറ്റ് മാറില്ല.',
+                style: TextStyle(color: TekColors.textSecondary, fontSize: 12.5),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: const ValueKey('opening-dues-amount'),
+                controller: amountCtl,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                style: const TextStyle(color: TekColors.textPrimary),
+                decoration: const InputDecoration(labelText: 'Amount owed', prefixText: 'Rs '),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: reasonCtl,
+                style: const TextStyle(color: TekColors.textPrimary),
+                decoration: const InputDecoration(labelText: 'Reason (കാരണം)'),
+              ),
+              if (error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(error!, style: const TextStyle(color: kPeriodRed, fontSize: 12)),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel (വേണ്ട)')),
+            FilledButton(
+              key: const ValueKey('opening-dues-save'),
+              onPressed: () {
+                final p = parseRupeesToPaise(amountCtl.text);
+                if (p == null || p <= 0) {
+                  setLocal(() => error = 'Enter a valid amount (സാധുവായ തുക നൽകുക)');
+                  return;
+                }
+                if (reasonCtl.text.trim().isEmpty) {
+                  setLocal(() => error = 'Reason is required (കാരണം നിർബന്ധം)');
+                  return;
+                }
+                Navigator.pop(ctx, p);
+              },
+              child: const Text('Save (സേവ്)'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final reason = reasonCtl.text.trim();
+    _disposeAfterDialog([amountCtl, reasonCtl]);
+    if (paise == null || !mounted) return;
+    try {
+      await RechargeAccountingService.instance.distributorOpeningDues(
+        shopId: shop,
+        actor: _actor,
+        distributorId: a.distributorId,
+        operator: a.operator,
+        amountPaise: paise,
+        reason: reason,
+      );
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+          content: Text('${a.distributorName}: opening dues ${formatInrPaise(paise)} saved'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+      _loadLiveDashboardData();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+          content: Text(accountingErrorText(e)),
+          backgroundColor: kPeriodRed,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
+  }
+
+  /// "Direct Pay" now records an operator-wise payment on the server.
+  void _showDistributorPayoutModal() => _openDistributorPayment();
 
   void _showAgentSettlementModal() {
     final auth = Provider.of<AuthController>(context, listen: false);

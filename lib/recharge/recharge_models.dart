@@ -70,7 +70,11 @@ enum RechargeStatus {
   success('Success', 'വിജയിച്ചു'),
   failed('Failed', 'പരാജയപ്പെട്ടു'),
   refunded('Refunded', 'തിരികെ നൽകി'),
-  disputed('Owner Review (Disputed)', 'ഉടമയുടെ പരിശോധന വേണം');
+  disputed('Owner Review (Disputed)', 'ഉടമയുടെ പരിശോധന വേണം'),
+
+  /// Replaced by an owner correction (wrong amount / operator). Its wallet
+  /// debit was credited back; it is not counted anywhere.
+  corrected('Corrected', 'തിരുത്തി');
 
   final String label;
   final String malayalam;
@@ -79,6 +83,7 @@ enum RechargeStatus {
   static RechargeStatus fromString(String? val) {
     if (val == null) return RechargeStatus.pending;
     final lower = val.toLowerCase();
+    if (lower.contains('correct')) return RechargeStatus.corrected;
     if (lower.contains('dispute') || lower.contains('review')) {
       return RechargeStatus.disputed;
     }

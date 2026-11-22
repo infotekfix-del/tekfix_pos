@@ -9,8 +9,28 @@ import '../security/device_security_service.dart';
 import '../theme/tek_tokens.dart';
 import 'recharge_backend_bridge.dart';
 import 'recharge_models.dart';
+import 'recharge_edit_dialog.dart' show RechargePrefill;
 import 'recharge_recovery_engine.dart';
 import 'recharge_service.dart';
+
+/// This shop does not use recharge commission: no cost price or commission
+/// is shown or recorded from the recharge entry (commission = 0, cost = retail).
+/// (Tests that cover the commission logic switch it on.)
+bool kRechargeCommissionInEntry = false;
+
+/// One balance per operator (no Mode A / Mode B choice): each recharge is
+/// debited from whichever wallet pocket can cover it - own money first,
+/// then distributor credit. (Tests that need a fixed pocket switch it off.)
+bool kRechargeAutoFundingPocket = true;
+
+/// Picks the pocket for [amountPaise]: own money first, else distributor
+/// credit. Returns null when neither pocket alone can cover it.
+RechargeFundingType? autoFundingPocket(
+    {required int ownPaise, required int creditPaise, required int amountPaise}) {
+  if (ownPaise >= amountPaise) return RechargeFundingType.ownMoney;
+  if (creditPaise >= amountPaise) return RechargeFundingType.distributorCredit;
+  return null;
+}
 
 /// Modal dialog for recording instant mobile, utility, and DTH recharges
 /// with full cash flow accounting and margin/profit tracking.
@@ -18,11 +38,19 @@ class QuickRechargeDialog extends StatefulWidget {
   /// Wallet bucket to debit. Defaults to Own Prepaid when opened without a selector.
   final RechargeFundingType fundingType;
 
-  const QuickRechargeDialog({super.key, this.fundingType = RechargeFundingType.ownMoney});
+  /// Starting values (used after an owner correction of a wrong entry).
+  final RechargePrefill? prefill;
+
+  const QuickRechargeDialog({
+    super.key,
+    this.fundingType = RechargeFundingType.ownMoney,
+    this.prefill,
+  });
 
   static Future<void> show(
     BuildContext context, {
     RechargeFundingType fundingType = RechargeFundingType.ownMoney,
+    RechargePrefill? prefill,
   }) {
     if (!AuthController.instance.isOwner) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -36,7 +64,7 @@ class QuickRechargeDialog extends StatefulWidget {
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => QuickRechargeDialog(fundingType: fundingType),
+      builder: (ctx) => QuickRechargeDialog(fundingType: fundingType, prefill: prefill),
     );
   }
 
@@ -105,6 +133,41 @@ class QuickRechargeDialog extends StatefulWidget {
     final ownerUid = auth.uid.isNotEmpty ? auth.uid : 'owner_staging_001';
     final devId = sec.deviceId;
 
+    // 3.0 Automatic pocket (single balance per operator): checked before
+    // anything is journaled, so a too-small balance leaves nothing pending.
+    if (kRechargeAutoFundingPocket) {
+      final debitPaise = ((kRechargeCommissionInEntry &&
+                          RechargeService.instance.isCommissionEnabled(operator)
+                      ? costPrice
+                      : retailAmount) *
+                  100)
+              .round();
+      try {
+        RechargeService.instance.invalidateWalletCache(shopId: shopId);
+        final w = await RechargeService.instance
+            .getWallet(shopId: shopId, operator: RechargeOperator.fromString(operator));
+        final pick = autoFundingPocket(
+            ownPaise: w.ownPrepaidBalancePaise,
+            creditPaise: w.distributorCreditBalancePaise,
+            amountPaise: debitPaise);
+        if (pick != null) {
+          funding = pick;
+        } else {
+          // No single pocket covers it. Never block (owner rule 2026-11-20): the
+          // server takes from both pockets and records any shortfall as an
+          // automatic distributor credit (operator auto-refill = payable).
+          funding = w.ownPrepaidBalancePaise >= w.distributorCreditBalancePaise
+              ? RechargeFundingType.ownMoney
+              : RechargeFundingType.distributorCredit;
+          final total = w.ownPrepaidBalancePaise + w.distributorCreditBalancePaise;
+          debugPrint('[RECHARGE_SAVE] SHORT_WALLET: total=$total need=$debitPaise '
+              '-> server auto credit ${debitPaise > total ? debitPaise - total : 0} paise');
+        }
+      } catch (e) {
+        debugPrint('[RECHARGE_SAVE] AUTO_POCKET_CHECK_SKIPPED: $e');
+      }
+    }
+
     // 3.1 Pre-Commit Write-Ahead Journaling (Guarantees crash recovery without lost debit)
     await RechargeRecoveryEngine.recordPendingIntent(
       idempotencyKey: idempotencyKey,
@@ -122,7 +185,7 @@ class QuickRechargeDialog extends StatefulWidget {
       notes: notes,
     );
 
-    final commEnabled = RechargeService.instance.isCommissionEnabled(operator);
+    final commEnabled = (kRechargeCommissionInEntry && RechargeService.instance.isCommissionEnabled(operator));
     final effectiveCostPrice = commEnabled ? costPrice : retailAmount;
     final retailPaise = (retailAmount * 100).round();
     final costPaise = (effectiveCostPrice * 100).round();
@@ -221,9 +284,17 @@ class QuickRechargeDialog extends StatefulWidget {
       }
     }
 
-    final entry = {
+    final entry = <String, dynamic>{
       'success': true,
       'id': idempotencyKey,
+      'shopId': shopId,
+      'fundingType': funding.name,
+      'walletDebited': true,
+      'customerPaymentCollected': paymentMode != 'Credit / Due',
+      'staffId': ownerUid,
+      'staffName': AuthController.instance.name,
+      'updatedAt': now.toIso8601String(),
+      'dateString': DateFormat('yyyy-MM-dd').format(now),
       'rechargeId': idempotencyKey,
       'serverTxnKey': res['txn_key'] ?? idempotencyKey,
       'date': now.toIso8601String(),
@@ -255,6 +326,10 @@ class QuickRechargeDialog extends StatefulWidget {
     // Save non-authoritative read cache to Hive
     await Db.recharges.put(idempotencyKey, entry);
     debugPrint('[RECHARGE_SAVE] TRANSACTION_PERSISTED: id=$idempotencyKey');
+
+    // Show it in today's history right away, and make the next wallet read hit the server
+    RechargeService.instance.registerConfirmedRecharge(entry, idempotencyKey);
+    RechargeService.instance.invalidateWalletCache(shopId: shopId);
 
     // Record into local Recharge Wallet Ledger (Completely separate from ERP Cash/Bank)
     try {
@@ -323,7 +398,19 @@ class _QuickRechargeDialogState extends State<QuickRechargeDialog> {
   @override
   void initState() {
     super.initState();
+    final p = widget.prefill;
+    if (p != null) {
+      const ops = ['Jio', 'Airtel', 'Vi', 'BSNL', 'Other / DTH'];
+      final match = ops.where((o) => o.toLowerCase() == p.operator.toLowerCase());
+      if (match.isNotEmpty) _operator = match.first;
+      _mobileController.text = p.mobile;
+      _amountController.text =
+          p.amount == p.amount.roundToDouble() ? p.amount.toStringAsFixed(0) : p.amount.toStringAsFixed(2);
+      if (const ['Cash', 'UPI', 'Credit / Due'].contains(p.paymentMode)) _paymentMode = p.paymentMode;
+      _notesController.text = p.notes;
+    }
     _amountController.addListener(_onAmountChanged);
+    if (p != null) WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _onAmountChanged(); });
   }
 
   @override
@@ -341,7 +428,7 @@ class _QuickRechargeDialogState extends State<QuickRechargeDialog> {
     if (_isCustomCost) return;
     final amt = double.tryParse(_amountController.text.trim()) ?? 0.0;
     if (amt > 0) {
-      final commEnabled = RechargeService.instance.isCommissionEnabled(_operator);
+      final commEnabled = (kRechargeCommissionInEntry && RechargeService.instance.isCommissionEnabled(_operator));
       if (commEnabled) {
         final margin = RechargeService.instance.getOperatorCommissionPercent(_operator) / 100.0;
         final cost = amt * (1.0 - margin);
@@ -518,7 +605,7 @@ class _QuickRechargeDialogState extends State<QuickRechargeDialog> {
     try {
       final mobile = _mobileController.text.trim();
       final retail = _retailAmount;
-      final commEnabled = RechargeService.instance.isCommissionEnabled(_operator);
+      final commEnabled = (kRechargeCommissionInEntry && RechargeService.instance.isCommissionEnabled(_operator));
       final margin = RechargeService.instance.getOperatorCommissionPercent(_operator) / 100.0;
       final cost = _costPrice > 0
           ? _costPrice
@@ -550,7 +637,9 @@ class _QuickRechargeDialogState extends State<QuickRechargeDialog> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    '₹${retail.toStringAsFixed(0)} റീചാർജ് രേഖപ്പെടുത്തി! ലാഭം: ₹${profit.toStringAsFixed(2)}',
+                    kRechargeCommissionInEntry
+                        ? '₹${retail.toStringAsFixed(0)} റീചാർജ് രേഖപ്പെടുത്തി! ലാഭം: ₹${profit.toStringAsFixed(2)}'
+                        : '₹${retail.toStringAsFixed(0)} റീചാർജ് രേഖപ്പെടുത്തി!',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -920,7 +1009,8 @@ class _QuickRechargeDialogState extends State<QuickRechargeDialog> {
 
                       const SizedBox(height: 16),
 
-                      // 5. Cost Price & Live Profit Display
+                      // 5. Cost price & commission: not used by this shop (hidden).
+                      if (kRechargeCommissionInEntry)
                       Row(
                         children: [
                           Expanded(
@@ -954,7 +1044,7 @@ class _QuickRechargeDialogState extends State<QuickRechargeDialog> {
                           Expanded(
                             child: Builder(
                               builder: (ctx) {
-                                final commEnabled = RechargeService.instance.isCommissionEnabled(_operator);
+                                final commEnabled = (kRechargeCommissionInEntry && RechargeService.instance.isCommissionEnabled(_operator));
                                 return Container(
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(

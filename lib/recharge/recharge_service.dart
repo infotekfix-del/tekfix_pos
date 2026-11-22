@@ -13,6 +13,9 @@ import 'package:uuid/uuid.dart';
 import '../firebase_options.dart';
 import '../security/device_security_service.dart';
 import '../security/staging_identity_service.dart';
+import '../auth/auth_controller.dart';
+import 'recharge_accounting_backend.dart';
+import 'recharge_accounting_service.dart';
 import 'recharge_backend_bridge.dart';
 import 'recharge_recovery_engine.dart';
 import '../main.dart' show Db, boxRecharges, boxRechargeQueue, boxRechargeDeadLetter, boxRechargeReconciliation, boxRechargeWalletLedger;
@@ -34,6 +37,26 @@ class RechargeService {
     final authUid = Firebase.apps.isNotEmpty ? FirebaseAuth.instance.currentUser?.uid : null;
     if (authUid != null && authUid.trim().isNotEmpty) return authUid.trim();
     return '';
+  }
+
+  /// v2.1: the old client-side postings (agent settlement/return, refunds,
+  /// reversals) run ONLY in localTestMock. Every other mode posts through
+  /// RechargeAccountingService (owner-only, online-only, idempotent, server
+  /// authoritative) and fails closed when the server is not configured.
+  bool get _legacyLocalPath =>
+      RechargeBackendBridge.mode == RechargeBackendMode.localTestMock;
+
+  AccountingActor _resolveActor(AccountingActor? actor) {
+    if (actor != null) return actor;
+    final a = AuthController.instance;
+    return AccountingActor(uid: a.uid, name: a.name, isOwner: a.isOwner);
+  }
+
+  static int _rupeesToPaise(double v) => (v * 100).round();
+
+  static String _modeLabel(String mode) {
+    final m = mode.toUpperCase();
+    return m == 'CASH' ? 'Cash' : (m == 'UPI' ? 'UPI' : 'Bank');
   }
 
   // Concurrency lock per wallet to serialize simultaneous debit operations
@@ -392,8 +415,26 @@ class RechargeService {
     return totalReservedPaise;
   }
 
-  /// Rehydrate local recharge cache from durable Hive storage
-  Future<int> rehydrateFromHive() async {
+  /// Register a server-confirmed recharge (saved by QuickRechargeDialog) in the
+  /// in-memory cache so it appears in today's history without an app restart.
+  void registerConfirmedRecharge(Map<String, dynamic> map, String id) {
+    _localRecharges[id] = RechargeEntry.fromMap(map, id);
+  }
+
+  /// Drop cached wallet balances so the next getWallet() re-reads the server.
+  /// Only applies in Supabase mode, where the server is the source of truth.
+  void invalidateWalletCache({String? shopId}) {
+    if (!RechargeBackendBridge.isSupabaseMode) return;
+    if (shopId == null) {
+      _localWallets.clear();
+    } else {
+      _localWallets.removeWhere((k, _) => k.startsWith('${shopId}_'));
+    }
+  }
+
+  /// Rehydrate local recharge cache from durable Hive storage.
+  /// [defaultShopId] fills in records saved without a shopId.
+  Future<int> rehydrateFromHive({String? defaultShopId}) async {
     int count = 0;
     try {
       if (Hive.isBoxOpen(boxRecharges)) {
@@ -402,10 +443,12 @@ class RechargeService {
           final val = box.get(key);
           if (val is Map) {
             try {
-              final entry = RechargeEntry.fromMap(
-                Map<String, dynamic>.from(val),
-                key.toString(),
-              );
+              final data = Map<String, dynamic>.from(val);
+              if (defaultShopId != null &&
+                  (data['shopId'] == null || data['shopId'].toString().isEmpty)) {
+                data['shopId'] = defaultShopId;
+              }
+              final entry = RechargeEntry.fromMap(data, key.toString());
               _localRecharges[entry.rechargeId] = entry;
               count++;
             } catch (e) {
@@ -1713,6 +1756,8 @@ class RechargeService {
     String? referenceNumber,
     String notes = 'Agent Settlement with Recharge Adjustment',
     String? staffRole,
+    RechargeOperator? operator,
+    AccountingActor? actor,
   }) async {
     if (staffRole != null && staffRole != 'owner' && staffRole != 'admin') {
       throw Exception(
@@ -1727,6 +1772,16 @@ class RechargeService {
     }
     if (rechargeAdjustment > totalPayable) {
       throw ArgumentError('റീചാർജ് അഡ്ജസ്റ്റ്മെന്റ് ആകെ തുകയേക്കാൾ കൂടരുത് (Recharge adjustment cannot exceed total payable)');
+    }
+
+    if (!_legacyLocalPath) {
+      return _serverAgentSettlement(
+        shopId: shopId, distributorId: distributorId,
+        totalPaise: _rupeesToPaise(totalPayable), adjPaise: _rupeesToPaise(rechargeAdjustment),
+        paymentMode: paymentMode, staffId: staffId, staffName: staffName,
+        referenceNo: referenceNumber ?? '', notes: notes, operator: operator,
+        actor: _resolveActor(actor),
+      );
     }
 
     final actualPayment = totalPayable - rechargeAdjustment;
@@ -1920,6 +1975,8 @@ class RechargeService {
     String notes = 'Recharge Amount Return from Agent',
     String? staffRole,
     String? selectedBankAccountId,
+    RechargeOperator? operator,
+    AccountingActor? actor,
   }) async {
     if (staffRole != null && staffRole != 'owner' && staffRole != 'admin') {
       throw Exception(
@@ -1928,6 +1985,15 @@ class RechargeService {
 
     if (returnAmount <= 0) {
       throw ArgumentError('തിരികെ ലഭിച്ച തുക പോസിറ്റീവ് ആയിരിക്കണം (Return amount must be positive)');
+    }
+
+    if (!_legacyLocalPath) {
+      return _serverAgentReturn(
+        shopId: shopId, distributorId: distributorId, returnPaise: _rupeesToPaise(returnAmount),
+        returnMode: returnMode, staffId: staffId, staffName: staffName,
+        referenceNo: referenceNumber ?? '', notes: notes, operator: operator,
+        actor: _resolveActor(actor),
+      );
     }
 
     final returnPaise = (returnAmount * 100).round();
@@ -2059,6 +2125,174 @@ class RechargeService {
     } finally {
       _inFlightOperations.remove(txnId);
     }
+  }
+
+  // ----- v2.1 server path for settlement / return ---------------------------
+  // Posts through RechargeAccountingService. Afterwards only the in-memory
+  // display caches are refreshed: no Firestore, no Hive, no Db.moveMoney
+  // (the server records the cash/bank side, as for v2 distributor payments).
+
+  Future<
+      ({
+        DistributorProfile distributor,
+        DistributorLedgerEntry entry,
+        DistributorPaymentReceipt receipt,
+        double actualPayment,
+        double rechargeAdjustment,
+        double pendingReturn,
+        bool isFullSettlement
+      })> _serverAgentSettlement({
+    required String shopId,
+    required String distributorId,
+    required int totalPaise,
+    required int adjPaise,
+    required String paymentMode,
+    required String staffId,
+    required String staffName,
+    required String referenceNo,
+    required String notes,
+    required RechargeOperator? operator,
+    required AccountingActor actor,
+  }) async {
+    final currentDist = await getDistributor(shopId: shopId, distributorId: distributorId);
+    final op = operator ?? currentDist.defaultOperator;
+    final now = DateTime.now();
+    final r = await RechargeAccountingService.instance.agentSettlement(
+      shopId: shopId, actor: actor, distributorId: distributorId, operator: op,
+      totalPayablePaise: totalPaise, rechargeAdjustmentPaise: adjPaise,
+      paymentMode: paymentMode, paymentDate: now, referenceNo: referenceNo, notes: notes,
+    );
+    final d = r.data;
+    int i(String k, int fallback) => (d[k] as num?)?.toInt() ?? fallback;
+    final actualPaise = i('actualPaymentPaise', totalPaise - adjPaise);
+    final beforePaise = i('balanceBeforePaise', currentDist.currentOutstandingPaise);
+    final afterPaise = i('balanceAfterPaise', beforePaise - totalPaise);
+    final pendingPaise = i('pendingReturnPaise', currentDist.pendingReturnPaise + adjPaise);
+    final ref = r.referenceId.isNotEmpty ? r.referenceId : 'SETTLE_${now.millisecondsSinceEpoch}';
+
+    final updatedDist = currentDist.copyWith(
+      totalPaymentsMadePaise: currentDist.totalPaymentsMadePaise + actualPaise,
+      totalAdjustmentsPaise: currentDist.totalAdjustmentsPaise + adjPaise,
+      pendingReturnPaise: currentDist.pendingReturnPaise + adjPaise,
+      lastPaymentDate: now,
+      updatedAt: now,
+    );
+    final entry = DistributorLedgerEntry(
+      entryId: 'DL_$ref',
+      shopId: shopId,
+      distributorId: distributorId,
+      distributorName: currentDist.name,
+      entryType: 'AGENT_SETTLEMENT',
+      amount: totalPaise / 100.0,
+      amountPaise: totalPaise,
+      paymentMode: paymentMode.toUpperCase(),
+      outstandingBeforePaise: beforePaise > 0 ? beforePaise : 0,
+      outstandingAfterPaise: afterPaise > 0 ? afterPaise : 0,
+      rechargeAdjustmentPaise: adjPaise,
+      actualPaymentPaise: actualPaise,
+      pendingReturnBeforePaise: pendingPaise - adjPaise,
+      pendingReturnAfterPaise: pendingPaise,
+      referenceNumber: ref,
+      description: 'Agent Settlement (${op.displayName}) via server: $notes',
+      staffId: staffId,
+      staffName: staffName,
+      timestamp: now,
+    );
+    if (!r.replayed) {
+      _localDistributors['${shopId}_$distributorId'] = updatedDist;
+      _localDistributorLedger.add(entry);
+    }
+    final receipt = DistributorPaymentReceipt(
+      receiptNo: 'REC_$ref',
+      distributorId: distributorId,
+      distributorName: currentDist.name,
+      operatorName: op.displayName,
+      paymentDate: now,
+      amount: actualPaise / 100.0,
+      amountPaise: actualPaise,
+      paymentMode: paymentMode.toUpperCase(),
+      previousOutstanding: (beforePaise > 0 ? beforePaise : 0) / 100.0,
+      remainingOutstanding: (afterPaise > 0 ? afterPaise : 0) / 100.0,
+      referenceNumber: ref,
+      staffName: staffName,
+      notes: notes,
+    );
+    return (
+      distributor: updatedDist,
+      entry: entry,
+      receipt: receipt,
+      actualPayment: actualPaise / 100.0,
+      rechargeAdjustment: adjPaise / 100.0,
+      pendingReturn: pendingPaise / 100.0,
+      isFullSettlement: afterPaise <= 0,
+    );
+  }
+
+  Future<
+      ({
+        DistributorProfile distributor,
+        DistributorLedgerEntry entry,
+        double returnedAmount,
+        double remainingPendingReturn,
+      })> _serverAgentReturn({
+    required String shopId,
+    required String distributorId,
+    required int returnPaise,
+    required String returnMode,
+    required String staffId,
+    required String staffName,
+    required String referenceNo,
+    required String notes,
+    required RechargeOperator? operator,
+    required AccountingActor actor,
+  }) async {
+    final currentDist = await getDistributor(shopId: shopId, distributorId: distributorId);
+    final op = operator ?? currentDist.defaultOperator;
+    final now = DateTime.now();
+    final r = await RechargeAccountingService.instance.agentReturn(
+      shopId: shopId, actor: actor, distributorId: distributorId, operator: op,
+      returnPaise: returnPaise, returnMode: returnMode, returnDate: now,
+      referenceNo: referenceNo, notes: notes,
+    );
+    final remaining = (r.data['pendingReturnPaise'] as num?)?.toInt() ?? 0;
+    final before = (r.data['pendingBeforePaise'] as num?)?.toInt() ?? remaining + returnPaise;
+    final mirrorPending = currentDist.pendingReturnPaise - returnPaise;
+    final updatedDist = currentDist.copyWith(
+      pendingReturnPaise: mirrorPending > 0 ? mirrorPending : 0,
+      updatedAt: now,
+    );
+    final ref = r.referenceId.isNotEmpty ? r.referenceId : 'RET_${now.millisecondsSinceEpoch}';
+    final entry = DistributorLedgerEntry(
+      entryId: 'DL_$ref',
+      shopId: shopId,
+      distributorId: distributorId,
+      distributorName: currentDist.name,
+      entryType: 'RECHARGE_AMOUNT_RETURN',
+      amount: returnPaise / 100.0,
+      amountPaise: returnPaise,
+      paymentMode: _modeLabel(returnMode).toUpperCase(),
+      outstandingBeforePaise: currentDist.currentOutstandingPaise,
+      outstandingAfterPaise: currentDist.currentOutstandingPaise,
+      rechargeAdjustmentPaise: 0,
+      actualPaymentPaise: returnPaise,
+      pendingReturnBeforePaise: before,
+      pendingReturnAfterPaise: remaining,
+      referenceNumber: ref,
+      description: 'Recharge Amount Return (${op.displayName}) via server: $notes',
+      staffId: staffId,
+      staffName: staffName,
+      timestamp: now,
+    );
+    if (!r.replayed) {
+      _localDistributors['${shopId}_$distributorId'] = updatedDist;
+      _localDistributorLedger.add(entry);
+    }
+    return (
+      distributor: updatedDist,
+      entry: entry,
+      returnedAmount: returnPaise / 100.0,
+      remainingPendingReturn: remaining / 100.0,
+    );
   }
 
   /// Get pending recharge return amounts from each operator/agent
@@ -2231,6 +2465,12 @@ class RechargeService {
     if (walletId == null) return List.unmodifiable(_localWalletLedger);
     return _localWalletLedger.where((e) => e.walletId == walletId).toList();
   }
+
+  /// Read-only view of the recharge records held on this device.
+  List<RechargeEntry> getLocalRecharges({String? shopId}) => List.unmodifiable(
+      shopId == null
+          ? _localRecharges.values
+          : _localRecharges.values.where((r) => r.shopId == shopId));
 
   List<DistributorLedgerEntry> getLocalDistributorLedger({String? distributorId}) {
     if (distributorId == null) return List.unmodifiable(_localDistributorLedger);
@@ -3067,7 +3307,7 @@ class RechargeService {
           settlementMethod == CommissionSettlementMethod.cashPayout) {
         try {
           await Db.moveMoney('Cash', amount,
-              'Recharge Commission Cash Received: ${operator.displayName} ($txnId)');
+              'Recharge Commission Cash Received: ${operator.displayName} ($txnId)', category: 'commission');
         } catch (e) {
           debugPrint(
               '[RechargeService] Db.moveMoney commission cash notice: $e');
@@ -3179,7 +3419,7 @@ class RechargeService {
     if (method == CommissionSettlementMethod.cashPayout) {
       try {
         await Db.moveMoney('Cash', existing.amount,
-            'Recharge Commission Confirmed Cash: ${existing.operator.displayName}');
+            'Recharge Commission Confirmed Cash: ${existing.operator.displayName}', category: 'commission');
       } catch (e) {
         debugPrint('[RechargeService] Db.moveMoney notice: $e');
       }
@@ -3427,6 +3667,7 @@ class RechargeService {
     required String staffName,
     String reason = 'Recharge Failed by Operator',
     bool reverseWalletIfDebited = true,
+    AccountingActor? actor,
   }) async {
     final existing = await getRecharge(shopId: shopId, rechargeId: rechargeId);
     if (existing == null) {
@@ -3440,6 +3681,47 @@ class RechargeService {
     if (existing.status == RechargeStatus.success) {
       throw StateError(
           'പൂർത്തിയായ റീചാർജ് നേരിട്ട് പരാജയമായി അടയാളപ്പെടുത്താൻ കഴിയില്ല (Cannot mark completed success recharge as failed directly. Use refund workflow.)');
+    }
+
+    if (!_legacyLocalPath) {
+      // Server marks it failed and credits a debited wallet back exactly once.
+      final r = await RechargeAccountingService.instance.failedRechargeReversal(
+        shopId: shopId,
+        actor: _resolveActor(actor),
+        rechargeId: rechargeId,
+        reason: reason,
+      );
+      final credit = (r.data['walletCreditPaise'] as num?)?.toInt() ?? 0;
+      final walletId = 'WALLET_${existing.operator.name.toUpperCase()}';
+      WalletLedgerEntry? mirrorEntry;
+      if (credit > 0) {
+        mirrorEntry = WalletLedgerEntry(
+          txnId: r.referenceId,
+          shopId: shopId,
+          walletId: walletId,
+          operator: existing.operator,
+          fundingType: existing.fundingType,
+          entryType: 'WALLET_REVERSAL',
+          amount: credit / 100.0,
+          amountPaise: credit,
+          balanceBeforePaise: 0,
+          balanceAfterPaise: credit,
+          referenceId: rechargeId,
+          description: 'Wallet Debit Reversal (server): $reason',
+          staffId: staffId,
+          staffName: staffName,
+          timestamp: DateTime.now(),
+        );
+      }
+      final failed = existing.copyWith(
+        status: RechargeStatus.failed,
+        notes: reason,
+        updatedAt: DateTime.now(),
+      );
+      _localRecharges[rechargeId] = failed; // display mirror only
+      // Wallet balance now comes from the server; drop the cached copy.
+      _localWallets.remove('${shopId}_$walletId');
+      return (recharge: failed, wallet: null, walletEntry: mirrorEntry);
     }
 
     OperatorWallet? updatedWallet;
@@ -3585,6 +3867,7 @@ class RechargeService {
     required String staffName,
     required String reason,
     String? idempotencyKey,
+    AccountingActor? actor,
   }) async {
     if (refundAmount <= 0) {
       throw ArgumentError('റീഫണ്ട് തുക പോസിറ്റീവ് ആയിരിക്കണം (Refund amount must be positive)');
@@ -3608,6 +3891,64 @@ class RechargeService {
     if (refundPaise > existing.amountPaise) {
       throw ArgumentError(
           'റീഫണ്ട് തുക (₹$refundAmount) കളക്ഷൻ തുകയേക്കാൾ (₹${existing.amount}) കൂടുതലാകാൻ പാടില്ല (Refund amount cannot exceed collection amount)');
+    }
+
+    if (!_legacyLocalPath) {
+      final r = await RechargeAccountingService.instance.customerRefund(
+        shopId: shopId,
+        actor: _resolveActor(actor),
+        rechargeId: rechargeId,
+        refundPaise: refundPaise,
+        refundMethod: refundMethod.name,
+        reason: reason,
+      );
+      final now = DateTime.now();
+      final ref = r.referenceId.isNotEmpty ? r.referenceId : 'REFUND_$rechargeId';
+      final refundRecord = CustomerRefundRecord(
+        refundId: ref,
+        rechargeId: rechargeId,
+        shopId: shopId,
+        amount: refundPaise / 100.0,
+        amountPaise: refundPaise,
+        refundMethod: refundMethod,
+        refundDate: now,
+        dateString: DateFormat('yyyy-MM-dd').format(now),
+        staffId: staffId,
+        staffName: staffName,
+        reason: reason,
+        idempotencyKey: ref,
+        voucherId: ref,
+        createdAt: now,
+      );
+      final reversalEntry = ReversalLedgerEntry(
+        reversalId: 'REV_$ref',
+        originalTxnId: rechargeId,
+        shopId: shopId,
+        reversalType: ReversalType.customerRefund,
+        amount: refundPaise / 100.0,
+        amountPaise: refundPaise,
+        affectedEntity: refundMethod == RechargePaymentMode.cash ? 'PhysicalCashDrawer' : 'BankUPIBalance',
+        entityReferenceId: ref,
+        timestamp: now,
+        dateString: refundRecord.dateString,
+        staffId: staffId,
+        staffName: staffName,
+        reason: reason,
+        idempotencyKey: ref,
+        notes: 'Customer refund via ${refundMethod.label} (server)',
+      );
+      final updatedRecharge = existing.copyWith(
+        status: RechargeStatus.refunded,
+        refundId: ref,
+        refundAmount: refundPaise / 100.0,
+        refundMethod: refundMethod.name,
+        updatedAt: now,
+      );
+      // In-memory display mirror only (no Firestore / Hive write).
+      _localRefunds[ref] = refundRecord;
+      _localReversals.add(reversalEntry);
+      _localRecharges[rechargeId] = updatedRecharge;
+      return (recharge: updatedRecharge, refundRecord: refundRecord, reversalEntry: reversalEntry);
     }
 
     // 3. Idempotency & Duplicate prevention
@@ -3816,8 +4157,15 @@ class RechargeService {
     required String staffName,
     required String reason,
     String? idempotencyKey,
+    AccountingActor? actor,
   }) async {
     final commKey = commissionId.startsWith('COMM_') ? commissionId : 'COMM_$commissionId';
+    if (!_legacyLocalPath) {
+      return _serverCommissionReversal(
+        shopId: shopId, commKey: commKey, staffId: staffId, staffName: staffName,
+        reason: reason, actor: _resolveActor(actor),
+      );
+    }
     final existing = _localCommissions[commKey];
     if (existing == null) {
       throw Exception('കമ്മീഷൻ ഇടപാട് കണ്ടെത്താനായില്ല (Commission entry not found: $commissionId)');
@@ -3991,6 +4339,60 @@ class RechargeService {
     return (reversedCommission: updatedComm, reversalEntry: reversalEntry);
   }
 
+  /// v2.1 server path: the amount comes from the server commission record.
+  Future<({
+    RechargeCommissionEntry reversedCommission,
+    ReversalLedgerEntry reversalEntry,
+  })> _serverCommissionReversal({
+    required String shopId,
+    required String commKey,
+    required String staffId,
+    required String staffName,
+    required String reason,
+    required AccountingActor actor,
+  }) async {
+    final existing = _localCommissions[commKey];
+    if (existing == null) {
+      throw Exception('കമ്മീഷൻ ഇടപാട് കണ്ടെത്താനായില്ല (Commission entry not found: $commKey)');
+    }
+    final rechargeId = commKey.substring('COMM_'.length);
+    final isConfirmed = existing.status == CommissionStatus.confirmed ||
+        existing.status == CommissionStatus.received;
+    final r = await RechargeAccountingService.instance.commissionReversal(
+      shopId: shopId,
+      actor: actor,
+      rechargeId: rechargeId,
+      clawbackFromWallet:
+          isConfirmed && existing.settlementMethod == CommissionSettlementMethod.walletCredit,
+      reason: reason,
+    );
+    final paise = (r.data['commissionPaise'] as num?)?.toInt() ?? existing.amountPaise;
+    final updated = existing.copyWith(
+      status: CommissionStatus.pending,
+      notes: '${existing.notes} [REVERSED: $reason]',
+    );
+    final reversalEntry = ReversalLedgerEntry(
+      reversalId: r.referenceId,
+      originalTxnId: commKey,
+      shopId: shopId,
+      reversalType: ReversalType.commissionReversal,
+      amount: paise / 100.0,
+      amountPaise: paise,
+      affectedEntity: 'CommissionIncome',
+      entityReferenceId: commKey,
+      timestamp: DateTime.now(),
+      dateString: existing.dateString,
+      staffId: staffId,
+      staffName: staffName,
+      reason: reason,
+      idempotencyKey: r.referenceId,
+      notes: 'Commission reversed on the server',
+    );
+    _localCommissions[commKey] = updated; // display mirror only
+    _localReversals.add(reversalEntry);
+    return (reversedCommission: updated, reversalEntry: reversalEntry);
+  }
+
   /// Reverses distributor credit/balance liability
   Future<({
     DistributorProfile distributor,
@@ -4004,9 +4406,69 @@ class RechargeService {
     required String staffName,
     required String reason,
     String? referenceId,
+    RechargeOperator? operator,
+    AccountingActor? actor,
   }) async {
     if (amount <= 0) {
       throw ArgumentError('Amount must be positive');
+    }
+
+    if (!_legacyLocalPath) {
+      final dist = await getDistributor(shopId: shopId, distributorId: distributorId);
+      final op = operator ?? dist.defaultOperator;
+      final amountPaise = _rupeesToPaise(amount);
+      final r = await RechargeAccountingService.instance.distributorCreditReversal(
+        shopId: shopId, actor: _resolveActor(actor), distributorId: distributorId,
+        operator: op, amountPaise: amountPaise, reason: reason, referenceNo: referenceId ?? '',
+      );
+      final now = DateTime.now();
+      final ref = r.referenceId;
+      final before = (r.data['balanceBeforePaise'] as num?)?.toInt() ?? dist.currentOutstandingPaise;
+      final after = (r.data['balanceAfterPaise'] as num?)?.toInt() ?? before - amountPaise;
+      final updatedDist = dist.copyWith(
+        totalAdjustmentsPaise: dist.totalAdjustmentsPaise + amountPaise,
+        updatedAt: now,
+      );
+      final distEntry = DistributorLedgerEntry(
+        entryId: 'DL_$ref',
+        shopId: shopId,
+        distributorId: distributorId,
+        distributorName: dist.name,
+        entryType: 'CREDIT_REVERSAL',
+        amount: amountPaise / 100.0,
+        amountPaise: amountPaise,
+        paymentMode: 'REVERSAL',
+        outstandingBeforePaise: before > 0 ? before : 0,
+        outstandingAfterPaise: after > 0 ? after : 0,
+        referenceNumber: ref,
+        description: 'Distributor Payable Reversal (${op.displayName}, server): $reason',
+        staffId: staffId,
+        staffName: staffName,
+        timestamp: now,
+      );
+      final reversalEntry = ReversalLedgerEntry(
+        reversalId: 'REV_$ref',
+        originalTxnId: ref,
+        shopId: shopId,
+        reversalType: ReversalType.distributorReversal,
+        amount: amountPaise / 100.0,
+        amountPaise: amountPaise,
+        affectedEntity: 'DistributorPayable',
+        entityReferenceId: distributorId,
+        timestamp: now,
+        dateString: DateFormat('yyyy-MM-dd').format(now),
+        staffId: staffId,
+        staffName: staffName,
+        reason: reason,
+        idempotencyKey: ref,
+        notes: 'Reduced ${op.displayName} payable (server)',
+      );
+      if (!r.replayed) {
+        _localDistributors['${shopId}_$distributorId'] = updatedDist;
+        _localDistributorLedger.add(distEntry);
+        _localReversals.add(reversalEntry);
+      }
+      return (distributor: updatedDist, ledgerEntry: distEntry, reversalEntry: reversalEntry);
     }
 
     final amountPaise = (amount * 100).round();
@@ -4114,6 +4576,7 @@ class RechargeService {
     required String reason,
     bool refundCustomer = true,
     RechargePaymentMode? refundMethod,
+    AccountingActor? actor,
   }) async {
     final existing = await getRecharge(shopId: shopId, rechargeId: rechargeId);
     if (existing == null) {
@@ -4130,6 +4593,7 @@ class RechargeService {
       staffName: staffName,
       reason: reason,
       reverseWalletIfDebited: true,
+      actor: actor,
     );
 
     CustomerRefundRecord? refundRecord;
@@ -4148,6 +4612,7 @@ class RechargeService {
         staffId: staffId,
         staffName: staffName,
         reason: reason,
+        actor: actor,
       );
       currentRecharge = refundResult.recharge;
       refundRecord = refundResult.refundRecord;
@@ -4200,6 +4665,8 @@ class RechargeService {
             refCount++;
             refPaise += r.amountPaise;
             break;
+          case RechargeStatus.corrected:
+            break; // replaced by a correction: not counted
         }
       }
     }

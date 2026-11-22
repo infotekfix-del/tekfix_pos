@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
-import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 import '../firebase_options.dart';
@@ -12,6 +11,7 @@ import '../inventory/consumables_service.dart';
 import 'pos_models.dart';
 import '../crm/customer_crm.dart';
 import '../crm/customer_models.dart';
+import 'whatsapp_invoice_message.dart';
 
 class PosService {
   PosService._();
@@ -219,6 +219,7 @@ class PosService {
     String? serviceJobId,
     dynamic serviceJobKey,
     double serviceAdvanceApplied = 0.0,
+    DateTime? saleDate,
   }) async {
     if (cartItems.isEmpty) {
       throw Exception('കാർട്ടിൽ ഉൽപ്പന്നങ്ങളൊന്നുമില്ല (Cart is empty).');
@@ -428,6 +429,11 @@ class PosService {
         }
       }
 
+      final effectiveSaleDate = (saleDate ?? now).toUtc();
+      final isBackdated = effectiveSaleDate.year != now.year ||
+          effectiveSaleDate.month != now.month ||
+          effectiveSaleDate.day != now.day;
+
       // 4. Update Hive local storage (instant offline sync & local sales view)
       for (final line in cartItems) {
         for (final k in Db.items.keys) {
@@ -439,7 +445,8 @@ class PosService {
             cur['stock'] = curStock - line.qty;
             await Db.items.put(k, cur);
             await Db.stockMove(
-                k, line.item.name, -line.qty, 'POS Sale $invoiceId');
+                k, line.item.name, -line.qty, 'POS Sale $invoiceId',
+                date: effectiveSaleDate.toIso8601String());
             break;
           }
         }
@@ -467,7 +474,9 @@ class PosService {
 
       final billData = <String, dynamic>{
         'invoice': invoiceId,
-        'createdAt': now.toIso8601String(),
+        'saleDate': effectiveSaleDate.toIso8601String(),
+        'createdAt': now.toUtc().toIso8601String(),
+        'isBackdated': isBackdated,
         'customerName': invoice.customerName,
         'customerPhone': invoice.customerPhone,
         if (crmCustomer != null) ...CustomerCrm.saleFields(crmCustomer),
@@ -595,58 +604,40 @@ class PosService {
     String? shopName,
     required String invoiceId,
   }) {
-    final upi = upiId ?? Db.setting('shop_upi', '7034093101@okbizaxis');
+    final upi = upiId ?? Db.setting('shop_upi', 'Q085585286@ybl');
     final name = shopName ?? Db.setting('shop_name', 'TEKFIX MOBILE HUB');
     final am = amount.toStringAsFixed(2);
     final encodedName = Uri.encodeComponent(name);
     return 'upi://pay?pa=$upi&pn=$encodedName&am=$am&cu=INR&tn=Invoice%20$invoiceId';
   }
 
-  /// Generates formatted receipt text and opens WhatsApp
-  Future<void> shareReceiptWhatsApp({
+  /// Opens WhatsApp with the branded TEKFIX DIGITAL invoice message
+  /// (lib/pos/whatsapp_invoice_message.dart). [shopName] / [shopPhone] are
+  /// kept for API compatibility; the branded template carries shop details.
+  /// Without a customer number WhatsApp's chat picker opens (as before).
+  /// Returns false when WhatsApp could not be opened.
+  Future<bool> shareReceiptWhatsApp({
     required PosInvoice invoice,
     required String shopName,
     required String shopPhone,
   }) async {
-    final df = DateFormat('dd-MM-yyyy hh:mm a');
-    final buf = StringBuffer();
-    buf.writeln('===========================');
-    buf.writeln('*$shopName*');
-    buf.writeln('Phone: $shopPhone');
-    buf.writeln('===========================');
-    buf.writeln('Invoice: *#${invoice.invoiceId}*');
-    buf.writeln('Date: ${df.format(invoice.createdAt)}');
-    buf.writeln('Staff: ${invoice.staffName}');
-    buf.writeln('Customer: ${invoice.customerName}');
-    buf.writeln('---------------------------');
-    for (final it in invoice.items) {
-      final name = it['name'];
-      final qty = it['qty'];
-      final price = (it['unitPrice'] as num).toStringAsFixed(2);
-      final line = (it['lineTotal'] as num).toStringAsFixed(2);
-      buf.writeln('$name x $qty @ ₹$price = ₹$line');
-    }
-    buf.writeln('---------------------------');
-    buf.writeln('Subtotal: ₹${invoice.subtotal.toStringAsFixed(2)}');
-    if (invoice.discount > 0) {
-      buf.writeln('Discount: -₹${invoice.discount.toStringAsFixed(2)}');
-    }
-    buf.writeln('*Total: ₹${invoice.total.toStringAsFixed(2)}*');
-    buf.writeln('Payment: ${invoice.payment.mode}');
-    buf.writeln('===========================');
-    buf.writeln('Thank you for choosing $shopName!');
-
-    final text = Uri.encodeComponent(buf.toString());
-    var phone = invoice.customerPhone.replaceAll(RegExp(r'[^0-9]'), '');
-    if (phone.startsWith('0')) phone = phone.substring(1);
-    if (!phone.startsWith('91') && phone.length == 10) phone = '91$phone';
-    final url = phone.isNotEmpty
-        ? 'https://wa.me/$phone?text=$text'
-        : 'https://api.whatsapp.com/send?text=$text';
-
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+    final r = await openWhatsAppInvoice(
+      {
+        'invoice': invoice.invoiceId,
+        'customerName': invoice.customerName,
+        'customerPhone': invoice.customerPhone,
+        'items': invoice.items,
+        'total': invoice.total,
+        'cash': invoice.payment.cashAmount,
+        'upi': invoice.payment.upiAmount,
+        'card': invoice.payment.cardAmount,
+        'advanceApplied': invoice.serviceAdvanceApplied,
+        'createdAt': invoice.createdAt,
+      },
+      launcher: (u) => launchUrl(u, mode: LaunchMode.externalApplication),
+      requirePhone: false,
+      reviewUrl: Db.setting('google_review_url'),
+    );
+    return r == WhatsAppInvoiceResult.opened;
   }
 }

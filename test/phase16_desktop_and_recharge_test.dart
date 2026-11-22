@@ -22,6 +22,12 @@ import 'package:tekfix_erp_pos/ui/dashboard/quick_actions.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  // These tests drive the server mock with a fixed wallet pocket.
+  setUpAll(() => kRechargeAutoFundingPocket = false);
+  tearDownAll(() => kRechargeAutoFundingPocket = true);
+  // Test 12 covers the commission logic, which the shop has switched off.
+  setUpAll(() => kRechargeCommissionInEntry = true);
+  tearDownAll(() => kRechargeCommissionInEntry = false);
   late Directory tempDir;
 
   setUpAll(() async {

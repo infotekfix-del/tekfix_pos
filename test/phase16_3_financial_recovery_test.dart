@@ -17,6 +17,12 @@ import 'package:tekfix_erp_pos/security/staging_identity_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  // These tests drive the server mock with a fixed wallet pocket.
+  setUpAll(() => kRechargeAutoFundingPocket = false);
+  tearDownAll(() => kRechargeAutoFundingPocket = true);
+  // Test 6 checks the commission amount; the shop has commission switched off.
+  setUpAll(() => kRechargeCommissionInEntry = true);
+  tearDownAll(() => kRechargeCommissionInEntry = false);
   late Directory tempDir;
 
   const channelName = 'com.example.tekfix_pos/keystore';

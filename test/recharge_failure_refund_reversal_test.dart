@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hive/hive.dart';
 import 'package:tekfix_erp_pos/main.dart';
 import 'package:tekfix_erp_pos/recharge/recharge_models.dart';
+import 'package:tekfix_erp_pos/recharge/recharge_backend_bridge.dart';
 import 'package:tekfix_erp_pos/recharge/recharge_service.dart';
 
 void main() {
@@ -15,6 +16,8 @@ void main() {
     final service = RechargeService.instance;
 
     setUpAll(() async {
+    // v2.1: the old client-side postings run only in localTestMock.
+    RechargeBackendBridge.configure(mode: RechargeBackendMode.localTestMock);
       GoogleFonts.config.allowRuntimeFetching = false;
       tempDir = await Directory.systemTemp.createTemp('recharge_reversal_test_');
       Hive.init(tempDir.path);

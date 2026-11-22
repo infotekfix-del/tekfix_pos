@@ -128,7 +128,7 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
 
         return Scaffold(
           backgroundColor: DashboardColors.bgDarkNavyStart,
-          appBar: _buildAppBar(bill),
+          appBar: _buildAppBar(bill, auth),
           body: Container(
             decoration: const BoxDecoration(
                 gradient: DashboardColors.backgroundGradient),
@@ -194,7 +194,7 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
   // APP BAR
   // ---------------------------------------------------------------------------
 
-  PreferredSizeWidget _buildAppBar(PurchaseBill bill) {
+  PreferredSizeWidget _buildAppBar(PurchaseBill bill, AuthController auth) {
     return AppBar(
       backgroundColor: const Color(0xFF0C1236),
       elevation: 0,
@@ -235,8 +235,8 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
             borderRadius: BorderRadius.circular(6),
             border: Border.all(
               color: bill.entrySource == EntrySource.manual
-                  ? DashboardColors.neonGreen.withValues(alpha: 0.4)
-                  : DashboardColors.neonPurple.withValues(alpha: 0.4),
+                ? DashboardColors.neonGreen.withValues(alpha: 0.4)
+                : DashboardColors.neonPurple.withValues(alpha: 0.4),
             ),
           ),
           child: Row(
@@ -284,12 +284,37 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                   color: DashboardColors.neonOrange),
             ),
           ),
-        IconButton(
-          icon: const Icon(Icons.edit_note_rounded,
-              color: DashboardColors.neonOrange),
-          tooltip: 'Edit Purchase Bill',
-          onPressed: () => _editBill(bill),
-        ),
+        if (bill.isVoided)
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0x33EF4444),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: const Color(0x66EF4444)),
+            ),
+            child: Text(
+              'Voided Bill',
+              style: DashboardTypography.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: DashboardColors.alertRed),
+            ),
+          ),
+        if (!bill.isVoided)
+          IconButton(
+            icon: const Icon(Icons.edit_note_rounded,
+                color: DashboardColors.neonOrange),
+            tooltip: 'Edit Purchase Bill',
+            onPressed: () => _editBill(bill),
+          ),
+        if (auth.isOwner && !bill.isVoided)
+          IconButton(
+            icon: const Icon(Icons.delete_outline_rounded,
+                color: DashboardColors.alertRed),
+            tooltip: 'Delete Purchase Bill (പർച്ചേസ് ബിൽ ഒഴിവാക്കുക)',
+            onPressed: () => _confirmDeleteBill(bill, auth),
+          ),
         const SizedBox(width: 8),
       ],
     );
@@ -572,6 +597,47 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                 style: DashboardTypography.poppins(
                     fontSize: 12, fontWeight: FontWeight.bold)),
           ),
+
+          const SizedBox(width: 10),
+
+          // 6. Purchase Return (Owner only, not voided)
+          if (auth.isOwner && !bill.isVoided) ...[
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: DashboardColors.neonOrange,
+                side: const BorderSide(color: DashboardColors.neonOrange),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              ),
+              onPressed: () => _showRecordReturnDialog(bill, auth),
+              icon: const Icon(Icons.assignment_return_rounded, size: 16),
+              label: Text('Purchase Return',
+                  style: DashboardTypography.poppins(
+                      fontSize: 12, fontWeight: FontWeight.bold)),
+            ),
+            const SizedBox(width: 10),
+          ],
+
+          // 7. Delete Bill (Owner only, not voided)
+          if (auth.isOwner && !bill.isVoided) ...[
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: DashboardColors.alertRed,
+                side: const BorderSide(color: DashboardColors.alertRed),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              ),
+              onPressed: () => _confirmDeleteBill(bill, auth),
+              icon: const Icon(Icons.delete_outline_rounded, size: 16),
+              label: Text('Delete Bill',
+                  style: DashboardTypography.poppins(
+                      fontSize: 12, fontWeight: FontWeight.bold)),
+            ),
+          ],
         ],
       ),
     );
@@ -1163,7 +1229,8 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
 
   void _showAddPaymentDialog(PurchaseBill bill, AuthController auth) {
     final amountCtrl =
-        TextEditingController(text: bill.balanceDue.toStringAsFixed(0));
+        // Exact paise: 278.50 must not show as 279 (an overpayment).
+        TextEditingController(text: (bill.balanceDuePaise / 100.0).toStringAsFixed(2));
     final refCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
     String method = 'UPI';
@@ -1417,6 +1484,432 @@ class _PurchaseBillDetailsScreenState extends State<PurchaseBillDetailsScreen> {
                     ],
                   ),
                 ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteBill(PurchaseBill bill, AuthController auth) async {
+    final reasonCtrl = TextEditingController();
+
+    // Check if deleting the bill will cause any item stock to fall below 0
+    final negativeStockWarnings = <String>[];
+    if (Db.items.isOpen) {
+      for (final line in bill.items) {
+        dynamic matchedKey = line.itemKey;
+        if (matchedKey != null && Db.items.containsKey(matchedKey)) {
+          final existing = Db.items.get(matchedKey);
+          if (existing is Map) {
+            final oldStock = (existing['stock'] as num?)?.toInt() ?? 0;
+            final baseQty = line.isMultiUnit
+                ? (line.quantity * line.conversionFactor)
+                : line.quantity;
+            if (oldStock - baseQty < 0) {
+              negativeStockWarnings.add(
+                  '${line.name}: Current $oldStock, will become ${oldStock - baseQty}');
+            }
+          }
+        }
+      }
+    }
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: DashboardColors.alertRed),
+            const SizedBox(width: 10),
+            Text(
+              'Void Purchase Bill (പർച്ചേസ് ബിൽ വോയിഡ് ചെയ്യുക)',
+              style: DashboardTypography.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 480,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Are you sure you want to void bill ${bill.billNumber} (${bill.vendorName})?',
+                style: DashboardTypography.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0x26EF4444),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0x66EF4444)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Financial & Inventory Effects:',
+                      style: DashboardTypography.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: DashboardColors.alertRed,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '• Reverses vendor payable by ₹${bill.grandTotal.toStringAsFixed(2)}',
+                      style: DashboardTypography.inter(
+                          fontSize: 11.5, color: Colors.white70),
+                    ),
+                    Text(
+                      '• Decrements inventory quantities added by this bill',
+                      style: DashboardTypography.inter(
+                          fontSize: 11.5, color: Colors.white70),
+                    ),
+                    if (bill.paidAmountPaise > 0)
+                      Text(
+                        '• Payments of ₹${bill.paidAmount.toStringAsFixed(2)} remain recorded as vendor advance credit',
+                        style: DashboardTypography.inter(
+                            fontSize: 11.5, color: DashboardColors.neonGreen),
+                      ),
+                  ],
+                ),
+              ),
+              if (negativeStockWarnings.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0x33EF4444),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: DashboardColors.alertRed),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.warning_rounded,
+                              color: DashboardColors.alertRed, size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Negative Stock Warning (സ്റ്റോക്ക് 0-ൽ താഴെ പോകും):',
+                            style: DashboardTypography.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: DashboardColors.alertRed,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      ...negativeStockWarnings.map(
+                        (w) => Text(
+                          '• $w',
+                          style: DashboardTypography.inter(
+                              fontSize: 11, color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 14),
+              TextField(
+                controller: reasonCtrl,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Reason for voiding (ഒഴിവാക്കാനുള്ള കാരണം) *',
+                  labelStyle: TextStyle(color: Colors.white70),
+                  filled: true,
+                  fillColor: Color(0x26000000),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel',
+                style: DashboardTypography.inter(color: Colors.white70)),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: DashboardColors.alertRed),
+            onPressed: () {
+              if (reasonCtrl.text.trim().isEmpty) {
+                toast(context, 'Please enter a reason for voiding this bill',
+                    error: true);
+                return;
+              }
+              Navigator.pop(ctx, true);
+            },
+            child: Text('Void Bill',
+                style: DashboardTypography.inter(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await PurchaseBillService.instance.deletePurchaseBill(
+          bill.key ?? widget.billKey,
+          reason: reasonCtrl.text.trim(),
+          staffId: auth.uid,
+          staffName: auth.name.isNotEmpty ? auth.name : 'Owner',
+        );
+        if (mounted) {
+          toast(context, 'Purchase bill ${bill.billNumber} voided successfully');
+          Navigator.pop(context);
+        }
+      } catch (e) {
+        if (mounted) {
+          toast(context, 'Failed to void bill: $e', error: true);
+        }
+      }
+    }
+  }
+
+  Future<void> _showRecordReturnDialog(
+      PurchaseBill bill, AuthController auth) async {
+    // 1. Generate unique return ID upfront
+    final returnId = await PurchaseBillService.instance.generateReturnId();
+
+    // 2. Calculate already returned amount against this bill
+    int alreadyReturnedPaise = 0;
+    final payments =
+        PurchaseBillService.instance.getPaymentsForVendor(bill.vendorKey);
+    for (final p in payments) {
+      if (p.isReturn &&
+          (p.billKey == bill.key ||
+              '${p.billKey}' == '${bill.key}' ||
+              p.billNumber == bill.billNumber)) {
+        alreadyReturnedPaise += p.amountPaise;
+      }
+    }
+    final remainingReturnPaise =
+        (bill.grandTotalPaise - alreadyReturnedPaise).clamp(0, bill.grandTotalPaise);
+
+    // Starts empty: a pre-filled full amount could return the whole bill by
+    // mistake, and a rounded figure (1,279 for 1,278.50) exceeds the limit.
+    final amountCtrl = TextEditingController();
+    final reasonCtrl = TextEditingController();
+    String returnType = 'credit_note';
+    bool submitting = false;
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          backgroundColor: const Color(0xFF0F172A),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              const Icon(Icons.assignment_return_rounded,
+                  color: DashboardColors.neonOrange),
+              const SizedBox(width: 10),
+              Text(
+                'Record Purchase Return (പർച്ചേസ് റിട്ടേൺ)',
+                style: DashboardTypography.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 460,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0x2600D4FF),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0x4D00D4FF)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Bill: ${bill.billNumber} • Total: ₹${bill.grandTotal.toStringAsFixed(2)}',
+                        style: DashboardTypography.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Return ID: $returnId • Max Return Allowed: ₹${(remainingReturnPaise / 100.0).toStringAsFixed(2)}',
+                        style: DashboardTypography.inter(
+                            fontSize: 11, color: DashboardColors.neonBlue),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: amountCtrl,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold),
+                  decoration: InputDecoration(
+                    labelText: 'Return Amount (₹) *',
+                    hintText:
+                        'Max ₹${(remainingReturnPaise / 100.0).toStringAsFixed(2)}',
+                    hintStyle: const TextStyle(color: Colors.white38),
+                    labelStyle: TextStyle(color: Colors.white70),
+                    prefixText: '₹ ',
+                    prefixStyle: TextStyle(
+                        color: DashboardColors.neonOrange,
+                        fontWeight: FontWeight.bold),
+                    filled: true,
+                    fillColor: Color(0x26000000),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text('Settlement Type *',
+                    style: DashboardTypography.inter(
+                        fontSize: 12, color: DashboardColors.textLight)),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0x26000000),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0x33FFFFFF)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      isExpanded: true,
+                      dropdownColor: const Color(0xFF1E293B),
+                      value: returnType,
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'credit_note',
+                          child: Text('Credit Note (Reduce Vendor Payable)',
+                              style: TextStyle(color: Colors.white)),
+                        ),
+                        DropdownMenuItem(
+                          value: 'cash_refund',
+                          child: Text('Cash / Bank Refund Received',
+                              style: TextStyle(color: Colors.white)),
+                        ),
+                      ],
+                      onChanged: (val) =>
+                          setD(() => returnType = val ?? 'credit_note'),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: reasonCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Reason for Return (റിട്ടേൺ കാരണം) *',
+                    labelStyle: TextStyle(color: Colors.white70),
+                    filled: true,
+                    fillColor: Color(0x26000000),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: submitting ? null : () => Navigator.pop(ctx),
+              child: Text('Cancel',
+                  style: DashboardTypography.inter(color: Colors.white70)),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                  backgroundColor: DashboardColors.neonOrange),
+              onPressed: submitting
+                  ? null
+                  : () async {
+                      final amt =
+                          double.tryParse(amountCtrl.text.trim()) ?? 0.0;
+                      if (amt <= 0) {
+                        toast(context, 'Please enter a valid return amount',
+                            error: true);
+                        return;
+                      }
+                      final amtPaise = (amt * 100).round();
+                      if (amtPaise > remainingReturnPaise) {
+                        toast(context,
+                            'Return exceeds bill (റിട്ടേൺ ബില്ലിനേക്കാൾ കൂടുതലാണ്)',
+                            error: true);
+                        return;
+                      }
+                      if (reasonCtrl.text.trim().isEmpty) {
+                        toast(context, 'Please enter a reason for the return',
+                            error: true);
+                        return;
+                      }
+
+                      setD(() => submitting = true);
+                      try {
+                        await PurchaseBillService.instance.recordPurchaseReturn(
+                          vendorKey: bill.vendorKey,
+                          vendorName: bill.vendorName,
+                          billNumber: bill.billNumber,
+                          billKey: bill.key ?? widget.billKey,
+                          returnAmountPaise: amtPaise,
+                          returnReference: returnId,
+                          reason: reasonCtrl.text.trim(),
+                          returnType: returnType,
+                          staffId: auth.uid,
+                          staffName:
+                              auth.name.isNotEmpty ? auth.name : 'Owner',
+                        );
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (mounted) {
+                          toast(context,
+                              'Purchase return of ₹$amt recorded successfully');
+                          setState(() {});
+                        }
+                      } catch (e) {
+                        setD(() => submitting = false);
+                        if (mounted) {
+                          toast(context, 'Failed to record return: $e',
+                              error: true);
+                        }
+                      }
+                    },
+              child: submitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : Text('Save Return',
+                      style: DashboardTypography.inter(
+                          fontWeight: FontWeight.bold)),
+            ),
+          ],
         ),
       ),
     );

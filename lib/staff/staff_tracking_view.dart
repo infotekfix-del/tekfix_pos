@@ -156,7 +156,8 @@ class _StaffTrackingViewState extends State<StaffTrackingView> {
                     children: [
                       Expanded(child: ListView(children: left)),
                       const SizedBox(width: 16),
-                      Expanded(child: live),
+                      // Long feeds scroll instead of overflowing.
+                      Expanded(child: SingleChildScrollView(child: live)),
                     ]),
               );
             }

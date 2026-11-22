@@ -404,7 +404,7 @@ async function verifyEcdsaP256Signature(
     const valid = await crypto.subtle.verify(
       { name: "ECDSA", hash: { name: "SHA-256" } },
       cryptoKey,
-      p1363Signature,
+      p1363Signature as unknown as BufferSource,
       dataBytes
     );
     return { valid };
@@ -2188,6 +2188,332 @@ serve(async (req: Request) => {
 
       if (error) return jsonResponse({ error: error.message }, 400);
       return jsonResponse(data);
+    }
+
+    // ------------------------------------------------------------------------
+    // PERIOD RECONCILIATION & OPERATOR-WISE DISTRIBUTOR SETTLEMENT (v2)
+    // Owner-only (gate above). Postings: device signature + idempotency key,
+    // validated again inside the SECURITY DEFINER procedures.
+    // ------------------------------------------------------------------------
+    if (pathname.includes("/accounting-")) {
+      const OPS = ["airtel", "jio", "vi", "bsnl"];
+      const KEY_RE = /^[A-Za-z0-9_\-:.]{8,120}$/;
+      const MAX_PAISE = 100000000;
+      const isInt = (v: unknown) => typeof v === "number" && Number.isInteger(v);
+      const op = typeof body.operator === "string" ? body.operator.toLowerCase() : "";
+      const idem = typeof body.idempotencyKey === "string" ? body.idempotencyKey : "";
+      const rpc = async (fn: string, args: Record<string, unknown>) => {
+        const { data, error } = await supabase.rpc(fn, args);
+        if (error) {
+          const code = (error.message || "").split(":")[0];
+          const status = /^(PREVIOUS_CLOSING_MISSING|DUPLICATE_MORNING|LOCKED_PERIOD|EXCEEDS_UNEXPLAINED|REFERENCE_NOT_ALLOWED|ALREADY_REFUNDED|ALREADY_REVERSED|EXCEEDS_PENDING_RETURN|EXCEEDS_PAYABLE|EXCEEDS_RECHARGE|INVALID_STATUS|INVALID_PAYMENT_MODE)$/.test(code) ? 409 : 400;
+          return jsonResponse({ error: error.message, code }, status);
+        }
+        return jsonResponse(data);
+      };
+      const signed = async (operationType: string, canonicalData: string) =>
+        await enforceHardwareSecurity({
+          shopId, callerUid, deviceId: body.deviceId, nonce: body.nonce,
+          deviceSignature: body.deviceSignature, operationType, canonicalData,
+        });
+      const checkPosting = (amount: unknown, allowNegative: boolean, allowZero: boolean): string | null => {
+        if (!OPS.includes(op)) return "INVALID_OPERATOR";
+        if (!KEY_RE.test(idem)) return "INVALID_KEY";
+        if (!isInt(amount)) return "INVALID_AMOUNT: integer paise required";
+        const a = amount as number;
+        if (Math.abs(a) > MAX_PAISE) return "AMOUNT_LIMIT";
+        if (a === 0 && !allowZero) return "INVALID_AMOUNT";
+        if (a < 0 && !allowNegative) return "INVALID_AMOUNT";
+        return null;
+      };
+      const notFuture = (iso: unknown): boolean => {
+        if (typeof iso !== "string") return false;
+        const t = Date.parse(iso);
+        return Number.isFinite(t) && t <= Date.now() + 5 * 60 * 1000;
+      };
+
+      if (pathname.endsWith("/accounting-period-state")) {
+        return await rpc("recharge_acc_period_state", { p_shop_id: shopId });
+      }
+      if (pathname.endsWith("/accounting-settlement")) {
+        return await rpc("recharge_acc_settlement", { p_shop_id: shopId });
+      }
+
+      if (pathname.endsWith("/accounting-verify-morning")) {
+        const bad = checkPosting(body.morningActualPaise, false, true);
+        if (bad) return jsonResponse({ error: bad }, 400);
+        const hw = await signed("ACCOUNTING_VERIFY_MORNING", `${op}:${body.morningActualPaise}:${idem}`);
+        if (!hw.valid) return jsonResponse({ error: hw.error }, hw.status || 403);
+        return await rpc("recharge_acc_verify_morning", {
+          p_shop_id: shopId, p_operator: op, p_morning_paise: body.morningActualPaise,
+          p_idempotency_key: idem, p_staff_id: callerUid, p_device_id: body.deviceId || null,
+        });
+      }
+
+      if (pathname.endsWith("/accounting-reference-balance")) {
+        const bad = checkPosting(body.balancePaise, false, true);
+        if (bad) return jsonResponse({ error: bad }, 400);
+        if (typeof body.reason !== "string" || !body.reason.trim()) return jsonResponse({ error: "REASON_REQUIRED" }, 400);
+        const hw = await signed("ACCOUNTING_REFERENCE_BALANCE", `${op}:${body.balancePaise}:${idem}`);
+        if (!hw.valid) return jsonResponse({ error: hw.error }, hw.status || 403);
+        return await rpc("recharge_acc_reference_balance", {
+          p_shop_id: shopId, p_operator: op, p_balance_paise: body.balancePaise, p_reason: body.reason.trim(),
+          p_idempotency_key: idem, p_staff_id: callerUid, p_device_id: body.deviceId || null,
+        });
+      }
+
+      if (pathname.endsWith("/accounting-post-classified")) {
+        const category = typeof body.category === "string" ? body.category : "";
+        const isAdj = category === "manualCorrection" || category === "otherAdjustment";
+        const bad = checkPosting(body.amountPaise, isAdj, false);
+        if (bad) return jsonResponse({ error: bad }, 400);
+        if (typeof body.reason !== "string" || !body.reason.trim()) return jsonResponse({ error: "REASON_REQUIRED" }, 400);
+        if (!notFuture(body.transactionDate)) return jsonResponse({ error: "FUTURE_DATE" }, 400);
+        const distId = typeof body.distributorId === "string" ? body.distributorId : "";
+        const hw = await signed("ACCOUNTING_POST_CLASSIFIED", `${op}:${category}:${body.amountPaise}:${distId}:${idem}`);
+        if (!hw.valid) return jsonResponse({ error: hw.error }, hw.status || 403);
+        return await rpc("recharge_acc_post_classified", {
+          p_shop_id: shopId, p_operator: op, p_category: category, p_amount_paise: body.amountPaise,
+          p_reason: body.reason.trim(), p_transaction_date: body.transactionDate,
+          p_distributor_id: distId || null, p_idempotency_key: idem, p_staff_id: callerUid,
+          p_staff_name: typeof body.staffName === "string" ? body.staffName : "", p_device_id: body.deviceId || null,
+        });
+      }
+
+      if (pathname.endsWith("/accounting-verify-closing")) {
+        const bad = checkPosting(body.actualPaise, false, true);
+        if (bad) return jsonResponse({ error: bad }, 400);
+        const hw = await signed("ACCOUNTING_VERIFY_CLOSING", `${op}:${body.actualPaise}:${idem}`);
+        if (!hw.valid) return jsonResponse({ error: hw.error }, hw.status || 403);
+        return await rpc("recharge_acc_verify_closing", {
+          p_shop_id: shopId, p_operator: op, p_actual_paise: body.actualPaise,
+          p_reason: typeof body.reason === "string" ? body.reason.trim() : "",
+          p_idempotency_key: idem, p_staff_id: callerUid, p_device_id: body.deviceId || null,
+        });
+      }
+
+      if (pathname.endsWith("/accounting-distributor-payment")) {
+        const bad = checkPosting(body.amountPaise, false, false);
+        if (bad) return jsonResponse({ error: bad }, 400);
+        const distId = typeof body.distributorId === "string" ? body.distributorId : "";
+        if (!distId) return jsonResponse({ error: "UNKNOWN_DISTRIBUTOR" }, 400);
+        if (!notFuture(body.paymentDate)) return jsonResponse({ error: "FUTURE_DATE" }, 400);
+        const hw = await signed("ACCOUNTING_DISTRIBUTOR_PAYMENT", `${distId}:${op}:${body.amountPaise}:${idem}`);
+        if (!hw.valid) return jsonResponse({ error: hw.error }, hw.status || 403);
+        return await rpc("recharge_acc_distributor_payment", {
+          p_shop_id: shopId, p_distributor_id: distId, p_operator: op, p_amount_paise: body.amountPaise,
+          p_payment_mode: typeof body.paymentMode === "string" ? body.paymentMode : "",
+          p_payment_date: body.paymentDate, p_reference_no: typeof body.referenceNo === "string" ? body.referenceNo : "",
+          p_notes: typeof body.notes === "string" ? body.notes : "", p_idempotency_key: idem,
+          p_staff_id: callerUid, p_device_id: body.deviceId || null,
+        });
+      }
+
+      // ---- v2.1: legacy flows made server-authoritative --------------------
+      const str = (v: unknown) => (typeof v === "string" ? v : "");
+      const reasonOk = (v: unknown) => typeof v === "string" && v.trim().length > 0;
+      const keyOk = () => KEY_RE.test(idem);
+      const RECHARGE_ID_RE = /^[A-Za-z0-9_\-:.]{1,160}$/;
+
+      if (pathname.endsWith("/accounting-distributor-cash")) {
+        const date = str(body.date);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return jsonResponse({ error: "INVALID_DATE" }, 400);
+        return await rpc("recharge_acc_distributor_cash", { p_shop_id: shopId, p_date: date });
+      }
+
+      if (pathname.endsWith("/accounting-topup-commission-summary")) {
+        return await rpc("recharge_acc_topup_commission_summary", { p_shop_id: shopId });
+      }
+
+      if (pathname.endsWith("/accounting-topup-commission")) {
+        const bad = checkPosting(body.commissionPaise, false, false);
+        if (bad) return jsonResponse({ error: bad }, 400);
+        if (!reasonOk(body.reason)) return jsonResponse({ error: "REASON_REQUIRED" }, 400);
+        const distId = str(body.distributorId);
+        const hw = await signed("ACCOUNTING_TOPUP_COMMISSION", `${op}:${distId}:${body.commissionPaise}:${idem}`);
+        if (!hw.valid) return jsonResponse({ error: hw.error }, hw.status || 403);
+        return await rpc("recharge_acc_topup_commission", {
+          p_shop_id: shopId, p_operator: op, p_distributor_id: distId, p_commission_paise: body.commissionPaise,
+          p_reason: str(body.reason).trim(), p_idempotency_key: idem, p_staff_id: callerUid,
+          p_staff_name: str(body.staffName), p_device_id: body.deviceId || null,
+        });
+      }
+
+      if (pathname.endsWith("/accounting-excess")) {
+        return await rpc("recharge_acc_excess", { p_shop_id: shopId });
+      }
+
+      if (pathname.endsWith("/accounting-agent-returns")) {
+        return await rpc("recharge_acc_agent_returns", { p_shop_id: shopId });
+      }
+
+      if (pathname.endsWith("/accounting-agent-settlement")) {
+        const bad = checkPosting(body.totalPayablePaise, false, false);
+        if (bad) return jsonResponse({ error: bad }, 400);
+        const adj = body.rechargeAdjustmentPaise;
+        if (!isInt(adj) || (adj as number) < 0 || (adj as number) > (body.totalPayablePaise as number)) {
+          return jsonResponse({ error: "ADJUSTMENT_EXCEEDS_TOTAL" }, 400);
+        }
+        const distId = str(body.distributorId);
+        if (!distId) return jsonResponse({ error: "UNKNOWN_DISTRIBUTOR" }, 400);
+        if (!notFuture(body.paymentDate)) return jsonResponse({ error: "FUTURE_DATE" }, 400);
+        const hw = await signed("ACCOUNTING_AGENT_SETTLEMENT", `${distId}:${op}:${body.totalPayablePaise}:${adj}:${idem}`);
+        if (!hw.valid) return jsonResponse({ error: hw.error }, hw.status || 403);
+        return await rpc("recharge_acc_agent_settlement", {
+          p_shop_id: shopId, p_distributor_id: distId, p_operator: op,
+          p_total_paise: body.totalPayablePaise, p_adjustment_paise: adj,
+          p_payment_mode: str(body.paymentMode), p_payment_date: body.paymentDate,
+          p_reference_no: str(body.referenceNo), p_notes: str(body.notes),
+          p_idempotency_key: idem, p_staff_id: callerUid, p_device_id: body.deviceId || null,
+        });
+      }
+
+      if (pathname.endsWith("/accounting-agent-return")) {
+        const bad = checkPosting(body.returnPaise, false, false);
+        if (bad) return jsonResponse({ error: bad }, 400);
+        const distId = str(body.distributorId);
+        if (!distId) return jsonResponse({ error: "UNKNOWN_DISTRIBUTOR" }, 400);
+        if (!notFuture(body.returnDate)) return jsonResponse({ error: "FUTURE_DATE" }, 400);
+        const hw = await signed("ACCOUNTING_AGENT_RETURN", `${distId}:${op}:${body.returnPaise}:${idem}`);
+        if (!hw.valid) return jsonResponse({ error: hw.error }, hw.status || 403);
+        return await rpc("recharge_acc_agent_return", {
+          p_shop_id: shopId, p_distributor_id: distId, p_operator: op, p_return_paise: body.returnPaise,
+          p_return_mode: str(body.returnMode), p_return_date: body.returnDate,
+          p_reference_no: str(body.referenceNo), p_notes: str(body.notes),
+          p_idempotency_key: idem, p_staff_id: callerUid, p_device_id: body.deviceId || null,
+        });
+      }
+
+      if (pathname.endsWith("/accounting-credit-reversal")) {
+        const bad = checkPosting(body.amountPaise, false, false);
+        if (bad) return jsonResponse({ error: bad }, 400);
+        const distId = str(body.distributorId);
+        if (!distId) return jsonResponse({ error: "UNKNOWN_DISTRIBUTOR" }, 400);
+        if (!reasonOk(body.reason)) return jsonResponse({ error: "REASON_REQUIRED" }, 400);
+        const hw = await signed("ACCOUNTING_CREDIT_REVERSAL", `${distId}:${op}:${body.amountPaise}:${idem}`);
+        if (!hw.valid) return jsonResponse({ error: hw.error }, hw.status || 403);
+        return await rpc("recharge_acc_credit_reversal", {
+          p_shop_id: shopId, p_distributor_id: distId, p_operator: op, p_amount_paise: body.amountPaise,
+          p_reason: str(body.reason).trim(), p_idempotency_key: idem, p_staff_id: callerUid,
+          p_device_id: body.deviceId || null,
+        });
+      }
+
+      // Fresh start: set the system wallet to the verified balance (own money +
+      // distributor credit). Audited; not a period movement.
+      if (pathname.endsWith("/accounting-align-wallet")) {
+        const own = body.ownPaise;
+        const credit = body.creditPaise;
+        if (!isInt(own) || !isInt(credit) || (own as number) < 0 || (credit as number) < 0) {
+          return jsonResponse({ error: "INVALID_AMOUNT" }, 400);
+        }
+        const bad = checkPosting((own as number) + (credit as number), false, true);
+        if (bad) return jsonResponse({ error: bad }, 400);
+        if (!reasonOk(body.reason)) return jsonResponse({ error: "REASON_REQUIRED" }, 400);
+        const hw = await signed("ACCOUNTING_ALIGN_WALLET", `${op}:${own}:${credit}:${idem}`);
+        if (!hw.valid) return jsonResponse({ error: hw.error }, hw.status || 403);
+        return await rpc("recharge_acc_align_wallet", {
+          p_shop_id: shopId, p_operator: op, p_own_paise: own, p_credit_paise: credit,
+          p_reason: str(body.reason).trim(), p_idempotency_key: idem, p_staff_id: callerUid,
+          p_device_id: body.deviceId || null,
+        });
+      }
+
+      // Fresh start: dues still owed from before the new start. Payable only;
+      // the wallet credit is already part of the verified opening balance.
+      if (pathname.endsWith("/accounting-opening-dues")) {
+        const bad = checkPosting(body.amountPaise, false, false);
+        if (bad) return jsonResponse({ error: bad }, 400);
+        const distId = str(body.distributorId);
+        if (!distId) return jsonResponse({ error: "UNKNOWN_DISTRIBUTOR" }, 400);
+        if (!reasonOk(body.reason)) return jsonResponse({ error: "REASON_REQUIRED" }, 400);
+        const hw = await signed("ACCOUNTING_OPENING_DUES", `${distId}:${op}:${body.amountPaise}:${idem}`);
+        if (!hw.valid) return jsonResponse({ error: hw.error }, hw.status || 403);
+        return await rpc("recharge_acc_opening_dues", {
+          p_shop_id: shopId, p_distributor_id: distId, p_operator: op, p_amount_paise: body.amountPaise,
+          p_reason: str(body.reason).trim(), p_idempotency_key: idem, p_staff_id: callerUid,
+          p_device_id: body.deviceId || null,
+        });
+      }
+
+      if (pathname.endsWith("/accounting-customer-refund")) {
+        const rid = str(body.rechargeId);
+        const amt = body.refundPaise;
+        const method = str(body.refundMethod).toLowerCase();
+        if (!RECHARGE_ID_RE.test(rid)) return jsonResponse({ error: "UNKNOWN_RECHARGE" }, 400);
+        if (!keyOk()) return jsonResponse({ error: "INVALID_KEY" }, 400);
+        if (!isInt(amt) || (amt as number) <= 0 || (amt as number) > MAX_PAISE) return jsonResponse({ error: "INVALID_AMOUNT" }, 400);
+        if (!["cash", "upi", "card", "bank"].includes(method)) return jsonResponse({ error: "INVALID_REFUND_METHOD" }, 400);
+        if (!reasonOk(body.reason)) return jsonResponse({ error: "REASON_REQUIRED" }, 400);
+        const hw = await signed("ACCOUNTING_CUSTOMER_REFUND", `${rid}:${amt}:${method}:${idem}`);
+        if (!hw.valid) return jsonResponse({ error: hw.error }, hw.status || 403);
+        return await rpc("recharge_acc_customer_refund", {
+          p_shop_id: shopId, p_txn_key: rid, p_refund_paise: amt, p_refund_method: method,
+          p_reason: str(body.reason).trim(), p_idempotency_key: idem, p_staff_id: callerUid,
+          p_device_id: body.deviceId || null,
+        });
+      }
+
+      if (pathname.endsWith("/accounting-failed-reversal")) {
+        const rid = str(body.rechargeId);
+        if (!RECHARGE_ID_RE.test(rid)) return jsonResponse({ error: "UNKNOWN_RECHARGE" }, 400);
+        if (!keyOk()) return jsonResponse({ error: "INVALID_KEY" }, 400);
+        if (!reasonOk(body.reason)) return jsonResponse({ error: "REASON_REQUIRED" }, 400);
+        const hw = await signed("ACCOUNTING_FAILED_REVERSAL", `${rid}:${idem}`);
+        if (!hw.valid) return jsonResponse({ error: hw.error }, hw.status || 403);
+        return await rpc("recharge_acc_failed_reversal", {
+          p_shop_id: shopId, p_txn_key: rid, p_reason: str(body.reason).trim(),
+          p_idempotency_key: idem, p_staff_id: callerUid, p_device_id: body.deviceId || null,
+        });
+      }
+
+      if (pathname.endsWith("/accounting-correct-recharge")) {
+        const rid = str(body.rechargeId);
+        if (!RECHARGE_ID_RE.test(rid)) return jsonResponse({ error: "UNKNOWN_RECHARGE" }, 400);
+        if (!keyOk()) return jsonResponse({ error: "INVALID_KEY" }, 400);
+        if (!reasonOk(body.reason)) return jsonResponse({ error: "REASON_REQUIRED" }, 400);
+        const hw = await signed("ACCOUNTING_CORRECT_RECHARGE", `${rid}:${idem}`);
+        if (!hw.valid) return jsonResponse({ error: hw.error }, hw.status || 403);
+        return await rpc("recharge_acc_correct_recharge", {
+          p_shop_id: shopId, p_txn_key: rid, p_reason: str(body.reason).trim(),
+          p_idempotency_key: idem, p_staff_id: callerUid, p_device_id: body.deviceId || null,
+        });
+      }
+
+      if (pathname.endsWith("/accounting-edit-recharge")) {
+        const rid = str(body.rechargeId);
+        const phone = str(body.customerPhone).trim();
+        const mode = str(body.paymentMode).trim();
+        if (!RECHARGE_ID_RE.test(rid)) return jsonResponse({ error: "UNKNOWN_RECHARGE" }, 400);
+        if (!keyOk()) return jsonResponse({ error: "INVALID_KEY" }, 400);
+        if (!reasonOk(body.reason)) return jsonResponse({ error: "REASON_REQUIRED" }, 400);
+        if (phone === "" && mode === "") return jsonResponse({ error: "NOTHING_TO_CHANGE" }, 400);
+        if (phone !== "" && !/^[0-9]{10}$/.test(phone)) return jsonResponse({ error: "INVALID_PHONE" }, 400);
+        if (mode !== "" && mode !== "Cash" && mode !== "UPI") {
+          return jsonResponse({ error: "INVALID_PAYMENT_MODE" }, 400);
+        }
+        const hw = await signed("ACCOUNTING_EDIT_RECHARGE", `${rid}:${phone}:${mode}:${idem}`);
+        if (!hw.valid) return jsonResponse({ error: hw.error }, hw.status || 403);
+        return await rpc("recharge_acc_edit_recharge", {
+          p_shop_id: shopId, p_txn_key: rid, p_customer_phone: phone || null,
+          p_payment_mode: mode || null, p_reason: str(body.reason).trim(),
+          p_idempotency_key: idem, p_staff_id: callerUid, p_device_id: body.deviceId || null,
+        });
+      }
+
+      if (pathname.endsWith("/accounting-commission-reversal")) {
+        const rid = str(body.rechargeId);
+        const claw = body.clawbackFromWallet === true;
+        if (!RECHARGE_ID_RE.test(rid)) return jsonResponse({ error: "UNKNOWN_RECHARGE" }, 400);
+        if (!keyOk()) return jsonResponse({ error: "INVALID_KEY" }, 400);
+        if (!reasonOk(body.reason)) return jsonResponse({ error: "REASON_REQUIRED" }, 400);
+        const hw = await signed("ACCOUNTING_COMMISSION_REVERSAL", `${rid}:${claw}:${idem}`);
+        if (!hw.valid) return jsonResponse({ error: hw.error }, hw.status || 403);
+        return await rpc("recharge_acc_commission_reversal", {
+          p_shop_id: shopId, p_txn_key: rid, p_clawback: claw, p_reason: str(body.reason).trim(),
+          p_idempotency_key: idem, p_staff_id: callerUid, p_device_id: body.deviceId || null,
+        });
+      }
     }
 
     return jsonResponse({ error: `Unknown endpoint: ${pathname}` }, 404);

@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
+import '../firebase_options.dart';
+
 /// ============================================================================
 /// TEKFIX ERP - PHASE 14.3: NATIVE HARDWARE KEY STORE
 /// REMEDIATIONS:
@@ -82,6 +84,18 @@ class PlatformHardwareKeyStore {
   Directory? _vaultDir;
   String? _inMemoryCachedKey;
 
+  /// `flutter test` sets FLUTTER_TEST=true for the test process.
+  static bool get _isFlutterTest {
+    try {
+      return Platform.environment['FLUTTER_TEST'] == 'true';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Where the key file lives (tests use a temporary folder).
+  String? get vaultDirPath => _vaultDir?.path;
+
   // Cached FFI bindings for Windows DPAPI
   CryptProtectDataDart? _cryptProtectData;
   CryptUnprotectDataDart? _cryptUnprotectData;
@@ -114,12 +128,20 @@ class PlatformHardwareKeyStore {
 
     try {
       String basePath;
-      if (Platform.isWindows) {
+      if (_isFlutterTest) {
+        // Automated tests must never read, overwrite or delete the real
+        // device key of the app installed on this machine.
+        if (Platform.isWindows) _initWindowsDpapi();
+        basePath = p.join(Directory.systemTemp.path, 'tekfix_test_vault', _keyDirName);
+      } else if (Platform.isWindows) {
         _initWindowsDpapi();
         final localAppData = Platform.environment['LOCALAPPDATA'] ??
             Platform.environment['APPDATA'] ??
             Directory.current.path;
-        basePath = p.join(localAppData, 'TekFixERP', _keyDirName);
+        // Staging/UAT builds get their own vault so they can never overwrite
+        // the production app's device key on the same PC.
+        basePath = p.join(localAppData,
+            DefaultFirebaseOptions.isUatMode ? 'TekFixERP_UAT' : 'TekFixERP', _keyDirName);
       } else if (Platform.isAndroid ||
           Platform.isIOS ||
           Platform.isLinux ||

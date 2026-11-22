@@ -22,6 +22,9 @@ import 'package:tekfix_erp_pos/security/staging_identity_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  // These tests drive the server mock with a fixed wallet pocket.
+  setUpAll(() => kRechargeAutoFundingPocket = false);
+  tearDownAll(() => kRechargeAutoFundingPocket = true);
   late Directory tempDir;
 
   late int mockWalletBalancePaise;

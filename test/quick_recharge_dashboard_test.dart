@@ -70,11 +70,15 @@ void main() {
     expect(find.text('Add Balance'), findsWidgets);
     expect(find.text('New Recharge'), findsWidgets);
 
-    // 2. Verify 6 Live KPI Metrics Cards
+    // 2. Verify Live KPI Metrics Cards (v2: wallet card renamed, cumulative
+    //    recharge and distributor advance added)
     expect(find.text("Today's Total Recharge"), findsOneWidget);
-    expect(find.text("Today's Commission"), findsOneWidget);
-    expect(find.text('Available Wallet Float'), findsOneWidget);
+    expect(find.text('Cumulative Total Recharge'), findsOneWidget);
+    // Commission is not used by this shop: the card is hidden.
+    expect(find.text("Today's Commission"), findsNothing);
+    expect(find.text('Total Operator Wallet Balance'), findsOneWidget);
     expect(find.text('Distributor Outstanding'), findsOneWidget);
+    expect(find.text('Distributor Advance / Excess'), findsOneWidget);
     expect(find.text('Successful Transactions'), findsOneWidget);
     expect(find.text('Failed / Pending Txns'), findsOneWidget);
 

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:tekfix_erp_pos/main.dart';
 import 'package:tekfix_erp_pos/recharge/recharge_models.dart';
+import 'package:tekfix_erp_pos/recharge/recharge_backend_bridge.dart';
 import 'package:tekfix_erp_pos/recharge/recharge_service.dart';
 
 void main() {
@@ -13,6 +14,8 @@ void main() {
   late Directory tempDir;
 
   setUpAll(() async {
+    // v2.1: the old client-side postings run only in localTestMock.
+    RechargeBackendBridge.configure(mode: RechargeBackendMode.localTestMock);
     tempDir = await Directory.systemTemp.createTemp('tekfix_agent_settle_');
     Hive.init(tempDir.path);
 

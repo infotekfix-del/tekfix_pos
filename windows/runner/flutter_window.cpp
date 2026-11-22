@@ -2,6 +2,11 @@
 
 #include <optional>
 
+namespace {
+// Reveals the Flutter view if the first frame never reports (safety net).
+constexpr UINT_PTR kRevealViewTimer = 0x7E4F;
+}  // namespace
+
 #include "flutter/generated_plugin_registrant.h"
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
@@ -27,7 +32,14 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
+  // Keep the Flutter view hidden until it has drawn its first frame: the
+  // window (dark background brush) is shown at once, and the view appears
+  // only with real content, so there is no white flash during Dart startup.
+  ::ShowWindow(flutter_controller_->view()->GetNativeWindow(), SW_HIDE);
+  ::SetTimer(GetHandle(), kRevealViewTimer, 15000, nullptr);
+
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
+    RevealFlutterView();
     this->Show();
   });
 
@@ -37,6 +49,13 @@ bool FlutterWindow::OnCreate() {
   flutter_controller_->ForceRedraw();
 
   return true;
+}
+
+void FlutterWindow::RevealFlutterView() {
+  ::KillTimer(GetHandle(), kRevealViewTimer);
+  if (flutter_controller_ && flutter_controller_->view()) {
+    ::ShowWindow(flutter_controller_->view()->GetNativeWindow(), SW_SHOW);
+  }
 }
 
 void FlutterWindow::OnDestroy() {
@@ -64,6 +83,12 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   switch (message) {
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
+      break;
+    case WM_TIMER:
+      if (wparam == kRevealViewTimer) {
+        RevealFlutterView();
+        return 0;
+      }
       break;
   }
 

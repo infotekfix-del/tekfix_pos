@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import '../../auth/auth_controller.dart';
 import 'dashboard_tokens.dart';
 
-/// Pixel-faithful fixed left sidebar for TekFix ERP.
-/// Features TEKFIX ERP logo, tagline, active gradient pill,
-/// categorized sections, notification badges, and the footer card.
+/// Left sidebar (v2): grouped sections (Sales, Inventory & Service, Finance,
+/// People, System), subtle active state with an accent bar, badge counts.
 class TekSidebar extends StatelessWidget {
   final String activeItem;
   final ValueChanged<String>? onItemSelected;
@@ -21,69 +20,79 @@ class TekSidebar extends StatelessWidget {
     this.overdueRemindersCount = 0,
   });
 
+  bool _isActive(String label) {
+    if (label == 'Settings & Print') {
+      return activeItem == 'Settings & Print' || activeItem == 'System Settings';
+    }
+    return activeItem == label;
+  }
+
+  Widget _item(String label, IconData icon,
+      {int badgeCount = 0, Color badgeColor = DashboardColors.neonOrange}) {
+    return _buildNavItem(
+      label: label,
+      icon: icon,
+      isActive: _isActive(label),
+      badgeCount: badgeCount,
+      badgeColor: badgeColor,
+      onTap: () => onItemSelected?.call(label),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isOwner = AuthController.instance.isOwner;
     return Container(
-      width: 260,
+      width: 248,
       decoration: const BoxDecoration(
-        color: Color(0xFF0C1236),
+        color: Color(0xFF0E131D),
         border: Border(
-          right: BorderSide(
-            color: Color(0x1FFFFFFF),
-            width: 1.2,
-          ),
+          right: BorderSide(color: DashboardColors.border, width: 1),
         ),
       ),
       child: Column(
         children: [
           // 1. Logo & Brand Header
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
             child: Row(
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
-                    gradient: DashboardColors.activePillGradient,
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: DashboardColors.neonBlue.withValues(alpha: 0.35),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
+                    color: DashboardColors.primaryBlue,
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Center(
                     child: Icon(
-                      Icons.storefront_rounded,
+                      Icons.bolt_rounded,
                       color: Colors.white,
-                      size: 24,
+                      size: 22,
                     ),
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'TEKFIX ERP',
-                        style: DashboardTypography.poppins(
+                        'TekFix ERP',
+                        style: DashboardTypography.inter(
                           fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.2,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 1),
                       Text(
                         'Smarter Business Together',
                         style: DashboardTypography.inter(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w500,
-                          color: DashboardColors.neonBlue,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w400,
+                          color: DashboardColors.textMuted,
                         ),
                       ),
                     ],
@@ -93,221 +102,97 @@ class TekSidebar extends StatelessWidget {
             ),
           ),
 
-          const Divider(
-            height: 1,
-            thickness: 1,
-            color: Color(0x14FFFFFF),
-            indent: 16,
-            endIndent: 16,
-          ),
-
-          // 2. Navigation Menu Items
+          // 2. Navigation, grouped by what the shop does
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
               children: [
-                // Primary Core Navigation
-                _buildNavItem(
-                  label: 'Dashboard',
-                  icon: Icons.dashboard_rounded,
-                  isActive: activeItem == 'Dashboard',
-                  onTap: () => onItemSelected?.call('Dashboard'),
-                ),
-                _buildNavItem(
-                  label: 'Sale / POS',
-                  icon: Icons.point_of_sale_rounded,
-                  isActive: activeItem == 'Sale / POS',
-                  onTap: () => onItemSelected?.call('Sale / POS'),
-                ),
-                _buildNavItem(
-                  label: 'Daily Sales & EOD',
-                  icon: Icons.receipt_long_rounded,
-                  isActive: activeItem == 'Daily Sales & EOD',
-                  onTap: () => onItemSelected?.call('Daily Sales & EOD'),
-                ),
-                // Phase 13.3.0 OWNER-ONLY RECHARGE POLICY:
-                // Only verified shop owners can see and access Quick Recharge
-                if (AuthController.instance.isOwner)
-                  _buildNavItem(
-                    label: 'Quick Recharge',
-                    icon: Icons.flash_on_rounded,
-                    isActive: activeItem == 'Quick Recharge',
-                    onTap: () => onItemSelected?.call('Quick Recharge'),
-                  ),
-                _buildNavItem(
-                  label: 'Items / Stock',
-                  icon: Icons.inventory_2_rounded,
-                  isActive: activeItem == 'Items / Stock',
-                  onTap: () => onItemSelected?.call('Items / Stock'),
-                ),
-                _buildNavItem(
-                  label: 'Services / Repairs',
-                  icon: Icons.build_circle_rounded,
-                  isActive: activeItem == 'Services / Repairs',
-                  onTap: () => onItemSelected?.call('Services / Repairs'),
-                ),
-                _buildNavItem(
-                  label: 'Customer Returns',
-                  icon: Icons.assignment_return_rounded,
-                  isActive: activeItem == 'Customer Returns',
-                  onTap: () => onItemSelected?.call('Customer Returns'),
-                ),
-                _buildNavItem(
-                  label: 'Purchase Bills',
-                  icon: Icons.receipt_long_rounded,
-                  isActive: activeItem == 'Purchase Bills',
-                  onTap: () => onItemSelected?.call('Purchase Bills'),
-                ),
+                _item('Dashboard', Icons.dashboard_rounded),
 
-                const SizedBox(height: 18),
+                _buildSectionHeader('SALES'),
+                _item('Sale / POS', Icons.point_of_sale_rounded),
+                _item('Daily Sales & EOD', Icons.receipt_long_rounded),
+                // Phase 13.3.0 OWNER-ONLY RECHARGE POLICY
+                if (isOwner) _item('Quick Recharge', Icons.flash_on_rounded),
+                _item('Customer Returns', Icons.assignment_return_rounded),
 
-                // Section 1: FINANCE & ACCOUNTS
-                _buildSectionHeader('FINANCE & ACCOUNTS'),
-                const SizedBox(height: 6),
-                _buildNavItem(
-                  label: 'Staff Management',
-                  icon: Icons.people_alt_rounded,
-                  isActive: activeItem == 'Staff Management',
-                  badgeCount: pendingAttendanceCount,
-                  onTap: () => onItemSelected?.call('Staff Management'),
-                ),
-                _buildNavItem(
-                  label: 'Customer Management',
-                  icon: Icons.groups_rounded,
-                  isActive: activeItem == 'Customer Management',
-                  onTap: () => onItemSelected?.call('Customer Management'),
-                ),
-                _buildNavItem(
-                  label: 'Payment Reminders',
-                  icon: Icons.notification_important_rounded,
-                  isActive: activeItem == 'Payment Reminders',
+                _buildSectionHeader('INVENTORY & SERVICE'),
+                _item('Items / Stock', Icons.inventory_2_rounded),
+                _item('Purchase Bills', Icons.description_rounded),
+                _item('Services / Repairs', Icons.build_circle_rounded),
+                _item('After-Sales Follow-ups', Icons.mark_chat_read_rounded),
+
+                _buildSectionHeader('FINANCE'),
+                _item(
+                  'Payment Reminders',
+                  Icons.notification_important_rounded,
                   badgeCount: overdueRemindersCount,
                   badgeColor: DashboardColors.neonPink,
-                  onTap: () => onItemSelected?.call('Payment Reminders'),
                 ),
-                _buildNavItem(
-                  label: 'After-Sales Follow-ups',
-                  icon: Icons.mark_chat_read_rounded,
-                  isActive: activeItem == 'After-Sales Follow-ups',
-                  onTap: () => onItemSelected?.call('After-Sales Follow-ups'),
-                ),
-                _buildNavItem(
-                  label: 'Expenses',
-                  icon: Icons.receipt_long_rounded,
-                  isActive: activeItem == 'Expenses',
-                  onTap: () => onItemSelected?.call('Expenses'),
-                ),
-                _buildNavItem(
-                  label: 'Daily Rent Ledger',
-                  icon: Icons.calendar_today_rounded,
-                  isActive: activeItem == 'Daily Rent Ledger',
-                  onTap: () => onItemSelected?.call('Daily Rent Ledger'),
-                ),
-                _buildNavItem(
-                  label: 'Owner Salary & Drawings',
-                  icon: Icons.account_circle_rounded,
-                  isActive: activeItem == 'Owner Salary & Drawings',
-                  onTap: () => onItemSelected?.call('Owner Salary & Drawings'),
-                ),
+                _item('Expenses', Icons.payments_rounded),
+                _item('Daily Rent Ledger', Icons.calendar_today_rounded),
+                _item('Owner Salary & Drawings', Icons.account_circle_rounded),
 
-                const SizedBox(height: 18),
+                _buildSectionHeader('PEOPLE'),
+                _item('Customer Management', Icons.groups_rounded),
+                // Offers to customers by WhatsApp (owner only; opens the CRM
+                // offers screen registered as 'Customer Offers (WhatsApp)').
+                if (isOwner)
+                  _item('Customer Offers (WhatsApp)', Icons.campaign_rounded),
+                _item(
+                  'Staff Management',
+                  Icons.badge_rounded,
+                  badgeCount: pendingAttendanceCount,
+                ),
+                // Staff screens that were only in the old menu (owner only).
+                if (isOwner) ...[
+                  _item('Attendance Approvals', Icons.fact_check_rounded,
+                      badgeCount: pendingAttendanceCount),
+                  _item('Staff Live Tracking', Icons.monitor_heart_rounded),
+                  _item('Staff Logins', Icons.manage_accounts_rounded),
+                  _item('Staff Orders', Icons.shopping_basket_rounded),
+                ],
 
-                // Section 2: SETTINGS & SYSTEM
-                _buildSectionHeader('SETTINGS & SYSTEM'),
-                const SizedBox(height: 6),
-                _buildNavItem(
-                  label: 'App Updates & Releases',
-                  icon: Icons.system_update_rounded,
-                  isActive: activeItem == 'App Updates & Releases',
-                  onTap: () => onItemSelected?.call('App Updates & Releases'),
-                ),
-                _buildNavItem(
-                  label: 'Backup & Sync',
-                  icon: Icons.cloud_sync_rounded,
-                  isActive: activeItem == 'Backup & Sync',
-                  onTap: () => onItemSelected?.call('Backup & Sync'),
-                ),
-                _buildNavItem(
-                  label: 'Audit / Change History',
-                  icon: Icons.history_rounded,
-                  isActive: activeItem == 'Audit / Change History',
-                  onTap: () => onItemSelected?.call('Audit / Change History'),
-                ),
-                _buildNavItem(
-                  label: 'Settings & Print',
-                  icon: Icons.settings_suggest_rounded,
-                  isActive: activeItem == 'System Settings',
-                  onTap: () => onItemSelected?.call('System Settings'),
-                ),
+                _buildSectionHeader('SYSTEM'),
+                _item('Settings & Print', Icons.settings_rounded),
+                _item('Backup & Sync', Icons.cloud_sync_rounded),
+                _item('Audit / Change History', Icons.history_rounded),
+                _item('App Updates & Releases', Icons.system_update_rounded),
+                // Trusted Devices menu removed (owner decision 2026-11-18): device gate is off server-side.
               ],
             ),
           ),
 
-          // 3. Bottom Card: "Powered by Tekfix Digital, Since 2025"
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0x1A1B2A55),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: const Color(0x2600D4FF),
-                  width: 1,
+          // 3. Footer
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+            decoration: const BoxDecoration(
+              border: Border(
+                top: BorderSide(color: DashboardColors.border, width: 1),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Powered by Tekfix Digital',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: DashboardTypography.inter(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
+                      color: DashboardColors.textMuted,
+                    ),
+                  ),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.25),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+                Text(
+                  'Since 2025',
+                  style: DashboardTypography.inter(
+                    fontSize: 11,
+                    color: DashboardColors.textDarkMuted,
                   ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: DashboardColors.neonBlue.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Center(
-                      child: Icon(
-                        Icons.bolt_rounded,
-                        color: DashboardColors.neonBlue,
-                        size: 18,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Powered by Tekfix Digital',
-                          style: DashboardTypography.inter(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 1),
-                        Text(
-                          'Since 2025',
-                          style: DashboardTypography.inter(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w500,
-                            color: DashboardColors.textMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
@@ -317,14 +202,14 @@ class TekSidebar extends StatelessWidget {
 
   Widget _buildSectionHeader(String title) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.fromLTRB(12, 18, 12, 6),
       child: Text(
         title,
         style: DashboardTypography.inter(
-          fontSize: 10.5,
-          fontWeight: FontWeight.w800,
-          color: const Color(0xFF6B7A99),
-          letterSpacing: 1.1,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: DashboardColors.textDarkMuted,
+          letterSpacing: 0.9,
         ),
       ),
     );
@@ -339,46 +224,54 @@ class TekSidebar extends StatelessWidget {
     Color badgeColor = DashboardColors.neonOrange,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2.5),
+      padding: const EdgeInsets.symmetric(vertical: 1),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(8),
         child: InkWell(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(8),
+          hoverColor: const Color(0xFF171E2E),
           onTap: onTap,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            duration: const Duration(milliseconds: 150),
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
-              gradient: isActive ? DashboardColors.activePillGradient : null,
-              color: isActive ? null : Colors.transparent,
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: isActive
-                  ? [
-                      BoxShadow(
-                        color:
-                            DashboardColors.primaryBlue.withValues(alpha: 0.45),
-                        blurRadius: 14,
-                        offset: const Offset(0, 4),
-                      ),
-                    ]
-                  : null,
+              color: isActive ? DashboardColors.accentBg : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
               children: [
+                // Active indicator bar
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 3,
+                  height: isActive ? 18 : 0,
+                  margin: const EdgeInsets.only(right: 9),
+                  decoration: BoxDecoration(
+                    color: DashboardColors.neonBlue,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
                 Icon(
                   icon,
-                  size: 19,
-                  color: isActive ? Colors.white : const Color(0xFF8E9CB8),
+                  size: 18,
+                  color: isActive
+                      ? DashboardColors.neonBlue
+                      : DashboardColors.textMuted,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: DashboardTypography.inter(
-                      fontSize: 13,
-                      fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                      color: isActive ? Colors.white : const Color(0xFFCBD5E1),
+                      fontSize: 13.5,
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                      color: isActive
+                          ? DashboardColors.textWhite
+                          : const Color(0xFFB4BAC4),
                     ),
                   ),
                 ),
@@ -387,21 +280,15 @@ class TekSidebar extends StatelessWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                     decoration: BoxDecoration(
-                      color: badgeColor,
+                      color: badgeColor.withValues(alpha: 0.16),
                       borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(
-                          color: badgeColor.withValues(alpha: 0.4),
-                          blurRadius: 6,
-                        ),
-                      ],
                     ),
                     child: Text(
-                      badgeCount.toString(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+                      badgeCount > 99 ? '99+' : badgeCount.toString(),
+                      style: DashboardTypography.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: badgeColor,
                       ),
                     ),
                   ),

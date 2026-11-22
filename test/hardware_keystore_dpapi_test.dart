@@ -126,8 +126,7 @@ void main() {
       );
 
       // Verify that NO plaintext fallback file was written
-      final localAppData = Platform.environment['LOCALAPPDATA'] ?? Directory.current.path;
-      final plaintextFile = File(p.join(localAppData, 'TekFixERP', 'tekfix_secure_vault', 'device_private_p256.key'));
+      final plaintextFile = File(p.join(keyStore.vaultDirPath!, 'device_private_p256.key'));
       expect(plaintextFile.existsSync(), isFalse, reason: 'Security Violation: Plaintext fallback file was written after DPAPI failure!');
     });
 
@@ -144,8 +143,7 @@ void main() {
       expect(readBack, equals(testPrivKey));
 
       // Verify binary file exists and is NOT plaintext
-      final localAppData = Platform.environment['LOCALAPPDATA'] ?? Directory.current.path;
-      final dpapiFile = File(p.join(localAppData, 'TekFixERP', 'tekfix_secure_vault', 'device_private_p256.dpapi'));
+      final dpapiFile = File(p.join(keyStore.vaultDirPath!, 'device_private_p256.dpapi'));
       expect(dpapiFile.existsSync(), isTrue);
 
       final rawBytes = await dpapiFile.readAsBytes();

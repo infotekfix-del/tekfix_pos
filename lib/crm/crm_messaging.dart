@@ -209,6 +209,64 @@ const kDefaultTemplates = <MsgTemplate>[
     body: 'നമസ്കാരം {name}, {shopName}-ൽ പുതിയ ഓഫർ: {offer}. '
         'ഇന്ന് തന്നെ വരൂ!\n\nHi {name}, new offer at {shopName}: {offer}.',
   ),
+  // --- TEKFIX Digital offer templates (2026-11-20). {offer} is typed per
+  // campaign in the Segment tab; {name} is each customer's name.
+  MsgTemplate(
+    id: 'tpl_tekfix_porting',
+    name: 'Porting offer (പോർട്ടിംഗ് ഓഫർ)',
+    body: '📢 Special Porting Offer 🔥\n\n'
+        'നമസ്കാരം {name},\n'
+        '📱 നിങ്ങളുടെ നിലവിലുള്ള മൊബൈൽ നമ്പർ മാറ്റാതെ തന്നെ പോർട്ട് ചെയ്യൂ!\n\n'
+        '🎁 {offer}\n\n'
+        '✅ നമ്പർ അതേപടി\n'
+        '✅ എളുപ്പത്തിലുള്ള പോർട്ടിംഗ്\n'
+        '✅ മികച്ച നെറ്റ്‌വർക്ക് അനുഭവം\n\n'
+        '💥 ഇത്തരത്തിലുള്ള കിടിലൻ ഓഫറുകളും മൊബൈൽ അപ്‌ഡേറ്റുകളും ആദ്യം അറിയാൻ ഞങ്ങളുടെ WhatsApp ഗ്രൂപ്പിൽ ഇപ്പോൾ തന്നെ ജോയിൻ ചെയ്യൂ.\n'
+        '👉 https://chat.whatsapp.com/I7sRCtHYu4d2kIqIc4z5Zv\n\n'
+        '📍 TEKFIX Digital, Irumbuzhi\n'
+        '📞 7034093101',
+  ),
+  MsgTemplate(
+    id: 'tpl_tekfix_special_day',
+    name: 'Special day offer (ഇന്നത്തെ സ്പെഷ്യൽ ഓഫർ)',
+    body: '🎉 ഇന്നത്തെ സ്പെഷ്യൽ ഓഫർ 🎉\n\n'
+        'നമസ്കാരം {name},\n'
+        'TEKFIX Digital-ൽ ഇന്ന് മാത്രം:\n\n'
+        '🔥 {offer}\n\n'
+        '⏰ ഓഫർ ഇന്ന് മാത്രം / സ്റ്റോക്ക് തീരുന്നതുവരെ.\n'
+        '🛍️ ഇന്ന് തന്നെ കടയിൽ വരൂ!\n\n'
+        '👉 കൂടുതൽ ഓഫറുകൾക്ക് ഞങ്ങളുടെ WhatsApp ഗ്രൂപ്പ്: https://chat.whatsapp.com/I7sRCtHYu4d2kIqIc4z5Zv\n\n'
+        '📍 TEKFIX Digital, Irumbuzhi\n'
+        '📞 7034093101',
+  ),
+  MsgTemplate(
+    id: 'tpl_tekfix_new_launch',
+    name: 'New product launch (പുതിയ പ്രോഡക്റ്റ്)',
+    body: '🚀 പുതിയ പ്രോഡക്റ്റ് എത്തി! 🚀\n\n'
+        'നമസ്കാരം {name},\n'
+        'TEKFIX Digital-ൽ ഇപ്പോൾ ലഭ്യമാണ്:\n\n'
+        '✨ {offer}\n\n'
+        '✅ ഒറിജിനൽ പ്രോഡക്റ്റ്, വാറന്റിയോടെ\n'
+        '✅ മികച്ച വില\n'
+        '✅ കടയിൽ വന്ന് നേരിട്ട് കാണാം\n\n'
+        '📲 വിലയും സ്റ്റോക്കും അറിയാൻ ഈ മെസ്സേജിന് മറുപടി അയക്കുക.\n\n'
+        '👉 WhatsApp ഗ്രൂപ്പ്: https://chat.whatsapp.com/I7sRCtHYu4d2kIqIc4z5Zv\n\n'
+        '📍 TEKFIX Digital, Irumbuzhi\n'
+        '📞 7034093101',
+  ),
+  MsgTemplate(
+    id: 'tpl_tekfix_festival',
+    name: 'Festival / season offer (ഉത്സവ ഓഫർ)',
+    body: '🎊 ഉത്സവകാല ഓഫർ 🎊\n\n'
+        'നമസ്കാരം {name},\n'
+        'ഈ ഉത്സവകാലത്ത് TEKFIX Digital-ൽ പ്രത്യേക ഓഫറുകൾ:\n\n'
+        '🎁 {offer}\n\n'
+        '📱 മൊബൈൽ • ആക്സസറീസ് • റീചാർജ് • സർവീസ്\n'
+        '⏰ പരിമിത കാലത്തേക്ക് മാത്രം!\n\n'
+        '👉 WhatsApp ഗ്രൂപ്പ്: https://chat.whatsapp.com/I7sRCtHYu4d2kIqIc4z5Zv\n\n'
+        '📍 TEKFIX Digital, Irumbuzhi\n'
+        '📞 7034093101',
+  ),
   MsgTemplate(
     id: 'tpl_default_missyou',
     name: 'We miss you (കുറേ നാളായി കണ്ടിട്ട്)',

@@ -117,6 +117,8 @@ test_backups_temp/
 *.enc.bin
 *.manifest.json
 *.sql
+# Supabase schema migrations are source code, not backups.
+!supabase/migrations/*.sql
 
 # Private Local Staging Configurations (Owner PIN)
 tools/staging/staging.local.json

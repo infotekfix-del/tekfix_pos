@@ -8,11 +8,12 @@ class BillPaymentStatus {
   static const String partiallyPaid = 'Partial';
   static const String unpaid = 'Unpaid';
   static const String draft = 'Draft';
+  static const String voided = 'voided';
 
   // Legacy alias
   static const String legacyPartiallyPaid = 'Partially Paid';
 
-  static const List<String> all = [paid, partial, unpaid, draft];
+  static const List<String> all = [paid, partial, unpaid, draft, voided];
 
   /// Standard rule (integer paise only, no float comparison):
   /// - isDraft == true → "Draft"
@@ -42,7 +43,11 @@ class BillPaymentStatus {
 
   static bool isDraft(String status) => status.trim().toLowerCase() == 'draft';
 
+  static bool isVoided(String status) =>
+      status.trim().toLowerCase() == 'voided';
+
   static Color getColor(String status) {
+    if (isVoided(status)) return const Color(0xFF64748B); // Slate Grey
     if (isPaid(status)) return const Color(0xFF10B981); // Emerald Green
     if (isPartial(status)) return const Color(0xFFF59E0B); // Amber / Orange
     if (isUnpaid(status)) return const Color(0xFFEF4444); // Red
@@ -51,6 +56,7 @@ class BillPaymentStatus {
   }
 
   static IconData getIcon(String status) {
+    if (isVoided(status)) return Icons.block_rounded;
     if (isPaid(status)) return Icons.check_circle_rounded;
     if (isPartial(status)) return Icons.timelapse_rounded;
     if (isUnpaid(status)) return Icons.pending_actions_rounded;
@@ -595,6 +601,7 @@ class VendorPaymentRecord {
   final String recordedById;
   final String recordedByName;
   final bool isAdvance;
+  final bool isReturn;
 
   const VendorPaymentRecord({
     required this.paymentId,
@@ -610,6 +617,7 @@ class VendorPaymentRecord {
     required this.recordedById,
     required this.recordedByName,
     this.isAdvance = false,
+    this.isReturn = false,
   });
 
   Map<String, dynamic> toMap() => {
@@ -627,6 +635,7 @@ class VendorPaymentRecord {
         'recordedById': recordedById,
         'recordedByName': recordedByName,
         'isAdvance': isAdvance,
+        'isReturn': isReturn,
       };
 
   factory VendorPaymentRecord.fromMap(Map<dynamic, dynamic> m) {
@@ -645,6 +654,7 @@ class VendorPaymentRecord {
       recordedById: m['recordedById']?.toString() ?? '',
       recordedByName: m['recordedByName']?.toString() ?? 'Staff',
       isAdvance: m['isAdvance'] == true,
+      isReturn: m['isReturn'] == true,
     );
   }
 }
@@ -677,14 +687,22 @@ class PurchaseBill {
   final double paidAmount;
   final double balanceDue;
   final String _paymentStatus;
+  final bool isVoided;
+  final String? voidReason;
+  final String? voidedBy;
+  final DateTime? voidedAt;
 
   /// Payment status computed dynamically from integer paise.
+  /// If isVoided == true, returns 'voided'.
   /// If isDraft == true, returns 'Draft'.
   /// Otherwise:
   /// - paidAmountPaise <= 0 → 'Unpaid'
   /// - paidAmountPaise >= grandTotalPaise → 'Paid'
   /// - 0 < paidAmountPaise < grandTotalPaise → 'Partial'
   String get paymentStatus {
+    if (isVoided || _paymentStatus.toLowerCase() == 'voided') {
+      return BillPaymentStatus.voided;
+    }
     if (isDraft) return BillPaymentStatus.draft;
     if (grandTotalPaise == 0 && _paymentStatus.isNotEmpty) {
       return _paymentStatus;
@@ -753,6 +771,10 @@ class PurchaseBill {
     this.lastUpdatedByName,
     this.notes,
     this.isDraft = false,
+    this.isVoided = false,
+    this.voidReason,
+    this.voidedBy,
+    this.voidedAt,
     required this.createdAt,
     required this.updatedAt,
     this.entrySource = EntrySource.billUpload,
@@ -796,6 +818,10 @@ class PurchaseBill {
         'lastUpdatedByName': lastUpdatedByName,
         'notes': notes,
         'isDraft': isDraft,
+        'isVoided': isVoided,
+        'voidReason': voidReason,
+        'voidedBy': voidedBy,
+        'voidedAt': voidedAt?.toIso8601String(),
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
         'entrySource': entrySource,
@@ -885,6 +911,14 @@ class PurchaseBill {
       lastUpdatedByName: m['lastUpdatedByName']?.toString(),
       notes: m['notes']?.toString(),
       isDraft: m['isDraft'] == true,
+      isVoided: m['isVoided'] == true ||
+          m['paymentStatus'] == 'voided' ||
+          m['status'] == 'voided',
+      voidReason: m['voidReason']?.toString(),
+      voidedBy: m['voidedBy']?.toString(),
+      voidedAt: m['voidedAt'] != null
+          ? DateTime.tryParse(m['voidedAt'].toString())
+          : null,
       createdAt:
           DateTime.tryParse(m['createdAt']?.toString() ?? '') ?? DateTime.now(),
       updatedAt:
@@ -906,6 +940,10 @@ class PurchaseBill {
     String? lastUpdatedByName,
     String? notes,
     bool? isDraft,
+    bool? isVoided,
+    String? voidReason,
+    String? voidedBy,
+    DateTime? voidedAt,
     DateTime? updatedAt,
     String? entrySource,
   }) {
@@ -948,6 +986,10 @@ class PurchaseBill {
       lastUpdatedByName: lastUpdatedByName ?? this.lastUpdatedByName,
       notes: notes ?? this.notes,
       isDraft: isDraft ?? this.isDraft,
+      isVoided: isVoided ?? this.isVoided,
+      voidReason: voidReason ?? this.voidReason,
+      voidedBy: voidedBy ?? this.voidedBy,
+      voidedAt: voidedAt ?? this.voidedAt,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
       entrySource: entrySource ?? this.entrySource,

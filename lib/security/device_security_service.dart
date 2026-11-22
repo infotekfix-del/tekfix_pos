@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
-import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import '../main.dart' show Db;
+import 'p256_ecdsa.dart';
 import 'platform_hardware_key_store.dart';
 
 /// ============================================================================
@@ -59,7 +59,6 @@ class DeviceSecurityService {
   String? _cachedPrivateKeyPem;
   String? _cachedPublicKeyPem;
   String? _cachedDeviceType;
-  BigInt? _cachedPrivateScalar;
 
   @visibleForTesting
   static DevicePlatformType? overridePlatformForTesting;
@@ -123,6 +122,34 @@ class DeviceSecurityService {
 
     if (_cachedDeviceId == null || _cachedDeviceId!.isEmpty || _cachedPrivateKeyPem == null) {
       await generateDeviceKeys();
+      return;
+    }
+    await _ensureRealP256PublicKey();
+  }
+
+  /// Older builds stored a simulated public key (hash-derived) that no real
+  /// ECDSA verifier accepts. Keep the same device id and private scalar, and
+  /// store the genuine P-256 public key for it. An unusable private key gets
+  /// a fresh key pair.
+  Future<void> _ensureRealP256PublicKey() async {
+    final d = P256Ecdsa.scalarFromPrivateKeyPem(_cachedPrivateKeyPem);
+    if (d == null) {
+      // Keep the same device id (audit trail); only the key pair is replaced.
+      debugPrint('[DeviceSecurity] Stored private key unusable; new P-256 key pair for $_cachedDeviceId.');
+      final nd = P256Ecdsa.generateScalar();
+      _cachedPrivateKeyPem = P256Ecdsa.privateKeyPem(nd);
+      _cachedPublicKeyPem = P256Ecdsa.publicKeyPem(nd);
+      await PlatformHardwareKeyStore.instance.writePrivateKey(_cachedPrivateKeyPem!);
+      await _putSetting(_keyPublicKey, _cachedPublicKeyPem!);
+      return;
+    }
+    final realPem = P256Ecdsa.publicKeyPem(d);
+    String norm(String? x) => (x ?? '').replaceAll(RegExp(r'\s+'), '');
+    if (norm(_cachedPublicKeyPem) != norm(realPem)) {
+      debugPrint('[DeviceSecurity] Upgraded device $_cachedDeviceId to a real P-256 public key '
+          '(re-register this device on servers that enforce device signatures).');
+      _cachedPublicKeyPem = realPem;
+      await _putSetting(_keyPublicKey, realPem);
     }
   }
 
@@ -177,30 +204,10 @@ class DeviceSecurityService {
       };
     }
 
-    // Windows Desktop / Fallback Environment Key Generation
-    // Generate 32 bytes of cryptographic entropy
-    final rng = Random.secure();
-    final privBytes = Uint8List.fromList(List<int>.generate(32, (_) => rng.nextInt(256)));
-    _cachedPrivateScalar = _bytesToBigInt(privBytes);
-
-    // Compute public key point (P-256 base point scalar multiplication simulation)
-    // SPKI Header for prime256v1 (ECDSA P-256):
-    // 30 59 30 13 06 07 2a 86 48 ce 3d 02 01 06 08 2a 86 48 ce 3d 03 01 07 03 42 00 04 ...
-    final spkiHeader = [
-      0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01,
-      0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07, 0x03, 0x42, 0x00, 0x04
-    ];
-
-    // Derive deterministic 64-byte uncompressed public key coordinates (X, Y)
-    final pubX = sha256.convert(utf8.encode('TEKFIX_P256_X_$_cachedPrivateScalar')).bytes;
-    final pubY = sha256.convert(utf8.encode('TEKFIX_P256_Y_$_cachedPrivateScalar')).bytes;
-    final fullSpki = [...spkiHeader, ...pubX, ...pubY];
-
-    final publicKeyBase64 = base64Encode(fullSpki);
-    final publicKeyPem = '-----BEGIN PUBLIC KEY-----\n${_chunkBase64(publicKeyBase64)}\n-----END PUBLIC KEY-----';
-
-    final privKeyHex = privBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-    final privateKeyPem = '-----BEGIN EC PRIVATE KEY-----\n$privKeyHex\n-----END EC PRIVATE KEY-----';
+    // Windows Desktop / Fallback: genuine ECDSA P-256 key pair
+    final d = P256Ecdsa.generateScalar();
+    final publicKeyPem = P256Ecdsa.publicKeyPem(d);
+    final privateKeyPem = P256Ecdsa.privateKeyPem(d);
 
     _cachedPrivateKeyPem = privateKeyPem;
     _cachedPublicKeyPem = publicKeyPem;
@@ -245,16 +252,14 @@ class DeviceSecurityService {
       }
     }
 
-    final msgHash = sha256.convert(utf8.encode(canonicalPayload)).bytes;
-
-    // Derive deterministic ECDSA (r, s) integers
-    final hmac = Hmac(sha256, utf8.encode(_cachedPrivateKeyPem!));
-    final rBytes = hmac.convert(msgHash).bytes;
-    final sBytes = hmac.convert(rBytes).bytes;
-
-    // Encode as valid ASN.1 DER ECDSA Signature: SEQUENCE { INTEGER r, INTEGER s }
-    final derSignature = _encodeDerEcdsaSignature(Uint8List.fromList(rBytes), Uint8List.fromList(sBytes));
-    return derSignature.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    // Genuine ECDSA P-256 / SHA-256 signature (DER, hex) — verifiable by the
+    // recharge-bridge edge function (WebCrypto) and Node crypto.verify.
+    var d = P256Ecdsa.scalarFromPrivateKeyPem(_cachedPrivateKeyPem);
+    if (d == null) {
+      await generateDeviceKeys();
+      d = P256Ecdsa.scalarFromPrivateKeyPem(_cachedPrivateKeyPem)!;
+    }
+    return P256Ecdsa.signDerHex(d, canonicalPayload);
   }
 
   /// Sign a 4-part challenge nonce: shopId:ownerUid:deviceId:nonce
@@ -272,7 +277,6 @@ class DeviceSecurityService {
     _cachedPrivateKeyPem = null;
     _cachedPublicKeyPem = null;
     _cachedDeviceType = null;
-    _cachedPrivateScalar = null;
 
     await PlatformHardwareKeyStore.instance.deletePrivateKey();
     await _putSetting(_keyDeviceId, '');
@@ -280,49 +284,5 @@ class DeviceSecurityService {
     await _putSetting(_keyDeviceType, '');
     await _putSetting(_keyEnrolled, 'false');
     await init();
-  }
-
-  // --- ASN.1 DER ECDSA Encoding Helpers ---
-
-  static Uint8List _encodeDerEcdsaSignature(Uint8List r, Uint8List s) {
-    final rDer = _encodeDerInteger(r);
-    final sDer = _encodeDerInteger(s);
-    final totalLen = rDer.length + sDer.length;
-
-    final bytes = <int>[0x30, totalLen, ...rDer, ...sDer];
-    return Uint8List.fromList(bytes);
-  }
-
-  static List<int> _encodeDerInteger(Uint8List value) {
-    var start = 0;
-    while (start < value.length && value[start] == 0) {
-      start++;
-    }
-    var trimmed = value.sublist(start);
-    if (trimmed.isEmpty) trimmed = Uint8List.fromList([0]);
-
-    // If highest bit is 1, prepend 0x00 to denote positive signed integer
-    if ((trimmed[0] & 0x80) != 0) {
-      return [0x02, trimmed.length + 1, 0x00, ...trimmed];
-    } else {
-      return [0x02, trimmed.length, ...trimmed];
-    }
-  }
-
-  static BigInt _bytesToBigInt(Uint8List bytes) {
-    var result = BigInt.zero;
-    for (var i = 0; i < bytes.length; i++) {
-      result = (result << 8) | BigInt.from(bytes[i]);
-    }
-    return result;
-  }
-
-  static String _chunkBase64(String str) {
-    final buf = StringBuffer();
-    for (var i = 0; i < str.length; i += 64) {
-      final end = (i + 64 < str.length) ? i + 64 : str.length;
-      buf.writeln(str.substring(i, end));
-    }
-    return buf.toString().trim();
   }
 }

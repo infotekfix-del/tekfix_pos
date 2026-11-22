@@ -25,6 +25,11 @@ class QuickRegisterDrawer extends StatefulWidget {
   final double prefillMrp;
   final double prefillSellingPrice;
 
+  /// Optional extras used by the PDF bill import.
+  final String prefillUnit;
+  final String prefillCategory;
+  final bool prefillTrackImei;
+
   const QuickRegisterDrawer({
     super.key,
     this.prefillName = '',
@@ -35,6 +40,9 @@ class QuickRegisterDrawer extends StatefulWidget {
     this.prefillHsn = '',
     this.prefillMrp = 0.0,
     this.prefillSellingPrice = 0.0,
+    this.prefillUnit = '',
+    this.prefillCategory = '',
+    this.prefillTrackImei = false,
   });
 
   /// Opens Quick Register as a modal bottom sheet.
@@ -49,6 +57,9 @@ class QuickRegisterDrawer extends StatefulWidget {
     String prefillHsn = '',
     double prefillMrp = 0.0,
     double prefillSellingPrice = 0.0,
+    String prefillUnit = '',
+    String prefillCategory = '',
+    bool prefillTrackImei = false,
   }) {
     return showModalBottomSheet<Map<String, dynamic>>(
       context: context,
@@ -63,6 +74,9 @@ class QuickRegisterDrawer extends StatefulWidget {
         prefillHsn: prefillHsn,
         prefillMrp: prefillMrp,
         prefillSellingPrice: prefillSellingPrice,
+        prefillUnit: prefillUnit,
+        prefillCategory: prefillCategory,
+        prefillTrackImei: prefillTrackImei,
       ),
     );
   }
@@ -112,7 +126,12 @@ class _QuickRegisterDrawerState extends State<QuickRegisterDrawer> {
     _modelCtrl = TextEditingController(text: widget.prefillModel);
     _skuCtrl = TextEditingController(text: widget.prefillSku);
     _barcodeCtrl = TextEditingController();
-    _categoryCtrl = TextEditingController(text: 'General');
+    _categoryCtrl = TextEditingController(
+        text: widget.prefillCategory.isNotEmpty
+            ? widget.prefillCategory
+            : 'General');
+    if (_units.contains(widget.prefillUnit)) _unit = widget.prefillUnit;
+    _trackImei = widget.prefillTrackImei;
     _hsnCtrl = TextEditingController(text: widget.prefillHsn);
     _mrpCtrl = TextEditingController(
         text:

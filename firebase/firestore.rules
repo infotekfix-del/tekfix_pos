@@ -456,7 +456,7 @@ service cloud.firestore {
       // Distributor Profiles & Outstanding
       match /recharge_distributors/{distId} {
         allow read: if isShopMember(shop);
-        allow create, update: if isShopMember(shop);
+        allow create, update: if isOwner(shop); // Owner-only: staff must not edit payable/outstanding
         allow delete: if isOwner(shop);
       }
 
@@ -495,7 +495,7 @@ service cloud.firestore {
 
       match /recharge_daily_collections/{id} {
         allow read: if isShopMember(shop);
-        allow create, update: if isShopMember(shop);
+        allow create, update: if isOwner(shop); // Owner-only recharge accounting
         allow delete: if isOwner(shop);
       }
 

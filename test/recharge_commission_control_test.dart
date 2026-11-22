@@ -15,6 +15,13 @@ import 'package:tekfix_erp_pos/security/device_security_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  // These tests drive the server mock with a fixed wallet pocket.
+  setUpAll(() => kRechargeAutoFundingPocket = false);
+  tearDownAll(() => kRechargeAutoFundingPocket = true);
+  // The shop turned recharge commission off in the entry screen; these tests
+  // still cover the commission logic itself, so they switch it on.
+  setUpAll(() => kRechargeCommissionInEntry = true);
+  tearDownAll(() => kRechargeCommissionInEntry = false);
 
   group('TEKFIX ERP - PHASE 17.1: RECHARGE COMMISSION CONTROL TEST SUITE', () {
     late Directory tempDir;

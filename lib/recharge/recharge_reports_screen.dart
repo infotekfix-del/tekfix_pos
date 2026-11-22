@@ -1050,6 +1050,10 @@ class _RechargeReportsScreenState extends State<RechargeReportsScreen>
         bg = TekColors.premiumPurple.withValues(alpha: 0.15);
         fg = TekColors.premiumPurple;
         break;
+      case RechargeStatus.corrected:
+        bg = TekColors.textMuted.withValues(alpha: 0.15);
+        fg = TekColors.textMuted;
+        break;
       case RechargeStatus.disputed:
         bg = Colors.orange.withValues(alpha: 0.15);
         fg = Colors.orange;

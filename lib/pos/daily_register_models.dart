@@ -1,3 +1,128 @@
+
+// ---------------------------------------------------------------------------
+// Drawer cash moved outside sales / expenses / recharge (owner rule 2026-11-22)
+// ---------------------------------------------------------------------------
+const String kCashCatVendor = 'vendor';
+const String kCashCatCustomerDue = 'customer_due';
+const String kCashCatServiceAdvance = 'service_advance';
+const String kCashCatManual = 'manual';
+const String kCashCatCommission = 'commission';
+
+/// Category of one cash-log entry (Db.bank 'txn_log'), or null when the
+/// Daily Register already counts it elsewhere (sales, expenses, rent, owner
+/// drawings, recharge) or it is unknown. Entries saved before categories
+/// existed are recognised from their note.
+String? cashFlowCategory(Map<dynamic, dynamic> e) {
+  final c = e['category'];
+  if (c is String && c.isNotEmpty) return c;
+  final n = (e['note'] ?? '').toString();
+  if (n.startsWith('Purchase Bill ') && n.endsWith(' payment')) return kCashCatVendor;
+  if (n.startsWith('Vendor Payment ') || n.startsWith('Vendor Advance Payment')) {
+    return kCashCatVendor;
+  }
+  if (n.startsWith('Purchase Return ') && n.contains(' cash from ')) return kCashCatVendor;
+  if (n == 'Purchase removed' || (n.startsWith('Purchase ') && !n.startsWith('Purchase Return'))) {
+    return kCashCatVendor;
+  }
+  if (n.startsWith('Received from ')) return kCashCatCustomerDue;
+  if (n.startsWith('Service advance')) return kCashCatServiceAdvance;
+  if (n.startsWith('Recharge Commission')) return kCashCatCommission;
+  if (n == 'Money received' || n == 'Money paid') return kCashCatManual;
+  return null;
+}
+
+/// One day's drawer cash from the categories above (rupees, paise-exact).
+class OtherCashFlows {
+  /// Cash paid to vendors, net of cash refunds received from vendors.
+  final double vendorPaid;
+  final double customerDuesReceived;
+  final double serviceAdvanceReceived;
+
+  /// Manual Money In minus Money Out (can be negative).
+  final double manualNet;
+  final double commissionCashIn;
+
+  const OtherCashFlows({
+    this.vendorPaid = 0.0,
+    this.customerDuesReceived = 0.0,
+    this.serviceAdvanceReceived = 0.0,
+    this.manualNet = 0.0,
+    this.commissionCashIn = 0.0,
+  });
+
+  static const OtherCashFlows zero = OtherCashFlows();
+
+  /// Net effect on the drawer (+ in, - out).
+  double get net =>
+      customerDuesReceived + serviceAdvanceReceived + manualNet + commissionCashIn - vendorPaid;
+
+  /// Money that left the drawer.
+  double get outflows => (vendorPaid > 0 ? vendorPaid : 0.0) + (manualNet < 0 ? -manualNet : 0.0);
+
+  bool get isEmpty =>
+      vendorPaid == 0 &&
+      customerDuesReceived == 0 &&
+      serviceAdvanceReceived == 0 &&
+      manualNet == 0 &&
+      commissionCashIn == 0;
+
+  /// Adds up the cash entries of [log] whose date starts with [dateKey]
+  /// (yyyy-MM-dd). Bank / UPI entries are ignored.
+  static OtherCashFlows fromLog(Iterable<dynamic> log, String dateKey) {
+    var vendor = 0, customer = 0, service = 0, manual = 0, commission = 0;
+    for (final raw in log) {
+      if (raw is! Map) continue;
+      if ((raw['account'] ?? '').toString() != 'Cash') continue;
+      if (!(raw['date'] ?? '').toString().startsWith(dateKey)) continue;
+      final paise = (((raw['amount'] as num?) ?? 0) * 100).round();
+      switch (cashFlowCategory(raw)) {
+        case kCashCatVendor:
+          vendor -= paise; // payments are negative in the log
+          break;
+        case kCashCatCustomerDue:
+          customer += paise;
+          break;
+        case kCashCatServiceAdvance:
+          service += paise;
+          break;
+        case kCashCatManual:
+          manual += paise;
+          break;
+        case kCashCatCommission:
+          commission += paise;
+          break;
+      }
+    }
+    return OtherCashFlows(
+      vendorPaid: vendor / 100.0,
+      customerDuesReceived: customer / 100.0,
+      serviceAdvanceReceived: service / 100.0,
+      manualNet: manual / 100.0,
+      commissionCashIn: commission / 100.0,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'vendorPaid': vendorPaid,
+        'customerDuesReceived': customerDuesReceived,
+        'serviceAdvanceReceived': serviceAdvanceReceived,
+        'manualNet': manualNet,
+        'commissionCashIn': commissionCashIn,
+      };
+
+  factory OtherCashFlows.fromMap(dynamic m) {
+    if (m is! Map) return zero;
+    double d(String k) => (m[k] as num?)?.toDouble() ?? 0.0;
+    return OtherCashFlows(
+      vendorPaid: d('vendorPaid'),
+      customerDuesReceived: d('customerDuesReceived'),
+      serviceAdvanceReceived: d('serviceAdvanceReceived'),
+      manualNet: d('manualNet'),
+      commissionCashIn: d('commissionCashIn'),
+    );
+  }
+}
+
 class CashDenominations {
   final int count500;
   final int count200;
@@ -259,6 +384,20 @@ class DailyRegisterSummary {
   final double ownerBankDrawingsDrawn;
   final double physicalCashCount;
   final double cashDiscrepancy;
+
+  /// Cash taken at the counter for Quick Recharge today (net of cash
+  /// refunds). Part of the expected drawer cash, so only the real leftover
+  /// shows as Excess (എക്സസ്).
+  final double rechargeCashCollection;
+
+  /// Cash the recharge agent/distributor took from the drawer today, net of
+  /// agent cash returns. Expected drawer cash is reduced by it, so an
+  /// evening agent collection is not a false shortage.
+  final double distributorCashPaid;
+
+  /// Vendor payments, customer dues, service advances, manual Money In/Out
+  /// and commission cash taken through the drawer that day.
+  final OtherCashFlows otherCash;
   final double retainedCashFloat;
   final CashDenominations denominations;
   final CashHandoverSplit handoverSplit;
@@ -300,6 +439,9 @@ class DailyRegisterSummary {
     this.ownerBankDrawingsDrawn = 0.0,
     this.physicalCashCount = 0.0,
     this.cashDiscrepancy = 0.0,
+    this.rechargeCashCollection = 0.0,
+    this.distributorCashPaid = 0.0,
+    this.otherCash = OtherCashFlows.zero,
     this.retainedCashFloat = 1000.0,
     this.denominations = const CashDenominations(),
     this.handoverSplit = const CashHandoverSplit(),
@@ -360,15 +502,26 @@ class DailyRegisterSummary {
       otherCashExpenses +
       ownerCashSalaryDrawn +
       ownerCashDrawingsDrawn +
+      distributorCashPaid +
+      otherCash.outflows +
       refunds;
   double get expectedClosingCash => (openingCash +
-          totalCash -
+          totalCash +
+          rechargeCashCollection -
+          distributorCashPaid +
+          otherCash.net -
           refunds -
           totalCashExpenses -
           ownerCashDrawingsDrawn)
       .clamp(0.0, double.infinity);
   double get expectedCashInRegister => expectedClosingCash;
   double get cashOverOrShort => physicalCashCount - expectedClosingCash;
+
+  /// Positive difference = Excess (kept as Excess), negative = Shortage (only shown).
+  double get cashExcess => cashDiscrepancy > 0 ? cashDiscrepancy : 0.0;
+  double get cashShortage => cashDiscrepancy < 0 ? -cashDiscrepancy : 0.0;
+  int get rechargeCashCollectionPaise => (rechargeCashCollection * 100).round();
+  int get distributorCashPaidPaise => (distributorCashPaid * 100).round();
   String get closedBy => closedByStaffName.isNotEmpty
       ? closedByStaffName
       : (closedByStaffId.isNotEmpty ? closedByStaffId : 'Staff');
@@ -392,6 +545,9 @@ class DailyRegisterSummary {
     double? physicalCashCount,
     double? cashDiscrepancy,
     double? retainedCashFloat,
+    double? rechargeCashCollection,
+    double? distributorCashPaid,
+    OtherCashFlows? otherCash,
     CashDenominations? denominations,
     CashHandoverSplit? handoverSplit,
     bool? isBackdated,
@@ -435,6 +591,9 @@ class DailyRegisterSummary {
       physicalCashCount: physicalCashCount ?? this.physicalCashCount,
       cashDiscrepancy: cashDiscrepancy ?? this.cashDiscrepancy,
       retainedCashFloat: retainedCashFloat ?? this.retainedCashFloat,
+      rechargeCashCollection: rechargeCashCollection ?? this.rechargeCashCollection,
+      distributorCashPaid: distributorCashPaid ?? this.distributorCashPaid,
+      otherCash: otherCash ?? this.otherCash,
       denominations: denominations ?? this.denominations,
       handoverSplit: handoverSplit ?? this.handoverSplit,
       isBackdated: isBackdated ?? this.isBackdated,
@@ -497,6 +656,11 @@ class DailyRegisterSummary {
         'cashDiscrepancy': cashDiscrepancy,
         'cashDiscrepancyPaise': cashDiscrepancyPaise,
         'retainedCashFloat': retainedCashFloat,
+        'rechargeCashCollection': rechargeCashCollection,
+        'rechargeCashCollectionPaise': rechargeCashCollectionPaise,
+        'distributorCashPaid': distributorCashPaid,
+        'distributorCashPaidPaise': distributorCashPaidPaise,
+        'otherCash': otherCash.toMap(),
         'retainedCashFloatPaise': retainedCashFloatPaise,
         'netCashHandover': netCashHandover,
         'netCashHandoverPaise': netCashHandoverPaise,
@@ -643,6 +807,11 @@ class DailyRegisterSummary {
       physicalCashCount: physical,
       cashDiscrepancy: discrepancy,
       retainedCashFloat: retainedFloat,
+      rechargeCashCollection: (map['rechargeCashCollection'] as num?)?.toDouble() ??
+          (((map['rechargeCashCollectionPaise'] as num?)?.toDouble() ?? 0.0) / 100.0),
+      distributorCashPaid: (map['distributorCashPaid'] as num?)?.toDouble() ??
+          (((map['distributorCashPaidPaise'] as num?)?.toDouble() ?? 0.0) / 100.0),
+      otherCash: OtherCashFlows.fromMap(map['otherCash']),
       denominations: denoms,
       handoverSplit: handover,
       isBackdated: isBack,

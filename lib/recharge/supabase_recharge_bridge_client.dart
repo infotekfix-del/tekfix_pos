@@ -393,6 +393,17 @@ class SupabaseRechargeBridgeClient {
     return list.cast<Map<String, dynamic>>();
   }
 
+  /// Period reconciliation & operator-wise distributor settlement routes
+  /// (`accounting-*`). Signed postings carry deviceId/deviceSignature/nonce
+  /// and an idempotencyKey; read routes are owner-authenticated only.
+  Future<Map<String, dynamic>> accountingCall(
+      String endpoint, Map<String, dynamic> body) async {
+    if (!endpoint.startsWith('accounting-')) {
+      throw ArgumentError('Not an accounting endpoint: $endpoint');
+    }
+    return await _post(endpoint, body);
+  }
+
   /// Update operator commission control (Hardware ECDSA Signed)
   Future<Map<String, dynamic>> updateCommissionControl({
     required String shopId,

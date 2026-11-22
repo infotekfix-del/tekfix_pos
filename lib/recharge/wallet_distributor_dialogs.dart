@@ -3,9 +3,27 @@ import 'package:intl/intl.dart';
 
 import '../main.dart';
 import 'recharge_models.dart';
+import '../auth/auth_controller.dart';
+import 'recharge_accounting_backend.dart' show AccountingActor;
+import 'recharge_accounting_service.dart';
+import 'recharge_period_accounting.dart'
+    show kPeriodOperators, kDefaultTopUpCommissionBp, topUpCommissionPaise, parseRupeesToPaise, formatInrPaise;
 import 'recharge_service.dart';
 
 /// Interactive Dialog to Top-Up Wallet (Mode A: Credit Load vs Mode B: Own Money)
+/// The preset distributor that serves [op] (e.g. Jio -> Kochi Jio Prime
+/// Agency), so a refill is never booked against another operator's agent.
+/// Keeps [fallback] when no preset serves that operator.
+String distributorIdForOperator(RechargeOperator op, String fallback) {
+  for (final d in DistributorItem.defaultPresets) {
+    if (RechargeOperator.fromString(d.defaultOperator) == op &&
+        d.defaultOperator.toLowerCase() != 'other') {
+      return d.id;
+    }
+  }
+  return fallback;
+}
+
 class WalletTopUpDialog extends StatefulWidget {
   final String shopId;
   final String staffId;
@@ -54,14 +72,31 @@ class _WalletTopUpDialogState extends State<WalletTopUpDialog> {
   final _amountController = TextEditingController();
   final _refController = TextEditingController();
   final _notesController = TextEditingController();
+  final _commissionController = TextEditingController();
+  bool _commissionEdited = false;
+  bool _loadDone = false; // payable part saved; only the commission is left
+  String _commissionTag = '';
   bool _submitting = false;
   String? _errorMessage;
+
+  /// Distributor refill: amount received includes the commission
+  /// (1,039 = 1,000 payable + 39 commission at 3.9%).
+  int get _receivedPaise => parseRupeesToPaise(_amountController.text) ?? 0;
+  int get _commissionPaise => parseRupeesToPaise(_commissionController.text) ?? 0;
+
+  void _autoCommission() {
+    if (_commissionEdited || _fundingType != RechargeFundingType.distributorCredit) return;
+    final c = topUpCommissionPaise(_receivedPaise, kDefaultTopUpCommissionBp);
+    _commissionController.text = c == 0 ? '' : (c / 100).toStringAsFixed(2);
+  }
 
   @override
   void initState() {
     super.initState();
-    _fundingType = widget.initialFundingType;
+    // Shop rule: every wallet refill is distributor credit (no own money).
+    _fundingType = RechargeFundingType.distributorCredit;
     _operator = widget.initialOperator ?? RechargeOperator.jio;
+    _selectedDistributorId = distributorIdForOperator(_operator, _selectedDistributorId);
   }
 
   @override
@@ -69,11 +104,18 @@ class _WalletTopUpDialogState extends State<WalletTopUpDialog> {
     _amountController.dispose();
     _refController.dispose();
     _notesController.dispose();
+    _commissionController.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     final amt = double.tryParse(_amountController.text.trim()) ?? 0.0;
+    final commPaise = _fundingType == RechargeFundingType.distributorCredit ? _commissionPaise : 0;
+    if (commPaise < 0 || (commPaise > 0 && commPaise >= _receivedPaise)) {
+      setState(() => _errorMessage =
+          'കമ്മീഷൻ തുക തെറ്റാണ് (Commission must be less than the amount received)');
+      return;
+    }
     if (amt <= 0) {
       setState(() => _errorMessage = 'സാധുവായ തുക നൽകുക (Enter a valid amount)');
       return;
@@ -111,11 +153,14 @@ class _WalletTopUpDialogState extends State<WalletTopUpDialog> {
           checkBankBalance: true,
         );
       } else {
-        await RechargeService.instance.recordDistributorCreditLoad(
+        if (!_loadDone) {
+          _commissionTag = DateTime.now().millisecondsSinceEpoch.toString();
+          await RechargeService.instance.recordDistributorCreditLoad(
           shopId: widget.shopId,
           operator: _operator,
           distributorId: _selectedDistributorId,
-          amount: amt,
+          // Only the payable part goes to the distributor's dues.
+          amount: (_receivedPaise - commPaise) / 100.0,
           staffId: widget.staffId,
           staffName: widget.staffName,
           referenceNumber: _refController.text.trim().isNotEmpty
@@ -124,7 +169,31 @@ class _WalletTopUpDialogState extends State<WalletTopUpDialog> {
           notes: _notesController.text.trim().isNotEmpty
               ? _notesController.text.trim()
               : 'Credit stock load for ${_operator.displayName}',
-        );
+          );
+          _loadDone = true;
+        }
+        if (commPaise > 0) {
+          final a = AuthController.instance;
+          try {
+            await RechargeAccountingService.instance.topUpCommission(
+              shopId: widget.shopId,
+              actor: AccountingActor(uid: a.uid, name: a.name, isOwner: a.isOwner),
+              operator: _operator,
+              distributorId: _selectedDistributorId,
+              commissionPaise: commPaise,
+              formTag: _commissionTag,
+            );
+          } catch (e) {
+            if (mounted) {
+              setState(() {
+                _submitting = false;
+                _errorMessage =
+                    'Distributor credit ${formatInrPaise(_receivedPaise - commPaise)} സേവ് ആയി, പക്ഷേ commission ${formatInrPaise(commPaise)} സേവ് ആയില്ല. വീണ്ടും Confirm അമർത്തുക; credit വീണ്ടും ചേർക്കില്ല. (Credit saved, commission NOT saved: press Confirm again to finish.) [${e.toString().replaceAll('Exception: ', '')}]';
+              });
+            }
+            return;
+          }
+        }
       }
 
       if (mounted) Navigator.of(context).pop(true);
@@ -183,18 +252,9 @@ class _WalletTopUpDialogState extends State<WalletTopUpDialog> {
                           RechargeFundingType.distributorCredit),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildChoiceChip(
-                      label: 'Own Money',
-                      sublabel: 'സ്വന്തം ബാങ്ക് പണം',
-                      isSelected:
-                          _fundingType == RechargeFundingType.ownMoney,
-                      activeColor: TekColors.electricCyan,
-                      onTap: () => setState(() =>
-                          _fundingType = RechargeFundingType.ownMoney),
-                    ),
-                  ),
+                  // Shop rule (owner, 2026-11-21): own money is never put into
+                  // a recharge wallet. Every refill is distributor credit, so
+                  // the Own Money option is not offered.
                 ],
               ),
               const SizedBox(height: 12),
@@ -269,7 +329,13 @@ class _WalletTopUpDialogState extends State<WalletTopUpDialog> {
                       );
                     }).toList(),
                     onChanged: (val) {
-                      if (val != null) setState(() => _operator = val);
+                      if (val != null) {
+                        setState(() {
+                          _operator = val;
+                          _selectedDistributorId =
+                              distributorIdForOperator(val, _selectedDistributorId);
+                        });
+                      }
                     },
                   ),
                 ),
@@ -317,11 +383,17 @@ class _WalletTopUpDialogState extends State<WalletTopUpDialog> {
               ],
 
               // Amount Input
-              const Text('Stock Load Amount / തുക (₹):',
-                  style: TextStyle(color: TekColors.textSecondary, fontSize: 12)),
+              Text(
+                  _fundingType == RechargeFundingType.distributorCredit
+                      ? 'Amount received in wallet / വാലറ്റിൽ കയറിയ തുക (₹):'
+                      : 'Stock Load Amount / തുക (₹):',
+                  style: const TextStyle(color: TekColors.textSecondary, fontSize: 12)),
               const SizedBox(height: 6),
               TextField(
+                key: const ValueKey('topup-amount'),
                 controller: _amountController,
+                enabled: !_loadDone,
+                onChanged: (_) => setState(_autoCommission),
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 style: const TextStyle(
@@ -358,12 +430,44 @@ class _WalletTopUpDialogState extends State<WalletTopUpDialog> {
                     label: Text(currency.format(amt),
                         style: const TextStyle(
                             fontSize: 11, color: TekColors.textPrimary)),
-                    onPressed: () =>
-                        _amountController.text = amt.toString(),
+                    onPressed: _loadDone
+                        ? null
+                        : () => setState(() {
+                              _amountController.text = amt.toString();
+                              _autoCommission();
+                            }),
                   );
                 }).toList(),
               ),
               const SizedBox(height: 14),
+              if (_fundingType == RechargeFundingType.distributorCredit) ...[
+                TextField(
+                  key: const ValueKey('topup-commission'),
+                  controller: _commissionController,
+                  enabled: !_loadDone,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (_) => setState(() => _commissionEdited = true),
+                  style: const TextStyle(color: TekColors.textPrimary, fontSize: 13),
+                  decoration: InputDecoration(
+                    labelText: 'Commission included / ഇതിൽ കമ്മീഷൻ (₹) – 3.9% auto',
+                    labelStyle: const TextStyle(color: TekColors.textSecondary, fontSize: 12),
+                    prefixText: '₹ ',
+                    filled: true,
+                    fillColor: TekColors.elevatedSurface,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                if (_receivedPaise > 0) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Payable to distributor (കൊടുക്കേണ്ടത്): ${formatInrPaise(_receivedPaise - _commissionPaise)}\n'
+                    'Commission – profit (കമ്മീഷൻ): ${formatInrPaise(_commissionPaise)}',
+                    key: const ValueKey('topup-split'),
+                    style: const TextStyle(color: TekColors.electricCyan, fontSize: 12, height: 1.4),
+                  ),
+                ],
+                const SizedBox(height: 14),
+              ],
 
               // Reference / Voucher
               TextField(
@@ -1851,6 +1955,7 @@ class _AgentSettlementDialogState extends State<AgentSettlementDialog> {
   late String _selectedDistId;
   DistributorProfile? _distributor;
   String _paymentMode = 'CASH'; // CASH, BANK, UPI
+  RechargeOperator? _operator; // settlement account = distributor x operator
   final _totalPayableController = TextEditingController();
   final _adjustmentController = TextEditingController();
   final _refController = TextEditingController();
@@ -1885,6 +1990,7 @@ class _AgentSettlementDialogState extends State<AgentSettlementDialog> {
       setState(() {
         _distributor = dist;
         _loading = false;
+        _operator = kPeriodOperators.contains(dist.defaultOperator) ? dist.defaultOperator : null;
         if (_totalPayableController.text.isEmpty && dist.currentOutstanding > 0) {
           _totalPayableController.text = dist.currentOutstanding.toStringAsFixed(2);
         }
@@ -1915,6 +2021,10 @@ class _AgentSettlementDialogState extends State<AgentSettlementDialog> {
           'റീചാർജ് അഡ്ജസ്റ്റ്മെന്റ് ആകെ തുകയേക്കാൾ കൂടരുത് (Adjustment cannot exceed total payable)');
       return;
     }
+    if (_operator == null) {
+      setState(() => _errorMessage = kSelectOperatorMessage);
+      return;
+    }
 
     setState(() {
       _submitting = true;
@@ -1928,6 +2038,7 @@ class _AgentSettlementDialogState extends State<AgentSettlementDialog> {
         totalPayable: _totalPayable,
         rechargeAdjustment: _adjustment,
         paymentMode: _paymentMode,
+        operator: _operator,
         staffId: widget.staffId,
         staffName: widget.staffName,
         referenceNumber: _refController.text.trim().isNotEmpty
@@ -2056,6 +2167,11 @@ class _AgentSettlementDialogState extends State<AgentSettlementDialog> {
                     },
                   ),
                 ),
+              ),
+              const SizedBox(height: 12),
+              RechargeOperatorPicker(
+                value: _operator,
+                onChanged: (op) => setState(() => _operator = op),
               ),
               const SizedBox(height: 12),
 
@@ -2388,6 +2504,7 @@ class _RechargeAmountReturnDialogState
   late String _selectedDistId;
   DistributorProfile? _distributor;
   String _returnMode = 'CASH'; // CASH or BANK
+  RechargeOperator? _operator; // pending return is kept per operator
   final _amountController = TextEditingController();
   final _refController = TextEditingController();
   final _notesController = TextEditingController();
@@ -2420,6 +2537,7 @@ class _RechargeAmountReturnDialogState
       setState(() {
         _distributor = dist;
         _loading = false;
+        _operator = kPeriodOperators.contains(dist.defaultOperator) ? dist.defaultOperator : null;
         if (_amountController.text.isEmpty && dist.pendingReturn > 0) {
           _amountController.text = dist.pendingReturn.toStringAsFixed(2);
         }
@@ -2434,6 +2552,10 @@ class _RechargeAmountReturnDialogState
           'സാധുവായ തുക നൽകുക (Enter a valid return amount)');
       return;
     }
+    if (_operator == null) {
+      setState(() => _errorMessage = kSelectOperatorMessage);
+      return;
+    }
 
     setState(() {
       _submitting = true;
@@ -2446,6 +2568,7 @@ class _RechargeAmountReturnDialogState
         distributorId: _selectedDistId,
         returnAmount: amt,
         returnMode: _returnMode,
+        operator: _operator,
         staffId: widget.staffId,
         staffName: widget.staffName,
         referenceNumber: _refController.text.trim().isNotEmpty
@@ -2574,6 +2697,11 @@ class _RechargeAmountReturnDialogState
                     },
                   ),
                 ),
+              ),
+              const SizedBox(height: 12),
+              RechargeOperatorPicker(
+                value: _operator,
+                onChanged: (op) => setState(() => _operator = op),
               ),
               const SizedBox(height: 12),
 
@@ -2786,3 +2914,46 @@ class _RechargeAmountReturnDialogState
   }
 }
 
+
+
+const String kSelectOperatorMessage =
+    'ഓപ്പറേറ്റർ തിരഞ്ഞെടുക്കുക (Select the operator for this settlement account)';
+
+/// Operator selector for the operator-wise settlement account.
+class RechargeOperatorPicker extends StatelessWidget {
+  final RechargeOperator? value;
+  final ValueChanged<RechargeOperator> onChanged;
+  const RechargeOperatorPicker({super.key, required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Operator account (ഓപ്പറേറ്റർ അക്കൗണ്ട്)',
+            style: TextStyle(
+                color: TekColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            for (final op in kPeriodOperators)
+              ChoiceChip(
+                label: Text(op.displayName),
+                selected: value == op,
+                onSelected: (_) => onChanged(op),
+                selectedColor: TekColors.success.withValues(alpha: 0.25),
+                backgroundColor: TekColors.mainBg,
+                labelStyle: TextStyle(
+                  color: value == op ? TekColors.textPrimary : TekColors.textSecondary,
+                  fontSize: 12,
+                  fontWeight: value == op ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}

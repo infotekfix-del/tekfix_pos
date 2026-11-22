@@ -70,6 +70,10 @@ class DailySalesLedgerView extends StatefulWidget {
 
     final ownerWth = await OwnerFinanceService.instance
         .computeDailyOwnerWithdrawals(targetDate, shopId: resolvedShop);
+    final rechargeCash = await DailyRegisterService.instance
+        .rechargeCashForDate(targetDate, shopId: resolvedShop);
+    final agentCash = await DailyRegisterService.instance
+        .distributorCashPaidForDate(targetDate, shopId: resolvedShop);
 
     double cExp = 0.0;
     double bExp = 0.0;
@@ -125,6 +129,9 @@ class DailySalesLedgerView extends StatefulWidget {
           ownerCashDrawingsDrawn: ownerWth.cashDrawings,
           ownerBankSalaryDrawn: ownerWth.bankSalary,
           ownerBankDrawingsDrawn: ownerWth.bankDrawings,
+          rechargeCashCollection: rechargeCash,
+          distributorCashPaid: agentCash,
+          otherCash: DailyRegisterService.instance.otherCashForDate(targetDate),
           closedByStaffId: currentStaffId ?? '',
           closedByStaffName: currentStaffName ?? '',
           isBackdated: isBackdated,
@@ -160,6 +167,9 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
   List<Map<String, dynamic>> _sales = [];
   DailyRegisterSummary? _closedRegister;
   double _openingCashForDate = 1000.0;
+  double _rechargeCash = 0.0; // Quick Recharge cash taken today
+  double _agentCash = 0.0; // cash paid to recharge agents today (net)
+  OtherCashFlows _otherCash = OtherCashFlows.zero; // vendor, dues, advances...
   double _cashExpenses = 0.0;
   double _bankExpenses = 0.0;
   double _cashRent = 0.0;
@@ -218,6 +228,10 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
 
       final ownerWth = await OwnerFinanceService.instance
           .computeDailyOwnerWithdrawals(_selectedDate, shopId: widget.shopId);
+      final rechargeCash = await DailyRegisterService.instance
+          .rechargeCashForDate(_selectedDate, shopId: widget.shopId);
+      final agentCash = await DailyRegisterService.instance
+          .distributorCashPaidForDate(_selectedDate, shopId: widget.shopId);
 
       double cExp = 0.0;
       double bExp = 0.0;
@@ -262,6 +276,9 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
           _bankRent = bRent;
           _rentPending = rPending;
           _ownerWth = ownerWth;
+          _rechargeCash = rechargeCash;
+          _agentCash = agentCash;
+          _otherCash = DailyRegisterService.instance.otherCashForDate(_selectedDate);
           _loading = false;
         });
       }
@@ -290,6 +307,9 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
       ownerCashDrawingsDrawn: _ownerWth.cashDrawings,
       ownerBankSalaryDrawn: _ownerWth.bankSalary,
       ownerBankDrawingsDrawn: _ownerWth.bankDrawings,
+      rechargeCashCollection: _rechargeCash,
+      distributorCashPaid: _agentCash,
+      otherCash: _otherCash,
       closedByStaffId: widget.currentStaffId ?? '',
       closedByStaffName: widget.currentStaffName ?? '',
       isBackdated: isBackdated,
@@ -2042,7 +2062,7 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
                     liveDiscrepancy == 0
                         ? '₹0.00 (Balanced)'
                         : (liveDiscrepancy > 0
-                            ? '+₹${liveDiscrepancy.toStringAsFixed(2)} (Over)'
+                            ? '+₹${liveDiscrepancy.toStringAsFixed(2)} (Excess)'
                             : '-₹${liveDiscrepancy.abs().toStringAsFixed(2)} (Short)'),
                     valueColor: liveDiscrepancy == 0
                         ? TekColors.success
@@ -2204,7 +2224,10 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
   Widget build(BuildContext context) {
     final summary = widget.initialSummary;
     final expectedClosingCash = (_openingCash +
-            summary.cashCollection -
+            summary.cashCollection +
+            summary.rechargeCashCollection -
+            summary.distributorCashPaid +
+            summary.otherCash.net -
             summary.refunds -
             summary.totalCashExpenses)
         .clamp(0.0, double.infinity);
@@ -2572,6 +2595,36 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
                     _sheetRow('Refunds / Returns:',
                         '-₹${summary.refunds.toStringAsFixed(2)}',
                         valueColor: TekColors.error),
+                  if (summary.rechargeCashCollection != 0)
+                    _sheetRow('Recharge Cash (റീചാർജ് ക്യാഷ്):',
+                        '+₹${summary.rechargeCashCollection.toStringAsFixed(2)}',
+                        valueColor: TekColors.success),
+                  if (summary.distributorCashPaid != 0)
+                    _sheetRow('Recharge Agent Paid (ഏജന്റിന് കൊടുത്തത്):',
+                        '-₹${summary.distributorCashPaid.toStringAsFixed(2)}',
+                        valueColor: TekColors.error),
+                  if (summary.otherCash.vendorPaid != 0)
+                    _sheetRow('Vendor Paid (വെണ്ടർക്ക് കൊടുത്തത്):',
+                        '-₹${summary.otherCash.vendorPaid.toStringAsFixed(2)}',
+                        valueColor: TekColors.error),
+                  if (summary.otherCash.customerDuesReceived != 0)
+                    _sheetRow('Customer Dues Received (കസ്റ്റമർ കടം തന്നത്):',
+                        '+₹${summary.otherCash.customerDuesReceived.toStringAsFixed(2)}',
+                        valueColor: TekColors.success),
+                  if (summary.otherCash.serviceAdvanceReceived != 0)
+                    _sheetRow('Service Advance (സർവീസ് അഡ്വാൻസ്):',
+                        '+₹${summary.otherCash.serviceAdvanceReceived.toStringAsFixed(2)}',
+                        valueColor: TekColors.success),
+                  if (summary.otherCash.commissionCashIn != 0)
+                    _sheetRow('Commission Cash (കമ്മീഷൻ ക്യാഷ്):',
+                        '+₹${summary.otherCash.commissionCashIn.toStringAsFixed(2)}',
+                        valueColor: TekColors.success),
+                  if (summary.otherCash.manualNet != 0)
+                    _sheetRow('Money In / Out (net):',
+                        '${summary.otherCash.manualNet > 0 ? '+' : '-'}₹${summary.otherCash.manualNet.abs().toStringAsFixed(2)}',
+                        valueColor: summary.otherCash.manualNet > 0
+                            ? TekColors.success
+                            : TekColors.error),
                   _sheetRow('Total Cash Outflows:',
                       '-₹${summary.totalCashOutflows.toStringAsFixed(2)}',
                       valueColor: TekColors.error),
@@ -2761,7 +2814,7 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
                             liveDiscrepancy == 0
                                 ? 'Cash Drawer Balanced (തുല്യമാണ് - Exact Match)'
                                 : (liveDiscrepancy > 0
-                                    ? 'Cash Over: +₹${liveDiscrepancy.toStringAsFixed(2)}'
+                                    ? 'Excess (എക്സസ്): +₹${liveDiscrepancy.toStringAsFixed(2)}'
                                     : 'Cash Shortage: -₹${liveDiscrepancy.abs().toStringAsFixed(2)}'),
                             style: TextStyle(
                               fontSize: 12,

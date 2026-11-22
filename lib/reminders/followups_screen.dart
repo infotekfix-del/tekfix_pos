@@ -156,6 +156,9 @@ class _FollowupsScreenState extends State<FollowupsScreen>
                     controller: reviewUrlCtrl,
                     decoration: const InputDecoration(
                       labelText: 'Google Review Link (URL)',
+                      hintText: 'https://g.page/r/XXXX/review',
+                      helperText:
+                          'WhatsApp ബില്ലിലും ഈ ലിങ്ക് ഉപയോഗിക്കും (Also used in WhatsApp invoices)',
                       border: OutlineInputBorder(),
                     ),
                   ),

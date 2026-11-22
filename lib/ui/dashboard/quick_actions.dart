@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dashboard_tokens.dart';
 
-/// Pixel-faithful Quick Actions grid for TekFix ERP.
-/// Features 6 gradient tiles in a 3x2 grid:
-/// New Sale, Add Item, Service Request, Customer, Reports, Settings.
+/// Quick Actions grid (v2): flat tiles with one accent colour.
+/// "New Sale" lives in the dashboard header as the primary button, so it is
+/// no longer duplicated here ([onNewSale] is kept for API compatibility).
 class TekQuickActionsGrid extends StatelessWidget {
   final VoidCallback onNewSale;
   final VoidCallback onAddItem;
@@ -34,18 +34,19 @@ class TekQuickActionsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actions = [
-      _ActionTileData(
-        title: 'New Sale',
-        subtitle: 'പുതിയ വിൽപന',
-        icon: Icons.point_of_sale_rounded,
-        gradient: const LinearGradient(
-          colors: [Color(0xFF00D4FF), Color(0xFF1677FF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+      if (onRecharge != null)
+        _ActionTileData(
+          title: 'Recharge',
+          subtitle: 'റീചാർജ്',
+          icon: Icons.phone_android_rounded,
+          gradient: const LinearGradient(
+            colors: [Color(0xFF06B6D4), Color(0xFF0891B2)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          glowColor: const Color(0xFF06B6D4),
+          onTap: onRecharge!,
         ),
-        glowColor: DashboardColors.neonBlue,
-        onTap: onNewSale,
-      ),
       _ActionTileData(
         title: 'Add Item',
         subtitle: 'സാധനം ചേർക്കുക',
@@ -145,19 +146,6 @@ class TekQuickActionsGrid extends StatelessWidget {
         glowColor: const Color(0xFF94A3B8),
         onTap: onOpenSettings,
       ),
-      if (onRecharge != null)
-        _ActionTileData(
-          title: 'Recharge',
-          subtitle: 'റീചാർജ്',
-          icon: Icons.phone_android_rounded,
-          gradient: const LinearGradient(
-            colors: [Color(0xFF06B6D4), Color(0xFF0891B2)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          glowColor: const Color(0xFF06B6D4),
-          onTap: onRecharge!,
-        ),
     ];
 
     return Column(
@@ -167,19 +155,6 @@ class TekQuickActionsGrid extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: DashboardColors.neonBlue.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.bolt_rounded,
-                color: DashboardColors.neonBlue,
-                size: 18,
-              ),
-            ),
-            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -189,9 +164,9 @@ class TekQuickActionsGrid extends StatelessWidget {
                     'Quick Actions',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: DashboardTypography.poppins(
+                    style: DashboardTypography.inter(
                       fontSize: 15,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   Text(
@@ -215,19 +190,17 @@ class TekQuickActionsGrid extends StatelessWidget {
         // 3x2 Grid (responsive)
         LayoutBuilder(
           builder: (context, constraints) {
-            final count = constraints.maxWidth >= 600 ? 3 : 2;
-            final ratio = constraints.maxWidth >= 600
-                ? 2.4
-                : (constraints.maxWidth <= 360 ? 1.95 : 2.1);
+            final w = constraints.maxWidth;
+            final count = w >= 1000 ? 4 : (w >= 600 ? 3 : 2);
             return GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: actions.length,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: count,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: ratio,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                mainAxisExtent: 66,
               ),
               itemBuilder: (context, idx) {
                 return _QuickActionCard(data: actions[idx]);
@@ -273,65 +246,49 @@ class _QuickActionCardState extends State<_QuickActionCard> {
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
+      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
+        transform: Matrix4.translationValues(0, _isHovered ? -1 : 0, 0),
         decoration: BoxDecoration(
-          color: _isHovered ? const Color(0x2E1E2D5A) : const Color(0x1F182652),
-          borderRadius: BorderRadius.circular(16),
+          color: _isHovered
+              ? DashboardColors.surfaceAlt
+              : DashboardColors.surface,
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: _isHovered
-                ? widget.data.glowColor.withValues(alpha: 0.6)
-                : const Color(0x2BFFFFFF),
-            width: 1.2,
+                ? DashboardColors.glassBorderHover
+                : DashboardColors.border,
+            width: 1,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.3),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
-            ),
-            if (_isHovered)
-              BoxShadow(
-                color: widget.data.glowColor.withValues(alpha: 0.3),
-                blurRadius: 18,
-                offset: const Offset(0, 4),
-              ),
-          ],
         ),
         child: Material(
           color: Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(10),
           child: InkWell(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(10),
             onTap: () {
               HapticFeedback.lightImpact();
               widget.data.onTap();
             },
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(
                 children: [
                   Container(
-                    width: 40,
-                    height: 40,
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
-                      gradient: widget.data.gradient,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: widget.data.glowColor.withValues(alpha: 0.4),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+                      color: DashboardColors.accentBg,
+                      borderRadius: BorderRadius.circular(9),
                     ),
                     child: Icon(
                       widget.data.icon,
-                      color: Colors.white,
-                      size: 22,
+                      color: DashboardColors.neonBlue,
+                      size: 19,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -346,8 +303,8 @@ class _QuickActionCardState extends State<_QuickActionCard> {
                           overflow: TextOverflow.ellipsis,
                           style: DashboardTypography.inter(
                             fontSize: 13.5,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            color: DashboardColors.textWhite,
                           ),
                         ),
                         const SizedBox(height: 1),
@@ -356,7 +313,7 @@ class _QuickActionCardState extends State<_QuickActionCard> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: DashboardTypography.malayalam(
-                            fontSize: 10.5,
+                            fontSize: 11.5,
                             fontWeight: FontWeight.w400,
                             color: DashboardColors.textMuted,
                             height: 1.3,

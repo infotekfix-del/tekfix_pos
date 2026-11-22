@@ -4,15 +4,25 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
-import '../main.dart' show Db, boxPurchaseBills, boxVendorPayments;
+import '../main.dart'
+    show Db, boxParties, boxPurchaseBills, boxPurchases, boxVendorPayments;
 import '../inventory/consumables_service.dart';
 import '../storage/storage_bridge.dart';
 import '../storage/supabase_storage_bridge_client.dart';
 import 'purchase_models.dart';
+import '../auth/auth_controller.dart';
 
 class PurchaseBillService {
   PurchaseBillService._();
   static final PurchaseBillService instance = PurchaseBillService._();
+
+  @visibleForTesting
+  static bool? ownerCheckForTesting;
+
+  static bool isCallerOwner() {
+    if (ownerCheckForTesting != null) return ownerCheckForTesting!;
+    return AuthController.instance.signedIn && AuthController.instance.isOwner;
+  }
 
   Box get _billsBox => Hive.box(boxPurchaseBills);
   Box get _paymentsBox => Hive.box(boxVendorPayments);
@@ -37,6 +47,16 @@ class PurchaseBillService {
     final next = current + 1;
     await Db.settings.put(key, next);
     return 'PAY-$year-${next.toString().padLeft(4, '0')}';
+  }
+
+  Future<String> generateReturnId() async {
+    final year = DateTime.now().year;
+    final key = 'vendor_return_counter_$year';
+    final current = (Db.settings.get(key) as num?)?.toInt() ?? 0;
+    final next = current + 1;
+    await Db.settings.put(key, next);
+    final micro = DateTime.now().microsecondsSinceEpoch % 10000;
+    return 'PR-$year-${next.toString().padLeft(4, '0')}-$micro';
   }
 
   // ---------------------------------------------------------------------------
@@ -81,10 +101,34 @@ class PurchaseBillService {
     return 0.0;
   }
 
-  /// Fetches real-time vendor outstanding balance in integer paise from Cloud Firestore (with local fallback).
+  /// Signed vendor payable in integer paise, read from the local party record.
+  ///
+  /// The local party `balance` is the single source of truth for what we owe
+  /// a vendor (SyncEngine merges it across devices as a counter). It is
+  /// negative when we owe money, so this returns `-balance`:
+  /// positive = we owe the vendor, negative = vendor holds our advance.
+  int getVendorPayablePaise(dynamic vendorKey) {
+    if (vendorKey == null || !Hive.isBoxOpen(boxParties)) return 0;
+    final raw = Db.parties.get(vendorKey);
+    if (raw is! Map) return 0;
+    final bal = (raw['balance'] as num?)?.toDouble() ?? 0.0;
+    return (-bal * 100).round();
+  }
+
+  /// Vendor outstanding balance in integer paise (what we owe, never negative).
+  ///
+  /// Uses the local party balance first so the purchase entry screen's
+  /// "Previous Balance", the vendor ledger and the parties screen all show the
+  /// same number. The Firestore `parties/{vendorKey}` mirror is only used when
+  /// the vendor is not in the local party list (it can lag behind payments
+  /// made from the parties screen, advance payments and bill edits).
   Future<int> fetchVendorBalancePaise(dynamic vendorKey,
       {String? shopId}) async {
     if (vendorKey == null) return 0;
+    if (Hive.isBoxOpen(boxParties) && Db.parties.get(vendorKey) is Map) {
+      final paise = getVendorPayablePaise(vendorKey);
+      return paise > 0 ? paise : 0;
+    }
     final sId = (shopId != null && shopId.isNotEmpty)
         ? shopId
         : Db.setting('shop_id', 'tekfix');
@@ -444,9 +488,14 @@ class PurchaseBillService {
     for (final k in _billsBox.keys) {
       final raw = _billsBox.get(k);
       if (raw is Map) {
-        final inv = raw['vendorInvoiceNumber']?.toString().trim().toLowerCase();
+        if (raw['isVoided'] == true || raw['paymentStatus'] == 'voided') {
+          continue;
+        }
+        final inv =
+            raw['vendorInvoiceNumber']?.toString().trim().toLowerCase();
         final vKey = raw['vendorKey'];
-        if (inv == queryInv && (vKey == vendorKey || '$vKey' == '$vendorKey')) {
+        if (inv == queryInv &&
+            (vKey == vendorKey || '$vKey' == '$vendorKey')) {
           return PurchaseBill.fromMap(raw, k);
         }
       }
@@ -781,12 +830,15 @@ class PurchaseBillService {
       }
     }
 
+    // Vendor payable BEFORE this bill. Captured here (before the local adjust)
+    // so the cloud mirror below never counts this bill twice.
+    final int vendorPayableBeforePaise = getVendorPayablePaise(vendorKey);
     if (vendorKey != null && balanceDuePaise > 0) {
       await Db.adjustParty(vendorKey, -(balanceDuePaise / 100.0));
     }
     if (paidAmountPaise > 0) {
       await Db.moveMoney(initialPaymentMethod, -(paidAmountPaise / 100.0),
-          'Purchase Bill $billNumber payment');
+          'Purchase Bill $billNumber payment', category: 'vendor');
     }
 
     if (Db.audit.isOpen) {
@@ -899,23 +951,10 @@ class PurchaseBillService {
 
         await firestore.runTransaction((transaction) async {
           // READ PHASE
-          int vendorBalancePaise = 0;
-          try {
-            final vendorSnap = await transaction.get(vendorRef);
-            if (vendorSnap.exists) {
-              final vData = vendorSnap.data()!;
-              vendorBalancePaise =
-                  (vData['currentBalancePaise'] as num?)?.toInt() ??
-                      (((vData['balance'] as num?)?.toDouble() ?? 0.0) * 100)
-                          .round();
-            } else {
-              vendorBalancePaise =
-                  (getVendorOutstandingBalance(vendorKey) * 100).round();
-            }
-          } catch (_) {
-            vendorBalancePaise =
-                (getVendorOutstandingBalance(vendorKey) * 100).round();
-          }
+          // Vendor balance comes from the local party (source of truth). The
+          // old code re-read it here AFTER the local adjust (double counting
+          // the new bill) or from a cloud mirror that missed other payments.
+          final int vendorBalancePaise = vendorPayableBeforePaise;
 
           final productSnapshots =
               <String, DocumentSnapshot<Map<String, dynamic>>>{};
@@ -1344,13 +1383,28 @@ class PurchaseBillService {
     final int grandTotalPaise =
         (subtotalPaise - totalDiscountPaise + totalTaxPaise + otherChargesPaise)
             .clamp(0, 1 << 62);
+    // Money already paid on this bill. NOT clamped to the new total: if the
+    // edit lowers the total below what was paid, the excess becomes vendor
+    // credit instead of silently disappearing.
     final int originalPaidAmountPaise =
-        (originalBill.paidAmount * 100).round().clamp(0, grandTotalPaise);
-    final int paidAmountPaise = paidAmount != null
+        originalBill.paidAmountPaise < 0 ? 0 : originalBill.paidAmountPaise;
+    final int requestedPaidPaise = paidAmount != null
         ? (paidAmount * 100).round().clamp(0, grandTotalPaise)
         : originalPaidAmountPaise;
+    // An edit cannot "un-pay" money that already left cash/bank (there is no
+    // refund flow here), so the total paid never goes below the original.
+    final int totalPaidPaise = requestedPaidPaise < originalPaidAmountPaise
+        ? originalPaidAmountPaise
+        : requestedPaidPaise;
+    final int paidAmountPaise =
+        totalPaidPaise > grandTotalPaise ? grandTotalPaise : totalPaidPaise;
     final int balanceDuePaise =
         (grandTotalPaise - paidAmountPaise).clamp(0, grandTotalPaise);
+    // What this bill contributes to the vendor payable, before and after.
+    // Can be negative (overpaid → vendor credit).
+    final int oldPayablePaise =
+        originalBill.grandTotalPaise - originalPaidAmountPaise;
+    final int newPayablePaise = grandTotalPaise - totalPaidPaise;
 
     final String paymentStatus = BillPaymentStatus.computeStatus(
       grandTotalPaise: grandTotalPaise,
@@ -1478,31 +1532,53 @@ class PurchaseBillService {
     // -------------------------------------------------------------------------
     // VENDOR LEDGER RECONCILIATION
     // -------------------------------------------------------------------------
-    final oldBalanceDue = originalBill.balanceDue;
-    final newBalanceDue = balanceDuePaise / 100.0;
-    final balanceDiff = newBalanceDue - oldBalanceDue;
+    final int balanceDiffPaise = newPayablePaise - oldPayablePaise;
+    final double balanceDiff = balanceDiffPaise / 100.0;
+    final bool vendorChanged = originalBill.vendorKey != vendorKey &&
+        '${originalBill.vendorKey}' != '$vendorKey';
 
-    if (originalBill.vendorKey == vendorKey) {
-      if (vendorKey != null && balanceDiff.abs() > 0.001) {
+    if (!vendorChanged) {
+      if (vendorKey != null && balanceDiffPaise != 0) {
         // More debt owed -> negative adjustment
         await Db.adjustParty(vendorKey, -balanceDiff);
       }
     } else {
-      // Vendor was changed
-      if (originalBill.vendorKey != null && oldBalanceDue > 0) {
-        await Db.adjustParty(originalBill.vendorKey, oldBalanceDue);
+      // Vendor was changed: the whole bill (and its payments) moves over.
+      if (originalBill.vendorKey != null && oldPayablePaise != 0) {
+        await Db.adjustParty(originalBill.vendorKey, oldPayablePaise / 100.0);
       }
-      if (vendorKey != null && newBalanceDue > 0) {
-        await Db.adjustParty(vendorKey, -newBalanceDue);
+      if (vendorKey != null && newPayablePaise != 0) {
+        await Db.adjustParty(vendorKey, -(newPayablePaise / 100.0));
       }
     }
 
     // -------------------------------------------------------------------------
     // VENDOR PAYMENT DIFFS & RECORDING
     // -------------------------------------------------------------------------
-    final paymentsList = List<VendorPaymentRecord>.from(originalBill.payments);
+    final paymentsList = <VendorPaymentRecord>[
+      for (final p in originalBill.payments)
+        vendorChanged
+            ? VendorPaymentRecord.fromMap(p.toMap()
+              ..['vendorKey'] = vendorKey
+              ..['vendorName'] = vendorName)
+            : p,
+    ];
+    if (vendorChanged && _paymentsBox.isOpen) {
+      // Re-point this bill's stored payments to the new vendor so both
+      // vendor ledgers stay equal to their party balances.
+      for (final pk in _paymentsBox.keys.toList()) {
+        final raw = _paymentsBox.get(pk);
+        if (raw is! Map) continue;
+        final sameBill = '${raw['billKey']}' == billId ||
+            raw['billNumber']?.toString() == billNumber;
+        if (!sameBill || raw['isAdvance'] == true) continue;
+        await _paymentsBox.put(pk, Map<String, dynamic>.from(raw)
+          ..['vendorKey'] = vendorKey
+          ..['vendorName'] = vendorName);
+      }
+    }
     VendorPaymentRecord? newPayment;
-    final int deltaPaidPaise = paidAmountPaise - originalPaidAmountPaise;
+    final int deltaPaidPaise = totalPaidPaise - originalPaidAmountPaise;
     if (deltaPaidPaise > 0) {
       final payId = 'PAY_${now.millisecondsSinceEpoch}';
       newPayment = VendorPaymentRecord(
@@ -1526,7 +1602,7 @@ class PurchaseBillService {
         await _paymentsBox.add(newPayment.toMap()..['billKey'] = billId);
       }
       await Db.moveMoney(paymentMethod, -(deltaPaidPaise / 100.0),
-          'Purchase Bill $billNumber payment');
+          'Purchase Bill $billNumber payment', category: 'vendor');
     }
 
     // -------------------------------------------------------------------------
@@ -1638,8 +1714,9 @@ class PurchaseBillService {
             'debit': 0.0,
             'creditPaise': deltaPaidPaise,
             'credit': deltaPaidPaise / 100.0,
-            'runningBalancePaise': balanceDuePaise,
-            'runningBalance': balanceDuePaise / 100.0,
+            // Vendor running balance (not this bill's balance due).
+            'runningBalancePaise': getVendorPayablePaise(vendorKey),
+            'runningBalance': getVendorPayablePaise(vendorKey) / 100.0,
             'notes': 'Payment via $paymentMethod ($billNumber)',
             'createdAt': FieldValue.serverTimestamp(),
           };
@@ -1677,21 +1754,28 @@ class PurchaseBillService {
               .set(cashBankData, SetOptions(merge: true));
         }
 
-        if (vendorKey != null) {
-          final vDocId = vendorKey.toString();
-          final vRef = firestore
-              .collection('shops')
-              .doc(sId)
-              .collection('vendors')
-              .doc(vDocId);
-          final diffPaise =
-              balanceDuePaise - (originalBill.balanceDue * 100).round();
-          if (diffPaise != 0) {
-            await vRef.set({
-              'currentBalancePaise': FieldValue.increment(diffPaise),
-              'balance': FieldValue.increment(diffPaise / 100.0),
-              'updatedAt': FieldValue.serverTimestamp(),
-            }, SetOptions(merge: true));
+        // Mirror the vendor payable to the same `parties` doc that bill
+        // confirm and bill payment write (the old code incremented a
+        // separate `vendors` doc, so the cloud balance never saw edits).
+        // Written as the absolute local value so it cannot drift.
+        for (final vk in {
+          if (vendorKey != null) '$vendorKey': vendorKey,
+          if (vendorChanged && originalBill.vendorKey != null)
+            '${originalBill.vendorKey}': originalBill.vendorKey,
+        }.entries) {
+          final payable = getVendorPayablePaise(vk.value);
+          final update = <String, dynamic>{
+            'currentBalancePaise': payable,
+            'balance': payable / 100.0,
+            'updatedAt': FieldValue.serverTimestamp(),
+          };
+          for (final col in const ['parties', 'vendors']) {
+            await firestore
+                .collection('shops')
+                .doc(sId)
+                .collection(col)
+                .doc(vk.key)
+                .set(update, SetOptions(merge: true));
           }
         }
       } catch (e) {
@@ -1823,9 +1907,13 @@ class PurchaseBillService {
       savedKey = await _billsBox.add(bill.toMap());
     }
 
-    // Save initial payment to vendorPayments box if any
-    for (final p in paymentsList) {
-      await _paymentsBox.add(p.toMap()..['billKey'] = savedKey);
+    // Save initial payment to vendorPayments box if any. A draft moves no
+    // money and no vendor balance, so its payment must not reach the vendor
+    // ledger yet (it is recorded when the draft is confirmed).
+    if (!isDraft) {
+      for (final p in paymentsList) {
+        await _paymentsBox.add(p.toMap()..['billKey'] = savedKey);
+      }
     }
 
     // 2. If NOT draft, execute inventory stock increments & financial mutations atomically
@@ -1965,7 +2053,7 @@ class PurchaseBillService {
       // 2c. Bank/Cash movement for amount paid
       if (safePaid > 0) {
         await Db.moveMoney(initialPaymentMethod, -safePaid,
-            'Purchase Bill $finalBillNum payment');
+            'Purchase Bill $finalBillNum payment', category: 'vendor');
       }
 
       // 2d. Mirror in legacy Db.purchases for 100% backward compatibility
@@ -2137,15 +2225,14 @@ class PurchaseBillService {
             );
           }
 
-          int vendorBalPaise = 0;
-          if (partySnap != null && partySnap.exists && partySnap.data() != null) {
-            final pData = partySnap.data()!;
-            vendorBalPaise = (pData['currentBalancePaise'] as num?)?.toInt() ??
-                (((pData['balance'] as num?)?.toDouble() ?? 0.0) * 100).round();
-          } else {
-            vendorBalPaise =
-                (getVendorOutstandingBalance(bill.vendorKey) * 100).round();
-          }
+          // Vendor balance before this payment, from the local party (the
+          // local adjust runs after this transaction). The cloud mirror can
+          // miss parties-screen / advance payments and bill edits.
+          final int vendorBalPaise = bill.vendorKey != null
+              ? getVendorPayablePaise(bill.vendorKey)
+              : (((partySnap?.data()?['currentBalancePaise']) as num?)
+                      ?.toInt() ??
+                  0);
 
           final finalPaidPaise = remotePaidPaise + amountPaise;
           final finalBalPaise =
@@ -2281,7 +2368,7 @@ class PurchaseBillService {
     }
     // Moves money out of cash/bank
     await Db.moveMoney(
-        paymentMethod, -(amountPaise / 100.0), 'Vendor Payment ${bill.billNumber}');
+        paymentMethod, -(amountPaise / 100.0), 'Vendor Payment ${bill.billNumber}', category: 'vendor');
 
     // Audit log
     if (Db.audit.isOpen) {
@@ -2448,7 +2535,7 @@ class PurchaseBillService {
     // Advance payment gives us credit with the supplier:
     await Db.adjustParty(vendorKey, amount);
     await Db.moveMoney(
-        paymentMethod, -amount, 'Vendor Advance Payment: $vendorName');
+        paymentMethod, -amount, 'Vendor Advance Payment: $vendorName', category: 'vendor');
 
     if (Db.audit.isOpen) {
       await Db.audit.add({
@@ -2469,6 +2556,399 @@ class PurchaseBillService {
     return payment;
   }
 
+  /// Records a purchase return (credit note / refund from vendor).
+  /// Vendor balance = bills − returns − payments.
+  /// Atomically adjusts the vendor's party balance in integer paise,
+  /// reverses local item stock if items are returned, and logs the return.
+  Future<VendorPaymentRecord> recordPurchaseReturn({
+    required dynamic vendorKey,
+    required String vendorName,
+    required String staffId,
+    required String staffName,
+    double? amount,
+    int? returnAmountPaise,
+    DateTime? returnDate,
+    String? billNumber,
+    dynamic billKey,
+    String paymentMethod = 'Credit Note',
+    String? returnType,
+    String? returnReference,
+    String? reason,
+    String? notes,
+    List<PurchaseBillItem> items = const [],
+    List<Map<String, dynamic>> returnedItems = const [],
+  }) async {
+    // 1. Strict Owner-only permission check
+    if (!isCallerOwner()) {
+      throw StateError(
+          'Owner permission required (ഉടമസ്ഥന്റെ അനുമതി ആവശ്യമാണ്)');
+    }
+
+    final int amountPaise = returnAmountPaise ??
+        (amount != null ? (amount * 100).round() : 0);
+    if (amountPaise <= 0) {
+      throw ArgumentError('Return amount must be positive');
+    }
+    final now = DateTime.now();
+    final date = returnDate ?? now;
+    final retId = returnReference ?? await generateReturnId();
+    final effectiveMethod = (returnType == 'cash_refund')
+        ? 'Cash'
+        : (returnType == 'credit_note' ? 'Credit Note' : paymentMethod);
+    final effectiveNotes = reason ?? notes ?? 'Purchase Return';
+
+    // 2. Idempotency check: if this return ID was already recorded, skip re-saving!
+    if (_paymentsBox.isOpen) {
+      for (final pk in _paymentsBox.keys) {
+        final pRaw = _paymentsBox.get(pk);
+        if (pRaw is Map &&
+            (pRaw['paymentId'] == retId ||
+                pRaw['transactionReference'] == retId)) {
+          return VendorPaymentRecord.fromMap(pRaw);
+        }
+      }
+    }
+
+    // 3. Return limit check: all returns against a bill must not exceed bill.grandTotalPaise
+    if (billKey != null || (billNumber != null && billNumber.isNotEmpty)) {
+      PurchaseBill? bill;
+      if (billKey != null && _billsBox.isOpen) {
+        final raw = _billsBox.get(billKey);
+        if (raw is Map) bill = PurchaseBill.fromMap(raw, billKey);
+      }
+      if (bill == null && billNumber != null && _billsBox.isOpen) {
+        for (final bk in _billsBox.keys) {
+          final raw = _billsBox.get(bk);
+          if (raw is Map && raw['billNumber'] == billNumber) {
+            bill = PurchaseBill.fromMap(raw, bk);
+            break;
+          }
+        }
+      }
+
+      if (bill != null) {
+        int existingReturnsPaise = 0;
+        if (_paymentsBox.isOpen) {
+          for (final pk in _paymentsBox.keys) {
+            final pRaw = _paymentsBox.get(pk);
+            if (pRaw is Map) {
+              final isRet = pRaw['isReturn'] == true ||
+                  pRaw['paymentMethod'] == 'Credit Note' ||
+                  pRaw['paymentMethod'] == 'Purchase Return';
+              final bKeyMatch = billKey != null &&
+                  (pRaw['billKey'] == billKey ||
+                      '${pRaw['billKey']}' == '$billKey');
+              final bNumMatch = pRaw['billNumber'] == bill.billNumber;
+              if (isRet && (bKeyMatch || bNumMatch)) {
+                final amt = (pRaw['amount'] as num?)?.toDouble();
+                final amtPaise = (pRaw['amountPaise'] as num?)?.toInt();
+                existingReturnsPaise += amtPaise ??
+                    (amt != null ? (amt * 100).round() : 0);
+              }
+            }
+          }
+        }
+
+        if (existingReturnsPaise + amountPaise > bill.grandTotalPaise) {
+          throw ArgumentError(
+              'Return exceeds bill (റിട്ടേൺ ബില്ലിനേക്കാൾ കൂടുതലാണ്)');
+        }
+      }
+    }
+
+    // 4. If items were returned, deduct their stock from Db.items and log stock movement
+    if (items.isNotEmpty && Db.items.isOpen) {
+      for (final item in items) {
+        dynamic matchedKey = item.itemKey;
+        if (matchedKey != null && Db.items.containsKey(matchedKey)) {
+          final existing = Db.items.get(matchedKey);
+          if (existing is Map) {
+            final m = Map<String, dynamic>.from(existing);
+            final oldStock = (m['stock'] as num?)?.toInt() ?? 0;
+            final baseQty = item.isMultiUnit
+                ? (item.quantity * item.conversionFactor)
+                : item.quantity;
+            m['stock'] = oldStock - baseQty;
+            await Db.items.put(matchedKey, m);
+            await Db.stockMove(
+              matchedKey,
+              item.name,
+              -baseQty,
+              'Purchase Return $retId (-${item.quantity} ${item.purchaseUnit})',
+            );
+          }
+        }
+      }
+    }
+    if (returnedItems.isNotEmpty && Db.items.isOpen) {
+      for (final it in returnedItems) {
+        dynamic matchedKey = it['itemId'] ?? it['itemKey'] ?? it['id'];
+        final qty = (it['quantity'] as num?)?.toInt() ?? 1;
+        if (matchedKey != null && Db.items.containsKey(matchedKey)) {
+          final existing = Db.items.get(matchedKey);
+          if (existing is Map) {
+            final m = Map<String, dynamic>.from(existing);
+            final oldStock = (m['stock'] as num?)?.toInt() ?? 0;
+            m['stock'] = oldStock - qty;
+            await Db.items.put(matchedKey, m);
+            await Db.stockMove(
+              matchedKey,
+              m['name']?.toString() ?? 'Item',
+              -qty,
+              'Purchase Return $retId (-$qty)',
+            );
+          }
+        }
+      }
+    }
+
+    // 5. Adjust vendor balance in Db.parties atomically
+    // TekFix convention: supplier balance is negative when we owe money.
+    // A purchase return reduces what we owe, so we add +amount to the party balance.
+    if (effectiveMethod == 'Credit Note' ||
+        effectiveMethod == 'On Account' ||
+        effectiveMethod == 'Purchase Return') {
+      await Db.adjustParty(vendorKey, amountPaise / 100.0);
+    } else if (effectiveMethod == 'Cash') {
+      // If vendor gave cash refund directly to shop drawer:
+      await Db.moveMoney('Cash', amountPaise / 100.0,
+          'Purchase Return $retId cash from $vendorName', category: 'vendor');
+    } else if (effectiveMethod == 'Bank Transfer' || effectiveMethod == 'UPI') {
+      await Db.moveMoney('Bank', amountPaise / 100.0,
+          'Purchase Return $retId refund from $vendorName');
+    }
+
+    // 6. Record in _paymentsBox as a return credit
+    final record = VendorPaymentRecord(
+      paymentId: retId,
+      billKey: billKey,
+      billNumber: billNumber ?? retId,
+      vendorKey: vendorKey,
+      vendorName: vendorName,
+      amount: amountPaise / 100.0,
+      paymentDate: date,
+      paymentMethod: effectiveMethod,
+      transactionReference: retId,
+      notes: effectiveNotes,
+      recordedById: staffId,
+      recordedByName: staffName,
+      isAdvance: false,
+      isReturn: true,
+    );
+
+    if (_paymentsBox.isOpen) {
+      await _paymentsBox.add(record.toMap());
+    }
+
+    // 7. If linked to a specific bill, reduce bill's balance due if applicable
+    if (billKey != null && _billsBox.isOpen) {
+      final raw = _billsBox.get(billKey);
+      if (raw is Map) {
+        final b = PurchaseBill.fromMap(raw, billKey);
+        if (effectiveMethod == 'Credit Note' ||
+            effectiveMethod == 'On Account' ||
+            effectiveMethod == 'Purchase Return') {
+          final newBalDuePaise = (b.balanceDuePaise - amountPaise) < 0
+              ? 0
+              : (b.balanceDuePaise - amountPaise);
+          final updatedBill = b.copyWith(
+            balanceDue: newBalDuePaise / 100.0,
+            updatedAt: now,
+          );
+          await _billsBox.put(billKey, updatedBill.toMap());
+        }
+      }
+    }
+
+    // 8. Audit log
+    if (Db.audit.isOpen) {
+      await Db.audit.add({
+        'action': 'Purchase Return Recorded',
+        'entity': 'PurchaseReturn',
+        'entityId': retId,
+        'vendorName': vendorName,
+        'amount': amountPaise / 100.0,
+        'paymentMethod': effectiveMethod,
+        'actorId': staffId,
+        'actorName': staffName,
+        'timestamp': now.toIso8601String(),
+        'reason': effectiveNotes,
+      });
+    }
+
+    return record;
+  }
+
+  /// Deletes a draft bill OR voids a confirmed purchase bill.
+  /// Owner-only operation.
+  /// Vendor balance = bills − returns − payments.
+  /// For confirmed bills:
+  /// - Idempotent: if already voided, skips adjusting balance or stock.
+  /// - Sets bill status to 'voided', stores voidReason, voidedBy, voidedAt in Hive and Firestore.
+  /// - Deducts purchased items from local inventory stock
+  /// - Keeps existing payments in vendor ledger as advance payments on-account
+  /// - Atomically lowers vendor payable by bill.grandTotalPaise once
+  /// - Excluded from vendor ledger and payable calculations.
+  Future<void> deletePurchaseBill(
+    dynamic billKey, {
+    String? reason,
+    String? staffId,
+    String? staffName,
+  }) async {
+    // 1. Strict Owner-only check
+    if (!isCallerOwner()) {
+      throw StateError(
+          'Owner permission required (ഉടമസ്ഥന്റെ അനുമതി ആവശ്യമാണ്)');
+    }
+
+    if (billKey == null || !_billsBox.isOpen) return;
+    final raw = _billsBox.get(billKey);
+    if (raw is! Map) return;
+
+    final bill = PurchaseBill.fromMap(raw, billKey);
+
+    // If it's a draft, just hard delete it from _billsBox
+    if (bill.isDraft) {
+      await _billsBox.delete(billKey);
+      return;
+    }
+
+    // 2. Idempotency check: if already voided, do NOT adjust balance or stock again!
+    if (bill.isVoided ||
+        raw['isVoided'] == true ||
+        raw['paymentStatus'] == 'voided') {
+      return;
+    }
+
+    final now = DateTime.now();
+
+    // 3. Mark bill as VOIDED in Hive _billsBox
+    final voidedBill = bill.copyWith(
+      paymentStatus: 'voided',
+      isVoided: true,
+      voidReason: reason ?? 'Voided by owner',
+      voidedBy: staffName ?? staffId ?? 'Owner',
+      voidedAt: now,
+      updatedAt: now,
+    );
+    await _billsBox.put(billKey, voidedBill.toMap());
+
+    // 4. Stock reversal: deduct bill items from Db.items
+    if (Db.items.isOpen) {
+      for (final line in bill.items) {
+        dynamic matchedKey = line.itemKey;
+        if (matchedKey != null && Db.items.containsKey(matchedKey)) {
+          final existing = Db.items.get(matchedKey);
+          if (existing is Map) {
+            final m = Map<String, dynamic>.from(existing);
+            final oldStock = (m['stock'] as num?)?.toInt() ?? 0;
+            final baseQty = line.isMultiUnit
+                ? (line.quantity * line.conversionFactor)
+                : line.quantity;
+            m['stock'] = oldStock - baseQty;
+            await Db.items.put(matchedKey, m);
+            await Db.stockMove(
+              matchedKey,
+              line.name,
+              -baseQty,
+              'Purchase Bill ${bill.billNumber} voided (-$baseQty)',
+            );
+          }
+        }
+      }
+    }
+
+    // 5. Payments: Any payments recorded against this bill in _paymentsBox
+    // must NOT disappear (money was paid from drawer/bank). Convert them to
+    // advance payments on-account so they remain credited to the vendor.
+    if (_paymentsBox.isOpen) {
+      for (final pk in _paymentsBox.keys) {
+        final pRaw = _paymentsBox.get(pk);
+        if (pRaw is Map &&
+            (pRaw['billKey'] == billKey ||
+                '${pRaw['billKey']}' == '$billKey' ||
+                pRaw['billNumber'] == bill.billNumber)) {
+          final pMap = Map<String, dynamic>.from(pRaw);
+          pMap['isAdvance'] = true;
+          pMap['notes'] =
+              (pMap['notes'] != null && '${pMap['notes']}'.isNotEmpty)
+                  ? '${pMap['notes']} (from voided bill ${bill.billNumber})'
+                  : 'Advance (from voided bill ${bill.billNumber})';
+          await _paymentsBox.put(pk, pMap);
+        }
+      }
+    }
+
+    // 6. Atomically adjust vendor balance in Db.parties
+    // When the bill was confirmed, the vendor was credited with bill.grandTotalPaise.
+    // Voiding the bill reduces what we owe by bill.grandTotalPaise:
+    if (bill.vendorKey != null && Hive.isBoxOpen(boxParties)) {
+      await Db.adjustParty(bill.vendorKey, bill.grandTotalPaise / 100.0);
+    }
+
+    // 7. Remove mirrored rows from legacy Db.purchases
+    if (Db.purchases.isOpen) {
+      final keysToRemove = <dynamic>[];
+      for (final pk in Db.purchases.keys) {
+        final p = Db.purchases.get(pk);
+        if (p is Map && p['purchaseBillNumber'] == bill.billNumber) {
+          keysToRemove.add(pk);
+        }
+      }
+      for (final pk in keysToRemove) {
+        await Db.purchases.delete(pk);
+      }
+    }
+
+    // 8. Dual-write VOID update to Firestore (shop sub-collection and root)
+    if (Firebase.apps.isNotEmpty) {
+      try {
+        final sId = Db.setting('shop_id', 'tekfix');
+        final billId = billKey.toString().isNotEmpty
+            ? billKey.toString()
+            : bill.billNumber.replaceAll('/', '_');
+        final firestore = FirebaseFirestore.instance;
+        final docRef = firestore
+            .collection('shops')
+            .doc(sId)
+            .collection('purchase_bills')
+            .doc(billId);
+        final rootDocRef = firestore.collection('purchase_bills').doc(billId);
+        final voidUpdate = {
+          'isVoided': true,
+          'paymentStatus': 'voided',
+          'status': 'voided',
+          'voidReason': reason ?? 'Voided by owner',
+          'voidedBy': staffName ?? staffId ?? 'Owner',
+          'voidedAt': now.toIso8601String(),
+          'updatedAt': now.toIso8601String(),
+        };
+        await docRef.set(voidUpdate, SetOptions(merge: true));
+        await rootDocRef.set(voidUpdate, SetOptions(merge: true));
+      } catch (e) {
+        debugPrint('[PurchaseBillService] Firestore void update notice: $e');
+      }
+    }
+
+    // 9. Audit log
+    if (Db.audit.isOpen) {
+      await Db.audit.add({
+        'action': 'Purchase Bill Voided',
+        'entity': 'PurchaseBill',
+        'entityId': bill.billNumber,
+        'vendorKey': bill.vendorKey,
+        'vendorName': bill.vendorName,
+        'grandTotal': bill.grandTotal,
+        'paidAmount': bill.paidAmount,
+        'balanceDue': bill.balanceDue,
+        'actorId': staffId ?? 'Owner',
+        'actorName': staffName ?? 'Owner',
+        'timestamp': now.toIso8601String(),
+        'reason': reason ?? 'Voided by owner',
+      });
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // 7. VENDOR ACCOUNT LEDGER
   // ---------------------------------------------------------------------------
@@ -2476,6 +2956,9 @@ class PurchaseBillService {
   List<VendorLedgerEntry> getVendorLedger(dynamic vendorKey) {
     if (vendorKey == null) return [];
     final entries = <VendorLedgerEntry>[];
+    // Payments saved against draft bills by older app versions moved no
+    // money and no vendor balance, so they must not appear in the ledger.
+    final draftBillNumbers = <String>{};
 
     // 1. Collect all purchase bills for this vendor
     for (final k in _billsBox.keys) {
@@ -2484,19 +2967,21 @@ class PurchaseBillService {
         final bVendor = raw['vendorKey'];
         if (bVendor == vendorKey || '$bVendor' == '$vendorKey') {
           final bill = PurchaseBill.fromMap(raw, k);
-          if (!bill.isDraft) {
-            entries.add(VendorLedgerEntry(
-              id: 'BILL_${bill.billNumber}',
-              date: bill.purchaseDate,
-              type: 'Purchase Bill',
-              reference: bill.billNumber,
-              vendorInvoiceNumber: bill.vendorInvoiceNumber,
-              debit: bill.grandTotal, // What we owe for this purchase
-              credit: 0.0,
-              runningBalance: 0.0,
-              notes: 'Purchase Bill: ${bill.items.length} items',
-            ));
+          if (bill.isDraft || bill.isVoided) {
+            draftBillNumbers.add(bill.billNumber);
+            continue;
           }
+          entries.add(VendorLedgerEntry(
+            id: 'BILL_${bill.billNumber}',
+            date: bill.purchaseDate,
+            type: 'Purchase Bill',
+            reference: bill.billNumber,
+            vendorInvoiceNumber: bill.vendorInvoiceNumber,
+            debit: bill.grandTotal, // What we owe for this purchase
+            credit: 0.0,
+            runningBalance: 0.0,
+            notes: 'Purchase Bill: ${bill.items.length} items',
+          ));
         }
       }
     }
@@ -2508,30 +2993,105 @@ class PurchaseBillService {
         final pVendor = raw['vendorKey'];
         if (pVendor == vendorKey || '$pVendor' == '$vendorKey') {
           final pay = VendorPaymentRecord.fromMap(raw);
+          if (!pay.isAdvance &&
+              !pay.isReturn &&
+              draftBillNumbers.contains(pay.billNumber)) {
+            continue;
+          }
+          final entryType = pay.isReturn
+              ? 'Purchase Return'
+              : (pay.isAdvance ? 'Advance Payment' : 'Bill Payment');
+          final notes = pay.isReturn
+              ? (pay.notes != null && pay.notes!.isNotEmpty
+                  ? pay.notes!
+                  : 'Purchase Return (Ref: ${pay.transactionReference})')
+              : '${pay.paymentMethod} (Ref: ${pay.transactionReference}) - ${pay.billNumber}';
           entries.add(VendorLedgerEntry(
             id: 'PAY_${pay.paymentId}',
             date: pay.paymentDate,
-            type: pay.isAdvance ? 'Advance Payment' : 'Bill Payment',
+            type: entryType,
             reference: pay.paymentId,
             vendorInvoiceNumber: null,
             debit: 0.0,
-            credit: pay.amount, // Payments reduce what we owe
+            credit: pay.amount, // Payments and returns reduce what we owe
             runningBalance: 0.0,
-            notes:
-                '${pay.paymentMethod} (Ref: ${pay.transactionReference}) - ${pay.billNumber}',
+            notes: notes,
           ));
         }
       }
     }
 
-    // Sort chronologically ascending
-    entries.sort((a, b) => a.date.compareTo(b.date));
+    // 3. Quick "Credit" purchases from the old Purchases screen raise the
+    // vendor balance too. Rows mirrored from a purchase bill carry
+    // `purchaseBillNumber` and are already counted above.
+    if (Hive.isBoxOpen(boxPurchases)) {
+      for (final pk in Db.purchases.keys) {
+        final raw = Db.purchases.get(pk);
+        if (raw is! Map) continue;
+        final sKey = raw['supplierKey'];
+        if (sKey != vendorKey && '$sKey' != '$vendorKey') continue;
+        if (raw['mode'] != 'Credit') continue;
+        final pbn = raw['purchaseBillNumber']?.toString() ?? '';
+        if (pbn.isNotEmpty) continue;
+        entries.add(VendorLedgerEntry(
+          id: 'PUR_$pk',
+          date: DateTime.tryParse('${raw['createdAt']}') ?? DateTime(2000),
+          type: 'Purchase (Credit)',
+          reference: raw['invoiceNumber']?.toString() ?? 'PUR-$pk',
+          vendorInvoiceNumber: raw['invoiceNumber']?.toString(),
+          debit: (raw['total'] as num?)?.toDouble() ?? 0.0,
+          credit: 0.0,
+          runningBalance: 0.0,
+          notes: 'Credit purchase: ${raw['itemName'] ?? ''} x${raw['qty'] ?? ''}',
+        ));
+      }
+    }
 
-    // Calculate running balance (Debit increases balance, Credit reduces balance)
-    double running = 0.0;
+    // Sort chronologically ascending; on the same date a bill comes before
+    // its payment so the running balance never dips below zero mid-day.
+    entries.sort((a, b) {
+      final c = a.date.compareTo(b.date);
+      if (c != 0) return c;
+      return b.debitPaise.compareTo(a.debitPaise);
+    });
+
+    // 4. Opening balance: whatever the party balance holds that no bill or
+    // payment explains (balance entered when the vendor was created, payments
+    // made from the Parties screen by older versions, legacy data). Without
+    // this the ledger started from ₹0 and its closing balance did not match
+    // the vendor balance shown everywhere else.
+    int txnNetPaise = 0;
+    for (final e in entries) {
+      txnNetPaise += e.debitPaise - e.creditPaise;
+    }
+    if (Hive.isBoxOpen(boxParties) && Db.parties.get(vendorKey) is Map) {
+      final openingPaise = getVendorPayablePaise(vendorKey) - txnNetPaise;
+      if (openingPaise != 0) {
+        entries.insert(
+            0,
+            VendorLedgerEntry(
+              id: 'OPENING_$vendorKey',
+              date: entries.isEmpty
+                  ? DateTime.now()
+                  : entries.first.date.subtract(const Duration(seconds: 1)),
+              type: 'Opening Balance',
+              reference: 'Opening',
+              vendorInvoiceNumber: null,
+              debit: openingPaise > 0 ? openingPaise / 100.0 : 0.0,
+              credit: openingPaise < 0 ? -openingPaise / 100.0 : 0.0,
+              runningBalance: 0.0,
+              notes: 'Opening / carried-forward balance',
+            ));
+      }
+    }
+
+    // Calculate running balance in integer paise
+    // (Debit increases balance, Credit reduces balance)
+    int runningPaise = 0;
     final calculated = <VendorLedgerEntry>[];
     for (final e in entries) {
-      running += (e.debit - e.credit);
+      runningPaise += e.debitPaise - e.creditPaise;
+      final running = runningPaise / 100.0;
       calculated.add(VendorLedgerEntry(
         id: e.id,
         date: e.date,
@@ -2578,6 +3138,12 @@ class PurchaseBillService {
         if (raw is Map) {
           final bVendor = raw['vendorKey'];
           if (bVendor == vendorKey || '$bVendor' == '$vendorKey') {
+            // Drafts and voided bills are not active purchases: no stock, no vendor balance.
+            if (raw['isDraft'] == true ||
+                raw['isVoided'] == true ||
+                raw['paymentStatus'] == 'voided') {
+              continue;
+            }
             billsCount++;
             totalPurchases += (raw['grandTotal'] as num?)?.toDouble() ??
                 (((raw['grandTotalPaise'] as num?)?.toInt() ?? 0) / 100.0);
@@ -2590,11 +3156,22 @@ class PurchaseBillService {
       }
     }
 
+    // "Balance Due" must be the vendor's real payable (same number as the
+    // vendor ledger closing balance and the purchase screen's Previous
+    // Balance), which also includes opening balance, on-account / advance
+    // payments and old credit purchases — not just the sum of bill dues.
+    final billsOutstanding = totalOutstanding;
+    if (Hive.isBoxOpen(boxParties) && Db.parties.get(vendorKey) is Map) {
+      final payablePaise = getVendorPayablePaise(vendorKey);
+      totalOutstanding = payablePaise > 0 ? payablePaise / 100.0 : 0.0;
+    }
+
     return {
       'billsCount': billsCount,
       'totalPurchases': totalPurchases,
       'totalPaid': totalPaid,
       'totalOutstanding': totalOutstanding,
+      'billsOutstanding': billsOutstanding,
     };
   }
 

@@ -978,12 +978,17 @@ class _StaffPosScreenState extends State<StaffPosScreen> {
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: Color(0xFF22C55E)),
             ),
-            onPressed: () {
-              PosService.instance.shareReceiptWhatsApp(
+            onPressed: () async {
+              final ok = await PosService.instance.shareReceiptWhatsApp(
                 invoice: invoice,
                 shopName: Db.setting('shop_name', 'TEKFIX DIGITAL'),
                 shopPhone: Db.setting('shop_phone', '7034093101'),
               );
+              if (!ok && ctx.mounted) {
+                ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+                    content: Text(
+                        'WhatsApp തുറക്കാൻ പറ്റിയില്ല (Could not open WhatsApp)')));
+              }
             },
             icon: const Icon(Icons.chat_rounded,
                 color: Color(0xFF22C55E), size: 18),
