@@ -2223,14 +2223,10 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
   @override
   Widget build(BuildContext context) {
     final summary = widget.initialSummary;
-    final expectedClosingCash = (_openingCash +
-            summary.cashCollection +
-            summary.rechargeCashCollection -
-            summary.distributorCashPaid +
-            summary.otherCash.net -
-            summary.refunds -
-            summary.totalCashExpenses)
-        .clamp(0.0, double.infinity);
+    // Same formula as the saved register (model): includes owner drawings,
+    // which this sheet used to leave out (₹700 too high on 20 Nov).
+    final expectedClosingCash =
+        summary.copyWith(openingCash: _openingCash).expectedClosingCash;
     final liveDiscrepancy = _enteredCash - expectedClosingCash;
     final netCashToHandover =
         (_enteredCash - _retainedFloat).clamp(0.0, double.infinity);

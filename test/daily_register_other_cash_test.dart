@@ -74,4 +74,22 @@ void main() {
         .otherCash
         .isEmpty, true, reason: 'registers saved before this change still load');
   });
+
+  test('20 Nov example: owner drawings are subtracted (expected 1,498, not 2,198)', () {
+    final s = svc.computeDailySummary(
+      sales: [
+        {'total': 2400.0, 'subtotal': 2400.0, 'cash': 2400.0, 'items': const []},
+      ],
+      date: DateTime(2026, 11, 20),
+      openingCash: 1000,
+      totalCashExpenses: 1900, // rent 500 + other 1,400
+      cashRentPaid: 500,
+      ownerCashDrawingsDrawn: 700,
+      otherCash: const OtherCashFlows(customerDuesReceived: 698),
+    );
+    expect(s.expectedClosingCash, 1498);
+    expect(s.copyWith(openingCash: 1000).expectedClosingCash, 1498,
+        reason: 'the EOD sheet uses the same calculation');
+    expect(s.totalCashOutflows, 2600);
+  });
 }
