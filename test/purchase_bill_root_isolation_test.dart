@@ -29,6 +29,21 @@ void main() {
   });
 
   group('PurchaseBillService Root Isolation & Dual-Write Elimination', () {
+    test('source has no root-level Firestore writes left', () {
+      final src = File('lib/purchases/purchase_bill_service.dart').readAsStringSync();
+      final col = RegExp(r"\.collection\('(purchase_bills|vendor_ledger|accounting_cash_bank|audit_logs|products|stock_units)'\)");
+      final underShop = RegExp(r"\.doc\([^)]*\)\s*$");
+      final rootUses = <String>[];
+      for (final m in col.allMatches(src)) {
+        final before = src.substring(m.start - 120 < 0 ? 0 : m.start - 120, m.start);
+        if (underShop.hasMatch(before)) continue; // shops/{shopId}/...
+        rootUses.add('${m.group(1)}: ${before.trim().split('\n').last.trim()}');
+      }
+      // Only the read-only legacy barcode lookup may touch a root collection.
+      expect(rootUses, ['products: final rootSnap = await fs'],
+          reason: 'every Firestore write must live under shops/{shopId}/');
+    });
+
     test('confirmPurchaseBill saves locally without root dual writes', () async {
       final vendorKey = await Db.parties.add({
         'name': 'Direct Supplier',
@@ -56,7 +71,7 @@ void main() {
         staffName: 'Owner',
       );
 
-      expect(bill.status, 'CONFIRMED');
+      expect(bill.isDraft, isFalse);
       expect(bill.grandTotalPaise, 50000);
       expect(bill.balanceDuePaise, 50000);
 
@@ -98,13 +113,14 @@ void main() {
         amount: 400.0,
         paymentDate: DateTime(2026, 11, 22),
         paymentMethod: 'Cash',
+        transactionReference: 'CASH-ISO-002',
         staffId: 'S1',
         staffName: 'Owner',
       );
 
       expect(updated.paidAmountPaise, 40000);
       expect(updated.balanceDuePaise, 60000);
-      expect(updated.paymentStatus, 'partial');
+      expect(updated.paymentStatus.toLowerCase(), 'partial');
     });
 
     test('deletePurchaseBill marks void without root dependencies', () async {

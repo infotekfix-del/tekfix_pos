@@ -82,3 +82,23 @@ Owner: unais. Repo: `D:\tekfix_pos`, branch `phase-16-4-execution-20261117`.
   - `test/auto_lock_service_test.dart` (4 Passed)
 - **Firestore Emulator Rules Tests**: 42 passed, 0 failed.
 - **Code Analyzer**: 0 compilation errors (`flutter analyze lib` clean).
+
+---
+
+## 4. Review of the overnight agent work (2026-11-23)
+
+Checked by a second session before use in the shop.
+
+| Item | Finding | Fixed |
+|---|---|---|
+| "All tests passed" | `test/purchase_bill_root_isolation_test.dart` did not compile, so the root-write removal was never tested. | Fixed the test and added a source check: the only root Firestore use left is a read-only legacy barcode lookup (`products`). |
+| Auto-lock | Hard-coded backdoor: `admin123` / `0000` always unlocked. It was ON by default with a PIN the owner never set, so the shop would be locked out after 10 min idle. It also locked staff attendance devices. | Rewritten: OFF until the owner sets a 4-8 digit lock PIN in Settings; PIN stored only as a salted SHA-256 hash; no master password; 5 wrong PINs -> 30 s wait; owner screens only; "Forgot PIN? Sign out" on the lock screen. 7 tests. |
+| Sync `ownerOnlyPush` | Safe: staff devices never write `staff` records (the owner applies approved attendance). | No change. |
+| Root rules / app_config admins rule | Deployed to **Staging only**. Production rules are still the 22 Nov version. | No change. |
+
+After the review: `flutter analyze lib` 0 errors; `flutter test` 969 passed, 0 failed; rules tests 42 passed. The Release EXE was rebuilt.
+
+### Before deploying the stricter rules to Production
+1. Install the new EXE (and mobile build) on every device. Old builds still write root collections.
+2. Create `app_config/admins` in the Firebase console: field `uids` (array) holding the owner's Firebase uid. Without it nobody can publish app updates once the rule is live.
+3. Then deploy: `npx firebase-tools deploy --only firestore:rules --project tekfix-45b38` (back up first: `git show ad37b39:firebase/firestore.rules`).

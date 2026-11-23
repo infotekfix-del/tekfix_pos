@@ -1529,12 +1529,12 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final lockSvc = AutoLockService.instance;
-    if (lockSvc.isLocked) {
-      return _buildAutoLockScreen(context);
-    }
-
     final auth = context.watch<AuthController>();
     final owner = auth.isOwner;
+    // Owner screens only; staff attendance devices are never locked.
+    if (lockSvc.isLocked && owner) {
+      return _buildAutoLockScreen(context, auth);
+    }
     if (!owner) {
       return StaffAttendanceScreen(
         shopId: auth.shopId,
@@ -1565,9 +1565,16 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  Widget _buildAutoLockScreen(BuildContext context) {
-    final ctrl = TextEditingController();
-    String? err;
+  final _lockPinCtrl = TextEditingController();
+  String? _lockErr;
+
+  Widget _buildAutoLockScreen(BuildContext context, AuthController auth) {
+    void submit() {
+      final err = AutoLockService.instance.tryUnlock(_lockPinCtrl.text);
+      _lockPinCtrl.clear();
+      setState(() => _lockErr = err);
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       body: Center(
@@ -1577,91 +1584,65 @@ class _AppShellState extends State<AppShell> {
           decoration: BoxDecoration(
             color: const Color(0xFF1E293B),
             borderRadius: BorderRadius.circular(20),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black45,
-                blurRadius: 20,
-                offset: Offset(0, 8),
-              )
-            ],
           ),
-          child: StatefulBuilder(
-            builder: (ctx, setD) => Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.lock_clock_rounded,
-                    color: Colors.amberAccent, size: 54),
-                const SizedBox(height: 16),
-                const Text(
-                  'Auto-Lock Active (ആപ്പ് ലോക്ക്)',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.lock_clock_rounded, color: Colors.amberAccent, size: 54),
+              const SizedBox(height: 16),
+              const Text('App Locked (ആപ്പ് ലോക്ക്)',
+                  style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              const Text(
+                'Locked after inactivity. Enter your lock PIN.\n(ഉപയോഗിക്കാതിരുന്നതിനാൽ ലോക്ക് ആയി. ലോക്ക് PIN നൽകുക)',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              const SizedBox(height: 24),
+              TextField(
+                key: const ValueKey('autolock-unlock-pin'),
+                controller: _lockPinCtrl,
+                obscureText: true,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'PIN',
+                  labelStyle: const TextStyle(color: Colors.white70),
+                  errorText: _lockErr,
+                  filled: true,
+                  fillColor: const Color(0x26000000),
+                  border: const OutlineInputBorder(),
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'App locked due to inactivity.\nEnter Owner PIN or Admin Password to continue.\n(ഉപയോഗിക്കാതിരുന്നതിനാൽ ലോക്ക് ആയി. തുടരാൻ PIN നൽകുക)',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                onSubmitted: (_) => submit(),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: FilledButton.icon(
+                  onPressed: submit,
+                  icon: const Icon(Icons.lock_open_rounded),
+                  label: const Text('Unlock (തുറക്കുക)'),
                 ),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: ctrl,
-                  obscureText: true,
-                  autofocus: true,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'PIN / Password',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    errorText: err,
-                    filled: true,
-                    fillColor: const Color(0x26000000),
-                    border: const OutlineInputBorder(),
-                  ),
-                  onSubmitted: (_) {
-                    final entered = ctrl.text.trim();
-                    final adminPass = Db.setting('admin_pass', 'admin123');
-                    final ownerPin = Db.setting('owner_pin', '0000');
-                    if (entered == adminPass ||
-                        entered == ownerPin ||
-                        entered == 'admin123') {
-                      AutoLockService.instance.unlock();
-                    } else {
-                      setD(() =>
-                          err = 'Invalid PIN / Password (തെറ്റായ പാസ്‌വേഡ്)');
-                    }
-                  },
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 46,
-                  child: FilledButton.icon(
-                    onPressed: () {
-                      final entered = ctrl.text.trim();
-                      final adminPass = Db.setting('admin_pass', 'admin123');
-                      final ownerPin = Db.setting('owner_pin', '0000');
-                      if (entered == adminPass ||
-                          entered == ownerPin ||
-                          entered == 'admin123') {
-                        AutoLockService.instance.unlock();
-                      } else {
-                        setD(() =>
-                            err = 'Invalid PIN / Password (തെറ്റായ പാസ്‌വേഡ്)');
-                      }
-                    },
-                    icon: const Icon(Icons.lock_open_rounded),
-                    label: const Text('Unlock (തുറക്കുക)'),
-                  ),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () async {
+                  // Forgotten PIN: sign out; signing in again proves identity.
+                  AutoLockService.instance.resetForSignOut();
+                  await auth.signOut();
+                },
+                child: const Text('Forgot PIN? Sign out (PIN മറന്നോ? സൈൻ ഔട്ട്)',
+                    style: TextStyle(color: Colors.white70)),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+
 
   Widget _mobileLayout(List<AppModule> mods) {
     final tabs = [
@@ -7059,10 +7040,27 @@ class _SettingsViewState extends State<SettingsView> {
                     ),
                   ),
                   value: AutoLockService.instance.isEnabled,
-                  onChanged: (v) {
-                    setState(() => AutoLockService.instance.setEnabled(v));
+                  onChanged: (v) async {
+                    if (v && !AutoLockService.instance.hasPin) {
+                      final saved = await AutoLockService.showSetPinDialog(context);
+                      if (!saved) return;
+                    }
+                    await AutoLockService.instance.setEnabled(v);
+                    if (mounted) setState(() {});
                   },
                 ),
+                if (AutoLockService.instance.hasPin)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () async {
+                        await AutoLockService.showSetPinDialog(context);
+                        if (mounted) setState(() {});
+                      },
+                      icon: const Icon(Icons.pin_outlined, size: 18),
+                      label: const Text('Change lock PIN (PIN മാറ്റുക)'),
+                    ),
+                  ),
                 if (AutoLockService.instance.isEnabled) ...[
                   const Divider(height: 16),
                   ListTile(
