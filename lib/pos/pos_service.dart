@@ -256,18 +256,41 @@ class PosService {
     }
     _inFlightInvoices.add(invoiceId);
 
-    final lineMaps = cartItems
-        .map((c) => {
-              'itemId': c.item.id,
-              'name': c.item.name,
-              'sku': c.item.sku,
-              'qty': c.qty,
-              'mrp': c.item.sellingPrice,
-              'unitPrice': c.unitPrice,
-              'lineTotal': c.lineTotal,
-              'approvalId': c.approvalId,
-            })
-        .toList();
+    // Purchase cost at the moment of sale, so profit reports stay right even
+    // if the item's cost changes later. Unknown cost -> no 'unitCost'.
+    double? unitCostOf(PosItem it) {
+      if (!Db.items.isOpen) return null;
+      for (final k in Db.items.keys) {
+        final cur = tekM(Db.items.get(k));
+        if (cur['_id'] == it.id || '$k' == it.id || cur['name'] == it.name) {
+          final c = (cur['costPrice'] as num?)?.toDouble();
+          return (c != null && c > 0) ? c : null;
+        }
+      }
+      return null;
+    }
+
+    var saleCostPaise = 0;
+    var costKnownForAll = true;
+    final lineMaps = cartItems.map((c) {
+      final unitCost = unitCostOf(c.item);
+      if (unitCost == null) {
+        costKnownForAll = false;
+      } else {
+        saleCostPaise += (unitCost * 100).round() * c.qty;
+      }
+      return <String, dynamic>{
+        'itemId': c.item.id,
+        'name': c.item.name,
+        'sku': c.item.sku,
+        'qty': c.qty,
+        'mrp': c.item.sellingPrice,
+        'unitPrice': c.unitPrice,
+        'lineTotal': c.lineTotal,
+        'approvalId': c.approvalId,
+        if (unitCost != null) 'unitCost': unitCost,
+      };
+    }).toList();
 
     final todayStr =
         '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
@@ -489,6 +512,10 @@ class PosService {
         'upi': payment.upiAmount,
         'card': payment.cardAmount,
         'due': 0.0,
+        // Profit = bill total - purchase cost of the items (owner reports).
+        'cost': saleCostPaise / 100.0,
+        'profit': ((total * 100).round() - saleCostPaise) / 100.0,
+        'costComplete': costKnownForAll,
         'status': 'SOLD',
         'staffId': staffId,
         'staffName': staffName,

@@ -15,6 +15,8 @@ import '../owner/owner_finance_service.dart';
 import 'cash_denomination_calculator.dart';
 import 'daily_register_models.dart';
 import 'daily_register_service.dart';
+import '../auth/auth_controller.dart';
+import '../reports/profit_report.dart';
 
 class DailySalesLedgerView extends StatefulWidget {
   final String? shopId;
@@ -1791,6 +1793,74 @@ class _EodClosingSheet extends StatefulWidget {
 }
 
 class _EodClosingSheetState extends State<_EodClosingSheet> {
+  /// That day's profit (owner only): gross profit of the bills + recharge margin.
+  ProfitReport? _dayProfit;
+  int _dayRechargePaise = 0;
+
+  ProfitReport? _computeDayProfit(DateTime day) {
+    if (!AuthController.instance.isOwner || !Db.sales.isOpen) return null;
+    try {
+      final start = DateTime(day.year, day.month, day.day);
+      final end = start.add(const Duration(days: 1));
+      var recharge = 0;
+      if (Db.recharges.isOpen) {
+        for (final v in Db.recharges.values) {
+          if (v is! Map || '${v['status'] ?? ''}'.toUpperCase() != 'SUCCESS') continue;
+          final d = DateTime.tryParse('${v['createdAt'] ?? v['date'] ?? ''}')?.toLocal();
+          if (d == null || d.isBefore(start) || !d.isBefore(end)) continue;
+          recharge += (((v['commission'] as num?) ?? 0) * 100).round();
+        }
+      }
+      _dayRechargePaise = recharge;
+      return computeProfitReport(
+        start: start,
+        end: end,
+        sales: [for (final v in Db.sales.values) if (v is Map) v],
+        items: Db.items.isOpen
+            ? [
+                for (final k in Db.items.keys)
+                  if (Db.items.get(k) is Map)
+                    {...Map<String, dynamic>.from(Db.items.get(k) as Map), 'key': '$k'}
+              ]
+            : const [],
+        otherIncome: {'Recharge': recharge},
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Widget _profitBox(ProfitReport r) {
+    String m(int p) => '₹${(p / 100).toStringAsFixed(2)}';
+    final total = r.grossProfitPaise + _dayRechargePaise;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: TekColors.bgSecondary,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: (total >= 0 ? TekColors.success : TekColors.error).withValues(alpha: 0.5)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text("Today's Profit (ഇന്നത്തെ ലാഭം) — owner only:",
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: TekColors.textPrimary)),
+        const SizedBox(height: 10),
+        _sheetRow('Sales:', m(r.grossSalesPaise)),
+        _sheetRow('Cost of goods (വാങ്ങിയ വില):', '-${m(r.cogsPaise)}', valueColor: TekColors.error),
+        _sheetRow('Gross Profit (മൊത്ത ലാഭം):', m(r.grossProfitPaise), valueColor: TekColors.success),
+        if (_dayRechargePaise != 0)
+          _sheetRow('Recharge margin (റീചാർജ് ലാഭം):', '+${m(_dayRechargePaise)}', valueColor: TekColors.success),
+        const Divider(color: TekColors.border),
+        _sheetRow("Today's Profit:", m(total),
+            isBold: true, valueColor: total >= 0 ? TekColors.success : TekColors.error),
+        if (r.estimatedLines > 0)
+          Text("${r.estimatedLines} lines use today's item cost (estimated)",
+              style: const TextStyle(fontSize: 11, color: TekColors.warning)),
+        const Text('Expenses are in the monthly Profit & Loss report.',
+            style: TextStyle(fontSize: 11, color: TekColors.textMuted)),
+      ]),
+    );
+  }
+
   late final TextEditingController _cashCountCtrl;
   late final TextEditingController _openingCashCtrl;
   late final TextEditingController _retainedFloatCtrl;
@@ -1816,6 +1886,7 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
   void initState() {
     super.initState();
     final init = widget.initialSummary;
+    _dayProfit = _computeDayProfit(init.date);
     _enteredCash = init.physicalCashCount;
     _openingCash = init.openingCash;
     _retainedFloat =
@@ -2483,6 +2554,11 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
             ),
 
             const SizedBox(height: 14),
+
+            if (_dayProfit != null) ...[
+              _profitBox(_dayProfit!),
+              const SizedBox(height: 14),
+            ],
 
             // 2. Payment Method Collections
             Container(

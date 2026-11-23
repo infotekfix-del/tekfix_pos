@@ -1,3 +1,4 @@
+import '../../reports/profit_loss_view.dart';
 import 'dart:io' show Platform;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -177,6 +178,10 @@ class _TekDashboardScreenState extends State<TekDashboardScreen> {
         break;
       case 'Owner Salary & Drawings':
         _navigateTo(OwnerLedgerView(shopId: shopId), item);
+        break;
+      case 'Profit & Loss':
+        if (!AuthController.instance.isOwner) break;
+        _navigateTo(const ProfitLossView(), item);
         break;
       case 'Trusted Devices':
         if (!AuthController.instance.isOwner) {

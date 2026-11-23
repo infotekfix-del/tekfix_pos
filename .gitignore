@@ -25,6 +25,8 @@
 **/.gradle/
 **/build-cache/
 **/reports/
+# ...but lib/reports is app source code (Profit & Loss), not a Gradle report.
+!lib/reports/
 **/test-results/
 *.class
 *.dex

@@ -100,6 +100,7 @@ import 'pos/new_pos/pos_kiosk_window.dart';
 import 'pos/new_pos/customer_display_window.dart';
 import 'pos/new_pos/pos_hold_logic.dart';
 import 'security/auto_lock_service.dart';
+import 'reports/profit_loss_view.dart';
 export 'utils/tek_helpers.dart';
 export 'theme/tek_tokens.dart';
 export 'ui/dashboard/dashboard_screen.dart';
@@ -1358,6 +1359,9 @@ List<NavCategory> getNavCategories(String shopId, {bool isOwner = false}) => [
           const AppModule(
               'Cash & Bank', Icons.account_balance_rounded, CashBankView()),
           const AppModule('Reports', Icons.bar_chart_rounded, ReportsView()),
+          if (isOwner)
+            const AppModule(
+                'Profit & Loss', Icons.insights_rounded, ProfitLossView()),
         ],
       ),
       NavCategory(
@@ -6371,6 +6375,18 @@ class _ReportsViewState extends State<ReportsView>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        if (AuthController.instance.isOwner)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: FilledButton.icon(
+              key: const ValueKey('open-profit-loss'),
+              onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ProfitLossView())),
+              icon: const Icon(Icons.insights_rounded),
+              label: const Text(
+                  'Profit & Loss, best items, low stock (ലാഭ-നഷ്ട കണക്ക്)'),
+            ),
+          ),
         statGrid([
           StatCard(
               'Sales (വിൽപന)', rs(revenue), Icons.point_of_sale, Colors.green),

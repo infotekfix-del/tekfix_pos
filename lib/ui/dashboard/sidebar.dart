@@ -132,6 +132,7 @@ class TekSidebar extends StatelessWidget {
                 _item('Expenses', Icons.payments_rounded),
                 _item('Daily Rent Ledger', Icons.calendar_today_rounded),
                 _item('Owner Salary & Drawings', Icons.account_circle_rounded),
+                if (isOwner) _item('Profit & Loss', Icons.insights_rounded),
 
                 _buildSectionHeader('PEOPLE'),
                 _item('Customer Management', Icons.groups_rounded),
