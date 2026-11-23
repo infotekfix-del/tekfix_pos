@@ -2571,22 +2571,6 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
                   _sheetRow('Cash Inflow (Sales):',
                       '+₹${summary.cashCollection.toStringAsFixed(2)}',
                       valueColor: TekColors.success),
-                  if (summary.cashRentPaid > 0)
-                    _sheetRow('Daily Rent Paid (കട വാടക):',
-                        '-₹${summary.cashRentPaid.toStringAsFixed(2)}',
-                        valueColor: const Color(0xFFF59E0B)),
-                  if (summary.ownerSalaryDrawnToday > 0)
-                    _sheetRow('Owner Salary Drawn (ശമ്പളം):',
-                        '-₹${summary.ownerSalaryDrawnToday.toStringAsFixed(2)}',
-                        valueColor: const Color(0xFF8B5CF6)),
-                  if (summary.ownerExcessDrawingsToday > 0)
-                    _sheetRow('Owner Excess Drawings (പിൻവലിക്കൽ):',
-                        '-₹${summary.ownerExcessDrawingsToday.toStringAsFixed(2)}',
-                        valueColor: const Color(0xFFA78BFA)),
-                  if (summary.otherCashExpenses > 0)
-                    _sheetRow('Other Cash Expenses:',
-                        '-₹${summary.otherCashExpenses.toStringAsFixed(2)}',
-                        valueColor: TekColors.error),
                   if (summary.refunds > 0)
                     _sheetRow('Refunds / Returns:',
                         '-₹${summary.refunds.toStringAsFixed(2)}',
@@ -2598,10 +2582,6 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
                   if (summary.distributorCashPaid != 0)
                     _sheetRow('Recharge Agent Paid (ഏജന്റിന് കൊടുത്തത്):',
                         '-₹${summary.distributorCashPaid.toStringAsFixed(2)}',
-                        valueColor: TekColors.error),
-                  if (summary.otherCash.vendorPaid != 0)
-                    _sheetRow('Vendor Paid (വെണ്ടർക്ക് കൊടുത്തത്):',
-                        '-₹${summary.otherCash.vendorPaid.toStringAsFixed(2)}',
                         valueColor: TekColors.error),
                   if (summary.otherCash.customerDuesReceived != 0)
                     _sheetRow('Customer Dues Received (കസ്റ്റമർ കടം തന്നത്):',
@@ -2615,12 +2595,6 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
                     _sheetRow('Commission Cash (കമ്മീഷൻ ക്യാഷ്):',
                         '+₹${summary.otherCash.commissionCashIn.toStringAsFixed(2)}',
                         valueColor: TekColors.success),
-                  if (summary.otherCash.manualNet != 0)
-                    _sheetRow('Money In / Out (net):',
-                        '${summary.otherCash.manualNet > 0 ? '+' : '-'}₹${summary.otherCash.manualNet.abs().toStringAsFixed(2)}',
-                        valueColor: summary.otherCash.manualNet > 0
-                            ? TekColors.success
-                            : TekColors.error),
                   _sheetRow('Total Cash Outflows:',
                       '-₹${summary.totalCashOutflows.toStringAsFixed(2)}',
                       valueColor: TekColors.error),
@@ -2628,6 +2602,36 @@ class _EodClosingSheetState extends State<_EodClosingSheet> {
                   _sheetRow('Expected Closing Cash:',
                       '₹${expectedClosingCash.toStringAsFixed(2)}',
                       isBold: true, valueColor: Colors.amber),
+                  if (summary.paidFromCashInHand > 0 ||
+                      summary.otherCash.manualNet != 0) ...[
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Paid from Cash in Hand, not from the drawer (കൈയിലുള്ള പണത്തിൽ നിന്ന്, ഡ്രോയറിനെ ബാധിക്കില്ല):',
+                      style: TextStyle(fontSize: 11, color: TekColors.textMuted),
+                    ),
+                  if (summary.cashRentPaid > 0)
+                    _sheetRow('Daily Rent Paid (കട വാടക):',
+                        '₹${summary.cashRentPaid.toStringAsFixed(2)}',
+                        valueColor: const Color(0xFFF59E0B)),
+                  if (summary.ownerSalaryDrawnToday > 0)
+                    _sheetRow('Owner Salary Drawn (ശമ്പളം):',
+                        '₹${summary.ownerSalaryDrawnToday.toStringAsFixed(2)}',
+                        valueColor: const Color(0xFF8B5CF6)),
+                  if (summary.ownerExcessDrawingsToday > 0)
+                    _sheetRow('Owner Excess Drawings (പിൻവലിക്കൽ):',
+                        '₹${summary.ownerExcessDrawingsToday.toStringAsFixed(2)}',
+                        valueColor: const Color(0xFFA78BFA)),
+                  if (summary.otherCashExpenses > 0)
+                    _sheetRow('Other Cash Expenses:',
+                        '₹${summary.otherCashExpenses.toStringAsFixed(2)}',
+                        valueColor: TekColors.error),
+                  if (summary.otherCash.manualNet != 0)
+                    _sheetRow('Money In / Out (net):',
+                        '${summary.otherCash.manualNet > 0 ? '+' : '-'}₹${summary.otherCash.manualNet.abs().toStringAsFixed(2)}',
+                        valueColor: summary.otherCash.manualNet > 0
+                            ? TekColors.success
+                            : TekColors.error),
+                  ],
                   const SizedBox(height: 10),
 
                   // Denomination Calculator Toggle Header

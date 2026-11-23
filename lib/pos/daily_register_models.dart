@@ -33,7 +33,9 @@ String? cashFlowCategory(Map<dynamic, dynamic> e) {
 
 /// One day's drawer cash from the categories above (rupees, paise-exact).
 class OtherCashFlows {
-  /// Cash paid to vendors, net of cash refunds received from vendors.
+  /// Not counted (owner rule 2026-11-23): vendors are paid from Cash in Hand,
+  /// never from the counter drawer. Always 0 for new registers; kept only so
+  /// older saved registers still load.
   final double vendorPaid;
   final double customerDuesReceived;
   final double serviceAdvanceReceived;
@@ -52,12 +54,13 @@ class OtherCashFlows {
 
   static const OtherCashFlows zero = OtherCashFlows();
 
-  /// Net effect on the drawer (+ in, - out).
-  double get net =>
-      customerDuesReceived + serviceAdvanceReceived + manualNet + commissionCashIn - vendorPaid;
+  /// Net effect on the counter drawer. Manual Money In/Out is a Cash in Hand
+  /// movement (owner rule 2026-11-23), so it is not part of it.
+  double get net => customerDuesReceived + serviceAdvanceReceived + commissionCashIn;
 
   /// Money that left the drawer.
-  double get outflows => (vendorPaid > 0 ? vendorPaid : 0.0) + (manualNet < 0 ? -manualNet : 0.0);
+  /// Money that left the counter drawer (none of these categories do).
+  double get outflows => 0.0;
 
   bool get isEmpty =>
       vendorPaid == 0 &&
@@ -69,7 +72,7 @@ class OtherCashFlows {
   /// Adds up the cash entries of [log] whose date starts with [dateKey]
   /// (yyyy-MM-dd). Bank / UPI entries are ignored.
   static OtherCashFlows fromLog(Iterable<dynamic> log, String dateKey) {
-    var vendor = 0, customer = 0, service = 0, manual = 0, commission = 0;
+    var customer = 0, service = 0, manual = 0, commission = 0;
     for (final raw in log) {
       if (raw is! Map) continue;
       if ((raw['account'] ?? '').toString() != 'Cash') continue;
@@ -77,7 +80,8 @@ class OtherCashFlows {
       final paise = (((raw['amount'] as num?) ?? 0) * 100).round();
       switch (cashFlowCategory(raw)) {
         case kCashCatVendor:
-          vendor -= paise; // payments are negative in the log
+          // Owner rule 2026-11-23: vendors are paid from Cash in Hand, not
+          // from the counter drawer, so they never change the EOD drawer cash.
           break;
         case kCashCatCustomerDue:
           customer += paise;
@@ -94,7 +98,6 @@ class OtherCashFlows {
       }
     }
     return OtherCashFlows(
-      vendorPaid: vendor / 100.0,
       customerDuesReceived: customer / 100.0,
       serviceAdvanceReceived: service / 100.0,
       manualNet: manual / 100.0,
@@ -497,22 +500,21 @@ class DailyRegisterSummary {
   double get otherCashExpenses =>
       (totalCashExpenses - cashRentPaid - ownerCashSalaryDrawn)
           .clamp(0.0, double.infinity);
-  double get totalCashOutflows =>
-      cashRentPaid +
-      otherCashExpenses +
-      ownerCashSalaryDrawn +
-      ownerCashDrawingsDrawn +
-      distributorCashPaid +
-      otherCash.outflows +
-      refunds;
+  // Owner rule 2026-11-23: expenses, rent, owner withdrawals, vendor payments
+  // and manual Money In/Out are paid from Cash in Hand, NOT from the counter
+  // drawer, so they never change the drawer's expected cash.
+  /// Money that left the counter drawer.
+  double get totalCashOutflows => distributorCashPaid + otherCash.outflows + refunds;
+
+  /// Paid from Cash in Hand that day (shown for information only).
+  double get paidFromCashInHand =>
+      cashRentPaid + otherCashExpenses + ownerCashSalaryDrawn + ownerCashDrawingsDrawn;
   double get expectedClosingCash => (openingCash +
           totalCash +
           rechargeCashCollection -
           distributorCashPaid +
           otherCash.net -
-          refunds -
-          totalCashExpenses -
-          ownerCashDrawingsDrawn)
+          refunds)
       .clamp(0.0, double.infinity);
   double get expectedCashInRegister => expectedClosingCash;
   double get cashOverOrShort => physicalCashCount - expectedClosingCash;

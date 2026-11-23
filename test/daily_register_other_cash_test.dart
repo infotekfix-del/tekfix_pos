@@ -19,19 +19,21 @@ void main() {
     {'total': 2000.0, 'subtotal': 2000.0, 'cash': 2000.0, 'items': const []},
   ];
 
-  test('owner example: vendor paid 1,000 in cash -> no false shortage', () {
-    const other = OtherCashFlows(vendorPaid: 1000);
+  test('owner rule: vendor paid from Cash in Hand never changes the EOD drawer', () {
+    final other = OtherCashFlows.fromLog([
+      log('2026-11-22', 'Cash', -1000, 'Vendor Advance Payment: G7', 'vendor'),
+    ], '2026-11-22');
     final s = svc.computeDailySummary(
       sales: sales,
       date: DateTime(2026, 11, 22),
       openingCash: 1000,
       otherCash: other,
-      physicalCashCount: 2000,
+      physicalCashCount: 3000,
     );
-    expect(s.expectedClosingCash, 2000);
+    expect(s.expectedClosingCash, 3000, reason: 'opening 1,000 + sales 2,000');
     expect(s.cashDiscrepancy, 0);
-    expect(s.cashShortage, 0);
-    expect(s.totalCashOutflows, 1000);
+    expect(s.totalCashOutflows, 0);
+    expect(s.netSales, 2000, reason: 'sales are never reduced');
   });
 
   test('cash log: tagged and old untagged entries; bank, other days and counted items ignored', () {
@@ -51,31 +53,30 @@ void main() {
       log('2026-11-22', 'Cash', -150, 'Expense (Tea): tea'), // counted as expense
       log('2026-11-22', 'Cash', -800, 'Salary: Anu'), // staff salary is an expense
     ], '2026-11-22');
-    expect(f.vendorPaid, 1300);
+    expect(f.vendorPaid, 0, reason: 'vendors are paid from Cash in Hand, not the drawer');
     expect(f.customerDuesReceived, 300);
     expect(f.serviceAdvanceReceived, 200);
-    expect(f.manualNet, 300);
+    expect(f.manualNet, 300, reason: 'kept for the Cash in Hand section only');
     expect(f.commissionCashIn, 39);
-    expect(f.net, 300 + 200 + 300 + 39 - 1300);
-    expect(f.outflows, 1300);
+    expect(f.net, 300 + 200 + 39, reason: 'manual Money In/Out is Cash in Hand');
+    expect(f.outflows, 0);
   });
 
   test('closed register keeps the lines after save/load', () {
-    const other = OtherCashFlows(vendorPaid: 1000, customerDuesReceived: 300, manualNet: -100);
+    const other = OtherCashFlows(customerDuesReceived: 300, manualNet: -100);
     final s = svc.computeDailySummary(
         sales: sales, date: DateTime(2026, 11, 22), openingCash: 1000, otherCash: other,
         physicalCashCount: 2200);
     final back = DailyRegisterSummary.fromMap(s.toMap());
-    expect(back.otherCash.vendorPaid, 1000);
     expect(back.otherCash.customerDuesReceived, 300);
     expect(back.otherCash.manualNet, -100);
-    expect(back.expectedClosingCash, 1000 + 2000 - 1000 + 300 - 100);
+    expect(back.expectedClosingCash, 1000 + 2000 + 300);
     expect(DailyRegisterSummary.fromMap(<String, dynamic>{...s.toMap()}..remove('otherCash'))
         .otherCash
         .isEmpty, true, reason: 'registers saved before this change still load');
   });
 
-  test('20 Nov example: owner drawings are subtracted (expected 1,498, not 2,198)', () {
+  test('20 Nov example: rent, expenses and drawings come from Cash in Hand (expected 4,098)', () {
     final s = svc.computeDailySummary(
       sales: [
         {'total': 2400.0, 'subtotal': 2400.0, 'cash': 2400.0, 'items': const []},
@@ -87,9 +88,10 @@ void main() {
       ownerCashDrawingsDrawn: 700,
       otherCash: const OtherCashFlows(customerDuesReceived: 698),
     );
-    expect(s.expectedClosingCash, 1498);
-    expect(s.copyWith(openingCash: 1000).expectedClosingCash, 1498,
+    expect(s.expectedClosingCash, 1000 + 2400 + 698);
+    expect(s.copyWith(openingCash: 1000).expectedClosingCash, 4098,
         reason: 'the EOD sheet uses the same calculation');
-    expect(s.totalCashOutflows, 2600);
+    expect(s.paidFromCashInHand, 2600);
+    expect(s.totalCashOutflows, 0);
   });
 }

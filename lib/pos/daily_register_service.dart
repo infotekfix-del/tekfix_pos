@@ -365,9 +365,9 @@ class DailyRegisterService {
             rechargeCashCollection -
             distributorCashPaid +
             otherCash.net -
-            calculatedRefunds -
-            totalCashExpenses -
-            ownerCashDrawingsDrawn)
+            calculatedRefunds)
+        // Expenses, rent, owner withdrawals, vendor payments and manual Money
+        // In/Out come from Cash in Hand, not the drawer (owner rule 2026-11-23).
         .clamp(0.0, double.infinity);
     final discrepancy = physicalCashCount - expectedClosingCash;
 
@@ -822,9 +822,6 @@ class DailyRegisterService {
                 if (summary.distributorCashPaid != 0)
                   _pwLine('Recharge Agent Paid (Cash):',
                       '-Rs. ${summary.distributorCashPaid.toStringAsFixed(2)}'),
-                if (summary.otherCash.vendorPaid != 0)
-                  _pwLine('Vendor Paid (Cash):',
-                      '-Rs. ${summary.otherCash.vendorPaid.toStringAsFixed(2)}'),
                 if (summary.otherCash.customerDuesReceived != 0)
                   _pwLine('Customer Dues Received:',
                       'Rs. ${summary.otherCash.customerDuesReceived.toStringAsFixed(2)}'),
@@ -834,27 +831,33 @@ class DailyRegisterService {
                 if (summary.otherCash.commissionCashIn != 0)
                   _pwLine('Commission Cash Received:',
                       'Rs. ${summary.otherCash.commissionCashIn.toStringAsFixed(2)}'),
-                if (summary.otherCash.manualNet != 0)
-                  _pwLine('Money In / Out (net):',
-                      'Rs. ${summary.otherCash.manualNet.toStringAsFixed(2)}'),
-                if (summary.cashRentPaid > 0)
-                  _pwLine('Daily Rent Paid (Cash):',
-                      '-Rs. ${summary.cashRentPaid.toStringAsFixed(2)}'),
-                if (summary.ownerSalaryDrawnToday > 0)
-                  _pwLine('Owner Salary Drawn Today:',
-                      '-Rs. ${summary.ownerSalaryDrawnToday.toStringAsFixed(2)}'),
-                if (summary.ownerExcessDrawingsToday > 0)
-                  _pwLine('Owner Excess Drawings Today:',
-                      '-Rs. ${summary.ownerExcessDrawingsToday.toStringAsFixed(2)}'),
-                if (summary.otherCashExpenses > 0)
-                  _pwLine('Other Cash Expenses:',
-                      '-Rs. ${summary.otherCashExpenses.toStringAsFixed(2)}'),
                 if (summary.refunds > 0)
                   _pwLine('Refunds / Returns:',
                       '-Rs. ${summary.refunds.toStringAsFixed(2)}'),
                 _pwLine('Expected Closing Cash:',
                     'Rs. ${summary.expectedClosingCash.toStringAsFixed(2)}',
                     isBold: true),
+                if (summary.paidFromCashInHand > 0 ||
+                    summary.otherCash.manualNet != 0) ...[
+                  pw.SizedBox(height: 4),
+                  pw.Text('Paid from Cash in Hand (not from the drawer):',
+                      style: const pw.TextStyle(fontSize: 9)),
+                  if (summary.cashRentPaid > 0)
+                    _pwLine('  Daily Rent:',
+                        'Rs. ${summary.cashRentPaid.toStringAsFixed(2)}'),
+                  if (summary.ownerSalaryDrawnToday > 0)
+                    _pwLine('  Owner Salary:',
+                        'Rs. ${summary.ownerSalaryDrawnToday.toStringAsFixed(2)}'),
+                  if (summary.ownerExcessDrawingsToday > 0)
+                    _pwLine('  Owner Drawings:',
+                        'Rs. ${summary.ownerExcessDrawingsToday.toStringAsFixed(2)}'),
+                  if (summary.otherCashExpenses > 0)
+                    _pwLine('  Other Expenses:',
+                        'Rs. ${summary.otherCashExpenses.toStringAsFixed(2)}'),
+                  if (summary.otherCash.manualNet != 0)
+                    _pwLine('  Money In / Out (net):',
+                        'Rs. ${summary.otherCash.manualNet.toStringAsFixed(2)}'),
+                ],
                 _pwLine('Physical Cash Count:',
                     'Rs. ${summary.physicalCashCount.toStringAsFixed(2)}'),
                 _pwLine(
@@ -1052,7 +1055,7 @@ class DailyRegisterService {
 💵 *PAYMENT DRAWER RECONCILIATION:*
 • Opening Cash: ₹${summary.openingCash.toStringAsFixed(2)}
 • Cash Collections: ₹${summary.totalCash.toStringAsFixed(2)}
-${summary.rechargeCashCollection != 0 ? "• Recharge Cash: ₹${summary.rechargeCashCollection.toStringAsFixed(2)}\n" : ""}${summary.distributorCashPaid != 0 ? "• Recharge Agent Paid (Cash): -₹${summary.distributorCashPaid.toStringAsFixed(2)}\n" : ""}${summary.otherCash.vendorPaid != 0 ? "• Vendor Paid (Cash): -₹${summary.otherCash.vendorPaid.toStringAsFixed(2)}\n" : ""}${summary.otherCash.customerDuesReceived != 0 ? "• Customer Dues Received: ₹${summary.otherCash.customerDuesReceived.toStringAsFixed(2)}\n" : ""}${summary.otherCash.serviceAdvanceReceived != 0 ? "• Service Advance Received: ₹${summary.otherCash.serviceAdvanceReceived.toStringAsFixed(2)}\n" : ""}${summary.otherCash.commissionCashIn != 0 ? "• Commission Cash Received: ₹${summary.otherCash.commissionCashIn.toStringAsFixed(2)}\n" : ""}${summary.otherCash.manualNet != 0 ? "• Money In / Out (net): ₹${summary.otherCash.manualNet.toStringAsFixed(2)}\n" : ""}${summary.cashRentPaid > 0 ? "• Daily Rent Paid (Cash): -₹${summary.cashRentPaid.toStringAsFixed(2)}\n" : ""}${summary.ownerSalaryDrawnToday > 0 ? "• Owner Salary Drawn Today: -₹${summary.ownerSalaryDrawnToday.toStringAsFixed(2)}\n" : ""}${summary.ownerExcessDrawingsToday > 0 ? "• Owner Excess Drawings Today: -₹${summary.ownerExcessDrawingsToday.toStringAsFixed(2)}\n" : ""}${summary.otherCashExpenses > 0 ? "• Other Cash Expenses: -₹${summary.otherCashExpenses.toStringAsFixed(2)}\n" : ""}${summary.refunds > 0 ? "• Refunds/Returns: -₹${summary.refunds.toStringAsFixed(2)}\n" : ""}• Expected Closing Cash: ₹${summary.expectedClosingCash.toStringAsFixed(2)}
+${summary.rechargeCashCollection != 0 ? "• Recharge Cash: ₹${summary.rechargeCashCollection.toStringAsFixed(2)}\n" : ""}${summary.distributorCashPaid != 0 ? "• Recharge Agent Paid (Cash): -₹${summary.distributorCashPaid.toStringAsFixed(2)}\n" : ""}${summary.otherCash.customerDuesReceived != 0 ? "• Customer Dues Received: ₹${summary.otherCash.customerDuesReceived.toStringAsFixed(2)}\n" : ""}${summary.otherCash.serviceAdvanceReceived != 0 ? "• Service Advance Received: ₹${summary.otherCash.serviceAdvanceReceived.toStringAsFixed(2)}\n" : ""}${summary.otherCash.commissionCashIn != 0 ? "• Commission Cash Received: ₹${summary.otherCash.commissionCashIn.toStringAsFixed(2)}\n" : ""}${summary.otherCash.manualNet != 0 ? "• Money In / Out (Cash in Hand): ₹${summary.otherCash.manualNet.toStringAsFixed(2)}\n" : ""}${summary.cashRentPaid > 0 ? "• Daily Rent (Cash in Hand): ₹${summary.cashRentPaid.toStringAsFixed(2)}\n" : ""}${summary.ownerSalaryDrawnToday > 0 ? "• Owner Salary (Cash in Hand): ₹${summary.ownerSalaryDrawnToday.toStringAsFixed(2)}\n" : ""}${summary.ownerExcessDrawingsToday > 0 ? "• Owner Drawings (Cash in Hand): ₹${summary.ownerExcessDrawingsToday.toStringAsFixed(2)}\n" : ""}${summary.otherCashExpenses > 0 ? "• Other Expenses (Cash in Hand): ₹${summary.otherCashExpenses.toStringAsFixed(2)}\n" : ""}${summary.refunds > 0 ? "• Refunds/Returns: -₹${summary.refunds.toStringAsFixed(2)}\n" : ""}• Expected Closing Cash: ₹${summary.expectedClosingCash.toStringAsFixed(2)}
 • Physical Cash Counted: ₹${summary.physicalCashCount.toStringAsFixed(2)}
 • Cash Status: $discText
 • UPI / GPay: ₹${summary.totalUpi.toStringAsFixed(2)}

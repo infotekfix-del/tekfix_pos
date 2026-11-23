@@ -125,8 +125,10 @@ void main() {
       );
       expect(summary.cashRentPaid, 300.0);
       expect(summary.otherCashExpenses, 0.0);
-      expect(summary.totalCashOutflows, 300.0);
-      expect(summary.expectedClosingCash, 5000.0 - 300.0); // 4700.0
+      // Owner rule 2026-11-23: rent is paid from Cash in Hand, not the drawer.
+      expect(summary.paidFromCashInHand, 300.0);
+      expect(summary.totalCashOutflows, 0.0);
+      expect(summary.expectedClosingCash, 5000.0);
     });
 
     // -------------------------------------------------------------------------
