@@ -133,5 +133,8 @@ staging.local*.json
 tools/firestore_rules_test/node_modules/
 tools/firestore_rules_test/*.log
 
+# npm packages (recreated by npm install)
+node_modules/
+
 # Scratch scripts and temporary test files
 scratch/
