@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../../firebase_options.dart';
 import '../../main.dart' show Db;
 import 'dashboard_tokens.dart';
 
@@ -56,6 +58,10 @@ class _TekWeatherCardState extends State<TekWeatherCard> {
   }
 
   Future<void> _fetchLiveWeather() async {
+    if (DefaultFirebaseOptions.isUatMode ||
+        WidgetsBinding.instance.runtimeType.toString().contains('Test')) {
+      return;
+    }
     setState(() => _isLoading = true);
     try {
       final url = Uri.parse(
@@ -149,19 +155,9 @@ class _TekWeatherCardState extends State<TekWeatherCard> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0x1F182652),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: const Color(0x2BFFFFFF),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        color: DashboardColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: DashboardColors.border, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -292,7 +288,7 @@ class _TekWeatherCardState extends State<TekWeatherCard> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                   decoration: BoxDecoration(
-                    color: const Color(0x1F22325E),
+                    color: DashboardColors.surfaceAlt,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: const Color(0x1FFFFFFF)),
                   ),
@@ -320,7 +316,7 @@ class _TekWeatherCardState extends State<TekWeatherCard> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                   decoration: BoxDecoration(
-                    color: const Color(0x1F22325E),
+                    color: DashboardColors.surfaceAlt,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: const Color(0x1FFFFFFF)),
                   ),

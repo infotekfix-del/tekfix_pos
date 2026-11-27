@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 import 'package:hive/hive.dart';
+import '../firebase_options.dart';
 import '../main.dart' show Db;
 import '../utils/tek_helpers.dart';
 import '../utils/timestamp_adapter.dart';
@@ -27,6 +29,9 @@ class AttendanceService {
 
   Future<void> saveShiftConfig(String shopId, ShiftConfig config) async {
     await Db.settings.put('shift_config', config.toMap());
+    if (shopId.isEmpty || DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      return;
+    }
     try {
       await FirebaseFirestore.instance
           .collection('shops')
@@ -183,10 +188,28 @@ class AttendanceService {
   }) async {
     final now = DateTime.now();
     final today = _dateKey.format(now);
-    final authUid = FirebaseAuth.instance.currentUser?.uid;
+    final authUid = (Firebase.apps.isNotEmpty && !DefaultFirebaseOptions.isUatMode)
+        ? FirebaseAuth.instance.currentUser?.uid
+        : null;
     final effectiveStaffId =
         (authUid != null && authUid.isNotEmpty) ? authUid : staffId;
     final docId = '${effectiveStaffId}_$today';
+
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      final rec = AttendanceRecord(
+        id: docId,
+        staffId: effectiveStaffId,
+        staffName: staffName,
+        date: today,
+        checkIn: now,
+        checkOut: isCheckOut == true ? now : null,
+        dutyStage: isCheckOut == true ? 'Full Duty Completed' : 'Shift Started',
+        approvalStatus: 'approved',
+      );
+      await _cacheLocalAttendance(effectiveStaffId, rec);
+      return (isCheckIn: isCheckOut != true, record: rec);
+    }
+
     final ref = FirebaseFirestore.instance
         .collection('shops')
         .doc(shopId)
@@ -362,6 +385,7 @@ class AttendanceService {
 
   /// Automatically closes forgotten previous check-outs if any
   Future<void> autoCloseForgottenCheckOut(String shopId, String staffId) async {
+    if (shopId.isEmpty || DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) return;
     try {
       final today = _dateKey.format(DateTime.now());
       final snap = await FirebaseFirestore.instance
@@ -429,6 +453,7 @@ class AttendanceService {
 
   /// Syncs any queued offline attendance records when internet is restored.
   Future<void> syncOfflineQueue() async {
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) return;
     final list =
         (Db.settings.get('offline_attendance_queue') as List?)?.toList();
     if (list == null || list.isEmpty) return;
@@ -457,6 +482,9 @@ class AttendanceService {
   /// Stream of today's attendance record for a specific staff member.
   Stream<AttendanceRecord?> streamTodayAttendance(
       String shopId, String staffId) {
+    if (shopId.isEmpty || DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      return Stream.value(getCachedTodayAttendance(staffId)).asBroadcastStream();
+    }
     final today = _dateKey.format(DateTime.now());
     final docId = '${staffId}_$today';
     return FirebaseFirestore.instance
@@ -477,8 +505,13 @@ class AttendanceService {
   Stream<List<AttendanceRecord>> streamStaffAttendanceHistory(
       String shopId, String staffId,
       {int limit = 14}) {
-    if (shopId.isEmpty || staffId.isEmpty) return Stream.value([]);
-    final authUid = FirebaseAuth.instance.currentUser?.uid;
+    if (shopId.isEmpty || staffId.isEmpty || DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      final cached = getCachedTodayAttendance(staffId);
+      return Stream.value(cached != null ? [cached] : <AttendanceRecord>[]).asBroadcastStream();
+    }
+    final authUid = (Firebase.apps.isNotEmpty && !DefaultFirebaseOptions.isUatMode)
+        ? FirebaseAuth.instance.currentUser?.uid
+        : null;
     final effectiveStaffId =
         (authUid != null && authUid.isNotEmpty) ? authUid : staffId;
     return FirebaseFirestore.instance
@@ -505,7 +538,9 @@ class AttendanceService {
 
   /// Stream of pending approvals for Owner Dashboard
   Stream<List<AttendanceRecord>> streamPendingApprovals(String shopId) {
-    if (shopId.isEmpty) return const Stream.empty();
+    if (shopId.isEmpty || DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      return Stream.value(<AttendanceRecord>[]).asBroadcastStream();
+    }
     return FirebaseFirestore.instance
         .collection('shops')
         .doc(shopId)
@@ -528,6 +563,7 @@ class AttendanceService {
     required String docId,
     required String ownerUid,
   }) async {
+    if (shopId.isEmpty || DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) return;
     final ref = FirebaseFirestore.instance
         .collection('shops')
         .doc(shopId)
@@ -569,6 +605,7 @@ class AttendanceService {
       throw Exception(
           'മാറ്റം വരുത്താനുള്ള കാരണം നൽകുക (Reason is required for adjustment).');
     }
+    if (shopId.isEmpty || DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) return;
 
     final ref = FirebaseFirestore.instance
         .collection('shops')
@@ -634,6 +671,7 @@ class AttendanceService {
       throw Exception(
           'നിരസിക്കാനുള്ള കാരണം നൽകുക (Reason is required for rejection).');
     }
+    if (shopId.isEmpty || DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) return;
 
     final ref = FirebaseFirestore.instance
         .collection('shops')
@@ -679,6 +717,7 @@ class AttendanceService {
     DateTime? checkOut,
     required String reason,
   }) async {
+    if (shopId.isEmpty || DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) return;
     final cleanDate = date.replaceAll('-', '');
     final docId = '${staffId}_$cleanDate';
 
@@ -738,6 +777,7 @@ class AttendanceService {
     required String ownerUid,
     required List<String> docIds,
   }) async {
+    if (shopId.isEmpty || DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) return;
     final batch = FirebaseFirestore.instance.batch();
     for (final id in docIds) {
       final ref = FirebaseFirestore.instance
@@ -774,6 +814,7 @@ class AttendanceService {
     required Map<String, dynamic> after,
     required String reason,
   }) async {
+    if (shopId.isEmpty || DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) return;
     try {
       await FirebaseFirestore.instance
           .collection('shops')
@@ -795,6 +836,9 @@ class AttendanceService {
 
   /// Stream of all attendance records for today (for Owner Dashboard).
   Stream<List<AttendanceRecord>> streamAllTodayAttendance(String shopId) {
+    if (shopId.isEmpty || DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      return Stream.value(<AttendanceRecord>[]).asBroadcastStream();
+    }
     final today = _dateKey.format(DateTime.now());
     return FirebaseFirestore.instance
         .collection('shops')
@@ -810,6 +854,9 @@ class AttendanceService {
   /// Stream monthly attendance records for the shop.
   Stream<List<AttendanceRecord>> streamMonthAttendance(
       String shopId, String yearMonth) {
+    if (shopId.isEmpty || DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      return Stream.value(<AttendanceRecord>[]).asBroadcastStream();
+    }
     return FirebaseFirestore.instance
         .collection('shops')
         .doc(shopId)

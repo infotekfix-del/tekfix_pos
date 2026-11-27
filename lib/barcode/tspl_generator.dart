@@ -5,6 +5,15 @@ import 'barcode_label_models.dart';
 class TsplGenerator {
   TsplGenerator._();
 
+  /// Printed width per character, gap included, in dots (203 DPI).
+  /// Font "1" is an 8x12 cell and font "2" 12x20, but the shop's printer
+  /// (TT065-50) spaces them wider: measured on a printed label against the
+  /// barcode (136 dots for "j6f"), font "1" takes ~10 dots and font "2"
+  /// ~14 dots per character. Centring with 8/12 put every text line
+  /// ~1.75 mm right of the centred barcode.
+  static const int font1Advance = 10;
+  static const int font2Advance = 14;
+
   /// Generates the complete TSPL string for one or more items.
   /// Each label ends with PRINT 1,1 (1-up only, no 2-up or column logic).
   static String generateJob({
@@ -59,39 +68,43 @@ class TsplGenerator {
     // 2. SHOP NAME (SMALL, CENTERED)
     // Font "1" (8x12 dots), centered at Y = 16
     final shopX = _calculateCenterX(store.length,
-        charWidth: 8, maxDots: config.widthDots, margin: config.safeMarginDots);
+        charWidth: font1Advance,
+        maxDots: config.widthDots,
+        margin: config.safeMarginDots);
     buffer.writeln('TEXT $shopX,16,"1",0,1,1,"$store"');
 
     // 3. ITEM NAME (MAX 2 LINES, CLEAN WRAP)
     // Safe printable width: 272 dots for 38mm. Font "1" = 8 dots/char -> ~32 chars per line max.
-    final nameLines =
-        _wrapName(item.name.trim(), maxCharsPerLine: 28, maxLines: 2);
+    final nameLines = _wrapName(item.name.trim(),
+        maxCharsPerLine: config.printableWidthDots ~/ font1Advance,
+        maxLines: 2);
     final hasTwoLines = nameLines.length > 1;
 
     if (hasTwoLines) {
       final line1X = _calculateCenterX(nameLines[0].length,
-          charWidth: 8,
+          charWidth: font1Advance,
           maxDots: config.widthDots,
           margin: config.safeMarginDots);
       buffer.writeln('TEXT $line1X,32,"1",0,1,1,"${nameLines[0]}"');
       final line2X = _calculateCenterX(nameLines[1].length,
-          charWidth: 8,
+          charWidth: font1Advance,
           maxDots: config.widthDots,
           margin: config.safeMarginDots);
       buffer.writeln('TEXT $line2X,46,"1",0,1,1,"${nameLines[1]}"');
     } else {
       final line1 = nameLines.isNotEmpty ? nameLines[0] : '';
       final line1X = _calculateCenterX(line1.length,
-          charWidth: 8,
+          charWidth: font1Advance,
           maxDots: config.widthDots,
           margin: config.safeMarginDots);
       buffer.writeln('TEXT $line1X,36,"1",0,1,1,"$line1"');
     }
 
     // 4. CODE 128 BARCODE (HEIGHT ~60 DOTS, AUTO-REDUCE BAR WIDTH IF TOO WIDE)
-    // Code 128 module count = (N * 11) + 35.
+    // Real printed width (TSPL "128" packs digit runs two per symbol), so the
+    // bars are centred under the centred text.
     // If narrow module = 2 fits inside printableWidthDots (272 dots), use 2; otherwise auto-reduce to 1.
-    final moduleCount = (barcodeData.length * 11) + 35;
+    final moduleCount = code128Modules(barcodeData);
     final int moduleWidth =
         (moduleCount * 2 <= config.printableWidthDots) ? 2 : 1;
     final int barcodeWidth = moduleCount * moduleWidth;
@@ -104,7 +117,9 @@ class TsplGenerator {
     // 5. HUMAN-READABLE PRIMARY CODE ONLY (BELOW BARS, NO ITEM_... LINE)
     final codeY = hasTwoLines ? 126 : 118;
     final codeX = _calculateCenterX(barcodeData.length,
-        charWidth: 8, maxDots: config.widthDots, margin: config.safeMarginDots);
+        charWidth: font1Advance,
+        maxDots: config.widthDots,
+        margin: config.safeMarginDots);
     buffer.writeln('TEXT $codeX,$codeY,"1",0,1,1,"$barcodeData"');
 
     // 6. MRP AT THE BOTTOM (PRINT WHEN TOGGLE IS ON AND PRICE > 0, ALWAYS 2 DECIMALS)
@@ -113,7 +128,7 @@ class TsplGenerator {
       final priceVal = price.toStringAsFixed(2);
       final mrpText = 'MRP: Rs.$priceVal';
       final mrpX = _calculateCenterX(mrpText.length,
-          charWidth: 12,
+          charWidth: font2Advance,
           maxDots: config.widthDots,
           margin: config.safeMarginDots);
       buffer.writeln('TEXT $mrpX,144,"2",0,1,1,"$mrpText"');
@@ -167,13 +182,65 @@ class TsplGenerator {
 
     const testText = 'BORDER TEST';
     final textX = _calculateCenterX(testText.length,
-        charWidth: 12,
+        charWidth: font2Advance,
         maxDots: config.widthDots,
         margin: config.safeMarginDots);
     buffer.writeln('TEXT $textX,90,"2",0,1,1,"$testText"');
     buffer.writeln('PRINT 1,1');
     buffer.writeln();
     return buffer.toString();
+  }
+
+  /// Width in modules of a Code 128 symbol as the printer encodes it for
+  /// TSPL "128" (automatic subset switching): runs of 4+ digits are packed
+  /// two per symbol (subset C), an odd leading digit stays in subset B.
+  /// Each symbol is 11 modules; the stop pattern is 13.
+  ///
+  /// The old estimate (length * 11 + 35) assumed one symbol per character,
+  /// so numeric-heavy codes (TKF1794..., TF200601, IMEI) were centred for a
+  /// much wider barcode than printed and landed off to one side.
+  static int code128Modules(String data) {
+    bool digit(int k) =>
+        k < data.length &&
+        data.codeUnitAt(k) >= 0x30 &&
+        data.codeUnitAt(k) <= 0x39;
+    int run(int k) {
+      var n = 0;
+      while (digit(k + n)) {
+        n++;
+      }
+      return n;
+    }
+
+    final lead = run(0);
+    var subsetC =
+        lead >= 4 || (lead == data.length && lead >= 2 && lead.isEven);
+    var symbols = 1; // start
+    var i = 0;
+    while (i < data.length) {
+      final r = run(i);
+      if (subsetC) {
+        if (r >= 2) {
+          symbols++;
+          i += 2;
+        } else {
+          symbols++; // switch to B
+          subsetC = false;
+        }
+      } else if (r >= 4) {
+        if (r.isOdd) {
+          symbols++; // one digit in B first
+          i++;
+        }
+        symbols++; // switch to C
+        subsetC = true;
+      } else {
+        symbols++;
+        i++;
+      }
+    }
+    symbols++; // check symbol
+    return symbols * 11 + 13;
   }
 
   /// Generates the standard TVS LP 46 Lite Gap Sensor Calibration command (GAPDETECT).

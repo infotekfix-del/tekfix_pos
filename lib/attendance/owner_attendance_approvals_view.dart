@@ -6,6 +6,7 @@ import '../main.dart' show Db, kPrimary, toast;
 import '../shared/tek_pos_strings.dart';
 import 'attendance_models.dart';
 import 'attendance_service.dart';
+import '../staff/staff_attendance_sync.dart';
 
 class OwnerAttendanceApprovalsView extends StatefulWidget {
   final String shopId;
@@ -42,6 +43,8 @@ class _OwnerAttendanceApprovalsViewState
         docId: r.id,
         ownerUid: ownerUid,
       );
+      // Approved day counts for salary (Staff & Attendance) right away.
+      await applyApprovedAttendanceToSalary([r]);
       if (mounted) {
         toast(context, '${r.staffName} - അറ്റൻഡൻസ് അംഗീകരിച്ചു');
       }
@@ -77,6 +80,7 @@ class _OwnerAttendanceApprovalsViewState
         ownerUid: ownerUid,
         docIds: records.map((e) => e.id).toList(),
       );
+      await applyApprovedAttendanceToSalary(records);
       if (mounted) toast(context, '${records.length} അറ്റൻഡൻസുകൾ അംഗീകരിച്ചു');
     } catch (e) {
       if (mounted)

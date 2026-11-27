@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../auth/auth_controller.dart';
 import '../main.dart' show Db, toast;
 import '../ui/dashboard/dashboard_tokens.dart';
 import 'purchase_models.dart';
@@ -154,6 +155,27 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
           ],
         ),
         actions: [
+          if (AuthController.instance.isOwner)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: DashboardColors.neonOrange,
+                  side: const BorderSide(color: DashboardColors.neonOrange),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () => _showRecordReturnDialog(),
+                icon: const Icon(Icons.assignment_return_rounded, size: 16),
+                label: Text(
+                  'Record Return',
+                  style: DashboardTypography.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: DashboardColors.neonOrange),
+                ),
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: FilledButton.icon(
@@ -378,6 +400,7 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
               ButtonSegment(value: 'Purchase Bill', label: Text('Bills')),
               ButtonSegment(value: 'Bill Payment', label: Text('Payments')),
               ButtonSegment(value: 'Advance Payment', label: Text('Advances')),
+              ButtonSegment(value: 'Purchase Return', label: Text('Returns')),
             ],
             selected: {_filterType},
             onSelectionChanged: (set) =>
@@ -511,6 +534,7 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
             rows: entries.map((e) {
               final isBill = e.type == 'Purchase Bill';
               final isAdvance = e.type == 'Advance Payment';
+              final isReturn = e.type == 'Purchase Return';
 
               return DataRow(
                 cells: [
@@ -531,8 +555,11 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
                             : (isAdvance
                                 ? DashboardColors.neonPurple
                                     .withValues(alpha: 0.15)
-                                : DashboardColors.neonGreen
-                                    .withValues(alpha: 0.15)),
+                                : (isReturn
+                                    ? DashboardColors.neonOrange
+                                        .withValues(alpha: 0.15)
+                                    : DashboardColors.neonGreen
+                                        .withValues(alpha: 0.15))),
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                           color: isBill
@@ -541,8 +568,11 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
                               : (isAdvance
                                   ? DashboardColors.neonPurple
                                       .withValues(alpha: 0.5)
-                                  : DashboardColors.neonGreen
-                                      .withValues(alpha: 0.5)),
+                                  : (isReturn
+                                      ? DashboardColors.neonOrange
+                                          .withValues(alpha: 0.5)
+                                      : DashboardColors.neonGreen
+                                          .withValues(alpha: 0.5))),
                         ),
                       ),
                       child: Text(
@@ -554,7 +584,9 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
                               ? DashboardColors.neonBlue
                               : (isAdvance
                                   ? DashboardColors.neonPurple
-                                  : DashboardColors.neonGreen),
+                                  : (isReturn
+                                      ? DashboardColors.neonOrange
+                                      : DashboardColors.neonGreen)),
                         ),
                       ),
                     ),
@@ -830,6 +862,210 @@ class _VendorLedgerScreenState extends State<VendorLedgerScreen> {
                   : Text('Save Payment',
                       style: DashboardTypography.inter(
                           fontWeight: FontWeight.bold, color: Colors.black)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showRecordReturnDialog() async {
+    final returnId = await PurchaseBillService.instance.generateReturnId();
+    final amountCtrl = TextEditingController();
+    final billRefCtrl = TextEditingController();
+    final reasonCtrl = TextEditingController();
+    String returnType = 'credit_note';
+    bool submitting = false;
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          backgroundColor: const Color(0xFF0F172A),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              const Icon(Icons.assignment_return_rounded,
+                  color: DashboardColors.neonOrange),
+              const SizedBox(width: 10),
+              Text(
+                'Record Purchase Return (പർച്ചേസ് റിട്ടേൺ)',
+                style: DashboardTypography.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 440,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0x2600D4FF),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0x4D00D4FF)),
+                  ),
+                  child: Text(
+                    'Vendor: $_activeVendorName • Return ID: $returnId',
+                    style: DashboardTypography.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: DashboardColors.neonBlue),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: amountCtrl,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold),
+                  decoration: const InputDecoration(
+                    labelText: 'Return Amount (₹) *',
+                    labelStyle: TextStyle(color: Colors.white70),
+                    prefixText: '₹ ',
+                    prefixStyle: TextStyle(
+                        color: DashboardColors.neonOrange,
+                        fontWeight: FontWeight.bold),
+                    filled: true,
+                    fillColor: Color(0x26000000),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text('Settlement Type *',
+                    style: DashboardTypography.inter(
+                        fontSize: 12, color: DashboardColors.textLight)),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0x26000000),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0x33FFFFFF)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      isExpanded: true,
+                      dropdownColor: const Color(0xFF1E293B),
+                      value: returnType,
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'credit_note',
+                          child: Text('Credit Note (Reduce Vendor Payable)',
+                              style: TextStyle(color: Colors.white)),
+                        ),
+                        DropdownMenuItem(
+                          value: 'cash_refund',
+                          child: Text('Cash / Bank Refund Received',
+                              style: TextStyle(color: Colors.white)),
+                        ),
+                      ],
+                      onChanged: (val) =>
+                          setD(() => returnType = val ?? 'credit_note'),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: billRefCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Bill # / Reference (ബിൽ നമ്പർ / റഫറൻസ്)',
+                    labelStyle: TextStyle(color: Colors.white70),
+                    filled: true,
+                    fillColor: Color(0x26000000),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: reasonCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Reason for Return (റിട്ടേൺ കാരണം) *',
+                    labelStyle: TextStyle(color: Colors.white70),
+                    filled: true,
+                    fillColor: Color(0x26000000),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: submitting ? null : () => Navigator.pop(ctx),
+              child: Text('Cancel',
+                  style: DashboardTypography.inter(color: Colors.white70)),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                  backgroundColor: DashboardColors.neonOrange),
+              onPressed: submitting
+                  ? null
+                  : () async {
+                      final amt =
+                          double.tryParse(amountCtrl.text.trim()) ?? 0.0;
+                      if (amt <= 0) {
+                        toast(context, 'Please enter a valid return amount',
+                            error: true);
+                        return;
+                      }
+                      if (reasonCtrl.text.trim().isEmpty) {
+                        toast(context, 'Please enter a reason for the return',
+                            error: true);
+                        return;
+                      }
+
+                      setD(() => submitting = true);
+                      try {
+                        final amtPaise = (amt * 100).round();
+                        await PurchaseBillService.instance.recordPurchaseReturn(
+                          vendorKey: _activeVendorKey,
+                          vendorName: _activeVendorName,
+                          billNumber: billRefCtrl.text.trim().isNotEmpty
+                              ? billRefCtrl.text.trim()
+                              : null,
+                          returnAmountPaise: amtPaise,
+                          returnReference: returnId,
+                          reason: reasonCtrl.text.trim(),
+                          returnType: returnType,
+                          staffId: AuthController.instance.uid,
+                          staffName: AuthController.instance.name.isNotEmpty
+                              ? AuthController.instance.name
+                              : 'Owner',
+                        );
+                        if (ctx.mounted) {
+                          Navigator.pop(ctx);
+                          toast(context,
+                              'Purchase return of ₹$amt recorded in vendor ledger');
+                          setState(() {});
+                        }
+                      } catch (e) {
+                        setD(() => submitting = false);
+                        if (ctx.mounted) {
+                          toast(context, 'Failed: $e', error: true);
+                        }
+                      }
+                    },
+              child: submitting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2))
+                  : Text('Save Return',
+                      style: DashboardTypography.inter(
+                          fontWeight: FontWeight.bold, color: Colors.white)),
             ),
           ],
         ),

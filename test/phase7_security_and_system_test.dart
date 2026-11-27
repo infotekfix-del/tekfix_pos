@@ -19,17 +19,22 @@ void main() {
     });
 
     test('TekTheme Dark theme uses standard brand palette tokens', () {
-      expect(TekColors.bgMain.value, equals(0xFF070B18));
-      expect(TekColors.sidebarBg.value, equals(0xFF0B1226));
-      expect(TekColors.bgCard.value, equals(0xFF111B35));
-      expect(TekColors.elevatedSurface.value, equals(0xFF172442));
-      expect(TekColors.primaryBlue.value, equals(0xFF1677FF));
-      expect(TekColors.electricCyan.value, equals(0xFF00D4FF));
-      expect(TekColors.premiumPurple.value, equals(0xFF8B5CF6));
-      expect(TekColors.success.value, equals(0xFF22C55E));
-      expect(TekColors.warning.value, equals(0xFFF59E0B));
-      expect(TekColors.error.value, equals(0xFFF43F5E));
-      expect(TekColors.border.value, equals(0xFF263452));
+      // The palette was redesigned (neutral slate); check the rules, not old hex values.
+      expect(TekColors.bgMain, TekColors.mainBg);
+      expect(TekColors.bgCard, TekColors.cardBg);
+      for (final c in [TekColors.bgMain, TekColors.sidebarBg, TekColors.bgCard, TekColors.elevatedSurface]) {
+        expect(c.computeLuminance(), lessThan(0.05), reason: 'backgrounds stay dark');
+      }
+      // Surfaces get lighter as they rise: main <= card <= elevated.
+      expect(TekColors.bgMain.computeLuminance(), lessThanOrEqualTo(TekColors.bgCard.computeLuminance()));
+      expect(TekColors.bgCard.computeLuminance(), lessThanOrEqualTo(TekColors.elevatedSurface.computeLuminance()));
+      // Status colours are distinct and readable on the main background.
+      final status = {TekColors.success, TekColors.warning, TekColors.error, TekColors.primaryBlue};
+      expect(status.length, 4);
+      for (final c in [TekColors.success, TekColors.warning, TekColors.error]) {
+        final l1 = c.computeLuminance() + 0.05, l2 = TekColors.bgMain.computeLuminance() + 0.05;
+        expect(l1 / l2, greaterThan(4.5), reason: 'WCAG AA contrast on the main background');
+      }
     });
   });
 

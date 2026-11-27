@@ -23,6 +23,9 @@ class FlutterWindow : public Win32Window {
                          LPARAM const lparam) noexcept override;
 
  private:
+  // Shows the Flutter view once it has content (first frame or timeout).
+  void RevealFlutterView();
+
   // The project to run.
   flutter::DartProject project_;
 

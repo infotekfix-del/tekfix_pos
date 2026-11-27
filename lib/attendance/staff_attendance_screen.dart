@@ -67,11 +67,14 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
 
   void _initStreams() {
     _attendanceStream = AttendanceService.instance
-        .streamTodayAttendance(widget.shopId, widget.staffId);
+        .streamTodayAttendance(widget.shopId, widget.staffId)
+        .asBroadcastStream();
     _unreadCountStream = NotificationService.instance
-        .streamUnreadCount(widget.shopId, widget.staffId);
+        .streamUnreadCount(widget.shopId, widget.staffId)
+        .asBroadcastStream();
     _historyStream = AttendanceService.instance
-        .streamStaffAttendanceHistory(widget.shopId, widget.staffId);
+        .streamStaffAttendanceHistory(widget.shopId, widget.staffId)
+        .asBroadcastStream();
   }
 
   @override

@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import '../firebase_options.dart';
 import '../main.dart' show Db;
+import '../security/staging_identity_service.dart';
 import '../staff/presence_service.dart';
 import '../sync/sync_engine.dart';
 import 'new_account_alert_service.dart';
@@ -22,24 +26,116 @@ class AuthController extends ChangeNotifier {
   String _name = '';
   String _shopId = '';
   bool _loading = true;
+  bool _stagingSignedIn = false;
   String? error;
   StreamSubscription<User?>? _sub;
 
   bool get isStaffLoggedIn => Db.setting('staff_logged_in') == 'true';
-  bool get signedIn => (_user != null && _shopId.isNotEmpty) || isStaffLoggedIn;
+  bool get signedIn =>
+      ((DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) &&
+          _stagingSignedIn &&
+          _shopId.isNotEmpty &&
+          _role == Role.owner) ||
+      (_user != null && _shopId.isNotEmpty) ||
+      isStaffLoggedIn;
   bool get isOwner => signedIn && !isStaffLoggedIn && _role == Role.owner;
+
+  /// users/{uid}.role == 'admin' (Firestore rules already treat admin as
+  /// owner). Used by the Customer CRM permissions.
+  bool get isAdmin =>
+      signedIn && !isStaffLoggedIn && Db.setting('auth_is_admin') == 'true';
   bool get loading => _loading;
   Role get role => isStaffLoggedIn ? Role.staff : _role;
   String get name => isStaffLoggedIn ? Db.setting('staff_logged_name') : _name;
-  String get uid => _user?.uid ?? Db.setting('staff_logged_id');
+  String get uid => DefaultFirebaseOptions.isUatMode
+      ? StagingIdentityService.defaultOwnerUid
+      : (_user?.uid ?? Db.setting('staff_logged_id'));
   String get shopId => _shopId.isNotEmpty ? _shopId : Db.setting('shop_id');
   String get roleLabel => isOwner ? 'OWNER' : 'STAFF';
-  String get email => _user?.email ?? '';
+  String get email => DefaultFirebaseOptions.isUatMode
+      ? 'staging-owner@tekfix.internal'
+      : (_user?.email ?? '');
 
   void notify() => notifyListeners();
 
+  /// Default initial password for the isolated staging owner account.
+  static const String defaultStagingPassword = 'Staging@TekFix2026';
+
+  /// Salt used for local staging password hashing.
+  static const String _stagingSalt = 'TEKFIX_STAGING_SALT_2026_';
+
+  /// Computes salted SHA-256 hash of a staging password.
+  static String hashStagingPassword(String rawPassword) {
+    final bytes = utf8.encode('$_stagingSalt$rawPassword');
+    return sha256.convert(bytes).toString();
+  }
+
+  /// Gets the currently configured staging owner password hash.
+  String get currentStagingPasswordHash {
+    final stored = Db.setting('staging_owner_password_hash');
+    if (stored.isNotEmpty) return stored;
+    return hashStagingPassword(defaultStagingPassword);
+  }
+
+  /// Verifies a password against the active staging hash.
+  bool verifyStagingPassword(String password) {
+    final computed = hashStagingPassword(password);
+    return computed == currentStagingPasswordHash;
+  }
+
+  /// Secure staging-only password reset using the master recovery PIN.
+  /// Strictly prohibited in production.
+  Future<String?> resetStagingOwnerPassword({
+    required String recoveryPin,
+    required String newPassword,
+  }) async {
+    if (!DefaultFirebaseOptions.isUatMode) {
+      return 'CRITICAL: Staging password reset is strictly prohibited in production.';
+    }
+    final cleanPin = recoveryPin.trim();
+    final allowedPin = Db.setting('staging_recovery_pin', '9999');
+    if (cleanPin != allowedPin && cleanPin != '9999') {
+      return 'റിക്കവറി പിൻ തെറ്റാണ് (Invalid recovery PIN)';
+    }
+    if (newPassword.trim().length < 6) {
+      return 'പാസ്‌വേഡിൽ കുറഞ്ഞത് 6 അക്ഷരങ്ങൾ വേണം (Password must be at least 6 characters)';
+    }
+    final newHash = hashStagingPassword(newPassword.trim());
+    await Db.settings.put('staging_owner_password_hash', newHash);
+    return null;
+  }
+
   /// Call once from main() after Firebase.initializeApp (may have failed).
   Future<void> init() async {
+    // PHASE 15.2.3: Physical UAT Isolation Mode (Zero Firebase Auth)
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      debugPrint('[AuthController] Staging UAT mode: initializing Option A Owner session');
+      _shopId = Db.setting('shop_id', StagingIdentityService.defaultShopId);
+      if (_shopId.isEmpty) _shopId = StagingIdentityService.defaultShopId;
+      _name = Db.setting('auth_name', 'TekFix Staging UAT Owner');
+      if (_name.isEmpty) _name = 'TekFix Staging UAT Owner';
+
+      final stagingSignedInSetting = Db.setting('staging_owner_signed_in');
+      // Strictly fail-closed: user is signed in ONLY if setting is explicitly 'true'
+      _stagingSignedIn = stagingSignedInSetting == 'true';
+      _role = _stagingSignedIn ? Role.owner : Role.staff;
+
+      if (_stagingSignedIn) {
+        await Db.settings.put('auth_role', 'owner');
+        await Db.settings.put('auth_name', _name);
+        await Db.settings.put('active_user', _name);
+        await Db.settings.put('shop_id', _shopId);
+        await Db.settings.put('staging_owner_signed_in', 'true');
+      } else {
+        await Db.settings.put('auth_role', 'none');
+        await Db.settings.put('staging_owner_signed_in', 'false');
+      }
+
+      _loading = false;
+      notifyListeners();
+      return;
+    }
+
     _shopId = Db.setting('shop_id');
     _name = Db.setting('auth_name');
     _role = Db.setting('auth_role') == 'owner' ? Role.owner : Role.staff;
@@ -82,6 +178,8 @@ class AuthController extends ChangeNotifier {
       final d = snap.data();
       if (d != null && d['active'] != false) {
         _role = d['role'] == 'owner' ? Role.owner : Role.staff;
+        await Db.settings
+            .put('auth_is_admin', d['role'] == 'admin' ? 'true' : 'false');
         _name = '${d['name'] ?? u.email ?? ''}';
         await Db.settings
             .put('auth_role', _role == Role.owner ? 'owner' : 'staff');
@@ -109,6 +207,26 @@ class AuthController extends ChangeNotifier {
       error = null;
       _shopId = shopId.trim().toLowerCase();
       await Db.settings.put('shop_id', _shopId);
+
+      // Staging UAT Mode: Authenticate locally against salted hash
+      if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+        if (_shopId != StagingIdentityService.defaultShopId) {
+          return 'Staging mode only supports shop: ${StagingIdentityService.defaultShopId}';
+        }
+        if (!verifyStagingPassword(password)) {
+          return 'ഇമെയിൽ / പാസ്‌വേഡ് തെറ്റാണ് (Wrong email or password)';
+        }
+        _stagingSignedIn = true;
+        _role = Role.owner;
+        _name = 'TekFix Staging UAT Owner';
+        await Db.settings.put('auth_role', 'owner');
+        await Db.settings.put('auth_name', _name);
+        await Db.settings.put('active_user', _name);
+        await Db.settings.put('staging_owner_signed_in', 'true');
+        notifyListeners();
+        return null;
+      }
+
       await FirebaseAuth.instance
           .signInWithEmailAndPassword(email: email.trim(), password: password);
       return null;
@@ -122,6 +240,9 @@ class AuthController extends ChangeNotifier {
   /// First-time setup: creates the shop and its owner account.
   Future<String?> createShopOwner(
       String shopId, String name, String email, String password) async {
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      return 'ഷോപ്പ് ഉടമ രജിസ്ട്രേഷൻ സ്റ്റേജിംഗ് UAT മോഡിൽ ലഭ്യമല്ല. ദയവായി shop_staging_001 ഉപയോഗിക്കുക. (Shop creation disabled in Staging UAT. Please sign in with shop_staging_001.)';
+    }
     final sid = shopId.trim().toLowerCase();
     final previousShop = Db.setting('shop_id');
     final isSecondAccount = previousShop.isNotEmpty && previousShop != sid;
@@ -154,6 +275,7 @@ class AuthController extends ChangeNotifier {
         'name': name.trim(),
         'role': 'owner',
         'active': true,
+        'approved': true,
         'email': email.trim()
       });
 
@@ -208,9 +330,15 @@ class AuthController extends ChangeNotifier {
   /// Owner creates a staff login WITHOUT being signed out (uses a 2nd app instance).
   Future<String?> createStaff(
       String name, String email, String password) async {
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      return 'Staff account creation is disabled in Staging UAT mode.';
+    }
     if (!isOwner) return 'Owner only';
     FirebaseApp? tmp;
     try {
+      DefaultFirebaseOptions.enforceProductionIsolation(
+        projectId: Firebase.app().options.projectId,
+      );
       tmp = await Firebase.initializeApp(
           name: 'staff-create-${DateTime.now().millisecondsSinceEpoch}',
           options: Firebase.app().options);
@@ -304,6 +432,15 @@ class AuthController extends ChangeNotifier {
     await Db.settings.put('staff_logged_in', 'false');
     await Db.settings.put('staff_logged_id', '');
     await Db.settings.put('staff_logged_name', '');
+    await Db.settings.put('auth_is_admin', 'false');
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      _stagingSignedIn = false;
+      _role = Role.staff;
+      await Db.settings.put('auth_role', 'none');
+      await Db.settings.put('staging_owner_signed_in', 'false');
+      notifyListeners();
+      return;
+    }
     await PresenceService.instance.stop();
     await SyncEngine.instance.stop();
     await FirebaseAuth.instance.signOut();

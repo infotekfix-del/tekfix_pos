@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/widgets.dart';
 import '../auth/auth_controller.dart';
+import '../firebase_options.dart';
 
 /// Writes "I am online" to shops/{shop}/presence/{uid} while the app is open.
 /// Owner reads it live in StaffTrackingView.
@@ -13,6 +15,7 @@ class PresenceService with WidgetsBindingObserver {
   bool _running = false;
 
   DocumentReference<Map<String, dynamic>>? get _ref {
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) return null;
     final a = AuthController.instance;
     if (!a.signedIn) return null;
     return FirebaseFirestore.instance
@@ -20,6 +23,7 @@ class PresenceService with WidgetsBindingObserver {
   }
 
   void start() {
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) return;
     if (_running) return;
     _running = true;
     WidgetsBinding.instance.addObserver(this);

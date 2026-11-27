@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -6,8 +7,12 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../firebase_options.dart';
 import '../main.dart' show Db, tekM, toast;
 import 'daily_register_models.dart';
+import '../recharge/recharge_period_accounting.dart' show rechargeCashCollectedPaise;
+import '../recharge/recharge_accounting_service.dart';
+import '../recharge/recharge_service.dart';
 
 class DailyRegisterService {
   DailyRegisterService._();
@@ -61,9 +66,8 @@ class DailyRegisterService {
       final s = tekM(Db.sales.get(k));
       final inv =
           s['invoice']?.toString() ?? s['invoiceId']?.toString() ?? '$k';
-      if (matchesTargetDate(s['createdAt']) ||
-          matchesTargetDate(s['date']) ||
-          matchesTargetDate(s['_st'])) {
+      final effDate = s['saleDate'] ?? s['date'] ?? s['createdAt'] ?? s['_st'];
+      if (matchesTargetDate(effDate)) {
         final copy = Map<String, dynamic>.from(s);
         copy['_hiveKey'] = k;
         salesMap[inv] = copy;
@@ -72,7 +76,7 @@ class DailyRegisterService {
 
     // 2. Query Firestore if shopId provided
     final resolvedShop = shopId ?? Db.setting('shop_id', '');
-    if (resolvedShop.isNotEmpty) {
+    if (resolvedShop.isNotEmpty && Firebase.apps.isNotEmpty && !DefaultFirebaseOptions.isUatMode) {
       try {
         final startTs = Timestamp.fromDate(startOfDay);
         final endTs = Timestamp.fromDate(endOfDay);
@@ -146,21 +150,67 @@ class DailyRegisterService {
       }
     }
 
-    // Sort by createdAt descending
+    // Sort by saleDate descending, then invoice
     final list = salesMap.values.toList();
     list.sort((a, b) {
       DateTime getDt(Map<String, dynamic> m) {
-        final c = m['createdAt'];
+        final c = m['saleDate'] ?? m['date'] ?? m['createdAt'];
         if (c is Timestamp) return c.toDate();
         if (c is int) return DateTime.fromMillisecondsSinceEpoch(c);
         if (c != null) return DateTime.tryParse(c.toString()) ?? DateTime(2000);
         return DateTime(2000);
       }
 
-      return getDt(b).compareTo(getDt(a));
+      final cmp = getDt(b).compareTo(getDt(a));
+      if (cmp != 0) return cmp;
+      final invA = a['invoice']?.toString() ?? a['invoiceId']?.toString() ?? '';
+      final invB = b['invoice']?.toString() ?? b['invoiceId']?.toString() ?? '';
+      return invB.compareTo(invA);
     });
 
     return list;
+  }
+
+  /// Quick Recharge cash taken at the counter on [date] (net of cash
+  /// refunds), from the recharge records saved on this device. 0 on error.
+  Future<double> rechargeCashForDate(DateTime date, {String? shopId}) async {
+    try {
+      final shop = shopId ?? Db.setting('shop_id', '');
+      await RechargeService.instance.rehydrateFromHive(defaultShopId: shop);
+      final paise = rechargeCashCollectedPaise(
+          RechargeService.instance.getLocalRecharges(shopId: shop.isEmpty ? null : shop),
+          toDateString(date));
+      return paise / 100.0;
+    } catch (_) {
+      return 0.0;
+    }
+  }
+
+  /// Vendor payments, customer dues, service advances, manual Money In/Out
+  /// and commission cash on [date], from the shop's cash log.
+  OtherCashFlows otherCashForDate(DateTime date) {
+    try {
+      final log = Db.bank.get('txn_log');
+      if (log is! List) return OtherCashFlows.zero;
+      return OtherCashFlows.fromLog(log, DateFormat('yyyy-MM-dd').format(date));
+    } catch (_) {
+      return OtherCashFlows.zero;
+    }
+  }
+
+  /// Cash paid from the drawer to recharge distributors/agents on [date]
+  /// (net of agent cash returns), from the recharge accounting server.
+  /// 0 when it cannot be read (offline / server not set up).
+  Future<double> distributorCashPaidForDate(DateTime date, {String? shopId}) async {
+    try {
+      final shop = shopId ?? Db.setting('shop_id', '');
+      if (shop.isEmpty) return 0.0;
+      final net = await RechargeAccountingService.instance
+          .distributorCashForDate(shop, toDateString(date));
+      return -net / 100.0;
+    } catch (_) {
+      return 0.0;
+    }
   }
 
   /// Computes the complete shift summary and metrics from the day's sales list
@@ -184,6 +234,9 @@ class DailyRegisterService {
     double ownerBankDrawingsDrawn = 0.0,
     double physicalCashCount = 0.0,
     double retainedCashFloat = 1000.0,
+    double rechargeCashCollection = 0.0,
+    double distributorCashPaid = 0.0,
+    OtherCashFlows otherCash = OtherCashFlows.zero,
     CashDenominations denominations = const CashDenominations(),
     CashHandoverSplit handoverSplit = const CashHandoverSplit(),
     bool isBackdated = false,
@@ -308,10 +361,13 @@ class DailyRegisterService {
     });
 
     final expectedClosingCash = (openingCash +
-            totalCash -
-            calculatedRefunds -
-            totalCashExpenses -
-            ownerCashDrawingsDrawn)
+            totalCash +
+            rechargeCashCollection -
+            distributorCashPaid +
+            otherCash.net -
+            calculatedRefunds)
+        // Expenses, rent, owner withdrawals, vendor payments and manual Money
+        // In/Out come from Cash in Hand, not the drawer (owner rule 2026-11-23).
         .clamp(0.0, double.infinity);
     final discrepancy = physicalCashCount - expectedClosingCash;
 
@@ -343,6 +399,9 @@ class DailyRegisterService {
       ownerBankDrawingsDrawn: ownerBankDrawingsDrawn,
       physicalCashCount: physicalCashCount,
       cashDiscrepancy: discrepancy,
+      rechargeCashCollection: rechargeCashCollection,
+      distributorCashPaid: distributorCashPaid,
+      otherCash: otherCash,
       retainedCashFloat: retainedCashFloat,
       denominations: denominations,
       handoverSplit: handoverSplit,
@@ -376,7 +435,7 @@ class DailyRegisterService {
     }
 
     // 2. Check Firestore register_openings for this date (authoritative source of truth)
-    if (resolvedShop.isNotEmpty) {
+    if (resolvedShop.isNotEmpty && Firebase.apps.isNotEmpty && !DefaultFirebaseOptions.isUatMode) {
       try {
         final doc = await FirebaseFirestore.instance
             .collection('shops')
@@ -455,7 +514,7 @@ class DailyRegisterService {
     final nextDayStr = toDateString(nextDay);
     bool shouldCarryForward = true;
 
-    if (resolvedShop.isNotEmpty) {
+    if (resolvedShop.isNotEmpty && Firebase.apps.isNotEmpty && !DefaultFirebaseOptions.isUatMode) {
       try {
         final shopDoc =
             FirebaseFirestore.instance.collection('shops').doc(resolvedShop);
@@ -599,6 +658,11 @@ class DailyRegisterService {
           sales: s,
           date: targetDate,
           openingCash: openCash,
+          rechargeCashCollection:
+              await rechargeCashForDate(targetDate, shopId: shopId),
+          distributorCashPaid:
+              await distributorCashPaidForDate(targetDate, shopId: shopId),
+          otherCash: otherCashForDate(targetDate),
         );
         list.add(pending);
       }
@@ -614,7 +678,7 @@ class DailyRegisterService {
     final resolvedShop = shopId ?? Db.setting('shop_id', '');
 
     // 1. Check Firestore (authoritative source of truth)
-    if (resolvedShop.isNotEmpty) {
+    if (resolvedShop.isNotEmpty && Firebase.apps.isNotEmpty && !DefaultFirebaseOptions.isUatMode) {
       try {
         final doc = await FirebaseFirestore.instance
             .collection('shops')
@@ -752,24 +816,48 @@ class DailyRegisterService {
                     'Rs. ${summary.openingCash.toStringAsFixed(2)}'),
                 _pwLine('Cash Collections:',
                     'Rs. ${summary.totalCash.toStringAsFixed(2)}'),
-                if (summary.cashRentPaid > 0)
-                  _pwLine('Daily Rent Paid (Cash):',
-                      '-Rs. ${summary.cashRentPaid.toStringAsFixed(2)}'),
-                if (summary.ownerSalaryDrawnToday > 0)
-                  _pwLine('Owner Salary Drawn Today:',
-                      '-Rs. ${summary.ownerSalaryDrawnToday.toStringAsFixed(2)}'),
-                if (summary.ownerExcessDrawingsToday > 0)
-                  _pwLine('Owner Excess Drawings Today:',
-                      '-Rs. ${summary.ownerExcessDrawingsToday.toStringAsFixed(2)}'),
-                if (summary.otherCashExpenses > 0)
-                  _pwLine('Other Cash Expenses:',
-                      '-Rs. ${summary.otherCashExpenses.toStringAsFixed(2)}'),
+                if (summary.rechargeCashCollection != 0)
+                  _pwLine('Recharge Cash:',
+                      'Rs. ${summary.rechargeCashCollection.toStringAsFixed(2)}'),
+                if (summary.distributorCashPaid != 0)
+                  _pwLine('Recharge Agent Paid (Cash):',
+                      '-Rs. ${summary.distributorCashPaid.toStringAsFixed(2)}'),
+                if (summary.otherCash.customerDuesReceived != 0)
+                  _pwLine('Customer Dues Received:',
+                      'Rs. ${summary.otherCash.customerDuesReceived.toStringAsFixed(2)}'),
+                if (summary.otherCash.serviceAdvanceReceived != 0)
+                  _pwLine('Service Advance Received:',
+                      'Rs. ${summary.otherCash.serviceAdvanceReceived.toStringAsFixed(2)}'),
+                if (summary.otherCash.commissionCashIn != 0)
+                  _pwLine('Commission Cash Received:',
+                      'Rs. ${summary.otherCash.commissionCashIn.toStringAsFixed(2)}'),
                 if (summary.refunds > 0)
                   _pwLine('Refunds / Returns:',
                       '-Rs. ${summary.refunds.toStringAsFixed(2)}'),
                 _pwLine('Expected Closing Cash:',
                     'Rs. ${summary.expectedClosingCash.toStringAsFixed(2)}',
                     isBold: true),
+                if (summary.paidFromCashInHand > 0 ||
+                    summary.otherCash.manualNet != 0) ...[
+                  pw.SizedBox(height: 4),
+                  pw.Text('Paid from Cash in Hand (not from the drawer):',
+                      style: const pw.TextStyle(fontSize: 9)),
+                  if (summary.cashRentPaid > 0)
+                    _pwLine('  Daily Rent:',
+                        'Rs. ${summary.cashRentPaid.toStringAsFixed(2)}'),
+                  if (summary.ownerSalaryDrawnToday > 0)
+                    _pwLine('  Owner Salary:',
+                        'Rs. ${summary.ownerSalaryDrawnToday.toStringAsFixed(2)}'),
+                  if (summary.ownerExcessDrawingsToday > 0)
+                    _pwLine('  Owner Drawings:',
+                        'Rs. ${summary.ownerExcessDrawingsToday.toStringAsFixed(2)}'),
+                  if (summary.otherCashExpenses > 0)
+                    _pwLine('  Other Expenses:',
+                        'Rs. ${summary.otherCashExpenses.toStringAsFixed(2)}'),
+                  if (summary.otherCash.manualNet != 0)
+                    _pwLine('  Money In / Out (net):',
+                        'Rs. ${summary.otherCash.manualNet.toStringAsFixed(2)}'),
+                ],
                 _pwLine('Physical Cash Count:',
                     'Rs. ${summary.physicalCashCount.toStringAsFixed(2)}'),
                 _pwLine(
@@ -777,7 +865,7 @@ class DailyRegisterService {
                   summary.cashDiscrepancy == 0
                       ? 'Rs. 0.00 (MATCHED)'
                       : (summary.cashDiscrepancy > 0
-                          ? '+Rs. ${summary.cashDiscrepancy.toStringAsFixed(2)} (OVER)'
+                          ? '+Rs. ${summary.cashDiscrepancy.toStringAsFixed(2)} (EXCESS)'
                           : '-Rs. ${summary.cashDiscrepancy.abs().toStringAsFixed(2)} (SHORT)'),
                   isBold: summary.cashDiscrepancy != 0,
                 ),
@@ -949,7 +1037,7 @@ class DailyRegisterService {
     final discText = summary.cashDiscrepancy == 0
         ? '✅ Exact Match (₹0)'
         : (summary.cashDiscrepancy > 0
-            ? '⚠️ Cash Over: +₹${summary.cashDiscrepancy.toStringAsFixed(2)}'
+            ? '⚠️ Excess (എക്സസ്): +₹${summary.cashDiscrepancy.toStringAsFixed(2)}'
             : '🚨 Cash Shortage: -₹${summary.cashDiscrepancy.abs().toStringAsFixed(2)}');
 
     final text = '''
@@ -967,7 +1055,7 @@ class DailyRegisterService {
 💵 *PAYMENT DRAWER RECONCILIATION:*
 • Opening Cash: ₹${summary.openingCash.toStringAsFixed(2)}
 • Cash Collections: ₹${summary.totalCash.toStringAsFixed(2)}
-${summary.cashRentPaid > 0 ? "• Daily Rent Paid (Cash): -₹${summary.cashRentPaid.toStringAsFixed(2)}\n" : ""}${summary.ownerSalaryDrawnToday > 0 ? "• Owner Salary Drawn Today: -₹${summary.ownerSalaryDrawnToday.toStringAsFixed(2)}\n" : ""}${summary.ownerExcessDrawingsToday > 0 ? "• Owner Excess Drawings Today: -₹${summary.ownerExcessDrawingsToday.toStringAsFixed(2)}\n" : ""}${summary.otherCashExpenses > 0 ? "• Other Cash Expenses: -₹${summary.otherCashExpenses.toStringAsFixed(2)}\n" : ""}${summary.refunds > 0 ? "• Refunds/Returns: -₹${summary.refunds.toStringAsFixed(2)}\n" : ""}• Expected Closing Cash: ₹${summary.expectedClosingCash.toStringAsFixed(2)}
+${summary.rechargeCashCollection != 0 ? "• Recharge Cash: ₹${summary.rechargeCashCollection.toStringAsFixed(2)}\n" : ""}${summary.distributorCashPaid != 0 ? "• Recharge Agent Paid (Cash): -₹${summary.distributorCashPaid.toStringAsFixed(2)}\n" : ""}${summary.otherCash.customerDuesReceived != 0 ? "• Customer Dues Received: ₹${summary.otherCash.customerDuesReceived.toStringAsFixed(2)}\n" : ""}${summary.otherCash.serviceAdvanceReceived != 0 ? "• Service Advance Received: ₹${summary.otherCash.serviceAdvanceReceived.toStringAsFixed(2)}\n" : ""}${summary.otherCash.commissionCashIn != 0 ? "• Commission Cash Received: ₹${summary.otherCash.commissionCashIn.toStringAsFixed(2)}\n" : ""}${summary.otherCash.manualNet != 0 ? "• Money In / Out (Cash in Hand): ₹${summary.otherCash.manualNet.toStringAsFixed(2)}\n" : ""}${summary.cashRentPaid > 0 ? "• Daily Rent (Cash in Hand): ₹${summary.cashRentPaid.toStringAsFixed(2)}\n" : ""}${summary.ownerSalaryDrawnToday > 0 ? "• Owner Salary (Cash in Hand): ₹${summary.ownerSalaryDrawnToday.toStringAsFixed(2)}\n" : ""}${summary.ownerExcessDrawingsToday > 0 ? "• Owner Drawings (Cash in Hand): ₹${summary.ownerExcessDrawingsToday.toStringAsFixed(2)}\n" : ""}${summary.otherCashExpenses > 0 ? "• Other Expenses (Cash in Hand): ₹${summary.otherCashExpenses.toStringAsFixed(2)}\n" : ""}${summary.refunds > 0 ? "• Refunds/Returns: -₹${summary.refunds.toStringAsFixed(2)}\n" : ""}• Expected Closing Cash: ₹${summary.expectedClosingCash.toStringAsFixed(2)}
 • Physical Cash Counted: ₹${summary.physicalCashCount.toStringAsFixed(2)}
 • Cash Status: $discText
 • UPI / GPay: ₹${summary.totalUpi.toStringAsFixed(2)}

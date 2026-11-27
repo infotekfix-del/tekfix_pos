@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    PHASE 16.4.7.3 — Staging (UAT) manifest overlay.
+
+    Purpose: Prevent the Firebase Android SDK from auto-initializing with
+    production (or any) Firebase configuration before Dart main() runs.
+
+    Mechanism:
+    1. tools:node="remove" strips FirebaseInitProvider from the merged manifest.
+       This ContentProvider normally runs BEFORE Application.onCreate() and
+       would initialize a default FirebaseApp using google-services.json values.
+    2. The firebase_data_collection_default_enabled meta-data flag is set to
+       false as a defence-in-depth measure: even if a future SDK version adds
+       a new auto-init path, data collection is disabled by default.
+
+    The production (prod) flavor is NOT affected because this manifest only
+    applies to the "staging" product flavor source set.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+        <!-- Remove FirebaseInitProvider so no native auto-init occurs in UAT -->
+        <provider
+            android:name="com.google.firebase.provider.FirebaseInitProvider"
+            android:authorities="${applicationId}.firebaseinitprovider"
+            tools:node="remove" />
+
+        <!-- Defence-in-depth: disable Firebase data collection by default in UAT -->
+        <meta-data
+            android:name="firebase_data_collection_default_enabled"
+            android:value="false" />
+
+        <!-- Defence-in-depth: disable Firebase Analytics auto-init in UAT -->
+        <meta-data
+            android:name="firebase_analytics_collection_deactivated"
+            android:value="true" />
+
+        <!-- Defence-in-depth: disable Firebase Crashlytics auto-init in UAT -->
+        <meta-data
+            android:name="firebase_crashlytics_collection_enabled"
+            android:value="false" />
+    </application>
+
+</manifest>
+

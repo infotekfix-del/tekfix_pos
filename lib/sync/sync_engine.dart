@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../core/device.dart';
+import '../core/hive_safe_open.dart';
+import '../firebase_options.dart';
 import '../main.dart'
     show
         Db,
@@ -22,6 +24,8 @@ import '../main.dart'
         boxReturns,
         boxPurchaseBills,
         boxVendorPayments;
+import '../crm/crm_messaging.dart'
+    show kBoxCrmTemplates, kBoxCrmCampaigns, kBoxMessageLog, kBoxCrmSettings;
 
 enum SyncState { synced, syncing, offline, error }
 
@@ -32,27 +36,47 @@ class _Col {
   final bool staffOwnRowsOnly; // staff pull only rows with staffId == uid
   final int
       windowDays; // first pull on a new device fetches only this many days (0 = all)
+  final bool
+      soft; // optional feature collection: a listen error never fails sync
+  final bool
+      ownerOnlyPush; // staff devices never push these collections to cloud
   const _Col(this.box, this.name,
       {this.counter,
       this.ownerOnlyRead = false,
       this.staffOwnRowsOnly = false,
-      this.windowDays = 0});
+      this.windowDays = 0,
+      this.soft = false,
+      this.ownerOnlyPush = false});
 }
 
-const _cols = <_Col>[
+const _allCols = <_Col>[
   _Col(boxItems, 'items', counter: 'stock'),
   _Col(boxParties, 'parties', counter: 'balance'),
   _Col(boxSales, 'sales', staffOwnRowsOnly: true, windowDays: 90),
   _Col(boxPurchases, 'purchases', ownerOnlyRead: true),
   _Col(boxExpenses, 'expenses', ownerOnlyRead: true),
-  _Col(boxStaff, 'staff', ownerOnlyRead: true),
+  _Col(boxStaff, 'staff', ownerOnlyRead: true, ownerOnlyPush: true),
   _Col(boxServices, 'services'),
   _Col(boxStockMoves, 'stock_moves', ownerOnlyRead: true, windowDays: 30),
   _Col(boxAudit, 'activity_logs', ownerOnlyRead: true, windowDays: 30),
   _Col(boxReturns, 'returns'),
   _Col(boxPurchaseBills, 'purchase_bills', ownerOnlyRead: true),
   _Col(boxVendorPayments, 'vendor_payments', ownerOnlyRead: true),
+  // Customer CRM (Phase 5). Boxes are opened by startCustomerCrm().
+  _Col(kBoxCrmTemplates, 'message_templates', soft: true, ownerOnlyPush: true),
+  _Col(kBoxCrmSettings, 'crm_settings', soft: true, ownerOnlyPush: true),
+  _Col(kBoxCrmCampaigns, 'campaigns',
+      ownerOnlyRead: true, soft: true, ownerOnlyPush: true),
+  _Col(kBoxMessageLog, 'message_log',
+      ownerOnlyRead: true, windowDays: 90, soft: true),
 ];
+
+/// Collections whose Hive box is open (a missing optional box never breaks
+/// sync).
+List<_Col> get _cols => [
+      for (final c in _allCols)
+        if (Hive.isBoxOpen(c.box)) c
+    ];
 
 const _uuid = Uuid();
 const _metaKeys = {'_u', '_by', '_st'};
@@ -158,11 +182,12 @@ class SyncEngine extends ChangeNotifier {
     } catch (e) {
       debugPrint(
           '[TekFix SyncEngine] openBoxes error ($e). Auto-recovering sync boxes...');
+      // The outbox can hold changes not yet sent to the server: never drop
+      // it blindly. Locked -> another TekFix is running, leave it alone;
+      // unreadable -> back it up first (see core/hive_safe_open.dart).
       try {
-        await Hive.deleteBoxFromDisk('tek_sync_meta');
-        await Hive.deleteBoxFromDisk('tek_sync_outbox');
-        _meta = await Hive.openBox('tek_sync_meta');
-        _outbox = await Hive.openBox('tek_sync_outbox');
+        _meta = await openBoxSafely('tek_sync_meta');
+        _outbox = await openBoxSafely('tek_sync_outbox');
         _boxesOpen = true;
       } catch (e2) {
         debugPrint(
@@ -176,6 +201,12 @@ class SyncEngine extends ChangeNotifier {
       {required String shopId,
       required String uid,
       required bool isOwner}) async {
+    if (DefaultFirebaseOptions.isUatMode) {
+      debugPrint('[SyncEngine] Staging UAT mode: Cloud Firestore sync disabled for production isolation.');
+      _state = SyncState.synced;
+      notifyListeners();
+      return;
+    }
     if (_running && _shop == shopId && _uid == uid && _owner == isOwner) return;
     await stop();
     _shop = shopId;
@@ -461,6 +492,10 @@ class SyncEngine extends ChangeNotifier {
   }
 
   void _enqueueRaw(String box, String id, String op) {
+    if (!_owner) {
+      final col = _allCols.where((c) => c.box == box).firstOrNull;
+      if (col != null && col.ownerOnlyPush) return;
+    }
     final k = '$box|$id';
     final prev = _outbox.get(k);
     if (prev is Map && prev['op'] == 'delete' && op == 'upsert') return;
@@ -536,6 +571,9 @@ class SyncEngine extends ChangeNotifier {
             continue;
           }
           final col = _cols.firstWhere((c) => c.box == box);
+          if (!_owner && col.ownerOnlyPush) {
+            continue;
+          }
           final kk = '$box|$id';
           final ref = _fs.doc('shops/$_shop/${col.name}/$id');
           if (op == 'delete') {
@@ -687,8 +725,8 @@ class SyncEngine extends ChangeNotifier {
 
       final col = _cols.firstWhere((c) => c.box == box,
           orElse: () => const _Col('', ''));
-      if (col.box.isEmpty) {
-        // Unknown box / legacy queue item -> safe drop to avoid blocking
+      if (col.box.isEmpty || (!_owner && col.ownerOnlyPush)) {
+        // Unknown box / legacy queue item / owner-only push on staff -> safe drop to avoid blocking
         await _outbox.delete(k);
         droppedCount++;
         continue;
@@ -815,7 +853,13 @@ class SyncEngine extends ChangeNotifier {
           lastSyncAt = DateTime.now();
           _refreshState();
         }
-      }, onError: (e) => _fail('${c.name}: $e')));
+      }, onError: (e) {
+        if (c.soft) {
+          debugPrint('[SyncEngine] optional ${c.name} not synced: $e');
+          return;
+        }
+        _fail('${c.name}: $e');
+      }));
     }
     if (_owner) _listenBank();
   }
@@ -984,5 +1028,14 @@ class SyncEngine extends ChangeNotifier {
     } else {
       await syncNow();
     }
+  }
+
+  @visibleForTesting
+  Future<void> initForTesting({required bool isOwner}) async {
+    await openBoxes();
+    await _meta.put('seed_done', true);
+    _owner = isOwner;
+    _running = true;
+    _watchLocal();
   }
 }

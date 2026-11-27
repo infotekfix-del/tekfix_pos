@@ -7,10 +7,7 @@
 // =============================================================================
 
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -20,7 +17,6 @@ import '../auth/auth_controller.dart';
 import '../main.dart' show Db;
 import '../ui/dashboard/dashboard_tokens.dart';
 import '../ui/tek_feedback.dart';
-import 'invoice_parser_service.dart';
 import 'manual_purchase_draft_service.dart';
 import 'purchase_bill_service.dart';
 import 'purchase_calculation_engine.dart';
@@ -30,6 +26,7 @@ import 'purchase_bill_details_screen.dart';
 import 'smart_inventory_models.dart';
 import 'smart_inventory_search_engine.dart';
 import 'smart_inventory_combobox.dart';
+import 'bill_import/bill_import_screen.dart';
 
 // ---------------------------------------------------------------------------
 // EditablePurchaseItem — mutable wrapper used by the item table
@@ -53,7 +50,7 @@ class _EditableItem {
   String? matchedProductId;
   String? matchedProductName;
   String? matchStatus; // null = not checked yet
-  bool isMatchLoading;
+  bool isMatchLoading = false;
   String? matchNotes;
   bool imeiRequired;
   String category;
@@ -79,7 +76,6 @@ class _EditableItem {
     this.matchedProductId,
     this.matchedProductName,
     this.matchStatus,
-    this.isMatchLoading = false,
     this.matchNotes,
     this.category = '',
     List<String>? serialNumbers,
@@ -141,11 +137,15 @@ class ManualPurchaseEntryScreen extends StatefulWidget {
   final String? initialVendorName;
   final PurchaseBill? editBill;
 
+  /// Pre-filled from an uploaded vendor bill (see BillImportScreen).
+  final ImportedPurchaseBill? importedBill;
+
   const ManualPurchaseEntryScreen({
     super.key,
     this.initialVendorKey,
     this.initialVendorName,
     this.editBill,
+    this.importedBill,
   });
 
   @override
@@ -155,6 +155,12 @@ class ManualPurchaseEntryScreen extends StatefulWidget {
 
 class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
   bool get _isEditing => widget.editBill != null;
+
+  /// Opened straight from "Import Vendor Bill": never touch an older manual
+  /// draft the owner may have parked.
+  bool get _fromImport => widget.importedBill != null;
+  String _entrySource = EntrySource.manual;
+  int? _importedPrintedTotalPaise;
   // ---- Supplier ----
   dynamic _vendorKey;
   String _vendorName = '';
@@ -281,6 +287,11 @@ class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
 
     _billNumber = await PurchaseBillService.instance.generateBillNumber();
     if (mounted) setState(() {});
+
+    if (_fromImport) {
+      if (mounted) await _applyImportedBill(widget.importedBill!);
+      return;
+    }
 
     // Check for initial vendor from caller
     if (widget.initialVendorKey != null) {
@@ -448,7 +459,7 @@ class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
   }
 
   void _scheduleDraftSave() {
-    if (_isEditing) return;
+    if (_isEditing || _fromImport) return;
     _draftTimer?.cancel();
     _draftTimer = Timer(_draftDebounce, _saveDraft);
   }
@@ -542,150 +553,91 @@ class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
   // AUTOMATED BILL EXTRACTION (OCR / PDF / IMAGE PARSER)
   // -------------------------------------------------------------------------
   Future<void> _pickAndAutoParseBill() async {
-    try {
-      setState(() => _isParsingBill = true);
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
-        withData: true,
-      );
+    // Upload → review (match / add new items) → come back pre-filled.
+    final result = await Navigator.of(context).push<ImportedPurchaseBill>(
+      MaterialPageRoute(
+          builder: (_) => const BillImportScreen(returnResult: true)),
+    );
+    if (result == null || !mounted) return;
+    await _applyImportedBill(result);
+  }
 
-      if (result == null || result.files.isEmpty) return;
-      final file = result.files.first;
-      final ext = (file.extension ?? '').toLowerCase();
-      final mime = ext == 'pdf' ? 'application/pdf' : 'image/$ext';
-
-      Uint8List? fileBytes = file.bytes;
-      if (fileBytes == null &&
-          file.path != null &&
-          File(file.path!).existsSync()) {
-        fileBytes = await File(file.path!).readAsBytes();
-      }
-
-      if (fileBytes == null) {
-        TekFeedback.error('Unable to read selected bill file.');
-        return;
-      }
-
-      _attachmentBytes = fileBytes;
-      _attachment = BillAttachment(
-        fileName: file.name,
-        fileType: mime,
-        fileSizeBytes: fileBytes.length,
-        bytesBase64: base64Encode(fileBytes),
-        filePath: file.path,
-        uploadedAt: DateTime.now(),
-      );
-
-      TekFeedback.toast('Extracting bill data with OCR parser...');
-
-      final parsed = await InvoiceParserService.instance.parseInvoiceFile(
-        fileBytes: fileBytes,
-        fileName: file.name,
-        filePath: file.path,
-      );
-
-      if (!mounted) return;
-
+  /// Fills the form from a reviewed vendor bill. Saving then follows the
+  /// normal manual path (same stock, ledger and payment updates).
+  Future<void> _applyImportedBill(ImportedPurchaseBill b) async {
+    if (b.vendorKey != null) {
+      final v = PurchaseBillService.instance
+          .getVendors()
+          .cast<Map<String, dynamic>?>()
+          .firstWhere((e) => '${e?['key']}' == '${b.vendorKey}',
+              orElse: () => null);
+      if (v != null) await _applyVendorMap(v);
+    } else if (b.vendorName.isNotEmpty && _vendorKey == null) {
       setState(() {
-        if (parsed.invoiceNumber != null && parsed.invoiceNumber!.isNotEmpty) {
-          _invoiceNumCtrl.text = parsed.invoiceNumber!;
-        }
-        if (parsed.invoiceDate != null) {
-          _invoiceDate = parsed.invoiceDate!;
-        }
-        if (parsed.invoiceTotal != null && parsed.invoiceTotal! > 0) {
-          _printedTotalCtrl.text = parsed.invoiceTotal!.toStringAsFixed(2);
-        }
+        _vendorName = b.vendorName;
+        _vendorPhone = b.vendorPhone;
+        _vendorGst = b.vendorGst;
+        _vendorAddress = b.vendorAddress;
       });
-
-      // Match or populate vendor
-      final vendors = PurchaseBillService.instance.getVendors();
-      Map<String, dynamic>? matchedVendor;
-      if (parsed.vendorGst != null && parsed.vendorGst!.isNotEmpty) {
-        matchedVendor = vendors.cast<Map<String, dynamic>?>().firstWhere(
-              (v) =>
-                  v?['gst']?.toString().toUpperCase() ==
-                  parsed.vendorGst!.toUpperCase(),
-              orElse: () => null,
-            );
-      }
-      if (matchedVendor == null &&
-          parsed.vendorName != null &&
-          parsed.vendorName!.isNotEmpty) {
-        final target = parsed.vendorName!.toLowerCase();
-        matchedVendor = vendors.cast<Map<String, dynamic>?>().firstWhere(
-              (v) =>
-                  (v?['name']?.toString().toLowerCase().contains(target) ??
-                      false) ||
-                  target
-                      .contains(v?['name']?.toString().toLowerCase() ?? '---'),
-              orElse: () => null,
-            );
-      }
-
-      if (matchedVendor != null) {
-        await _applyVendorMap(matchedVendor);
-      } else if (parsed.vendorName != null && parsed.vendorName!.isNotEmpty) {
-        setState(() {
-          _vendorName = parsed.vendorName!;
-          if (parsed.vendorPhone != null) _vendorPhone = parsed.vendorPhone!;
-          if (parsed.vendorGst != null) _vendorGst = parsed.vendorGst!;
-          if (parsed.vendorAddress != null)
-            _vendorAddress = parsed.vendorAddress!;
-        });
-      }
-
-      // Auto-populate line items if extracted
-      if (parsed.hasItems) {
-        final newRows = <_EditableItem>[];
-        for (final pItem in parsed.items) {
-          final row = _EditableItem(
-            name: pItem.description,
-            sku: pItem.skuOrHsn ?? '',
-            hsnCode: pItem.skuOrHsn ?? '',
-            quantity: pItem.quantity,
-            purchaseRate: pItem.unitPrice,
-            mrp: pItem.mrp,
-            sellingPrice: pItem.mrp > 0
-                ? pItem.mrp
-                : (pItem.unitPrice * 1.20).roundToDouble(),
-            discount: pItem.discount,
-            taxPercent: pItem.taxPercent > 0 ? pItem.taxPercent : 18.0,
-            isMatchLoading: true,
-          );
-          newRows.add(row);
-        }
-
-        setState(() {
-          _items.clear();
-          _items.addAll(newRows);
-          _parsedBillBanner =
-              'Auto-extracted ${parsed.itemCount} items from ${file.name} (${parsed.parsingMethod}). Review & confirm.';
-        });
-
-        // Smart product matching against inventory
-        for (final row in newRows) {
-          _triggerProductMatch(row);
-        }
-
-        TekFeedback.success('Extracted ${parsed.itemCount} items from bill!');
-      } else {
-        setState(() {
-          _parsedBillBanner =
-              'Bill attached (${file.name}). Enter items below.';
-        });
-        TekFeedback.toast('Bill attached: ${file.name}');
-      }
-
-      _checkDuplicateInvoice();
-      _recalcState();
-      _scheduleDraftSave();
-    } catch (e) {
-      TekFeedback.error('Failed to parse bill: $e');
-    } finally {
-      if (mounted) setState(() => _isParsingBill = false);
+      _updateEngine();
     }
+    if (!mounted) return;
+    setState(() {
+      if (b.invoiceNumber.isNotEmpty) _invoiceNumCtrl.text = b.invoiceNumber;
+      if (b.invoiceDate != null) _invoiceDate = b.invoiceDate!;
+      _importedPrintedTotalPaise = b.printedTotalPaise;
+      if (b.printedTotalPaise != null) {
+        _printedTotalCtrl.text = (b.printedTotalPaise! / 100).toStringAsFixed(2);
+      }
+      if (b.otherChargesPaise > 0) {
+        _chargesCtrl.text = (b.otherChargesPaise / 100).toStringAsFixed(2);
+      }
+      if (b.attachment != null) {
+        _attachment = b.attachment;
+        _attachmentBytes = b.attachmentBytes;
+      }
+      _isGstEnabled = b.gstEnabled;
+      // Follow the vendor: no extra round-off when the bill isn't rounded
+      // (₹2,250.60 must stay ₹2,250.60, not become ₹2,251).
+      if (b.printedTotalPaise != null) {
+        _applyRoundOff = b.printedTotalPaise! % 100 == 0;
+      }
+      _entrySource = EntrySource.billUpload;
+      _items.clear();
+      for (final it in b.items) {
+        _items.add(_EditableItem(
+          rowId: it.id,
+          itemKey: it.itemKey,
+          name: it.name,
+          brand: it.brand,
+          model: it.model,
+          sku: it.sku,
+          hsnCode: it.hsnCode,
+          quantity: it.quantity,
+          purchaseRate: it.purchaseRate,
+          mrp: it.mrp,
+          sellingPrice: it.sellingPrice,
+          discount: it.discount,
+          taxPercent: it.taxPercent,
+          isNewProduct: it.isNewProduct,
+          isStagedReady: true,
+          matchedProductId: it.matchedProductId,
+          matchedProductName: it.matchedProductName,
+          matchStatus: it.matchStatusOverride,
+          matchNotes: it.matchNotes,
+          category: it.category,
+          serialNumbers: it.serialNumbers,
+          imeiRequired: it.imeiRequired,
+          warrantyDuration: it.warrantyDuration,
+        ));
+      }
+      _parsedBillBanner = '${b.sourceNote}: ${b.items.length} items. '
+          'Check payment and save. (${b.items.length} ഐറ്റങ്ങൾ ഇംപോർട്ട് '
+          'ചെയ്തു — പേയ്‌മെന്റ് നോക്കി സേവ് ചെയ്യുക)';
+    });
+    _checkDuplicateInvoice();
+    _recalcState();
+    _scheduleDraftSave();
   }
 
   // -------------------------------------------------------------------------
@@ -957,34 +909,42 @@ class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: Colors.white12),
                       ),
-                      child: ListView.separated(
-                        shrinkWrap: true,
-                        itemCount: entered.length,
-                        separatorBuilder: (_, __) =>
-                            const Divider(color: Colors.white10, height: 1),
-                        itemBuilder: (c, i) => Row(
+                      // Measurable inside AlertDialog (see note above).
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text('#${i + 1}',
-                                style: const TextStyle(
-                                    color: DashboardColors.textMuted,
-                                    fontSize: 11)),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                entered[i],
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontFamily: 'monospace',
-                                    fontSize: 12),
+                            for (var i = 0; i < entered.length; i++) ...[
+                              if (i > 0)
+                                const Divider(color: Colors.white10, height: 1),
+                              Row(
+                                children: [
+                                  Text('#${i + 1}',
+                                      style: const TextStyle(
+                                          color: DashboardColors.textMuted,
+                                          fontSize: 11)),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      entered[i],
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontFamily: 'monospace',
+                                          fontSize: 12),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                        Icons.remove_circle_outline,
+                                        color: DashboardColors.alertRed,
+                                        size: 16),
+                                    onPressed: () {
+                                      setDialogState(() => entered.removeAt(i));
+                                    },
+                                  ),
+                                ],
                               ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.remove_circle_outline,
-                                  color: DashboardColors.alertRed, size: 16),
-                              onPressed: () {
-                                setDialogState(() => entered.removeAt(i));
-                              },
-                            ),
+                            ],
                           ],
                         ),
                       ),
@@ -1018,76 +978,6 @@ class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
         },
       ),
     );
-  }
-
-  void _triggerProductMatch(_EditableItem row) async {
-    try {
-      final match = await PurchaseBillService.instance.matchProductInFirestore(
-        name: row.name,
-        sku: row.sku.isNotEmpty ? row.sku : null,
-        model: row.model.isNotEmpty ? row.model : null,
-        barcode: row.sku.isNotEmpty ? row.sku : null,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        row.isMatchLoading = false;
-        if (match != null) {
-          row.matchStatus =
-              match['status'] as String? ?? ProductMatchStatus.matched;
-          row.matchedProductId = match['id']?.toString();
-          row.itemKey = match['itemKey'] ?? match['id'];
-          row.matchedProductName = match['name']?.toString() ?? row.name;
-          row.matchNotes = match['notes']?.toString();
-          row.isNewProduct =
-              match['status'] == ProductMatchStatus.quickRegister;
-          row.isStagedReady = true;
-
-          // Pre-fill from catalog data
-          final data = match['data'] as Map?;
-          if (data != null) {
-            if (_isGstEnabled) {
-              if (data['gstRate'] != null) {
-                row.taxPercent = (data['gstRate'] as num).toDouble();
-              }
-            } else {
-              row.taxPercent = 0.0;
-            }
-            if (row.sellingPrice == 0.0 && data['sellingPrice'] != null) {
-              row.sellingPrice = (data['sellingPrice'] as num).toDouble();
-            }
-            if (row.mrp == 0.0 && data['mrp'] != null) {
-              row.mrp = (data['mrp'] as num).toDouble();
-            }
-            if (row.hsnCode.isEmpty && data['hsn'] != null) {
-              row.hsnCode = data['hsn'].toString();
-            }
-            row.imeiRequired = data['imeiRequired'] == true;
-          }
-        } else {
-          row.matchStatus = ProductMatchStatus.quickRegister;
-          row.isNewProduct = true;
-          row.isStagedReady = true;
-          if (row.sku.isEmpty) {
-            row.sku = 'TKF${DateTime.now().millisecondsSinceEpoch}';
-          }
-        }
-      });
-      _recalcState();
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          row.isMatchLoading = false;
-          row.matchStatus = ProductMatchStatus.quickRegister;
-          row.isNewProduct = true;
-          row.isStagedReady = true;
-          if (row.sku.isEmpty) {
-            row.sku = 'TKF${DateTime.now().millisecondsSinceEpoch}';
-          }
-        });
-      }
-    }
   }
 
   /// Single-Step Item Addition & Edit Dialog (Vyapar-like fast flow)
@@ -1287,70 +1177,91 @@ class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
                             offset: const Offset(0, 4)),
                       ],
                     ),
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: suggestions.length,
-                      separatorBuilder: (_, __) =>
-                          const Divider(color: Colors.white10, height: 1),
-                      itemBuilder: (ctx3, idx) {
-                        final s = suggestions[idx];
-                        return ListTile(
-                          dense: true,
-                          visualDensity: VisualDensity.compact,
-                          title: Text(
-                            s.name,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12),
-                          ),
-                          subtitle: Text(
-                            'SKU: ${s.sku.isNotEmpty ? s.sku : s.barcode}  |  Stock: ${s.stock}  |  Rate: ₹${s.lastPurchaseRate.toStringAsFixed(0)}',
-                            style: const TextStyle(
-                                color: DashboardColors.textMuted, fontSize: 11),
-                          ),
-                          trailing: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: DashboardColors.neonBlue,
-                              foregroundColor: Colors.black,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 4),
-                              minimumSize: const Size(0, 26),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(6)),
-                            ),
-                            onPressed: () {
-                              setLocal(() {
-                                nameCtrl.text = s.name;
-                                barcodeCtrl.text =
-                                    s.sku.isNotEmpty ? s.sku : s.barcode;
-                                if (s.lastPurchaseRate > 0)
-                                  rateCtrl.text =
-                                      s.lastPurchaseRate.toStringAsFixed(2);
-                                if (s.sellingPrice > 0)
-                                  spCtrl.text =
-                                      s.sellingPrice.toStringAsFixed(0);
-                                if (s.mrp > 0)
-                                  mrpCtrl.text = s.mrp.toStringAsFixed(0);
-                                if (s.hsn.isNotEmpty) hsnCtrl.text = s.hsn;
-                                if (_isGstEnabled && s.gst > 0) taxPct = s.gst;
-                                if (s.warranty.isNotEmpty &&
-                                    ItemWarrantyDuration.options
-                                        .contains(s.warranty)) {
-                                  selectedWarranty = s.warranty;
-                                }
-                                matchedProductId = s.productId;
-                                matchedItemKey = s.itemKey;
-                                isExistingProduct = true;
-                                showSuggestions = false;
-                              });
-                            },
-                            child: const Text('Select',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold, fontSize: 11)),
-                          ),
-                        );
-                      },
+                    // AlertDialog measures its content's intrinsic size; a
+                    // shrinkWrap ListView cannot be measured, which broke this
+                    // dialog into a blank blue box while typing. A scrollable
+                    // Column (max 5 rows) can be measured.
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (var idx = 0;
+                                idx < suggestions.length;
+                                idx++) ...[
+                              if (idx > 0)
+                                const Divider(color: Colors.white10, height: 1),
+                              Builder(builder: (ctx3) {
+                                final s = suggestions[idx];
+                                return ListTile(
+                                  dense: true,
+                                  visualDensity: VisualDensity.compact,
+                                  title: Text(
+                                    s.name,
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12),
+                                  ),
+                                  subtitle: Text(
+                                    'SKU: ${s.sku.isNotEmpty ? s.sku : s.barcode}  |  Stock: ${s.stock}  |  Rate: ₹${s.lastPurchaseRate.toStringAsFixed(0)}',
+                                    style: const TextStyle(
+                                        color: DashboardColors.textMuted,
+                                        fontSize: 11),
+                                  ),
+                                  trailing: ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: DashboardColors.neonBlue,
+                                      foregroundColor: Colors.black,
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 4),
+                                      minimumSize: const Size(0, 26),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(6)),
+                                    ),
+                                    onPressed: () {
+                                      setLocal(() {
+                                        nameCtrl.text = s.name;
+                                        barcodeCtrl.text = s.sku.isNotEmpty
+                                            ? s.sku
+                                            : s.barcode;
+                                        if (s.lastPurchaseRate > 0)
+                                          rateCtrl.text = s.lastPurchaseRate
+                                              .toStringAsFixed(2);
+                                        if (s.sellingPrice > 0)
+                                          spCtrl.text =
+                                              s.sellingPrice.toStringAsFixed(0);
+                                        if (s.mrp > 0)
+                                          mrpCtrl.text =
+                                              s.mrp.toStringAsFixed(0);
+                                        if (s.hsn.isNotEmpty)
+                                          hsnCtrl.text = s.hsn;
+                                        if (_isGstEnabled && s.gst > 0)
+                                          taxPct = s.gst;
+                                        if (s.warranty.isNotEmpty &&
+                                            ItemWarrantyDuration.options
+                                                .contains(s.warranty)) {
+                                          selectedWarranty = s.warranty;
+                                        }
+                                        matchedProductId = s.productId;
+                                        matchedItemKey = s.itemKey;
+                                        isExistingProduct = true;
+                                        showSuggestions = false;
+                                      });
+                                    },
+                                    child: const Text('Select',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 11)),
+                                  ),
+                                );
+                              }),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -1792,7 +1703,7 @@ class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
     setState(() => _isSaving = true);
     _draftTimer?.cancel();
     _draftTimer = null;
-    await ManualPurchaseDraftService.instance.delete();
+    if (!_fromImport) await ManualPurchaseDraftService.instance.delete();
     if (!mounted) return;
 
     try {
@@ -1847,11 +1758,14 @@ class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
         staffId: auth.uid,
         staffName: auth.name.isNotEmpty ? auth.name : 'Owner',
         notes: _notesCtrl.text.trim(),
-        entrySource: EntrySource.manual,
+        invoiceExtractedTotal: _importedPrintedTotalPaise == null
+            ? null
+            : _importedPrintedTotalPaise! / 100.0,
+        entrySource: _entrySource,
       );
 
       // Delete draft on success
-      await ManualPurchaseDraftService.instance.delete();
+      if (!_fromImport) await ManualPurchaseDraftService.instance.delete();
 
       if (mounted) {
         TekFeedback.success('Purchase bill ${confirmedBill.billNumber} saved!');

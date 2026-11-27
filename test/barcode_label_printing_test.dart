@@ -136,8 +136,70 @@ void main() {
         showPrice: true,
       );
 
-      // (18 * 11) + 35 = 233 modules. Module 2 would be 466 > 272. Must auto-reduce to module 1.
-      expect(tspl, contains('"128",60,0,0,1,1,"890123456789012345"'));
+      // All digits: the printer packs them in pairs (subset C):
+      // start + 9 pairs + check = 11 symbols * 11 + 13 = 134 modules.
+      // 2-dot bars = 268 dots <= 272, so it stays at module 2.
+      expect(TsplGenerator.code128Modules('890123456789012345'), 134);
+      expect(tspl, contains('"128",60,0,0,2,2,"890123456789012345"'));
+
+      // Shop codes: TKF + 13 digits = 156 modules; 2-dot = 312 > 272 -> 1.
+      final tkf = TsplGenerator.generateSingleLabel(
+        item: BarcodeLabelItem(
+            name: 'APPAMO 5D SCREEN GURD',
+            barcode: 'TKF1794490827102',
+            mrp: 150.0,
+            quantity: 1),
+        config: const PrinterConfig(),
+      );
+      expect(tkf, contains('"128",60,0,0,1,1,"TKF1794490827102"'));
+    });
+
+    test('Code 128 width matches what the printer prints', () {
+      expect(TsplGenerator.code128Modules('TF200601'), 101);
+      expect(TsplGenerator.code128Modules('TKF1794490827102'), 156);
+      expect(TsplGenerator.code128Modules('ABC'), 68); // all subset B
+      expect(TsplGenerator.code128Modules('12'), 46); // start C, 1 pair
+      expect(TsplGenerator.code128Modules('123'), 68); // odd: B
+    });
+
+    test('barcode is centred under the centred text (38 mm, 50 mm)', () {
+      for (final cfg in const [
+        PrinterConfig(),
+        PrinterConfig(widthMm: 50, preset: LabelPreset.preset50x25),
+      ]) {
+        for (final code in [
+          'TKF1794490827102',
+          'TF200601',
+          '356789012345678',
+          'TPU'
+        ]) {
+          final t = TsplGenerator.generateSingleLabel(
+            item: BarcodeLabelItem(
+                name: 'Screen Guard', barcode: code, mrp: 150, quantity: 1),
+            config: cfg,
+          );
+          final m = RegExp(r'BARCODE (\d+),\d+,"128",\d+,0,0,(\d),')
+              .firstMatch(t)!;
+          final x = int.parse(m[1]!), narrow = int.parse(m[2]!);
+          final width = TsplGenerator.code128Modules(code) * narrow;
+          final centre = x + width / 2;
+          expect((centre - cfg.widthDots / 2).abs(), lessThanOrEqualTo(1),
+              reason: '$code on ${cfg.widthMm} mm');
+          expect(x + width, lessThanOrEqualTo(cfg.widthDots - cfg.safeMarginDots),
+              reason: '$code fits inside the label');
+          // Every text line is centred on the same axis as the bars, using
+          // the printer's real character width.
+          for (final t2 in RegExp(r'TEXT (\d+),\d+,"(\d)",0,1,1,"([^"]*)"')
+              .allMatches(t)) {
+            final adv = t2[2] == '1'
+                ? TsplGenerator.font1Advance
+                : TsplGenerator.font2Advance;
+            final c = int.parse(t2[1]!) + t2[3]!.length * adv / 2;
+            expect((c - centre).abs(), lessThanOrEqualTo(adv / 2 + 1),
+                reason: '"${t2[3]}" centred over $code');
+          }
+        }
+      }
     });
 
     // -------------------------------------------------------------------------
@@ -320,7 +382,7 @@ void main() {
       expect(find.text('TEKFIX DIGITAL'), findsOneWidget);
       expect(find.text('BATTERY AXLEL GOLD 805'), findsNWidgets(2));
       expect(find.text('TKF123456'), findsNWidgets(2));
-      expect(find.text('MRP: ₹450'), findsOneWidget);
+      expect(find.text('MRP: ₹450.00'), findsOneWidget);
 
       // Verify Action Buttons
       expect(find.text('Print Border Test'), findsOneWidget);

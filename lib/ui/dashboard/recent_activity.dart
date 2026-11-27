@@ -26,9 +26,13 @@ class TekRecentActivity extends StatelessWidget {
       final s = tekM(Db.sales.getAt(i));
       final isRet = isSaleReturned(s);
       final inv = s['invoice'] ?? 'INV';
-      final cust = s['customerName'] ?? 'Walk-in Customer';
-      final dt = tekDt(s['createdAt']);
+      // Sales store the customer as 'partyName' (older bills: 'customerName').
+      final rawCust = '${s['partyName'] ?? s['customerName'] ?? ''}'.trim();
+      final cust = rawCust.isEmpty ? 'Walk-in Customer' : rawCust;
+      // createdAt is a UTC ISO string — show it in local time.
+      final dt = tekDt(s['createdAt']).toLocal();
       final total = tekD(s['total']);
+      final due = tekD(s['due']);
 
       items.add(
         _ActivityItemModel(
@@ -39,9 +43,14 @@ class TekRecentActivity extends StatelessWidget {
               : Icons.receipt_long_rounded,
           iconColor:
               isRet ? DashboardColors.neonPink : DashboardColors.neonGreen,
-          statusLabel: isRet ? 'Returned' : 'Payment Received ${rs(total)}',
-          statusColor:
-              isRet ? DashboardColors.neonPink : DashboardColors.neonGreen,
+          statusLabel: isRet
+              ? 'Returned'
+              : (due > 0.005 ? 'Credit ${rs(due)}' : 'Paid ${rs(total)}'),
+          statusColor: isRet
+              ? DashboardColors.neonPink
+              : (due > 0.005
+                  ? DashboardColors.neonOrange
+                  : DashboardColors.neonGreen),
           date: dt,
         ),
       );
@@ -52,17 +61,17 @@ class TekRecentActivity extends StatelessWidget {
       final sm = tekM(Db.stockMoves.getAt(i));
       final name = sm['itemName'] ?? 'Item';
       final delta = tekI(sm['delta']);
-      final dt = tekDt(sm['date']);
+      final dt = tekDt(sm['date']).toLocal();
 
       items.add(
         _ActivityItemModel(
-          title: '$name • Stock Move',
+          title: '$name • Stock ${delta >= 0 ? 'In' : 'Out'}',
           subtitle: DateFormat('dd MMM yyyy, hh:mm a').format(dt),
           icon: Icons.inventory_2_rounded,
           iconColor: DashboardColors.neonBlue,
-          statusLabel:
-              delta >= 0 ? 'Stock Updated +$delta' : 'Stock Updated $delta',
-          statusColor: DashboardColors.neonBlue,
+          statusLabel: delta >= 0 ? '+$delta' : '$delta',
+          statusColor:
+              delta >= 0 ? DashboardColors.neonBlue : DashboardColors.textMuted,
           date: dt,
         ),
       );
@@ -73,8 +82,9 @@ class TekRecentActivity extends StatelessWidget {
       final a = tekM(Db.audit.getAt(i));
       final action = a['action'] ?? 'Action';
       final entity = a['entity'] ?? 'System';
-      final dt = tekDt(a['date']);
+      final dt = tekDt(a['date'] ?? a['timestamp']).toLocal();
       final user = a['user'] ?? 'Owner';
+      final status = _auditStatus('$action');
 
       items.add(
         _ActivityItemModel(
@@ -82,8 +92,10 @@ class TekRecentActivity extends StatelessWidget {
           subtitle: '$user • ${DateFormat('dd MMM yyyy, hh:mm a').format(dt)}',
           icon: Icons.history_rounded,
           iconColor: DashboardColors.neonPurple,
-          statusLabel: 'In Progress',
-          statusColor: DashboardColors.neonOrange,
+          // Old code labelled every audit entry "In Progress", even
+          // confirmed bills. Derive a real label from the action instead.
+          statusLabel: status.$1,
+          statusColor: status.$2,
           date: dt,
         ),
       );
@@ -91,23 +103,24 @@ class TekRecentActivity extends StatelessWidget {
 
     // Sort by date descending
     items.sort((a, b) => b.date.compareTo(a.date));
-    final displayItems = items.take(6).toList();
+
+    // Drop exact duplicates logged within 2 minutes of each other
+    // (e.g. a purchase bill confirmed twice by a double tap).
+    final displayItems = <_ActivityItemModel>[];
+    for (final it in items) {
+      final dup = displayItems.any((d) =>
+          d.title == it.title &&
+          d.statusLabel == it.statusLabel &&
+          d.date.difference(it.date).inSeconds.abs() < 120);
+      if (!dup) displayItems.add(it);
+      if (displayItems.length >= 6) break;
+    }
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0x1F182652),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: const Color(0x2BFFFFFF),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        color: DashboardColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: DashboardColors.border, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -121,28 +134,14 @@ class TekRecentActivity extends StatelessWidget {
                 Expanded(
                   child: Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color:
-                              DashboardColors.neonBlue.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.access_time_filled_rounded,
-                          color: DashboardColors.neonBlue,
-                          size: 18,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           'Recent Activity',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: DashboardTypography.poppins(
-                            fontSize: 15.5,
-                            fontWeight: FontWeight.bold,
+                          style: DashboardTypography.inter(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
@@ -182,7 +181,7 @@ class TekRecentActivity extends StatelessWidget {
             ),
           ),
 
-          const Divider(height: 1, thickness: 1, color: Color(0x14FFFFFF)),
+          const Divider(height: 1, thickness: 1, color: DashboardColors.border),
 
           // Items List using ListView.builder
           if (displayItems.isEmpty)
@@ -206,7 +205,7 @@ class TekRecentActivity extends StatelessWidget {
               separatorBuilder: (_, __) => const Divider(
                 height: 1,
                 thickness: 1,
-                color: Color(0x14FFFFFF),
+                color: DashboardColors.border,
                 indent: 64,
               ),
               itemBuilder: (context, idx) {
@@ -223,10 +222,6 @@ class TekRecentActivity extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: item.iconColor.withValues(alpha: 0.14),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: item.iconColor.withValues(alpha: 0.3),
-                            width: 1,
-                          ),
                         ),
                         child: Icon(
                           item.icon,
@@ -247,15 +242,17 @@ class TekRecentActivity extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: DashboardTypography.inter(
                                 fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                                color: DashboardColors.textWhite,
                               ),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               item.subtitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: DashboardTypography.inter(
-                                fontSize: 11,
+                                fontSize: 11.5,
                                 color: DashboardColors.textMuted,
                               ),
                             ),
@@ -272,10 +269,6 @@ class TekRecentActivity extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: item.statusColor.withValues(alpha: 0.14),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: item.statusColor.withValues(alpha: 0.35),
-                            width: 1,
-                          ),
                         ),
                         child: Text(
                           item.statusLabel,
@@ -315,4 +308,26 @@ class _ActivityItemModel {
     required this.statusColor,
     required this.date,
   });
+}
+
+/// Maps an audit action name to a short status label + colour.
+(String, Color) _auditStatus(String action) {
+  final a = action.toLowerCase();
+  if (a.contains('delete') || a.contains('cancel')) {
+    return ('Cancelled', DashboardColors.neonPink);
+  }
+  if (a.contains('return') || a.contains('refund')) {
+    return ('Returned', DashboardColors.neonPink);
+  }
+  if (a.contains('confirm') ||
+      a.contains('created') ||
+      a.contains('paid') ||
+      a.contains('received') ||
+      a.contains('money in')) {
+    return ('Done', DashboardColors.neonGreen);
+  }
+  if (a.contains('pending') || a.contains('draft')) {
+    return ('Pending', DashboardColors.neonOrange);
+  }
+  return ('Updated', DashboardColors.neonBlue);
 }

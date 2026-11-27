@@ -1,0 +1,88 @@
+{
+  "staffDenial": {
+    "timestamp": "2026-11-11T17:09:44.579Z",
+    "durationMs": 688,
+    "statusCode": 401,
+    "headers": {
+      "date": "Wed, 11 Nov 2026 17:09:47 GMT",
+      "cfRay": "a58ee816ff6ead28-MAA",
+      "sbEdgeRegion": "ap-south-1",
+      "correlationId": "a58ee816ff6ead28-MAA"
+    },
+    "body": {
+      "error": "Authentication failed: signature verification failed"
+    }
+  },
+  "unenrolledDeviceDenial": {
+    "timestamp": "2026-11-11T17:09:44.780Z",
+    "durationMs": 199,
+    "statusCode": 401,
+    "headers": {
+      "date": "Wed, 11 Nov 2026 17:09:47 GMT",
+      "cfRay": "a58ee819ce44ad28-MAA",
+      "sbEdgeRegion": "ap-south-1",
+      "correlationId": "a58ee819ce44ad28-MAA"
+    },
+    "body": {
+      "error": "Authentication failed: signature verification failed"
+    }
+  },
+  "invalidSignatureDenial": {
+    "timestamp": "2026-11-11T17:09:44.881Z",
+    "durationMs": 101,
+    "statusCode": 401,
+    "headers": {
+      "date": "Wed, 11 Nov 2026 17:09:47 GMT",
+      "cfRay": "a58ee81b092aad28-MAA",
+      "sbEdgeRegion": "ap-south-1",
+      "correlationId": "a58ee81b092aad28-MAA"
+    },
+    "body": {
+      "error": "Authentication failed: signature verification failed"
+    }
+  },
+  "replayedNonceDenial": {
+    "timestamp": "2026-11-11T17:09:44.938Z",
+    "durationMs": 56,
+    "statusCode": 401,
+    "headers": {
+      "date": "Wed, 11 Nov 2026 17:09:47 GMT",
+      "cfRay": "a58ee81baad4ad28-MAA",
+      "sbEdgeRegion": "ap-south-1",
+      "correlationId": "a58ee81baad4ad28-MAA"
+    },
+    "body": {
+      "error": "Authentication failed: signature verification failed"
+    }
+  },
+  "duplicateIdempotency": {
+    "first": {
+      "timestamp": "2026-11-11T17:09:45.002Z",
+      "durationMs": 63,
+      "statusCode": 401,
+      "headers": {
+        "date": "Wed, 11 Nov 2026 17:09:47 GMT",
+        "cfRay": "a58ee81bfb93ad28-MAA",
+        "sbEdgeRegion": "ap-south-1",
+        "correlationId": "a58ee81bfb93ad28-MAA"
+      },
+      "body": {
+        "error": "Authentication failed: signature verification failed"
+      }
+    },
+    "second": {
+      "timestamp": "2026-11-11T17:09:45.100Z",
+      "durationMs": 98,
+      "statusCode": 401,
+      "headers": {
+        "date": "Wed, 11 Nov 2026 17:09:47 GMT",
+        "cfRay": "a58ee81c6ca1ad28-MAA",
+        "sbEdgeRegion": "ap-south-1",
+        "correlationId": "a58ee81c6ca1ad28-MAA"
+      },
+      "body": {
+        "error": "Authentication failed: signature verification failed"
+      }
+    }
+  }
+}

@@ -1,0 +1,104 @@
+Created At: 2026-11-05T09:41:53+05:30
+Completed At: 2026-11-05T09:41:54+05:30
+Showing lines 200-300 of 1177
+200:     );
+201: 
+202:     if (picked != null) {
+203:       setState(() {
+204:         _dateFilter = 'Custom';
+205:         _customDateRange = picked;
+206:       });
+207:     }
+208:   }
+209: 
+210:   void _showExpenseDetails(ExpenseItem exp) {
+211:     showModalBottomSheet(
+212:       context: context,
+213:       isScrollControlled: true,
+214:       backgroundColor: Colors.transparent,
+215:       builder: (ctx) => Container(
+216:         padding: const EdgeInsets.all(22),
+217:         decoration: const BoxDecoration(
+218:           color: TekColors.bgCard,
+219:           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+220:           border: Border(top: BorderSide(color: TekColors.border, width: 1.5)),
+221:         ),
+222:         child: Column(
+223:           mainAxisSize: MainAxisSize.min,
+224:           crossAxisAlignment: CrossAxisAlignment.stretch,
+225:           children: [
+226:             Row(
+227:               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+228:               children: [
+229:                 Expanded(
+230:                   child: Column(
+231:                     crossAxisAlignment: CrossAxisAlignment.start,
+232:                     children: [
+233:                       Row(
+234:                         children: [
+235:                           Container(
+236:                             padding: const EdgeInsets.symmetric(
+237:                                 horizontal: 8, vertical: 3),
+238:                             decoration: BoxDecoration(
+239:                               color: exp.isVoided
+240:                                   ? TekColors.error.withValues(alpha: 0.15)
+241:                                   : TekColors.primary.withValues(alpha: 0.15),
+242:                               borderRadius: BorderRadius.circular(6),
+243:                               border: Border.all(
+244:                                 color: exp.isVoided
+245:                                     ? TekColors.error
+246:                                     : TekColors.primary,
+247:                               ),
+248:                             ),
+249:                             child: Text(
+250:                               exp.isVoided
+251:                                   ? 'VOIDED / CANCELLED'
+252:                                   : exp.category,
+253:                               style: TextStyle(
+254:                                 fontSize: 11,
+255:                                 fontWeight: FontWeight.bold,
+256:                                 color: exp.isVoided
+257:                                     ? TekColors.error
+258:                                     : TekColors.primary,
+259:                               ),
+260:                             ),
+261:                           ),
+262:                           const SizedBox(width: 8),
+263:                           Text(
+264:                             ExpenseCategory.toMalayalam(exp.category),
+265:                             style: const TextStyle(
+266:                               fontSize: 11.5,
+267:                               color: TekColors.textSecondary,
+268:                               fontFamilyFallback:
+269:                                   TekTypography.malayalamFallback,
+270:                             ),
+271:                           ),
+272:                         ],
+273:                       ),
+274:                       const SizedBox(height: 6),
+275:                       Text(
+276:                         exp.title,
+277:                         style: TextStyle(
+278:                           fontSize: 18,
+279:                           fontWeight: FontWeight.bold,
+280:                           color: TekColors.textPrimary,
+281:                           decoration:
+282:                               exp.isVoided ? TextDecoration.lineThrough : null,
+283:                         ),
+284:                       ),
+285:                     ],
+286:                   ),
+287:                 ),
+288:                 Text(
+289:                   '₹${exp.amount.toStringAsFixed(2)}',
+290:                   style: TextStyle(
+291:                     fontSize: 22,
+292:                     fontWeight: FontWeight.w900,
+293:                     color: exp.isVoided
+294:                         ? TekColors.textMuted
+295:                         : const Color(0xFFF43F5E),
+296:                   ),
+297:                 ),
+298:               ],
+299:             ),
+300:             const SizedBox(height: 16),

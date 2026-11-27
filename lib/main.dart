@@ -3,25 +3,38 @@
 // (Dark-theme fixed: all text/background colors now follow the active theme)
 // =============================================================================
 import 'dart:async';
+import 'dart:io' show exit;
+import 'dart:math' as math;
 import 'dart:convert';
 import 'dart:ui';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+
+import 'core/hive_safe_open.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import 'auth/auth_controller.dart';
 import 'auth/login_gate.dart';
 import 'core/device.dart';
+import 'recharge/recharge_backend_bridge.dart';
+import 'recharge/recharge_recovery_engine.dart';
+import 'recharge/quick_recharge_screen.dart';
+import 'recharge/supabase_recharge_bridge_client.dart';
+import 'security/device_security_service.dart';
+import 'security/staging_identity_service.dart';
 import 'staff/activity_log.dart';
 import 'staff/staff_accounts_view.dart';
 import 'staff/staff_tracking_view.dart';
@@ -54,8 +67,11 @@ import 'notifications/notification_service.dart';
 import 'notifications/tek_notification_panel.dart';
 import 'returns/returns_dashboard_view.dart';
 import 'purchases/purchase_bills_dashboard_view.dart';
+import 'purchases/purchase_bill_service.dart' show PurchaseBillService;
 import 'pos/daily_sales_ledger_view.dart';
+import 'pos/daily_register_service.dart';
 import 'staff/salary_calculator.dart';
+import 'staff/staff_board.dart';
 import 'expenses/expense_management_screen.dart';
 import 'expenses/expense_service.dart';
 import 'expenses/expense_models.dart';
@@ -64,9 +80,42 @@ import 'rent/daily_rent_history_view.dart';
 import 'owner/owner_ledger_view.dart';
 import 'barcode/barcode_print_dialog.dart';
 import 'repairs/service_bill_dialog.dart';
+import 'migration/feature_upgrade_migration.dart';
+import 'crm/crm_app.dart';
+import 'crm/customer_crm.dart';
+import 'crm/customer_models.dart';
+import 'crm/pos_customer_panel.dart';
+import 'crm/customer_history_screen.dart';
+import 'crm/customer_search.dart';
+import 'crm/crm_messaging_screen.dart';
+import 'pos/whatsapp_invoice_message.dart';
+import 'crm/phone_utils.dart' show normalizePhone, phoneError;
+import 'repairs/job_intake.dart' show jobReadyMessage, jobReceivedMessage;
+import 'repairs/job_intake_actions.dart';
+import 'pos/new_pos/pos_theme.dart';
+import 'pos/new_pos/pos_discovery.dart';
+import 'pos/new_pos/pos_customer_logic.dart';
+import 'pos/new_pos/pos_cart_logic.dart';
+import 'pos/new_pos/pos_payment_logic.dart';
+import 'pos/new_pos/customer_display.dart';
+import 'pos/new_pos/pos_pin.dart';
+import 'pos/new_pos/pos_kiosk_window.dart';
+import 'pos/new_pos/customer_display_window.dart';
+import 'pos/new_pos/pos_hold_logic.dart';
+import 'security/auto_lock_service.dart';
+import 'reports/profit_loss_view.dart';
 export 'utils/tek_helpers.dart';
 export 'theme/tek_tokens.dart';
 export 'ui/dashboard/dashboard_screen.dart';
+
+// New POS UI (feature flag "Use new POS"): drives the same _SaleViewState.
+part 'pos/new_pos/new_pos_shell.dart';
+part 'pos/new_pos/new_pos_catalog.dart';
+part 'pos/new_pos/new_pos_customer.dart';
+part 'pos/new_pos/new_pos_cart.dart';
+part 'pos/new_pos/new_pos_payment.dart';
+part 'pos/new_pos/new_pos_privacy.dart';
+part 'pos/new_pos/new_pos_extras.dart';
 
 // -----------------------------------------------------------------------------
 // CONSTANTS, FORMATTERS & SMALL HELPERS
@@ -86,6 +135,11 @@ const String boxSyncQueue = 'tek_sync_queue';
 const String boxReturns = 'tek_returns';
 const String boxPurchaseBills = 'tek_purchase_bills';
 const String boxVendorPayments = 'tek_vendor_payments';
+const String boxRecharges = 'tek_recharges';
+const String boxRechargeQueue = 'tek_recharge_queue';
+const String boxRechargeDeadLetter = 'tek_recharge_dead_letter';
+const String boxRechargeReconciliation = 'tek_recharge_reconciliation';
+const String boxRechargeWalletLedger = 'tek_recharge_wallet_ledger';
 const List<String> allBoxes = [
   boxItems,
   boxParties,
@@ -102,9 +156,14 @@ const List<String> allBoxes = [
   boxReturns,
   boxPurchaseBills,
   boxVendorPayments,
+  boxRecharges,
+  boxRechargeQueue,
+  boxRechargeDeadLetter,
+  boxRechargeReconciliation,
+  boxRechargeWalletLedger,
 ];
 
-const Color kPrimary = Color(0xFF1E3A8A);
+const Color kPrimary = Color(0xFF4F46E5);
 const Color kInk = Color(0xFF111827);
 const Color kBorder = Color(0xFFE5E7EB);
 
@@ -167,6 +226,11 @@ class Db {
   static Box get returns => Hive.box(boxReturns);
   static Box get purchaseBills => Hive.box(boxPurchaseBills);
   static Box get vendorPayments => Hive.box(boxVendorPayments);
+  static Box get recharges => Hive.box(boxRecharges);
+  static Box get rechargeQueue => Hive.box(boxRechargeQueue);
+  static Box get rechargeDeadLetter => Hive.box(boxRechargeDeadLetter);
+  static Box get rechargeReconciliation => Hive.box(boxRechargeReconciliation);
+  static Box get rechargeWalletLedger => Hive.box(boxRechargeWalletLedger);
 
   // ---- Cross-device references ---------------------------------------------
   // Hive keys (0,1,2...) differ on every device; the `_id` stamped by the sync
@@ -218,17 +282,22 @@ class Db {
   static String setting(String key, [String def = '']) =>
       (settings.get(key, defaultValue: def) ?? def).toString();
 
-  static Future<void> moveMoney(String mode, double amount, String note) async {
+  /// [category] tags drawer-cash movements the Daily Register adds up
+  /// (see kCashCat* in pos/daily_register_models.dart).
+  static Future<void> moveMoney(String mode, double amount, String note,
+      {String? date, String? category}) async {
     if (amount == 0) return;
     final isCash = mode == 'Cash';
     final key = isCash ? 'cash_in_hand' : 'bank_balance';
     await bank.put(key, _r2(_d(bank.get(key)) + amount));
     final log = ((bank.get('txn_log') as List?) ?? []).toList();
+    final effectiveDate = date ?? DateTime.now().toIso8601String();
     log.add({
-      'date': DateTime.now().toIso8601String(),
+      'date': effectiveDate,
       'account': isCash ? 'Cash' : 'Bank',
       'amount': amount,
       'note': note,
+      if (category != null) 'category': category,
     });
     if (log.length > 500) log.removeRange(0, log.length - 500);
     await bank.put('txn_log', log);
@@ -236,7 +305,11 @@ class Db {
         action: amount >= 0 ? 'Money In' : 'Money Out',
         entity: 'Account',
         entityId: isCash ? 'Cash' : 'Bank',
-        newValue: {'amount': amount, 'note': note});
+        newValue: {
+          'amount': amount,
+          'note': note,
+          if (date != null) 'date': date,
+        });
   }
 
   static Future<void> adjustParty(dynamic key, double delta) async {
@@ -249,10 +322,11 @@ class Db {
   }
 
   static Future<void> stockMove(
-      dynamic itemKey, String name, int delta, String reason) async {
+      dynamic itemKey, String name, int delta, String reason,
+      {String? date}) async {
     if (delta == 0) return;
     await stockMoves.add({
-      'date': DateTime.now().toIso8601String(),
+      'date': date ?? DateTime.now().toIso8601String(),
       'itemKey': itemKey,
       'itemId': uidAt(items, itemKey),
       'itemName': name,
@@ -400,27 +474,76 @@ Future<bool> guardedDelete(BuildContext c, String msg,
 // -----------------------------------------------------------------------------
 // APP ENTRY
 // -----------------------------------------------------------------------------
-Future<void> _openBoxWithRecovery(String b) async {
-  try {
-    if (Hive.isBoxOpen(b)) return;
-    await Hive.openBox(b);
-  } catch (e) {
-    debugPrint(
-        '[TekFix Startup] Corrupted/unopenable Hive box detected: $b ($e). Recovering...');
-    try {
-      await Hive.deleteBoxFromDisk(b);
-      debugPrint('[TekFix Startup] Cleared corrupted box file from disk: $b');
-      await Hive.openBox(b);
-      debugPrint('[TekFix Startup] Reopened fresh box: $b');
-    } catch (e2) {
-      debugPrint('[TekFix Startup] Fatal: Unable to recreate box $b: $e2');
-    }
+/// Shown instead of the app when another TekFix already has the data open.
+/// Nothing was opened or changed by this copy.
+class TekFixAlreadyRunningApp extends StatelessWidget {
+  const TekFixAlreadyRunningApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'TekFix ERP & POS',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData.dark(),
+      home: Scaffold(
+        backgroundColor: const Color(0xFF0F172A),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.lock_clock_rounded, color: Colors.amberAccent, size: 56),
+                  const SizedBox(height: 16),
+                  const Text('TekFix ഇതിനകം തുറന്നിട്ടുണ്ട്',
+                      key: ValueKey('already-running-title'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  const Text('TekFix is already open on this computer.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white70, fontSize: 14)),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'ഒരേ സമയം രണ്ട് TekFix തുറക്കാൻ പറ്റില്ല. ഡാറ്റ സുരക്ഷിതമാണ്, ഒന്നും മാറ്റിയിട്ടില്ല.\n'
+                    'ആദ്യം തുറന്ന TekFix ഉപയോഗിക്കുക (ടാസ്ക്ബാറിലോ ക്ലോക്കിന് അടുത്തോ നോക്കുക), '
+                    'അല്ലെങ്കിൽ അത് അടച്ച ശേഷം വീണ്ടും തുറക്കുക.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5),
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton.icon(
+                    onPressed: () => exit(0),
+                    icon: const Icon(Icons.close_rounded),
+                    label: const Text('ഈ വിൻഡോ അടയ്ക്കുക (Close)'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
 Future<void> main() async {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+
+    // Customer display window (second monitor): a small read-only app in
+    // its own engine. It skips everything below (no Firebase / Hive / login).
+    if (await runCustomerDisplayWindowIfNeeded()) return;
+
+    // Ensure logs are forwarded to Android logcat in release builds
+    debugPrint = (String? message, {int? wrapWidth}) {
+      if (message != null) {
+        // ignore: avoid_print
+        print(message);
+      }
+    };
 
     // 1. Hook FlutterError.onError so errors show on screen / in logs instead of crashing
     FlutterError.onError = (FlutterErrorDetails details) {
@@ -438,26 +561,79 @@ Future<void> main() async {
 
     debugPrint('[TekFix Startup] 1. Flutter engine binding initialized');
 
-    // 2. Firebase Initialization (Optional, offline-first app starts even without it)
-    try {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      ).timeout(const Duration(seconds: 3));
-
-      FirebaseFirestore.instance.settings = const Settings(
-        persistenceEnabled: true,
-        cacheSizeBytes: 100 * 1024 * 1024,
+    // 2. Firebase / Staging Backend Initialization
+    if (DefaultFirebaseOptions.isUatMode) {
+      debugPrint('[TekFix Startup] 2. STAGING UAT ISOLATION ACTIVE');
+      debugPrint('[TekFix Startup] 2. Production Firebase (tekfix-45b38) strictly BLOCKED.');
+      debugPrint('[TekFix Startup] 2. Initializing Supabase Recharge Bridge client for ap-south-1 Mumbai...');
+      DefaultFirebaseOptions.validateStagingSupabaseReference(DefaultFirebaseOptions.expectedSupabaseEdgeUrl);
+      final stagingClient = SupabaseRechargeBridgeClient(
+        edgeFunctionBaseUrl: DefaultFirebaseOptions.expectedSupabaseEdgeUrl,
+        getFirebaseIdToken: () async => StagingIdentityService.getOptionAToken(
+          edgeFunctionBaseUrl: DefaultFirebaseOptions.expectedSupabaseEdgeUrl,
+          shopId: AuthController.instance.shopId,
+          ownerUid: AuthController.instance.uid,
+          deviceId: DeviceSecurityService.instance.deviceId,
+        ),
       );
-      debugPrint(
-          '[TekFix Startup] 2. Firebase initialized with offline persistence');
-    } catch (e) {
-      debugPrint('[TekFix Startup] 2. Firebase init skipped or failed: $e');
+      RechargeBackendBridge.configure(
+        mode: RechargeBackendMode.supabaseEdgeFunction,
+        supabaseClient: stagingClient,
+      );
+      debugPrint('[TekFix Startup] 2. Supabase Recharge Bridge configured successfully');
+    } else {
+      try {
+        DefaultFirebaseOptions.enforceProductionIsolation(
+          projectId: DefaultFirebaseOptions.currentPlatform.projectId,
+        );
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        ).timeout(const Duration(seconds: 3));
+
+        FirebaseFirestore.instance.settings = const Settings(
+          persistenceEnabled: true,
+          cacheSizeBytes: 100 * 1024 * 1024,
+        );
+        debugPrint(
+            '[TekFix Startup] 2. Firebase initialized with offline persistence');
+
+        // Configure Supabase Recharge Bridge for Production using genuine Firebase Auth ID Tokens
+        try {
+          final prodEdgeUrl = DefaultFirebaseOptions.productionSupabaseEdgeUrl;
+          final prodClient = SupabaseRechargeBridgeClient(
+            edgeFunctionBaseUrl: prodEdgeUrl,
+            getFirebaseIdToken: () async {
+              final user = FirebaseAuth.instance.currentUser;
+              if (user == null) return null;
+              return await user.getIdToken();
+            },
+          );
+          RechargeBackendBridge.configure(
+            mode: RechargeBackendMode.supabaseEdgeFunction,
+            supabaseClient: prodClient,
+          );
+          debugPrint('[TekFix Startup] 2. Production Supabase Recharge Bridge configured successfully ($prodEdgeUrl)');
+        } on StateError catch (se) {
+          debugPrint('[TekFix Startup] 2. Production Supabase Recharge Bridge configuration warning: $se');
+        } catch (bridgeErr) {
+          debugPrint('[TekFix Startup] 2. Production Supabase Recharge Bridge initialization failed: $bridgeErr');
+        }
+      } on StateError catch (se) {
+        debugPrint('[TekFix Startup] 2. CRITICAL PRODUCTION FAILURE: $se');
+        rethrow;
+      } catch (e) {
+        debugPrint('[TekFix Startup] 2. Firebase init skipped or failed: $e');
+      }
     }
 
     // 3. Hive Initialization with Corrupt Box Recovery
     debugPrint('[TekFix Startup] 3. Initializing Hive storage...');
     try {
-      await Hive.initFlutter();
+      // UAT/staging builds keep their local data in a separate folder
+      // (Documents\tekfix_uat_data) so they can never open the real shop's
+      // tek_*.hive files. Production builds are unchanged (null = default).
+      await Hive.initFlutter(
+          DefaultFirebaseOptions.isUatMode ? 'tekfix_uat_data' : null);
       if (!Hive.isAdapterRegistered(42)) {
         Hive.registerAdapter(TimestampAdapter());
       }
@@ -471,9 +647,20 @@ Future<void> main() async {
       'tek_sync_outbox',
     ];
 
-    for (final b in allTargetBoxes) {
-      await _openBoxWithRecovery(b);
+    try {
+      for (final b in allTargetBoxes) {
+        await openBoxSafely(b);
+      }
+    } on TekFixAlreadyRunningException catch (e) {
+      // Another TekFix owns the data: change nothing, just say so.
+      debugPrint('[TekFix Startup] $e');
+      try {
+        await Hive.close();
+      } catch (_) {}
+      runApp(const TekFixAlreadyRunningApp());
+      return;
     }
+
 
     try {
       await SyncEngine.instance.openBoxes();
@@ -513,6 +700,50 @@ Future<void> main() async {
       await AuthController.instance.init().timeout(const Duration(seconds: 4));
     } catch (e) {
       debugPrint('[TekFix Startup] AuthController init warning: $e');
+    }
+
+    // 5.1 DeviceSecurityService Init & Staging Trusted Device Auto-Enrollment
+    debugPrint('[TekFix Startup] 4.1 Initializing DeviceSecurityService...');
+    try {
+      final sec = DeviceSecurityService.instance;
+      await sec.init();
+      debugPrint('[TekFix Startup] 4.1 Staging UAT: Device ${sec.deviceId} initialized.');
+      debugPrint('[TekFix Startup] 4.1 Staging UAT Public Key:\n${sec.publicKeyPem}');
+      if (DefaultFirebaseOptions.isUatMode) {
+        // In Staging UAT mode, auto-enroll the active authorized device for Owner
+        if (!sec.isEnrolledLocally) {
+          await sec.setEnrolledLocally(true);
+          debugPrint('[TekFix Startup] 4.1 Staging UAT: Device ${sec.deviceId} auto-enrolled locally.');
+        }
+      }
+    } catch (e) {
+      debugPrint('[TekFix Startup] DeviceSecurityService init warning: $e');
+    }
+
+    // 4.2 Run RechargeRecoveryEngine startup reconciliation
+    try {
+      debugPrint('[TekFix Startup] 4.2 Running RechargeRecoveryEngine pending settlement reconciliation...');
+      final recovered = await RechargeRecoveryEngine.reconcilePendingSettlements();
+      debugPrint('[TekFix Startup] 4.2 RechargeRecoveryEngine reconciled $recovered pending item(s)');
+    } catch (e) {
+      debugPrint('[TekFix Startup] RechargeRecoveryEngine reconciliation warning: $e');
+    }
+
+    // 4.3 Run One-Time Feature Upgrade Migration with Safety Backup
+    try {
+      debugPrint('[TekFix Startup] 4.3 Running FeatureUpgradeMigration...');
+      await FeatureUpgradeMigration.runIfNeeded();
+      debugPrint('[TekFix Startup] 4.3 FeatureUpgradeMigration check finished');
+    } catch (e) {
+      debugPrint('[TekFix Startup] FeatureUpgradeMigration warning: $e');
+    }
+
+    // 4.4 Customer CRM: phone -> customer indexes (local, rebuildable)
+    try {
+      await startCustomerCrm();
+      debugPrint('[TekFix Startup] 4.4 Customer CRM indexes ready');
+    } catch (e) {
+      debugPrint('[TekFix Startup] Customer CRM warning: $e');
     }
 
     // 6. Custom on-screen error builder
@@ -573,10 +804,22 @@ Future<void> main() async {
         );
 
     debugPrint('[TekFix Startup] 5. Launching TekFixApp UI...');
+    AutoLockService.instance.startMonitoring();
     runApp(const TekFixApp());
   }, (error, stack) {
+    // Hive also reports a lock failure as an uncaught error: that only means
+    // another TekFix is open. Show that, never the crash screen.
+    if (error is TekFixAlreadyRunningException || isHiveLockError(error)) {
+      debugPrint('[TekFix Startup] Another TekFix holds the data: $error');
+      return;
+    }
     debugPrint('[TekFix FATAL Uncaught Zone Error] $error');
     debugPrint('[TekFix FATAL StackTrace] $stack');
+    try {
+      runApp(TekFixStartupErrorApp(error: error, stackTrace: stack));
+    } catch (e) {
+      debugPrint('[TekFix FATAL Startup Error App Mount Failed] $e');
+    }
   });
 }
 
@@ -641,29 +884,131 @@ class TekFixApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider.value(value: AuthController.instance),
         ChangeNotifierProvider.value(value: SyncEngine.instance),
+        ChangeNotifierProvider.value(value: AutoLockService.instance),
       ],
-      child: MaterialApp(
-        title: 'TekFix ERP & POS',
-        debugShowCheckedModeBanner: false,
-        theme: _buildTheme(),
-        darkTheme: _buildTheme(Brightness.dark),
-        // Enterprise dark theme as primary
-        themeMode: ThemeMode.dark,
-        home: const AuthGate(),
-        onGenerateRoute: (settings) {
-          if (settings.name == '/parties-ledger' ||
-              settings.name == '/parties') {
-            final args = settings.arguments as Map<String, dynamic>?;
-            return MaterialPageRoute(
-              builder: (_) => PartiesView(
-                initialType: args?['initialType'] as String?,
-                filterDueOnly: args?['filterDueOnly'] as bool? ?? false,
-              ),
-              settings: settings,
-            );
-          }
-          return null;
-        },
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => AutoLockService.instance.recordActivity(),
+        onPointerMove: (_) => AutoLockService.instance.recordActivity(),
+        child: MaterialApp(
+          title: 'TekFix ERP & POS',
+          debugShowCheckedModeBanner: false,
+          theme: _buildTheme(),
+          darkTheme: _buildTheme(Brightness.dark),
+          // Enterprise dark theme as primary
+          themeMode: ThemeMode.dark,
+          home: const AuthGate(),
+          onGenerateRoute: (settings) {
+            if (settings.name == '/parties-ledger' ||
+                settings.name == '/parties') {
+              final args = settings.arguments as Map<String, dynamic>?;
+              return MaterialPageRoute(
+                builder: (_) => PartiesView(
+                  initialType: args?['initialType'] as String?,
+                  filterDueOnly: args?['filterDueOnly'] as bool? ?? false,
+                ),
+                settings: settings,
+              );
+            }
+            return null;
+          },
+        ),
+      ),
+    );
+  }
+}
+
+/// Fallback Startup Error App that prevents a blank white screen when an unhandled
+/// exception or platform failure occurs during startup initialization.
+class TekFixStartupErrorApp extends StatelessWidget {
+  final Object error;
+  final StackTrace? stackTrace;
+
+  const TekFixStartupErrorApp({
+    super.key,
+    required this.error,
+    this.stackTrace,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'TekFix ERP & POS - Startup Error',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: const Color(0xFF0F172A),
+      ),
+      home: Scaffold(
+        backgroundColor: const Color(0xFF0F172A),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.amberAccent,
+                  size: 56,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'ആപ്പ് ആരംഭിക്കുന്നതിൽ തകരാർ സംഭവിച്ചു',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'TekFix ERP Startup Initialization Error',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E293B),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: SingleChildScrollView(
+                      child: SelectableText(
+                        '$error\n\n${stackTrace ?? ""}',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text(
+                    'വീണ്ടും ശ്രമിക്കുക (Retry Startup)',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  onPressed: () => main(),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1032,7 +1377,7 @@ class NavCategory {
   });
 }
 
-List<NavCategory> _getNavCategories(String shopId) => [
+List<NavCategory> getNavCategories(String shopId, {bool isOwner = false}) => [
       NavCategory(
         title: 'Core POS & Operations',
         icon: Icons.storefront_rounded,
@@ -1042,6 +1387,9 @@ List<NavCategory> _getNavCategories(String shopId) => [
               'Sale / POS', Icons.point_of_sale_rounded, SaleView()),
           AppModule('Daily Sales & EOD', Icons.receipt_long_rounded,
               DailySalesLedgerView(shopId: shopId)),
+          if (isOwner)
+            const AppModule('Quick Recharge', Icons.flash_on_rounded,
+                QuickRechargeScreen()),
           const AppModule(
               'Items / Stock', Icons.inventory_2_rounded, ItemsView()),
           const AppModule(
@@ -1068,6 +1416,9 @@ List<NavCategory> _getNavCategories(String shopId) => [
           const AppModule(
               'Cash & Bank', Icons.account_balance_rounded, CashBankView()),
           const AppModule('Reports', Icons.bar_chart_rounded, ReportsView()),
+          if (isOwner)
+            const AppModule(
+                'Profit & Loss', Icons.insights_rounded, ProfitLossView()),
         ],
       ),
       NavCategory(
@@ -1088,27 +1439,34 @@ List<NavCategory> _getNavCategories(String shopId) => [
               OwnerOrdersView(shopId: shopId)),
         ],
       ),
-      const NavCategory(
+      NavCategory(
         title: 'Customer Management',
         icon: Icons.support_agent_rounded,
         items: [
-          AppModule('Payment Reminders', Icons.notification_important_rounded,
-              RemindersScreen()),
-          AppModule('After-Sales Follow-ups', Icons.mark_chat_read_rounded,
+          const AppModule('Payment Reminders',
+              Icons.notification_important_rounded, RemindersScreen()),
+          const AppModule('After-Sales Follow-ups', Icons.mark_chat_read_rounded,
               FollowupsScreen()),
+          if (isOwner)
+            const AppModule('Customer Offers (WhatsApp)', Icons.campaign_rounded,
+                CrmMessagingScreen()),
+          if (isOwner)
+            const AppModule('Customer CRM Tools', Icons.manage_search_rounded,
+                CrmToolsScreen()),
         ],
       ),
-      const NavCategory(
+      NavCategory(
         title: 'Settings & System',
         icon: Icons.settings_suggest_rounded,
         items: [
-          AppModule('App Updates & Releases', Icons.system_update_rounded,
+          const AppModule('App Updates & Releases', Icons.system_update_rounded,
               AppUpdateManagementView()),
-          AppModule(
+          const AppModule(
               'Backup & Sync', Icons.cloud_sync_rounded, BackupSyncView()),
-          AppModule(
+          const AppModule(
               'Audit / Change History', Icons.history_rounded, AuditLogView()),
-          AppModule('Settings & Print', Icons.settings_rounded, SettingsView()),
+          const AppModule('Settings & Print', Icons.settings_rounded, SettingsView()),
+          // Trusted Devices module removed (owner decision 2026-11-18): device gate is off server-side.
         ],
       ),
     ];
@@ -1214,9 +1572,30 @@ class _AppShellState extends State<AppShell> {
   int _index = 0;
 
   @override
+  void initState() {
+    super.initState();
+    AutoLockService.instance.addListener(_onAutoLockChanged);
+  }
+
+  @override
+  void dispose() {
+    AutoLockService.instance.removeListener(_onAutoLockChanged);
+    super.dispose();
+  }
+
+  void _onAutoLockChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final lockSvc = AutoLockService.instance;
     final auth = context.watch<AuthController>();
     final owner = auth.isOwner;
+    // Owner screens only; staff attendance devices are never locked.
+    if (lockSvc.isLocked && owner) {
+      return _buildAutoLockScreen(context, auth);
+    }
     if (!owner) {
       return StaffAttendanceScreen(
         shopId: auth.shopId,
@@ -1225,7 +1604,7 @@ class _AppShellState extends State<AppShell> {
       );
     }
 
-    final categories = _getNavCategories(auth.shopId);
+    final categories = getNavCategories(auth.shopId, isOwner: owner);
     final mods = categories.expand((c) => c.items).toList();
     final wide = MediaQuery.of(context).size.width >= 900;
 
@@ -1246,6 +1625,85 @@ class _AppShellState extends State<AppShell> {
       ),
     );
   }
+
+  final _lockPinCtrl = TextEditingController();
+  String? _lockErr;
+
+  Widget _buildAutoLockScreen(BuildContext context, AuthController auth) {
+    void submit() {
+      final err = AutoLockService.instance.tryUnlock(_lockPinCtrl.text);
+      _lockPinCtrl.clear();
+      setState(() => _lockErr = err);
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F172A),
+      body: Center(
+        child: Container(
+          width: 420,
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E293B),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.lock_clock_rounded, color: Colors.amberAccent, size: 54),
+              const SizedBox(height: 16),
+              const Text('App Locked (ആപ്പ് ലോക്ക്)',
+                  style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              const Text(
+                'Locked after inactivity. Enter your lock PIN.\n(ഉപയോഗിക്കാതിരുന്നതിനാൽ ലോക്ക് ആയി. ലോക്ക് PIN നൽകുക)',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              const SizedBox(height: 24),
+              TextField(
+                key: const ValueKey('autolock-unlock-pin'),
+                controller: _lockPinCtrl,
+                obscureText: true,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'PIN',
+                  labelStyle: const TextStyle(color: Colors.white70),
+                  errorText: _lockErr,
+                  filled: true,
+                  fillColor: const Color(0x26000000),
+                  border: const OutlineInputBorder(),
+                ),
+                onSubmitted: (_) => submit(),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: FilledButton.icon(
+                  onPressed: submit,
+                  icon: const Icon(Icons.lock_open_rounded),
+                  label: const Text('Unlock (തുറക്കുക)'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () async {
+                  // Forgotten PIN: sign out; signing in again proves identity.
+                  AutoLockService.instance.resetForSignOut();
+                  await auth.signOut();
+                },
+                child: const Text('Forgot PIN? Sign out (PIN മറന്നോ? സൈൻ ഔട്ട്)',
+                    style: TextStyle(color: Colors.white70)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
 
   Widget _mobileLayout(List<AppModule> mods) {
     final tabs = [
@@ -1285,7 +1743,14 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  String _getSidebarActiveLabel(int index) {
+  String _getSidebarActiveLabel(int index, [List<AppModule>? mods]) {
+    if (mods != null && index >= 0 && index < mods.length) {
+      final label = mods[index].label;
+      if (label == 'Home') return 'Dashboard';
+      if (label == 'Staff & Attendance') return 'Staff Management';
+      if (label == 'Parties') return 'Customer Management';
+      return label;
+    }
     switch (index) {
       case 0:
         return 'Dashboard';
@@ -1294,52 +1759,57 @@ class _AppShellState extends State<AppShell> {
       case 2:
         return 'Daily Sales & EOD';
       case 3:
-        return 'Items / Stock';
+        return 'Quick Recharge';
       case 4:
-        return 'Services / Repairs';
+        return 'Items / Stock';
       case 5:
-        return 'Customer Returns';
+        return 'Services / Repairs';
       case 6:
-        return 'Purchase Bills';
+        return 'Customer Returns';
       case 7:
-        return 'Expenses';
+        return 'Purchase Bills';
       case 8:
-        return 'Daily Rent Ledger';
+        return 'Expenses';
       case 9:
-        return 'Owner Salary & Drawings';
+        return 'Daily Rent Ledger';
       case 10:
-        return 'Purchase & Expense';
+        return 'Owner Salary & Drawings';
       case 11:
-        return 'Parties';
+        return 'Purchase & Expense';
       case 12:
-        return 'Cash & Bank';
+        return 'Parties';
       case 13:
-        return 'Reports';
+        return 'Cash & Bank';
       case 14:
-      case 15:
-      case 16:
-      case 17:
-      case 18:
-      case 19:
-        return 'Staff Management';
-      case 20:
-        return 'Payment Reminders';
-      case 21:
-        return 'After-Sales Follow-ups';
-      case 22:
-        return 'App Updates & Releases';
-      case 23:
-        return 'Backup & Sync';
-      case 24:
-        return 'Audit / Change History';
-      case 25:
-        return 'Settings & Print';
+        return 'Reports';
       default:
         return '';
     }
   }
 
-  int _getSidebarItemIndex(String item) {
+  int _getSidebarItemIndex(String item, [List<AppModule>? mods]) {
+    if (mods != null) {
+      final exactIdx = mods.indexWhere(
+          (m) => m.label.trim().toLowerCase() == item.trim().toLowerCase());
+      if (exactIdx != -1) return exactIdx;
+
+      final target = switch (item) {
+        'Dashboard' || 'Home' => 'Home',
+        'Daily Sales Ledger / Orders' || 'Daily Sales & EOD' => 'Daily Sales & EOD',
+        'Quick Recharge' => 'Quick Recharge',
+        'Customer Management' || 'Parties' => 'Parties',
+        'Staff Management' || 'Staff & Attendance' => 'Staff & Attendance',
+        'Shop Rent' || 'Daily Rent Ledger' => 'Daily Rent Ledger',
+        'Owner Drawings' || 'Owner Salary & Drawings' => 'Owner Salary & Drawings',
+        'System Settings' || 'Settings & Print' => 'Settings & Print',
+        _ => '',
+      };
+      if (target.isNotEmpty) {
+        final aliasIdx = mods.indexWhere((m) => m.label == target);
+        if (aliasIdx != -1) return aliasIdx;
+      }
+    }
+
     switch (item) {
       case 'Dashboard':
       case 'Home':
@@ -1349,47 +1819,33 @@ class _AppShellState extends State<AppShell> {
       case 'Daily Sales & EOD':
       case 'Daily Sales Ledger / Orders':
         return 2;
-      case 'Items / Stock':
+      case 'Quick Recharge':
         return 3;
-      case 'Services / Repairs':
+      case 'Items / Stock':
         return 4;
-      case 'Customer Returns':
+      case 'Services / Repairs':
         return 5;
-      case 'Purchase Bills':
+      case 'Customer Returns':
         return 6;
-      case 'Expenses':
+      case 'Purchase Bills':
         return 7;
+      case 'Expenses':
+        return 8;
       case 'Daily Rent Ledger':
       case 'Shop Rent':
-        return 8;
+        return 9;
       case 'Owner Salary & Drawings':
       case 'Owner Drawings':
-        return 9;
-      case 'Purchase & Expense':
         return 10;
+      case 'Purchase & Expense':
+        return 11;
       case 'Customer Management':
       case 'Parties':
-        return 11;
-      case 'Cash & Bank':
         return 12;
-      case 'Reports':
+      case 'Cash & Bank':
         return 13;
-      case 'Staff Management':
-      case 'Staff & Attendance':
+      case 'Reports':
         return 14;
-      case 'Payment Reminders':
-        return 20;
-      case 'After-Sales Follow-ups':
-        return 21;
-      case 'App Updates & Releases':
-        return 22;
-      case 'Backup & Sync':
-        return 23;
-      case 'Audit / Change History':
-        return 24;
-      case 'Settings & Print':
-      case 'System Settings':
-        return 25;
       default:
         return 0;
     }
@@ -1435,9 +1891,9 @@ class _AppShellState extends State<AppShell> {
                       children: [
                         // Left Fixed Sidebar
                         TekSidebar(
-                          activeItem: _getSidebarActiveLabel(safeIndex),
+                          activeItem: _getSidebarActiveLabel(safeIndex, mods),
                           onItemSelected: (item) {
-                            final idx = _getSidebarItemIndex(item);
+                            final idx = _getSidebarItemIndex(item, mods);
                             setState(() => _index = idx);
                           },
                           pendingAttendanceCount: pendingAttendance,
@@ -1468,7 +1924,13 @@ class _AppShellState extends State<AppShell> {
                                   onNavigateModule: (idx) =>
                                       setState(() => _index = idx),
                                 ),
-                                onProfileTap: () => setState(() => _index = 21),
+                                onProfileTap: () {
+                                  // Was a hard-coded index (21) that pointed
+                                  // at a different module depending on role.
+                                  final i = mods.indexWhere(
+                                      (m) => m.label == 'Settings & Print');
+                                  if (i != -1) setState(() => _index = i);
+                                },
                                 onSignOut: () => auth.signOut(),
                               ),
                               Expanded(
@@ -1496,12 +1958,62 @@ class _AppShellState extends State<AppShell> {
   }
 }
 
+Future<void> _showOwnerSignOutDialog(BuildContext context) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: TekColors.bgCard,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Row(
+        children: [
+          Icon(Icons.logout_rounded, color: Color(0xFFEF4444), size: 24),
+          SizedBox(width: 10),
+          Text(
+            'ലോഗൗട്ട് ചെയ്യണോ?',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+      content: const Text(
+        'സെഷൻ അവസാനിപ്പിച്ച് ലോഗിൻ സ്‌ക്രീനിലേക്ക് മടങ്ങാൻ ആഗ്രഹിക്കുന്നുവോ?',
+        style: TextStyle(color: Colors.white70, fontSize: 14),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('Cancel (റദ്ദാക്കുക)', style: TextStyle(color: Colors.white60)),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFFEF4444),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: const Text('Sign Out (ലോഗൗട്ട്)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        ),
+      ],
+    ),
+  );
+
+  if (confirmed == true && context.mounted) {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    await AuthController.instance.signOut();
+  }
+}
+
 class MoreView extends StatelessWidget {
   final List<AppModule> modules;
   const MoreView({super.key, required this.modules});
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthController>();
+    final isOwner = auth.isOwner;
+
     return Scaffold(
       appBar: TekAppBar(
         title: const Text('More modules'),
@@ -1524,6 +2036,79 @@ class MoreView extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // 1. Top Owner Profile Card (Only for verified Owner)
+          if (isOwner) ...[
+            AppCard(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 26,
+                    backgroundColor: Colors.amber.withAlpha(35),
+                    child: const Icon(Icons.person_rounded, color: Colors.amber, size: 28),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              auth.name.isNotEmpty ? auth.name : 'Owner',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withAlpha(30),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: Colors.amber.withAlpha(90)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.shield_rounded, size: 12, color: Colors.amber),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'OWNER',
+                                    style: TextStyle(
+                                      color: Colors.amber,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 10,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          Db.setting('shop_name', 'TEKFIX DIGITAL'),
+                          style: TextStyle(fontSize: 12, color: _muted(context)),
+                        ),
+                        if (auth.email.isNotEmpty)
+                          Text(
+                            auth.email,
+                            style: TextStyle(fontSize: 11, color: _muted(context)),
+                          ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444)),
+                    tooltip: 'Sign Out (ലോഗൗട്ട്)',
+                    onPressed: () => _showOwnerSignOutDialog(context),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           for (final m in modules)
             AppCard(
               margin: const EdgeInsets.only(bottom: 10),
@@ -1545,6 +2130,63 @@ class MoreView extends StatelessWidget {
                 ],
               ),
             ),
+
+          // 3. Bottom Red Logout Card (Only for verified Owner)
+          if (isOwner) ...[
+            const SizedBox(height: 12),
+            Container(
+              margin: const EdgeInsets.only(bottom: 24),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444).withAlpha(18),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFEF4444).withAlpha(80)),
+              ),
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(14),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => _showOwnerSignOutDialog(context),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: Color(0x33EF4444),
+                          child: Icon(Icons.logout_rounded, color: Color(0xFFEF4444)),
+                        ),
+                        SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'ലോഗൗട്ട് ചെയ്യുക (Sign Out)',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  color: Color(0xFFEF4444),
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'സെഷൻ അവസാനിപ്പിച്ച് ലോഗിൻ സ്‌ക്രീനിലേക്ക് മടങ്ങുക',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFFEF4444)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1574,7 +2216,9 @@ class HomeView extends StatelessWidget {
 // 2. SALE / POS
 // -----------------------------------------------------------------------------
 class SaleView extends StatefulWidget {
-  const SaleView({super.key});
+  /// Pre-fills the customer phone (e.g. "New bill" from customer history).
+  final String? initialPhone;
+  const SaleView({super.key, this.initialPhone});
 
   @override
   State<SaleView> createState() => _SaleViewState();
@@ -1592,9 +2236,41 @@ class _SaleViewState extends State<SaleView> {
   dynamic _partyId;
   String _q = '';
   bool _busy = false;
+  DateTime _saleDate = DateTime.now();
+
+  // Customer CRM: phone lookup + auto-fill (lib/crm/pos_customer_panel.dart)
+  late final PosCustomerController _crmCtrl = PosCustomerController(
+    name: _name,
+    phone: _phone,
+    onLinked: (c, prevId) {
+      if (!mounted) return;
+      setState(() {
+        if (c != null) {
+          _partyKey = c.key;
+          _partyId = c.id;
+        } else if (prevId != null && _partyId == prevId) {
+          _partyKey = null;
+          _partyId = null;
+        }
+      });
+    },
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    final ph = widget.initialPhone;
+    if (ph != null && ph.isNotEmpty) {
+      _phone.text = ph;
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => mounted ? _crmCtrl.lookupNow() : null);
+    }
+  }
 
   @override
   void dispose() {
+    AutoLockService.instance.setPosSaleInProgress(false);
+    _crmCtrl.dispose();
     for (final c in [_search, _name, _phone, _discount, _cashCtrl, _upiCtrl]) {
       c.dispose();
     }
@@ -1694,6 +2370,91 @@ class _SaleViewState extends State<SaleView> {
     sheet?.call(() {});
   }
 
+  Future<void> _pickSaleDate(
+      BuildContext ctx, void Function(VoidCallback) upd) async {
+    final auth = AuthController.instance;
+    final isOwner = auth.isOwner;
+
+    // Staff permission check: N-day limit (setting 'backdate_days_limit', default 1)
+    final maxDays = int.tryParse(Db.setting('backdate_days_limit', '1')) ?? 1;
+    if (!isOwner && maxDays <= 0) {
+      toast(ctx,
+          'മുൻകാല സെയിൽസ് ചേർക്കാൻ ജീവനക്കാർക്ക് അനുവാദമില്ല (Staff backdating is disabled)',
+          error: true);
+      return;
+    }
+
+    final now = DateTime.now();
+    final firstDate = isOwner
+        ? DateTime(2020, 1, 1)
+        : DateTime(now.year, now.month, now.day).subtract(Duration(days: maxDays));
+
+    final pickedDate = await showDatePicker(
+      context: ctx,
+      initialDate: _saleDate.isAfter(now) ? now : _saleDate,
+      firstDate: firstDate,
+      lastDate: now,
+      helpText: 'വിൽപ്പന തീയതി തിരഞ്ഞെടുക്കുക (Select Sale Date)',
+    );
+    if (pickedDate == null) return;
+
+    // Verify staff limit again
+    if (!isOwner) {
+      final daysDiff = DateTime(now.year, now.month, now.day)
+          .difference(DateTime(pickedDate.year, pickedDate.month, pickedDate.day))
+          .inDays;
+      if (daysDiff > maxDays) {
+        toast(ctx,
+            'ജീവനക്കാർക്ക് പരമാവധി $maxDays ദിവസത്തെ മുൻകാല സെയിൽസ് മാത്രമേ ചേർക്കാനാകൂ',
+            error: true);
+        return;
+      }
+    }
+
+    // Check Day Closing / Daily Register status for that date
+    final dateDocId = DailyRegisterService.toDateString(pickedDate);
+    final reg = Db.settings.get('daily_register_$dateDocId');
+    if (reg is Map && reg['isClosed'] == true) {
+      if (!isOwner) {
+        toast(ctx,
+            '${dayFormat.format(pickedDate)} ലെ ഡേ ക്ലോസിംഗ് പൂർത്തിയായതാണ്. ഉടമയുടെ അനുമതി ആവശ്യമാണ് (Day closing finalized)',
+            error: true);
+        return;
+      } else {
+        final proceed = await confirm(
+          ctx,
+          '${dayFormat.format(pickedDate)} ലെ ഡേ ക്ലോസിംഗ് ഇതിനകം പൂർത്തിയായതാണ്.\nഈ തീയതിയിലേക്ക് വിൽപ്പന ചേർക്കണോ? (Day already closed. Proceed as Owner?)',
+          yes: 'Proceed (തുടരുക)',
+        );
+        if (!proceed) return;
+      }
+    }
+
+    // Pick Time
+    if (!ctx.mounted) return;
+    final initialTime = TimeOfDay.fromDateTime(_saleDate);
+    final pickedTime = await showTimePicker(
+      context: ctx,
+      initialTime: initialTime,
+      helpText: 'വിൽപ്പന സമയം തിരഞ്ഞെടുക്കുക (Select Sale Time)',
+    );
+
+    var combined = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime?.hour ?? _saleDate.hour,
+      pickedTime?.minute ?? _saleDate.minute,
+    );
+
+    // Block future time
+    if (combined.isAfter(DateTime.now())) {
+      combined = DateTime.now();
+    }
+
+    upd(() => _saleDate = combined);
+  }
+
   Future<void> _editPrice(int i, VoidCallback refresh) async {
     final ctrl = TextEditingController(text: _numText(_cart[i]['price']));
     await formDialog(
@@ -1730,7 +2491,7 @@ class _SaleViewState extends State<SaleView> {
       toast(context, 'ലഭിച്ച തുക ബില്ലിനേക്കാൾ കൂടുതലാണ്', error: true);
       return null;
     }
-    if (due > 0 && _partyKey == null) {
+    if (due > 0 && _partyKey == null && !_crmCtrl.willHaveCustomer) {
       toast(context,
           'ബാക്കി തുകയുണ്ട് — Cash/UPI നൽകുക, അല്ലെങ്കിൽ കസ്റ്റമറെ തിരഞ്ഞെടുക്കുക (Credit)',
           error: true);
@@ -1744,15 +2505,36 @@ class _SaleViewState extends State<SaleView> {
       }
     }
 
+    // Customer CRM: find or create the customer for this phone (optional).
+    CrmCustomer? crmCustomer;
+    try {
+      crmCustomer = await _crmCtrl.resolveForBill();
+    } on FormatException catch (e) {
+      if (mounted) toast(context, e.message, error: true);
+      return null;
+    } on DuplicatePhoneException catch (e) {
+      if (mounted) toast(context, e.message, error: true);
+      return null;
+    }
+    if (crmCustomer != null && _partyId == null) {
+      _partyKey = crmCustomer.key;
+      _partyId = crmCustomer.id;
+    }
+
     _busy = true;
     try {
       final invoice = await Db.nextInvoice();
+      final nowUtc = DateTime.now().toUtc();
+      final saleDateUtc = _saleDate.toUtc();
+      final isBackdated = !_isToday(_saleDate);
+
       for (final line in _cart) {
         final it = _m(Db.items.get(line['key']));
         it['stock'] = _i(it['stock']) - _i(line['qty']);
         await Db.items.put(line['key'], it);
         await Db.stockMove(
-            line['key'], '${it['name']}', -_i(line['qty']), 'Sale $invoice');
+            line['key'], '${it['name']}', -_i(line['qty']), 'Sale $invoice',
+            date: saleDateUtc.toIso8601String());
       }
 
       // Auto-deduct paper sheets if Photostat / Printing services are in cart
@@ -1764,10 +2546,15 @@ class _SaleViewState extends State<SaleView> {
       }
       final bill = <String, dynamic>{
         'invoice': invoice,
-        'createdAt': DateTime.now().toIso8601String(),
+        'saleDate': saleDateUtc.toIso8601String(),
+        'createdAt': nowUtc.toIso8601String(),
+        'isBackdated': isBackdated,
         'customerName':
             _name.text.trim().isEmpty ? 'Walk-in Customer' : _name.text.trim(),
         'customerPhone': _phone.text.trim(),
+        // CRM: customerId (uuid) + normalised phone + name snapshot
+        ...CustomerCrm.saleFields(crmCustomer, name: _name.text.trim()),
+        '_id': CustomerCrm.newId(),
         'partyKey': _partyKey,
         'partyId': _partyId,
         'items': _cart.map((e) => Map<String, dynamic>.from(e)).toList(),
@@ -1782,14 +2569,24 @@ class _SaleViewState extends State<SaleView> {
         'status': 'SOLD',
         ...ActivityLog.stamp(),
       };
-      await Db.sales.add(bill);
+      final saleKey = await Db.sales.add(bill);
+      await CustomerCrm.maybeInstance?.indexSaleNow(saleKey, bill);
       await Db.logAction(
-          action: 'Sale Created',
+          action: isBackdated ? 'Backdated Sale Created' : 'Sale Created',
           entity: 'Invoice',
           entityId: invoice,
+          reason: isBackdated
+              ? 'Backdated to ${dayFormat.format(_saleDate)} (Real Time: ${dtFormat.format(nowUtc.toLocal())})'
+              : '',
           newValue: bill);
-      if (cash > 0) await Db.moveMoney('Cash', cash, 'Sale $invoice');
-      if (upi > 0) await Db.moveMoney('UPI', upi, 'Sale $invoice');
+      if (cash > 0) {
+        await Db.moveMoney('Cash', cash, 'Sale $invoice',
+            date: saleDateUtc.toIso8601String());
+      }
+      if (upi > 0) {
+        await Db.moveMoney('UPI', upi, 'Sale $invoice',
+            date: saleDateUtc.toIso8601String());
+      }
       if (due > 0) await Db.adjustParty(_partyKey, due);
 
       if (mounted) {
@@ -1797,6 +2594,7 @@ class _SaleViewState extends State<SaleView> {
           _cart.clear();
           _partyKey = null;
           _partyId = null;
+          _saleDate = DateTime.now();
           for (final c in [_name, _phone, _discount, _cashCtrl, _upiCtrl]) {
             c.clear();
           }
@@ -1888,7 +2686,91 @@ class _SaleViewState extends State<SaleView> {
                   child: const Text('Clear')),
           ],
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
+
+        // Sale Date Selector with Backdated Chip
+        Container(
+          margin: const EdgeInsets.only(top: 2, bottom: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: _isToday(_saleDate)
+                ? Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4)
+                : Colors.amber.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: _isToday(_saleDate)
+                  ? Colors.grey.withValues(alpha: 0.3)
+                  : Colors.amber.shade700.withValues(alpha: 0.6),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.calendar_month_rounded,
+                size: 20,
+                color: _isToday(_saleDate)
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.amber.shade800,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Sale Date (വിൽപ്പന തീയതി)',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: _muted(context),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      dtFormat.format(_saleDate),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (!_isToday(_saleDate)) ...[
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade700,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'Backdated (മുൻകാലം)',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+              ],
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.edit_calendar_rounded, size: 20),
+                tooltip: 'തീയതി മാറ്റുക (Change Date)',
+                onPressed: () => _pickSaleDate(sheetCtx ?? context, upd),
+              ),
+              if (!_isToday(_saleDate))
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  tooltip: 'Reset to Today (ഇന്നത്തേക്ക് മാറ്റുക)',
+                  onPressed: () => upd(() => _saleDate = DateTime.now()),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
         OutlinedButton.icon(
           onPressed: () => _pickCustomer(sheet),
           icon: Icon(
@@ -1899,8 +2781,11 @@ class _SaleViewState extends State<SaleView> {
               : 'Linked: ${_name.text}'),
         ),
         const SizedBox(height: 10),
-        tf(_name, 'കസ്റ്റമർ പേര്', onChanged: (_) => upd(() {})),
-        tf(_phone, 'മൊബൈൽ നമ്പർ', phone: true, onChanged: (_) => upd(() {})),
+        PosCustomerPanel(
+          controller: _crmCtrl,
+          onChanged: () => upd(() {}),
+          onFullHistory: (c) => openCustomerHistory(context, c.id),
+        ),
         const Divider(),
         if (_cart.isEmpty)
           const Padding(
@@ -2049,6 +2934,15 @@ class _SaleViewState extends State<SaleView> {
 
   @override
   Widget build(BuildContext context) {
+    AutoLockService.instance.setPosSaleInProgress(_cart.isNotEmpty);
+    // Feature flag: new POS layout (lib/pos/new_pos/), same state + checkout.
+    // The POS theme sits ABOVE the shell, so every page / panel / dialog
+    // opened from it (View All, history, held bills ...) is light too.
+    if (newPosEnabled()) {
+      return Theme(
+          data: posTheme(Theme.of(context)),
+          child: _NewPosShell(host: this));
+    }
     final wide = MediaQuery.of(context).size.width >= 900;
     final primary = Theme.of(context).colorScheme.primary;
 
@@ -2167,6 +3061,18 @@ class _SaleViewState extends State<SaleView> {
         appBar: TekAppBar(
           title: const Text('സെയിൽ & ബില്ലിംഗ് (Sale POS)'),
           actions: [
+            if (canSwitchPosLayout())
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    await setNewPosEnabled(true);
+                    if (mounted) setState(() {});
+                  },
+                  icon: const Icon(Icons.auto_awesome_rounded, size: 16),
+                  label: const Text('Use new POS (പുതിയ POS)'),
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
               child: FilledButton.icon(
@@ -2855,6 +3761,10 @@ void showPartyForm(BuildContext context,
       text: party?['customIntervalDays'] != null
           ? '${party!['customIntervalDays']}'
           : '');
+  // Customer CRM fields (Phase 5): consent, opt-out, birthday
+  bool waOptIn = party?['whatsappOptIn'] != false;
+  bool doNotMessage = party?['doNotMessage'] == true;
+  String birthday = '${party?['birthday'] ?? ''}';
 
   formDialog(
     context,
@@ -2912,6 +3822,42 @@ void showPartyForm(BuildContext context,
           ),
           tf(customInterval, 'Custom Interval (ദിവസങ്ങൾ - optional)',
               number: true),
+          const Divider(),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('WhatsApp ഓഫറുകൾ അയക്കാം (WhatsApp opt-in)'),
+            value: waOptIn && !doNotMessage,
+            onChanged: doNotMessage ? null : (v) => set(() => waOptIn = v),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('മെസ്സേജ് അയക്കരുത് (Do not message / STOP)'),
+            value: doNotMessage,
+            onChanged: (v) => set(() => doNotMessage = v),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('ജന്മദിനം (Birthday — optional)'),
+            subtitle: Text(birthday.isEmpty ? 'തിരഞ്ഞെടുത്തിട്ടില്ല' : birthday),
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              if (birthday.isNotEmpty)
+                IconButton(
+                    icon: const Icon(Icons.clear, size: 18),
+                    onPressed: () => set(() => birthday = '')),
+              const Icon(Icons.cake_outlined),
+            ]),
+            onTap: () async {
+              final d = await showDatePicker(
+                context: context,
+                initialDate: DateTime.tryParse(birthday) ?? DateTime(1995),
+                firstDate: DateTime(1920),
+                lastDate: DateTime.now(),
+              );
+              if (d != null) {
+                set(() => birthday = DateFormat('yyyy-MM-dd').format(d));
+              }
+            },
+          ),
         ],
       ],
     ),
@@ -2928,7 +3874,32 @@ void showPartyForm(BuildContext context,
         'customIntervalDays': int.tryParse(customInterval.text.trim()),
         'reminderCount': party?['reminderCount'] ?? 0,
         'lastReminderAt': party?['lastReminderAt'],
+        if (type == 'Customer') ...{
+          'whatsappOptIn': waOptIn && !doNotMessage,
+          'doNotMessage': doNotMessage,
+          'birthday': birthday.isEmpty ? null : birthday,
+        },
       };
+      // Customer CRM: normalised unique phone, uuid, CRM fields kept on edit.
+      final crm = CustomerCrm.maybeInstance;
+      if (crm != null) {
+        try {
+          payload.addAll(crm.prepareCustomerParty(payload, existing: party));
+        } on FormatException catch (e) {
+          return e.message;
+        } on DuplicatePhoneException catch (e) {
+          if (context.mounted &&
+              await confirm(context,
+                  '${e.message}\n\nനിലവിലുള്ള കസ്റ്റമറെ തുറക്കണോ? (Open the existing customer?)',
+                  yes: 'തുറക്കുക (Open)') &&
+              context.mounted) {
+            final ex = Db.parties.get(e.existing.key);
+            showPartyForm(context, e.existing.key,
+                ex == null ? null : Map<String, dynamic>.from(ex as Map));
+          }
+          return e.message;
+        }
+      }
       if (party == null) {
         final k = await Db.parties.add(payload);
         await Db.logAction(
@@ -2954,7 +3925,9 @@ void showPartyPayment(
     BuildContext context, dynamic key, Map<String, dynamic> party) {
   final isSupplier = party['type'] == 'Supplier';
   final bal = _d(party['balance']);
-  final outstanding = bal.abs();
+  // Supplier balance is negative when we owe; a positive supplier balance is
+  // our advance with them, not something to pay.
+  final outstanding = isSupplier ? (bal < 0 ? -bal : 0.0) : bal.abs();
   final amt = TextEditingController(text: _numText(outstanding));
   String mode = 'Cash';
 
@@ -2979,11 +3952,25 @@ void showPartyPayment(
         return 'ബാക്കി തുകയേക്കാൾ കൂടുതൽ നൽകാൻ പറ്റില്ല';
       }
       if (isSupplier) {
-        await Db.adjustParty(key, a);
-        await Db.moveMoney(mode, -a, 'Paid to ${party['name']}');
+        // On-account supplier payment: recorded as a vendor payment so it
+        // shows in the vendor ledger (it adjusts the party balance and moves
+        // the money exactly once).
+        await PurchaseBillService.instance.recordAdvancePayment(
+          vendorKey: key,
+          vendorName: '${party['name']}',
+          amount: a,
+          paymentMethod: mode,
+          transactionReference: 'Paid to ${party['name']}',
+          notes: 'On-account payment (Parties)',
+          staffId: AuthController.instance.uid,
+          staffName: AuthController.instance.name.isNotEmpty
+              ? AuthController.instance.name
+              : 'Owner',
+        );
       } else {
         await Db.adjustParty(key, -a);
-        await Db.moveMoney(mode, a, 'Received from ${party['name']}');
+        await Db.moveMoney(mode, a, 'Received from ${party['name']}',
+            category: 'customer_due');
       }
       await Db.logAction(
           action: isSupplier ? 'Supplier Payment' : 'Customer Payment',
@@ -3076,12 +4063,14 @@ class _PartiesViewState extends State<PartiesView>
             }
           }
 
-          final all = entriesOf(Db.parties).where((e) {
-            if (_q.isEmpty) return true;
-            return '${e.value['name']} ${e.value['phone']}'
-                .toLowerCase()
-                .contains(_q);
-          }).toList();
+          // CRM search: name, full phone or last digits; Malayalam-safe
+          final all = entriesOf(Db.parties)
+              .where((e) => _q.isEmpty || partyMatchScore(e.value, _q) > 0)
+              .toList();
+          if (_q.isNotEmpty) {
+            all.sort((a, b) => partyMatchScore(b.value, _q)
+                .compareTo(partyMatchScore(a.value, _q)));
+          }
 
           final customers = all.where((e) {
             final isCust = e.value['type'] != 'Supplier';
@@ -3200,7 +4189,8 @@ class _PartiesViewState extends State<PartiesView>
                         onChanged: (v) =>
                             setState(() => _q = v.trim().toLowerCase()),
                         decoration: const InputDecoration(
-                          hintText: 'പേര് / ഫോൺ തിരയുക (Search name / phone)',
+                          hintText:
+                              'പേര് / ഫോൺ / അവസാന 4 അക്കം (Name / phone / last 4 digits)',
                           prefixIcon: Icon(Icons.search, size: 20),
                           isDense: true,
                           contentPadding: EdgeInsets.symmetric(
@@ -3272,7 +4262,9 @@ class _PartiesViewState extends State<PartiesView>
         final bal = _d(p['balance']);
         return AppCard(
           margin: const EdgeInsets.only(bottom: 8),
-          onTap: () => showPartyForm(context, e.key, p),
+          onTap: () => isSupplier || !openCustomerHistoryForParty(context, p)
+              ? showPartyForm(context, e.key, p)
+              : null,
           child: Row(
             children: [
               CircleAvatar(
@@ -3293,6 +4285,10 @@ class _PartiesViewState extends State<PartiesView>
                     Text(
                         '${isSupplier ? 'Supplier' : 'Customer'} • ${p['phone'] ?? ''}',
                         style: TextStyle(fontSize: 12, color: _muted(context))),
+                    if (!isSupplier && lastPurchaseLabelForParty(p) != null)
+                      Text(lastPurchaseLabelForParty(p)!,
+                          style:
+                              TextStyle(fontSize: 11, color: _muted(context))),
                   ],
                 ),
               ),
@@ -3305,6 +4301,12 @@ class _PartiesViewState extends State<PartiesView>
                 onSelected: (v) async {
                   if (v == 'pay') {
                     showPartyPayment(context, e.key, p);
+                  } else if (v == 'history') {
+                    if (!openCustomerHistoryForParty(context, p)) {
+                      toast(context,
+                          'ഹിസ്റ്ററി ലഭ്യമല്ല — CRM Tools-ൽ migration നടത്തുക (History not available yet)',
+                          error: true);
+                    }
                   } else if (v == 'edit') {
                     showPartyForm(context, e.key, p);
                   } else if (v == 'remind') {
@@ -3334,6 +4336,10 @@ class _PartiesViewState extends State<PartiesView>
                   if (!isSupplier && bal > 0.005)
                     const PopupMenuItem(
                         value: 'remind', child: Text('WhatsApp reminder')),
+                  if (!isSupplier)
+                    const PopupMenuItem(
+                        value: 'history',
+                        child: Text('ഹിസ്റ്ററി (Purchase history)')),
                   const PopupMenuItem(value: 'edit', child: Text('Edit')),
                   const PopupMenuItem(value: 'delete', child: Text('Delete')),
                 ],
@@ -3503,7 +4509,8 @@ class _PurchaseTab extends StatelessWidget {
         if (mode == 'Credit') {
           await Db.adjustParty(supplierKey, -total);
         } else {
-          await Db.moveMoney(mode, -total, 'Purchase ${it['name']}');
+          await Db.moveMoney(mode, -total, 'Purchase ${it['name']}',
+              category: 'vendor');
         }
         return null;
       },
@@ -3534,7 +4541,8 @@ class _PurchaseTab extends StatelessWidget {
     if (p['mode'] == 'Credit') {
       await Db.adjustParty(p['supplierKey'], _d(p['total']));
     } else {
-      await Db.moveMoney('${p['mode']}', _d(p['total']), 'Purchase removed');
+      await Db.moveMoney('${p['mode']}', _d(p['total']), 'Purchase removed',
+          category: 'vendor');
     }
     await Db.logAction(
         action: 'Purchase Deleted',
@@ -4057,6 +5065,7 @@ class StaffView extends StatelessWidget {
           'lastLocation': loc.text.trim(),
           'attendance': staff?['attendance'] ?? <String, dynamic>{},
           'payments': staff?['payments'] ?? <dynamic>[],
+          'joinedAt': staff?['joinedAt'] ?? DateTime.now().toIso8601String(),
           'lastUpdated': DateTime.now().toIso8601String(),
         };
         dynamic staffKey = key;
@@ -4110,75 +5119,43 @@ class StaffView extends StatelessWidget {
     );
   }
 
-  void _markAttendance(
-      BuildContext context, dynamic key, Map<String, dynamic> staff) {
-    DateTime date = DateTime.now();
-    showDialog(
+  /// Marks today 'Present' for every staff member not yet marked today.
+  Future<void> _markAllPresentToday(BuildContext context) async {
+    final today = _keyDay.format(DateTime.now());
+    final pending = [
+      for (final e in entriesOf(Db.staff))
+        if ((e.value['attendance'] as Map?)?[today] == null) e
+    ];
+    if (pending.isEmpty) {
+      toast(context, 'എല്ലാവരുടെയും ഇന്നത്തെ ഹാജർ രേഖപ്പെടുത്തി കഴിഞ്ഞു');
+      return;
+    }
+    final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, set) {
-          Future<void> mark(String status) async {
-            final att =
-                Map<String, dynamic>.from((staff['attendance'] as Map?) ?? {});
-            att[_keyDay.format(date)] = status;
-            staff['attendance'] = att;
-            await Db.staff.put(key, staff);
-            if (ctx.mounted) Navigator.pop(ctx);
-          }
-
-          return AlertDialog(
-            title: Text('ഹാജർ: ${staff['name']}'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.event),
-                  label: Text(dayFormat.format(date)),
-                  onPressed: () async {
-                    final d = await showDatePicker(
-                      context: ctx,
-                      initialDate: date,
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime.now(),
-                    );
-                    if (d != null) set(() => date = d);
-                  },
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                        style: FilledButton.styleFrom(
-                            backgroundColor: Colors.green),
-                        onPressed: () => mark('Present'),
-                        child: const Text('Present (ഹാജർ)'))),
-                const SizedBox(height: 8),
-                SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                        style: FilledButton.styleFrom(
-                            backgroundColor: Colors.orange),
-                        onPressed: () => mark('Half Day'),
-                        child: const Text('Half Day'))),
-                const SizedBox(height: 8),
-                SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                        style:
-                            FilledButton.styleFrom(backgroundColor: Colors.red),
-                        onPressed: () => mark('Absent'),
-                        child: const Text('Absent (ലീവ്)'))),
-              ],
-            ),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('അടയ്ക്കുക'))
-            ],
-          );
-        },
+      builder: (ctx) => AlertDialog(
+        title: const Text('ഇന്ന് എല്ലാവരും ഹാജർ?'),
+        content: Text(
+            '${pending.map((e) => e.value['name']).join(', ')}\n\nഇന്ന് ഹാജർ രേഖപ്പെടുത്താത്ത ${pending.length} പേരെ Present ആക്കും. പിന്നീട് ഓരോരുത്തരുടെയും മാറ്റാം.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('വേണ്ട')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('ശരി')),
+        ],
       ),
     );
+    if (ok != true) return;
+    for (final e in pending) {
+      final st = Map<String, dynamic>.from(e.value);
+      final att = Map<String, dynamic>.from((st['attendance'] as Map?) ?? {});
+      att[today] = 'Present';
+      st['attendance'] = att;
+      await Db.staff.put(e.key, st);
+    }
+    await Db.logAction(
+        action: 'Attendance Marked (All Present)',
+        entity: 'Staff',
+        entityId: today,
+        newValue: {'count': pending.length});
+    if (context.mounted) toast(context, '${pending.length} പേർ ഹാജർ (marked Present)');
   }
 
   void _paySalary(
@@ -4186,6 +5163,7 @@ class StaffView extends StatelessWidget {
     final amt = TextEditingController();
     final note = TextEditingController();
     String mode = 'Cash';
+    String type = 'salary';
 
     formDialog(
       context,
@@ -4193,6 +5171,16 @@ class StaffView extends StatelessWidget {
       body: (set) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          SegmentedButton<String>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(value: 'salary', label: Text('ശമ്പളം (Salary)')),
+              ButtonSegment(value: 'advance', label: Text('അഡ്വാൻസ് (Advance)')),
+            ],
+            selected: {type},
+            onSelectionChanged: (v) => set(() => type = v.first),
+          ),
+          const SizedBox(height: 12),
           tf(amt, 'നൽകുന്ന തുക ₹', number: true),
           tf(note, 'കുറിപ്പ് (Salary / Advance)'),
           ModeSelector(value: mode, onChanged: (v) => set(() => mode = v)),
@@ -4204,22 +5192,25 @@ class StaffView extends StatelessWidget {
         final pays = ((staff['payments'] as List?) ?? [])
             .map((e) => Map<String, dynamic>.from(e as Map))
             .toList();
-        pays.add({
-          'date': DateTime.now().toIso8601String(),
-          'month': _keyMonth.format(DateTime.now()),
-          'amount': a,
-          'mode': mode,
-          'note': note.text.trim(),
-        });
-        staff['payments'] = pays;
-        await Db.staff.put(key, staff);
-        await Db.expenses.add({
+        final expenseKey = await Db.expenses.add({
           'category': 'Staff Salary',
-          'title': 'Salary to ${staff['name']}',
+          'title': '${type == 'advance' ? 'Advance' : 'Salary'} to ${staff['name']}',
           'amount': a,
           'mode': mode,
           'createdAt': DateTime.now().toIso8601String(),
         });
+        pays.add({
+          'id': 'PAY_${DateTime.now().microsecondsSinceEpoch}',
+          'date': DateTime.now().toIso8601String(),
+          'month': _keyMonth.format(DateTime.now()),
+          'amount': a,
+          'mode': mode,
+          'type': type,
+          'note': note.text.trim(),
+          'expenseKey': expenseKey,
+        });
+        staff['payments'] = pays;
+        await Db.staff.put(key, staff);
         await Db.moveMoney(mode, -a, 'Salary: ${staff['name']}');
         await Db.logAction(
             action: 'Salary Paid',
@@ -4234,7 +5225,17 @@ class StaffView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const TekAppBar(title: Text('സ്റ്റാഫ് & അറ്റൻഡൻസ് (Staff)')),
+      appBar: TekAppBar(
+        title: const Text('സ്റ്റാഫ് & അറ്റൻഡൻസ് (Staff)'),
+        actions: [
+          TextButton.icon(
+            key: const ValueKey('staff-mark-all-present'),
+            icon: const Icon(Icons.done_all_rounded, size: 18),
+            label: const Text('ഇന്ന് എല്ലാവരും ഹാജർ'),
+            onPressed: () => _markAllPresentToday(context),
+          ),
+        ],
+      ),
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -4262,191 +5263,26 @@ class StaffView extends StatelessWidget {
           ),
         ],
       ),
-      body: ValueListenableBuilder(
-        valueListenable: Db.staff.listenable(),
-        builder: (ctx, box, _) {
-          final list = entriesOf(Db.staff);
-          if (list.isEmpty) {
-            return const EmptyState(
-                Icons.badge_outlined, 'ജീവനക്കാരെ ചേർത്തിട്ടില്ല.');
+      // Modern staff board: today in one tap, forgotten days list,
+      // month money, pay / calendar / edit / delete.
+      body: StaffBoard(
+        onPay: (k, s) => _paySalary(context, k, s),
+        onEdit: (k, s) => _staffForm(context, k, s),
+        onDelete: (k, s) async {
+          if (await guardedDelete(
+              context, '"${s['name']}" ഡിലീറ്റ് ചെയ്യണോ?')) {
+            await Db.logAction(
+                action: 'Staff Deleted',
+                entity: 'Staff',
+                entityId: '$k',
+                oldValue: {'name': s['name']});
+            await Db.staff.delete(k);
           }
-          final now = DateTime.now();
-          final today = _keyDay.format(now);
-          final month = _keyMonth.format(now);
-          final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
-
-          return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
-            itemCount: list.length,
-            itemBuilder: (ctx, i) {
-              final k = list[i].key;
-              final s = list[i].value;
-              final att =
-                  Map<String, dynamic>.from((s['attendance'] as Map?) ?? {});
-              final todayStatus = '${att[today] ?? 'Not Marked'}';
-              int p = 0, h = 0, a = 0;
-              att.forEach((d, st) {
-                if (d.startsWith(month)) {
-                  if (st == 'Present') p++;
-                  if (st == 'Half Day') h++;
-                  if (st == 'Absent') a++;
-                }
-              });
-              final dailyRate = SalaryCalculator.getDailyRate(s, now);
-              final monthly = SalaryCalculator.calculateMonthlySalary(
-                dailyRate: dailyRate,
-                date: now,
-                customDaysInMonth: daysInMonth,
-              );
-              final daysWorked = p + 0.5 * h;
-              final earned = _r2(SalaryCalculator.calculateEarnedSalary(
-                dailyRate: dailyRate,
-                daysWorked: daysWorked,
-              ));
-              final paid = ((s['payments'] as List?) ?? [])
-                  .where((e) => '${(e as Map)['month']}' == month)
-                  .fold<double>(0, (acc, e) => acc + _d((e as Map)['amount']));
-              final balance = _r2(earned - paid);
-              final stColor = todayStatus == 'Present'
-                  ? Colors.green
-                  : todayStatus == 'Absent'
-                      ? Colors.red
-                      : todayStatus == 'Half Day'
-                          ? Colors.orange
-                          : Colors.grey;
-
-              return AppCard(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        CircleAvatar(
-                            backgroundColor: Colors.indigo.withAlpha(40),
-                            child: Icon(Icons.person,
-                                color: Colors.indigo.shade300)),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                  '${s['name']}${'${s['role']}'.isEmpty ? '' : ' (${s['role']})'}',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 15.5)),
-                              Text('Ph: ${s['phone']}  •  ${s['lastLocation']}',
-                                  style: TextStyle(
-                                      fontSize: 12, color: _muted(context))),
-                            ],
-                          ),
-                        ),
-                        Pill(todayStatus, stColor),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Pill('Present $p', Colors.green),
-                        Pill('Half $h', Colors.orange),
-                        Pill('Absent $a', Colors.red),
-                      ],
-                    ),
-                    const Divider(height: 22),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _kv(context, 'Daily Rate', '${rs(dailyRate)}/day',
-                            Colors.amber),
-                        _kv(context, 'Total Days', '$daysInMonth days', null),
-                        _kv(context, 'Monthly Salary', rs(monthly),
-                            Theme.of(context).colorScheme.primary),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _kv(
-                            context,
-                            'Days Worked',
-                            '${daysWorked % 1 == 0 ? daysWorked.toInt() : daysWorked} days',
-                            Colors.teal),
-                        _kv(context, 'നേടിയത് (Earned)', rs(earned),
-                            Colors.indigo.shade300),
-                        _kv(context, 'നൽകിയത്', rs(paid),
-                            Colors.green.shade500),
-                        _kv(
-                            context,
-                            balance < 0 ? 'അഡ്വാൻസ്' : 'ബാക്കി',
-                            rs(balance.abs()),
-                            balance < 0
-                                ? Colors.orange.shade600
-                                : Colors.red.shade400),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      alignment: WrapAlignment.end,
-                      children: [
-                        TextButton.icon(
-                            icon: const Icon(Icons.check_circle_outline,
-                                size: 18),
-                            label: const Text('ഹാജർ'),
-                            onPressed: () => _markAttendance(context, k, s)),
-                        TextButton.icon(
-                            icon: const Icon(Icons.currency_rupee, size: 18),
-                            label: const Text('ശമ്പളം'),
-                            onPressed: () => _paySalary(context, k, s)),
-                        IconButton(
-                            icon: const Icon(Icons.edit_outlined),
-                            onPressed: () => _staffForm(context, k, s)),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline,
-                              color: Colors.red),
-                          onPressed: () async {
-                            if (await guardedDelete(
-                                context, '"${s['name']}" ഡിലീറ്റ് ചെയ്യണോ?')) {
-                              await Db.logAction(
-                                  action: 'Staff Deleted',
-                                  entity: 'Staff',
-                                  entityId: '$k',
-                                  oldValue: {'name': s['name']});
-                              await Db.staff.delete(k);
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              );
-            },
-          );
         },
       ),
     );
   }
 
-  Widget _kv(BuildContext context, String k, String v, Color? c) => Expanded(
-        child: Column(
-          children: [
-            FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(k,
-                    style: TextStyle(fontSize: 11, color: _muted(context)))),
-            const SizedBox(height: 2),
-            FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(v,
-                    style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: c,
-                        fontSize: 13.5))),
-          ],
-        ),
-      );
 }
 
 // -----------------------------------------------------------------------------
@@ -4477,7 +5313,8 @@ class CashBankView extends StatelessWidget {
             incoming ? value : -value,
             note.text.trim().isEmpty
                 ? (incoming ? 'Money received' : 'Money paid')
-                : note.text.trim());
+                : note.text.trim(),
+            category: 'manual');
         return null;
       },
     );
@@ -4639,9 +5476,23 @@ class _ServicesViewState extends State<ServicesView> {
     final warrantyDays =
         TextEditingController(text: '${old?['warrantyDays'] ?? 0}');
     final notes = TextEditingController(text: '${old?['notes'] ?? ''}');
+    final lock = TextEditingController(text: '${old?['lockCode'] ?? ''}');
     String status = '${old?['status'] ?? 'Received'}';
     String advanceMode = 'Cash';
     final billed = old?['billCreated'] == true;
+    // Intake options (new jobs): customer message + device sticker.
+    var notify = jobNotifyDefault();
+    var printLabel = jobPrintLabelDefault();
+    Map<String, dynamic>? saved;
+    // Known customer: typing the phone number fills in the name.
+    String? crmCustomerId = old?['customerId'] as String?;
+    void onPhone() {
+      final c = CustomerCrm.maybeInstance?.lookupByPhone(phone.text);
+      crmCustomerId = c?.id ?? (old?['customerId'] as String?);
+      if (c != null && name.text.trim().isEmpty) name.text = c.name;
+    }
+
+    phone.addListener(onPhone);
     await formDialog(
       context,
       title: old == null ? 'പുതിയ Service Job Card' : 'Service Job തിരുത്തുക',
@@ -4652,14 +5503,16 @@ class _ServicesViewState extends State<ServicesView> {
                 fontWeight: FontWeight.w800,
                 color: Theme.of(context).colorScheme.primary)),
         const SizedBox(height: 10),
+        tf(phone, 'Phone Number * (ഫോൺ നമ്പർ)', phone: true),
         tf(name, 'Customer Name *'),
-        tf(phone, 'Phone Number', phone: true),
         Row(children: [
           Expanded(child: tf(product, 'Product Type')),
           const SizedBox(width: 8),
           Expanded(child: tf(model, 'Brand & Model'))
         ]),
         tf(serial, 'IMEI / Serial Number'),
+        tf(lock,
+            'Phone Lock / Password / Pattern (സ്റ്റിക്കറിലും മെസ്സേജിലും വരില്ല)'),
         tf(complaint, 'Customer Complaint *', lines: 2),
         tf(condition, 'Device Condition / Existing Damage', lines: 2),
         tf(accessories, 'Accessories Received (cover, charger, SIM tray...)'),
@@ -4677,7 +5530,26 @@ class _ServicesViewState extends State<ServicesView> {
         ModeSelector(
             value: advanceMode, onChanged: (v) => set(() => advanceMode = v)),
         const SizedBox(height: 10),
-        tf(delivery, 'Expected Delivery (YYYY-MM-DD)'),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: tf(delivery, 'Expected Delivery (YYYY-MM-DD)')),
+          IconButton(
+            tooltip: 'തീയതി തിരഞ്ഞെടുക്കുക (Pick date)',
+            icon: const Icon(Icons.calendar_month_rounded),
+            onPressed: () async {
+              final now = DateTime.now();
+              final d = await showDatePicker(
+                context: context,
+                initialDate: DateTime.tryParse(delivery.text.trim()) ??
+                    now.add(const Duration(days: 1)),
+                firstDate: now.subtract(const Duration(days: 365)),
+                lastDate: now.add(const Duration(days: 365)),
+              );
+              if (d != null) {
+                set(() => delivery.text = DateFormat('yyyy-MM-dd').format(d));
+              }
+            },
+          ),
+        ]),
         Row(children: [
           Expanded(
               child: tf(warrantyDays, 'Service Warranty Days', number: true)),
@@ -4698,10 +5570,26 @@ class _ServicesViewState extends State<ServicesView> {
         ]),
         const SizedBox(height: 10),
         tf(notes, 'Internal Notes', lines: 2),
+        if (old == null)
+          JobIntakeOptions(
+            notify: notify,
+            printLabel: printLabel,
+            onNotify: (v) => set(() => notify = v),
+            onPrintLabel: (v) => set(() => printLabel = v),
+          ),
       ]),
       onSave: () async {
         if (name.text.trim().isEmpty || complaint.text.trim().isEmpty) {
           return 'Customer Name, Complaint എന്നിവ നൽകുക';
+        }
+        if (old == null && phone.text.trim().isEmpty) {
+          return 'ഫോൺ നമ്പർ നൽകുക (Phone number is required)';
+        }
+        final phoneErr = phoneError(phone.text);
+        if (phoneErr != null) return phoneErr;
+        if (delivery.text.trim().isNotEmpty &&
+            DateTime.tryParse(delivery.text.trim()) == null) {
+          return 'Expected Delivery തീയതി YYYY-MM-DD ആയി നൽകുക';
         }
         final est = _r2(double.tryParse(estimate.text) ?? 0);
         var adv = _r2(double.tryParse(advance.text) ?? 0);
@@ -4718,7 +5606,9 @@ class _ServicesViewState extends State<ServicesView> {
           ...prior,
           'jobId': jobId,
           'customerName': name.text.trim(),
-          'phone': phone.text.trim(),
+          'phone': normalizePhone(phone.text) ?? phone.text.trim(),
+          if (crmCustomerId != null) 'customerId': crmCustomerId,
+          'lockCode': lock.text.trim(),
           'productType': product.text.trim(),
           'brandModel': model.text.trim(),
           'serial': serial.text.trim(),
@@ -4751,7 +5641,8 @@ class _ServicesViewState extends State<ServicesView> {
         if (old == null) {
           await Db.services.add(payload);
           if (adv > 0) {
-            await Db.moveMoney(advanceMode, adv, 'Service advance $jobId');
+            await Db.moveMoney(advanceMode, adv, 'Service advance $jobId',
+                category: 'service_advance');
           }
           await Db.logAction(
               action: 'Service Created',
@@ -4763,7 +5654,8 @@ class _ServicesViewState extends State<ServicesView> {
           final delta = _r2(adv - oldAdv);
           if (delta != 0) {
             await Db.moveMoney(
-                advanceMode, delta, 'Service advance adjusted $jobId');
+                advanceMode, delta, 'Service advance adjusted $jobId',
+                category: 'service_advance');
           }
           await Db.logAction(
               action: 'Service Updated',
@@ -4780,10 +5672,25 @@ class _ServicesViewState extends State<ServicesView> {
                 newValue: status);
           }
         }
+        saved = payload;
         return null;
       },
     );
+    phone.removeListener(onPhone);
+    final job = saved;
+    if (job != null && context.mounted) {
+      if (old == null) {
+        await saveJobIntakeDefaults(notify, printLabel);
+        if (context.mounted) {
+          await runJobIntakeActions(context, job,
+              notify: notify, printLabel: printLabel);
+        }
+      } else if (status == 'Ready' && '${old['status']}' != 'Ready') {
+        await offerReadyMessage(context, job);
+      }
+    }
     for (final c in [
+      lock,
       name,
       phone,
       product,
@@ -4824,6 +5731,21 @@ class _ServicesViewState extends State<ServicesView> {
         entityId: '${job['jobId']}',
         oldValue: oldStatus,
         newValue: status);
+    if (status == 'Ready' && context.mounted) {
+      await offerReadyMessage(context, next);
+    }
+  }
+
+  /// Barcode scanner (types the Job ID + Enter) or typed Job ID: open it.
+  void _openScannedJob(BuildContext context, String raw) {
+    final code = raw.trim().toLowerCase();
+    if (code.isEmpty) return;
+    for (final e in entriesOf(Db.services)) {
+      if ('${e.value['jobId']}'.toLowerCase() == code) {
+        _jobForm(context, e.key, e.value);
+        return;
+      }
+    }
   }
 
   Future<void> _billNow(
@@ -4851,8 +5773,10 @@ class _ServicesViewState extends State<ServicesView> {
 
   Future<void> _notify(
       BuildContext context, Map<String, dynamic> job, String message) async {
-    final text =
-        'TekFix Service ${job['jobId']}: $message. Status: ${job['status']}.';
+    // Ready -> "come and collect"; otherwise the job details (received).
+    final text = '${job['status']}' == 'Ready'
+        ? jobReadyMessage(job)
+        : jobReceivedMessage(job);
     await _openWhatsApp(context, '${job['phone'] ?? ''}', text);
   }
 
@@ -4883,9 +5807,11 @@ class _ServicesViewState extends State<ServicesView> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
               child: TextField(
                 onChanged: (v) => setState(() => _q = v.trim().toLowerCase()),
+                onSubmitted: (v) => _openScannedJob(context, v),
                 decoration: const InputDecoration(
-                    hintText: 'Job ID / പേര് / ഫോൺ / മോഡൽ തിരയുക',
-                    prefixIcon: Icon(Icons.search)),
+                    hintText:
+                        'Job ID / പേര് / ഫോൺ / മോഡൽ തിരയുക (സ്റ്റിക്കർ സ്കാൻ ചെയ്യാം)',
+                    prefixIcon: Icon(Icons.qr_code_scanner_rounded)),
               ),
             ),
             SizedBox(
@@ -5014,6 +5940,20 @@ class _ServicesViewState extends State<ServicesView> {
                                           _notify(context, j, 'Service update'),
                                       icon: const Icon(Icons.message, size: 16),
                                       label: const Text('WhatsApp')),
+                                  OutlinedButton.icon(
+                                      onPressed: () async {
+                                        final err = await printJobLabel(j);
+                                        if (context.mounted) {
+                                          toast(
+                                              context,
+                                              err ??
+                                                  'സ്റ്റിക്കർ പ്രിന്റ് ചെയ്തു (Label printed)',
+                                              error: err != null);
+                                        }
+                                      },
+                                      icon: const Icon(Icons.qr_code_2_rounded,
+                                          size: 16),
+                                      label: const Text('Label')),
                                   if (status == 'Ready' &&
                                       j['billCreated'] == true)
                                     OutlinedButton.icon(
@@ -5351,10 +6291,10 @@ class _ReportsViewState extends State<ReportsView>
     }
   }
 
-  bool _in(dynamic created) {
+  bool _in(dynamic created, [dynamic saleDate]) {
     final r = _range;
     if (r == null) return true;
-    final d = _dt(created);
+    final d = _dt(saleDate ?? created);
     return !d.isBefore(r.start) && d.isBefore(r.end);
   }
 
@@ -5453,8 +6393,9 @@ class _ReportsViewState extends State<ReportsView>
 
   // ---- Summary ----
   Widget _summary() {
-    final sales =
-        entriesOf(Db.sales).where((e) => _in(e.value['createdAt'])).toList();
+    final sales = entriesOf(Db.sales)
+        .where((e) => _in(e.value['createdAt'], e.value['saleDate']))
+        .toList();
     final sold =
         sales.where((e) => !_isReturned(e.value)).map((e) => e.value).toList();
     final returned =
@@ -5491,6 +6432,18 @@ class _ReportsViewState extends State<ReportsView>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        if (AuthController.instance.isOwner)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: FilledButton.icon(
+              key: const ValueKey('open-profit-loss'),
+              onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ProfitLossView())),
+              icon: const Icon(Icons.insights_rounded),
+              label: const Text(
+                  'Profit & Loss, best items, low stock (ലാഭ-നഷ്ട കണക്ക്)'),
+            ),
+          ),
         statGrid([
           StatCard(
               'Sales (വിൽപന)', rs(revenue), Icons.point_of_sale, Colors.green),
@@ -5582,14 +6535,21 @@ class _ReportsViewState extends State<ReportsView>
 
   Widget _salesTab() {
     final all = entriesOf(Db.sales)
-        .reversed
-        .where((e) => _in(e.value['createdAt']))
+        .where((e) => _in(e.value['createdAt'], e.value['saleDate']))
         .where((e) {
       if (_saleQ.isEmpty) return true;
       return '${e.value['invoice']} ${e.value['customerName']} ${e.value['customerPhone']}'
           .toLowerCase()
           .contains(_saleQ);
     }).toList();
+
+    all.sort((a, b) {
+      final dtA = _dt(a.value['saleDate'] ?? a.value['date'] ?? a.value['createdAt']);
+      final dtB = _dt(b.value['saleDate'] ?? b.value['date'] ?? b.value['createdAt']);
+      final cmp = dtB.compareTo(dtA);
+      if (cmp != 0) return cmp;
+      return '${b.value['invoice'] ?? ''}'.compareTo('${a.value['invoice'] ?? ''}');
+    });
     return Column(
       children: [
         Padding(
@@ -5634,9 +6594,17 @@ class _ReportsViewState extends State<ReportsView>
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                         fontWeight: FontWeight.w700)),
-                                Text(dtFormat.format(_dt(s['createdAt'])),
+                                Text(
+                                    '${dtFormat.format(_dt(s['saleDate'] ?? s['createdAt']))}'
+                                    '${s['isBackdated'] == true ? ' • Backdated' : ''}',
                                     style: TextStyle(
-                                        fontSize: 12, color: _muted(context))),
+                                        fontSize: 12,
+                                        color: s['isBackdated'] == true
+                                            ? Colors.amber.shade700
+                                            : _muted(context),
+                                        fontWeight: s['isBackdated'] == true
+                                            ? FontWeight.w600
+                                            : FontWeight.normal)),
                                 if (_d(s['due']) > 0)
                                   Text('Due ${rs(_d(s['due']))}',
                                       style: TextStyle(
@@ -6125,6 +7093,76 @@ class _SettingsViewState extends State<SettingsView> {
               ],
             ),
           ),
+          const SectionTitle('ഓട്ടോ-ലോക്ക് ക്രമീകരണങ്ങൾ (Auto-Lock Settings)'),
+          AppCard(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(
+                      'നിശ്ചിത സമയം ഉപയോഗിക്കാതിരുന്നാൽ ലോക്ക് ചെയ്യുക (Auto-Lock when idle)'),
+                  subtitle: Text(
+                    AutoLockService.instance.isEnabled
+                        ? 'സജീവമാണ് (Active: ${AutoLockService.instance.timeoutMinutes} min)'
+                        : 'ഓഫ് ചെയ്തിരിക്കുന്നു (Disabled)',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AutoLockService.instance.isEnabled
+                          ? Colors.green
+                          : Colors.grey,
+                    ),
+                  ),
+                  value: AutoLockService.instance.isEnabled,
+                  onChanged: (v) async {
+                    if (v && !AutoLockService.instance.hasPin) {
+                      final saved = await AutoLockService.showSetPinDialog(context);
+                      if (!saved) return;
+                    }
+                    await AutoLockService.instance.setEnabled(v);
+                    if (mounted) setState(() {});
+                  },
+                ),
+                if (AutoLockService.instance.hasPin)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () async {
+                        await AutoLockService.showSetPinDialog(context);
+                        if (mounted) setState(() {});
+                      },
+                      icon: const Icon(Icons.pin_outlined, size: 18),
+                      label: const Text('Change lock PIN (PIN മാറ്റുക)'),
+                    ),
+                  ),
+                if (AutoLockService.instance.isEnabled) ...[
+                  const Divider(height: 16),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('ലോക്ക് ചെയ്യാനുള്ള സമയം (Idle Timeout)'),
+                    trailing: DropdownButton<int>(
+                      value: AutoLockService.instance.timeoutMinutes,
+                      items: const [
+                        DropdownMenuItem(
+                            value: 5, child: Text('5 മിനിറ്റ് (5 min)')),
+                        DropdownMenuItem(
+                            value: 10, child: Text('10 മിനിറ്റ് (10 min)')),
+                        DropdownMenuItem(
+                            value: 15, child: Text('15 മിനിറ്റ് (15 min)')),
+                        DropdownMenuItem(
+                            value: 30, child: Text('30 മിനിറ്റ് (30 min)')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() => AutoLockService.instance
+                              .setTimeoutMinutes(val));
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
           const SectionTitle('ഡെവലപ്പർ ടൂളുകൾ (Developer Tools)'),
           AppCard(
             child: ListTile(
@@ -6193,6 +7231,32 @@ class _SettingsViewState extends State<SettingsView> {
                   ExpenseCleanupDialog.show(context, shopId: sId);
                 }
               },
+            ),
+          ),
+          const SizedBox(height: 12),
+          const SectionTitle('അക്കൗണ്ട് & സെഷൻ (Account & Session)'),
+          AppCard(
+            child: ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withAlpha(30),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.logout_rounded,
+                    color: Color(0xFFEF4444), size: 20),
+              ),
+              title: const Text('ലോഗൗട്ട് ചെയ്യുക (Sign Out)',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Color(0xFFEF4444))),
+              subtitle: const Text(
+                  'സെഷൻ അവസാനിപ്പിച്ച് ലോഗിൻ സ്‌ക്രീനിലേക്ക് മടങ്ങുക',
+                  style: TextStyle(fontSize: 12)),
+              trailing: const Icon(Icons.arrow_forward_ios_rounded,
+                  size: 14, color: Color(0xFFEF4444)),
+              onTap: () => _showOwnerSignOutDialog(context),
             ),
           ),
           const SizedBox(height: 24),
@@ -6461,20 +7525,21 @@ Future<void> _openWhatsApp(
   }
 }
 
+/// Branded TEKFIX DIGITAL invoice message (lib/pos/whatsapp_invoice_message.dart).
+/// Reads the stored invoice only; totals and payments are never recalculated.
 Future<void> sendInvoiceWhatsApp(BuildContext context, Map invoice) async {
-  final items = (invoice['items'] as List?) ?? [];
-  final lines = items
-      .map((e) =>
-          '${e['name']} x ${e['qty']} = ₹${_numText(_d(e['price']) * _i(e['qty']))}')
-      .join('\n');
-  final due = _d(invoice['due']);
-  final msg = 'നമസ്കാരം ${invoice['customerName']},\n\n'
-      '${Db.setting('shop_name', 'TEKFIX')} — ഇൻവോയ്സ് ${invoice['invoice']}\n'
-      '$lines\n\n'
-      '*ആകെ തുക: ₹${_numText(_d(invoice['total']))}*'
-      '${due > 0 ? '\nബാക്കി: ₹${_numText(due)}' : ''}\n\n'
-      'നന്ദി!';
-  await _openWhatsApp(context, '${invoice['customerPhone'] ?? ''}', msg);
+  final r = await openWhatsAppInvoice(
+    invoice,
+    launcher: (u) => launchUrl(u, mode: LaunchMode.externalApplication),
+    // After-Sales Follow-ups -> Settings -> Google review URL
+    reviewUrl: Db.setting('google_review_url'),
+  );
+  if (!context.mounted) return;
+  if (r == WhatsAppInvoiceResult.noPhone) {
+    toast(context, 'ഫോൺ നമ്പർ ഇല്ല', error: true);
+  } else if (r == WhatsAppInvoiceResult.launchFailed) {
+    toast(context, 'WhatsApp തുറക്കാൻ പറ്റിയില്ല', error: true);
+  }
 }
 
 Future<void> sendDueReminder(BuildContext context, Map party) async {

@@ -131,7 +131,7 @@ void main() {
 
     test('3. Payment Status Transitions', () {
       expect(BillPaymentStatus.paid, equals('Paid'));
-      expect(BillPaymentStatus.partiallyPaid, equals('Partially Paid'));
+      expect(BillPaymentStatus.partiallyPaid, equals('Partial'));
       expect(BillPaymentStatus.unpaid, equals('Unpaid'));
 
       // Test helper logic for status deduction
@@ -228,6 +228,12 @@ void main() {
         isDraft: false,
       );
       await Hive.box(boxPurchaseBills).put('PB-2026-002', bill2.toMap());
+
+      // The bills/payment above were written straight to Hive, so set the
+      // party balance they imply (₹10,000 − ₹4,000 + ₹5,000 = ₹11,000 owed).
+      // The ledger now reconciles to the party balance and would otherwise
+      // add an "Opening Balance" row for the difference.
+      await Db.adjustParty(vendorKey, -11000.0);
 
       // 5. Query vendor ledger
       final ledger = PurchaseBillService.instance.getVendorLedger(vendorKey);

@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:ota_update/ota_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../firebase_options.dart';
 
 /// Holds metadata about an available application update.
 class AppUpdateInfo {
@@ -29,6 +31,18 @@ class AppUpdateInfo {
   }) : windowsUrl = windowsUrl ??
             'https://github.com/infotekfix-del/tekfix_pos/releases/tag/v$latestVersion';
 
+  /// Official release location. Update links anywhere else are ignored, so a
+  /// tampered app_config/version document cannot push a fake installer.
+  static const String trustedReleasePrefix = 'https://github.com/infotekfix-del/tekfix_pos/';
+
+  static bool isTrustedUpdateUrl(String url) {
+    final u = Uri.tryParse(url.trim());
+    if (u == null || u.scheme != 'https' || u.host != 'github.com') return false;
+    if (u.userInfo.isNotEmpty || (u.hasPort && u.port != 443)) return false;
+    final path = u.path;
+    return path.startsWith('/infotekfix-del/tekfix_pos/') && !path.contains('..');
+  }
+
   factory AppUpdateInfo.fromFirestore(Map<String, dynamic> data) {
     final rawBuild = data['latest_build_number'];
     final buildNum = rawBuild is int
@@ -39,11 +53,16 @@ class AppUpdateInfo {
     return AppUpdateInfo(
       latestVersion: ver,
       latestBuildNumber: buildNum,
-      apkUrl: (data['apk_url'] ?? '').toString().trim(),
-      windowsUrl: (data['windows_url'] ??
-              'https://github.com/infotekfix-del/tekfix_pos/releases/tag/v$ver')
-          .toString()
-          .trim(),
+      // Untrusted links are dropped (no update offered) instead of opened.
+      apkUrl: () {
+        final u = (data['apk_url'] ?? '').toString().trim();
+        return isTrustedUpdateUrl(u) ? u : '';
+      }(),
+      windowsUrl: () {
+        final fallback = 'https://github.com/infotekfix-del/tekfix_pos/releases/tag/v$ver';
+        final u = (data['windows_url'] ?? fallback).toString().trim();
+        return isTrustedUpdateUrl(u) ? u : fallback;
+      }(),
       releaseNotes: (data['release_notes'] ??
               'പുതിയ ഫീച്ചറുകളും പരിഹാരങ്ങളും ഉൾപ്പെടുത്തിയിട്ടുണ്ട്.\n(New features and performance improvements included.)')
           .toString(),
@@ -89,6 +108,10 @@ class AppUpdateService {
 
   /// Checks Firestore for updates and returns [AppUpdateInfo] if a newer version is found.
   Future<AppUpdateInfo?> checkUpdateAvailable() async {
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      debugPrint('AppUpdateService: Skipped in UAT mode / when Firebase is not initialized.');
+      return null;
+    }
     try {
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;
@@ -177,6 +200,9 @@ class AppUpdateService {
   /// Convenience method to check and automatically display update dialog on app launch.
   Future<void> checkForUpdate(BuildContext context,
       {bool autoShowDialog = true, bool showToastIfLatest = false}) async {
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      return;
+    }
     // Throttle automatic checks so repeated widget mounts do not trigger duplicate queries
     if (autoShowDialog) {
       final now = DateTime.now();
@@ -286,6 +312,13 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
     if (!kIsWeb && !Platform.isAndroid) {
       // For Windows or desktop, launch browser directly to download
       await _downloadViaBrowser();
+      return;
+    }
+
+    // Only the official release location may be installed (defence in depth).
+    if (!AppUpdateInfo.isTrustedUpdateUrl(apkUrl)) {
+      setState(() => _errorMessage =
+          'വിശ്വസനീയമല്ലാത്ത ഡൗൺലോഡ് ലിങ്ക് (Untrusted download link blocked)');
       return;
     }
 
@@ -414,6 +447,18 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('ഡൗൺലോഡ് ലിങ്ക് ലഭ്യമല്ല (Download URL is missing)'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!AppUpdateInfo.isTrustedUpdateUrl(rawUrl)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('വിശ്വസനീയമല്ലാത്ത ഡൗൺലോഡ് ലിങ്ക് (Untrusted download link blocked)'),
             backgroundColor: Colors.red,
           ),
         );

@@ -182,7 +182,7 @@ void main() {
 
         expect(find.text('Quick Actions'), findsOneWidget);
         expect(find.text('ദ്രുത പ്രവർത്തനങ്ങൾ'), findsOneWidget);
-        expect(find.text('New Sale'), findsOneWidget);
+        expect(find.text('Service Request'), findsOneWidget); // New Sale is now a separate top button
         expect(find.text('Add Item'), findsOneWidget);
         expect(tester.takeException(), isNull);
       });

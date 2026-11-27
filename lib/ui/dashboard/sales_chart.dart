@@ -39,14 +39,14 @@ class _TekSalesOverviewChartState extends State<TekSalesOverviewChart> {
         days.add(today.subtract(Duration(days: i)));
       }
     } else {
-      // 'This Month' - group into days up to today
-      final daysInMonth = today.day;
-      final step = math.max(1, (daysInMonth / 7).ceil());
-      for (int d = 1; d <= daysInMonth; d += step) {
+      // 'This Month' — every day from the 1st up to today.
+      // (Old code sampled every Nth day, so sales on skipped days were
+      // silently dropped from both the line and the period total.)
+      for (int d = 1; d <= today.day; d++) {
         days.add(DateTime(now.year, now.month, d));
       }
-      if (!days.contains(today)) days.add(today);
     }
+    final isMonth = _selectedPeriod == 'This Month';
 
     final dailyTotals = <DateTime, double>{};
     for (final d in days) {
@@ -60,9 +60,18 @@ class _TekSalesOverviewChartState extends State<TekSalesOverviewChart> {
       final s = tekM(v);
       if (isSaleReturned(s)) continue;
 
-      final dt = tekDt(s['createdAt']);
+      // Business date: backdated bills carry 'saleDate'. Stored as UTC ISO
+      // strings, so convert to local (IST) before taking the calendar day —
+      // otherwise bills made between 00:00 and 05:30 land on the previous day.
+      final rawDate = s['saleDate'] ?? s['createdAt'];
+      if (rawDate == null) continue;
+      final parsed = DateTime.tryParse('$rawDate');
+      if (parsed == null) continue;
+      final dt = parsed.toLocal();
       final saleDate = DateTime(dt.year, dt.month, dt.day);
-      final total = tekD(s['total']);
+      // Partial returns reduce the bill's real value.
+      final total =
+          math.max(0.0, tekD(s['total']) - tekD(s['returnedAmount']));
 
       if (dailyTotals.containsKey(saleDate)) {
         dailyTotals[saleDate] = (dailyTotals[saleDate] ?? 0) + total;
@@ -80,21 +89,11 @@ class _TekSalesOverviewChartState extends State<TekSalesOverviewChart> {
     final adjustedMaxY = maxY == 0 ? 1000.0 : maxY * 1.25;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
       decoration: BoxDecoration(
-        color: const Color(0x1F182652),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: const Color(0x2BFFFFFF),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        color: DashboardColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: DashboardColors.border, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -162,7 +161,7 @@ class _TekSalesOverviewChartState extends State<TekSalesOverviewChart> {
                         style: DashboardTypography.poppins(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
-                          color: DashboardColors.neonBlue,
+                          color: DashboardColors.textWhite,
                           letterSpacing: -0.5,
                         ),
                       ),
@@ -177,15 +176,15 @@ class _TekSalesOverviewChartState extends State<TekSalesOverviewChart> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0x261E293B),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0x33FFFFFF)),
+                  color: DashboardColors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: DashboardColors.border),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: _selectedPeriod,
                     isDense: true,
-                    dropdownColor: const Color(0xFF131D45),
+                    dropdownColor: DashboardColors.surfaceAlt,
                     icon: const Icon(
                       Icons.keyboard_arrow_down_rounded,
                       color: DashboardColors.neonBlue,
@@ -226,10 +225,13 @@ class _TekSalesOverviewChartState extends State<TekSalesOverviewChart> {
           // fl_chart Gradient Line Chart
           SizedBox(
             height: 220,
-            child: LineChart(
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: LineChart(
               LineChartData(
                 minX: 0,
-                maxX: (days.length - 1).toDouble(),
+                maxX: math.max(1, days.length - 1).toDouble(),
                 minY: 0,
                 maxY: adjustedMaxY,
                 gridData: FlGridData(
@@ -237,8 +239,9 @@ class _TekSalesOverviewChartState extends State<TekSalesOverviewChart> {
                   drawVerticalLine: false,
                   horizontalInterval: adjustedMaxY / 4,
                   getDrawingHorizontalLine: (value) => const FlLine(
-                    color: Color(0x14FFFFFF),
+                    color: DashboardColors.border,
                     strokeWidth: 1,
+                    dashArray: [4, 4],
                   ),
                 ),
                 titlesData: FlTitlesData(
@@ -281,8 +284,14 @@ class _TekSalesOverviewChartState extends State<TekSalesOverviewChart> {
                         if (idx < 0 || idx >= days.length)
                           return const SizedBox.shrink();
                         final d = days[idx];
-                        final dayName =
-                            DateFormat('E').format(d); // Mon, Tue...
+                        // Month view: label every 5th day + today only.
+                        final isLast = idx == days.length - 1;
+                        if (isMonth && d.day % 5 != 1 && !isLast) {
+                          return const SizedBox.shrink();
+                        }
+                        final dayName = isMonth
+                            ? '${d.day}'
+                            : DateFormat('E').format(d); // Mon, Tue...
                         final isToday = d.year == today.year &&
                             d.month == today.month &&
                             d.day == today.day;
@@ -307,10 +316,10 @@ class _TekSalesOverviewChartState extends State<TekSalesOverviewChart> {
                 borderData: FlBorderData(show: false),
                 lineTouchData: LineTouchData(
                   touchTooltipData: LineTouchTooltipData(
-                    getTooltipColor: (_) => const Color(0xFF0F1A3A),
+                    getTooltipColor: (_) => DashboardColors.surfaceAlt,
                     tooltipBorderRadius: BorderRadius.circular(12),
                     tooltipBorder: const BorderSide(
-                      color: Color(0x4000D4FF),
+                      color: DashboardColors.border,
                       width: 1,
                     ),
                     getTooltipItems: (touchedSpots) {
@@ -346,31 +355,26 @@ class _TekSalesOverviewChartState extends State<TekSalesOverviewChart> {
                     spots: spots,
                     isCurved: true,
                     curveSmoothness: 0.35,
-                    barWidth: 3.5,
+                    barWidth: 2.5,
                     isStrokeCapRound: true,
-                    gradient: const LinearGradient(
-                      colors: [
-                        DashboardColors.neonBlue,
-                        DashboardColors.neonPurple,
-                      ],
-                    ),
+                    color: DashboardColors.neonBlue,
                     belowBarData: BarAreaData(
                       show: true,
                       gradient: LinearGradient(
                         colors: [
-                          DashboardColors.neonBlue.withValues(alpha: 0.3),
-                          DashboardColors.neonPurple.withValues(alpha: 0.0),
+                          DashboardColors.neonBlue.withValues(alpha: 0.22),
+                          DashboardColors.neonBlue.withValues(alpha: 0.0),
                         ],
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                       ),
                     ),
                     dotData: FlDotData(
-                      show: true,
+                      show: !isMonth,
                       getDotPainter: (spot, percent, barData, index) {
                         return FlDotCirclePainter(
-                          radius: 4.5,
-                          color: const Color(0xFF0B1030),
+                          radius: 3.5,
+                          color: DashboardColors.surface,
                           strokeColor: DashboardColors.neonBlue,
                           strokeWidth: 2.5,
                         );
@@ -380,8 +384,73 @@ class _TekSalesOverviewChartState extends State<TekSalesOverviewChart> {
                 ],
               ),
             ),
+                ),
+                if (periodTotal <= 0)
+                  Positioned.fill(
+                    bottom: 28,
+                    child: _EmptySalesState(period: _selectedPeriod),
+                  ),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Shown over the empty grid when the selected period has no sales,
+/// instead of a flat line stuck at ₹0.
+class _EmptySalesState extends StatelessWidget {
+  final String period;
+  const _EmptySalesState({required this.period});
+
+  @override
+  Widget build(BuildContext context) {
+    final label = switch (period) {
+      'This Month' => 'ഈ മാസം',
+      'Last 7 Days' => 'കഴിഞ്ഞ 7 ദിവസം',
+      _ => 'ഈ ആഴ്ച',
+    };
+    return IgnorePointer(
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: DashboardColors.accentBg,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.show_chart_rounded,
+                color: DashboardColors.neonBlue,
+                size: 22,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              '$label ഇതുവരെ വിൽപ്പനയില്ല',
+              textAlign: TextAlign.center,
+              style: DashboardTypography.malayalam(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: DashboardColors.textLight,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'ആദ്യ ബിൽ ചെയ്യുമ്പോൾ ഇവിടെ ഗ്രാഫ് വരും',
+              textAlign: TextAlign.center,
+              style: DashboardTypography.malayalam(
+                fontSize: 12,
+                color: DashboardColors.textMuted,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

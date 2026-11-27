@@ -30,7 +30,7 @@ class TekServiceSummary extends StatelessWidget {
         double pendingPaymentsTotal = 0;
 
         for (final j in jobs) {
-          final dt = tekDt(j['createdAt']);
+          final dt = tekDt(j['createdAt'] ?? j['receivedAt']).toLocal();
           if (dt.year == now.year &&
               dt.month == now.month &&
               dt.day == now.day) {
@@ -40,7 +40,8 @@ class TekServiceSummary extends StatelessWidget {
           final status = '${j['status'] ?? ''}';
           if (status == 'In Progress' ||
               status == 'Diagnosing' ||
-              status == 'Received') {
+              status == 'Received' ||
+              status == 'Waiting for Parts') {
             inProgressCount++;
           } else if (status == 'Ready') {
             readyCount++;
@@ -92,19 +93,9 @@ class TekServiceSummary extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: const Color(0x1F182652),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: const Color(0x2BFFFFFF),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.35),
-                blurRadius: 18,
-                offset: const Offset(0, 6),
-              ),
-            ],
+            color: DashboardColors.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: DashboardColors.border, width: 1),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -135,9 +126,9 @@ class TekServiceSummary extends StatelessWidget {
                             'Service & Repair Center',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: DashboardTypography.poppins(
+                            style: DashboardTypography.inter(
                               fontSize: 15,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
@@ -187,7 +178,7 @@ class TekServiceSummary extends StatelessWidget {
 
   Widget _buildStatTile(_ServiceStatItem item) {
     return Material(
-      color: const Color(0x1F22325E),
+      color: DashboardColors.surfaceAlt,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
@@ -211,16 +202,19 @@ class TekServiceSummary extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    item.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: DashboardTypography.inter(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white70,
+                  Expanded(
+                    child: Text(
+                      item.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: DashboardTypography.inter(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white70,
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 4),
                   Icon(
                     item.icon,
                     size: 16,

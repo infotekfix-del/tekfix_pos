@@ -1,0 +1,106 @@
+Created At: 2026-11-12T17:57:41+05:30
+Completed At: 2026-11-12T17:57:41+05:30
+Created At: 2026-11-12T17:57:41+05:30
+Completed At: 2026-11-12T17:57:41+05:30
+Showing lines 200-300 of 436
+200: 
+201:   /// Returns the platform-specific [FirebaseOptions] for the selected environment.
+202:   static FirebaseOptions get currentPlatform {
+203:     switch (currentEnvironment) {
+204:       case TekFixEnvironment.stagingUat:
+205:         // STRICT FAIL-CLOSED ISOLATION GATE FOR PHYSICAL UAT:
+206:         // If an emulator is configured, connect to local emulator.
+207:         if (_emulatorHost.isNotEmpty || _devProjectId.isNotEmpty) {
+208:           return _developmentPlatform;
+209:         }
+210:         // Otherwise, throw descriptive StateError indicating Firebase is disabled in UAT.
+211:         // It must NEVER return production credentials.
+212:         throw StateError(
+213:           'TekFix Staging UAT Isolation: Production Firebase is disabled. '
+214:           'Physical UAT builds operate with synthetic Option A staging identity and isolated Supabase backend.',
+215:         );
+216: 
+217:       case TekFixEnvironment.staging:
+218:         return _stagingPlatform;
+219: 
+220:       case TekFixEnvironment.development:
+221:         // Hard fail-closed safeguard: Development must use explicit development emulator configuration.
+222:         // It must NEVER return production credentials.
+223:         if (_devProjectId.isEmpty && _emulatorHost.isEmpty) {
+224:           throw StateError(
+225:             'TekFix Development Environment is unconfigured. '
+226:             'Development builds must specify emulator configuration (e.g., --dart-define=FIREBASE_EMULATOR_HOST=127.0.0.1 or --dart-define=FIREBASE_DEV_PROJECT_ID=tekfix-dev). '
+227:             'Development builds are strictly blocked from returning production credentials.',
+228:           );
+229:         }
+230:         return _developmentPlatform;
+231: 
+232:       case TekFixEnvironment.production:
+233:         return _productionPlatform;
+234:     }
+235:   }
+236: 
+237:   /// Staging Firebase options for Android (tekfix-staging, asia-south1).
+238:   static const FirebaseOptions _stagingAndroid = FirebaseOptions(
+239:     apiKey: String.fromEnvironment(
+240:       'FIREBASE_STAGING_ANDROID_API_KEY',
+241:       defaultValue: '',
+242:     ),
+243:     appId: String.fromEnvironment(
+244:       'FIREBASE_STAGING_ANDROID_APP_ID',
+245:       defaultValue: '',
+246:     ),
+247:     messagingSenderId: String.fromEnvironment(
+248:       'FIREBASE_STAGING_MESSAGING_SENDER_ID',
+249:       defaultValue: '',
+250:     ),
+251:     projectId: 'tekfix-staging',
+252:     storageBucket: 'tekfix-staging.firebasestorage.app',
+253:   );
+254: 
+255:   /// Staging Firebase options for Windows/Web (tekfix-staging, asia-south1).
+256:   static const FirebaseOptions _stagingWindows = FirebaseOptions(
+257:     apiKey: String.fromEnvironment(
+258:       'FIREBASE_STAGING_WINDOWS_API_KEY',
+259:       defaultValue: '',
+260:     ),
+261:     appId: String.fromEnvironment(
+262:       'FIREBASE_STAGING_WINDOWS_APP_ID',
+263:       defaultValue: '',
+264:     ),
+265:     messagingSenderId: String.fromEnvironment(
+266:       'FIREBASE_STAGING_MESSAGING_SENDER_ID',
+267:       defaultValue: '',
+268:     ),
+269:     projectId: 'tekfix-staging',
+270:     authDomain: 'tekfix-staging.firebaseapp.com',
+271:     storageBucket: 'tekfix-staging.firebasestorage.app',
+272:   );
+273: 
+274:   /// Staging platform options resolver with strict fail-closed guards.
+275:   static FirebaseOptions get _stagingPlatform {
+276:     if (kIsWeb) {
+277:       throw UnsupportedError(
+278:         'Staging FirebaseOptions have not been configured for web.',
+279:       );
+280:     }
+281:     switch (defaultTargetPlatform) {
+282:       case TargetPlatform.android:
+283:         if (_stagingAndroid.apiKey.isEmpty ||
+284:             _stagingAndroid.appId.isEmpty ||
+285:             _stagingAndroid.apiKey.contains('PLACEHOLDER')) {
+286:           throw StateError(
+287:             'TekFix Staging Android credentials are not configured. '
+288:             'Provide FIREBASE_STAGING_ANDROID_API_KEY and FIREBASE_STAGING_ANDROID_APP_ID via --dart-define. '
+289:             'Never run staging builds against production (tekfix-45b38).',
+290:           );
+291:         }
+292:         return _stagingAndroid;
+293: 
+294:       case TargetPlatform.windows:
+295:         if (_stagingWindows.apiKey.isEmpty ||
+296:             _stagingWindows.appId.isEmpty ||
+297:             _stagingWindows.apiKey.contains('PLACEHOLDER')) {
+298:           throw StateError(
+299:             'TekFix Staging Windows credentials are not configured. '
+300:             'Provide FIREBASE_STAGING_WINDOWS_API_KEY and FIREBASE_STAGING_WINDOWS_APP_ID via --dart-define. '

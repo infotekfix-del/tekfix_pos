@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import '../firebase_options.dart';
 import '../main.dart' show Db;
 import '../utils/tek_helpers.dart';
 import 'repair_models.dart';
@@ -11,7 +13,7 @@ class RepairService {
 
   /// Real-time stream of all repairs for a shop, combining Firestore and local Hive cache
   Stream<List<RepairJob>> streamRepairs(String shopId) {
-    if (shopId.isEmpty) {
+    if (shopId.isEmpty || DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
       return Stream.value(_getLocalRepairs());
     }
 
@@ -181,7 +183,7 @@ class RepairService {
     }
 
     // 3. Persist directly to Firestore collection `shops/{shopId}/services`
-    if (shopId.isNotEmpty) {
+    if (shopId.isNotEmpty && !DefaultFirebaseOptions.isUatMode && Firebase.apps.isNotEmpty) {
       try {
         final docRef = FirebaseFirestore.instance
             .collection('shops')

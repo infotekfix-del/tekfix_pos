@@ -38,10 +38,10 @@ class TekTopBar extends StatelessWidget {
       height: 68,
       padding: EdgeInsets.symmetric(horizontal: isCompact ? 12 : 20),
       decoration: const BoxDecoration(
-        color: Color(0x990B1030),
+        color: DashboardColors.bgDarkNavyStart,
         border: Border(
           bottom: BorderSide(
-            color: Color(0x1FFFFFFF),
+            color: DashboardColors.border,
             width: 1.0,
           ),
         ),
@@ -74,10 +74,10 @@ class TekTopBar extends StatelessWidget {
                       height: 42,
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       decoration: BoxDecoration(
-                        color: const Color(0x1F1E293B),
+                        color: DashboardColors.surfaceAlt,
                         borderRadius: BorderRadius.circular(22),
                         border: Border.all(
-                          color: const Color(0x2BFFFFFF),
+                          color: DashboardColors.border,
                           width: 1.0,
                         ),
                       ),
@@ -103,7 +103,7 @@ class TekTopBar extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 7, vertical: 3),
                               decoration: BoxDecoration(
-                                color: const Color(0x2EFFFFFF),
+                                color: DashboardColors.border,
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
@@ -136,10 +136,10 @@ class TekTopBar extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: const Color(0x1F1E293B),
+                  color: DashboardColors.surfaceAlt,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: const Color(0x24FFFFFF),
+                    color: DashboardColors.border,
                     width: 1.0,
                   ),
                 ),
@@ -179,12 +179,12 @@ class TekTopBar extends StatelessWidget {
           // User Avatar & Name Dropdown
           PopupMenuButton<String>(
             tooltip: 'Profile Options',
-            color: const Color(0xFF11183E),
+            color: DashboardColors.surfaceAlt,
             elevation: 8,
             offset: const Offset(0, 52),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: const BorderSide(color: Color(0x2BFFFFFF)),
+              borderRadius: BorderRadius.circular(10),
+              side: const BorderSide(color: DashboardColors.border),
             ),
             onSelected: (val) {
               if (val == 'signout') {
@@ -214,7 +214,7 @@ class TekTopBar extends StatelessWidget {
                         color: DashboardColors.neonBlue,
                       ),
                     ),
-                    const Divider(color: Color(0x1FFFFFFF)),
+                    const Divider(color: DashboardColors.border),
                   ],
                 ),
               ),
@@ -247,10 +247,10 @@ class TekTopBar extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: const Color(0x1F1E293B),
+                color: DashboardColors.surfaceAlt,
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(
-                  color: const Color(0x24FFFFFF),
+                  color: DashboardColors.border,
                   width: 1.0,
                 ),
               ),

@@ -1,13 +1,17 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
-import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
+import '../firebase_options.dart';
 import '../main.dart' show Db;
 import '../utils/tek_helpers.dart';
 import '../inventory/consumables_service.dart';
 import 'pos_models.dart';
+import '../crm/customer_crm.dart';
+import '../crm/customer_models.dart';
+import 'whatsapp_invoice_message.dart';
 
 class PosService {
   PosService._();
@@ -79,25 +83,27 @@ class PosService {
     _pinLockoutUntil = null;
     final approvalId = _uuid.v4();
 
-    try {
-      await FirebaseFirestore.instance
-          .collection('shops')
-          .doc(shopId)
-          .collection('priceApprovals')
-          .doc(approvalId)
-          .set({
-        'approvalId': approvalId,
-        'itemId': item.id,
-        'itemName': item.name,
-        'mrp': item.sellingPrice,
-        'floorPrice': item.minPrice,
-        'approvedPrice': requestedPrice,
-        'staffId': staffId,
-        'staffName': staffName,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      debugPrint('Price approval audit log write failed: $e');
+    if (shopId.isNotEmpty && Firebase.apps.isNotEmpty && !DefaultFirebaseOptions.isUatMode) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('shops')
+            .doc(shopId)
+            .collection('priceApprovals')
+            .doc(approvalId)
+            .set({
+          'approvalId': approvalId,
+          'itemId': item.id,
+          'itemName': item.name,
+          'mrp': item.sellingPrice,
+          'floorPrice': item.minPrice,
+          'approvedPrice': requestedPrice,
+          'staffId': staffId,
+          'staffName': staffName,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        debugPrint('Price approval audit log write failed: $e');
+      }
     }
 
     return (success: true, approvalId: approvalId, error: null);
@@ -123,7 +129,7 @@ class PosService {
 
   /// Real-time stream of catalog products with live stock tracking from Firestore
   Stream<List<PosItem>> streamCatalogItems(String shopId) {
-    if (shopId.isEmpty) {
+    if (shopId.isEmpty || DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
       return Stream.value(getCatalogItems());
     }
 
@@ -213,6 +219,7 @@ class PosService {
     String? serviceJobId,
     dynamic serviceJobKey,
     double serviceAdvanceApplied = 0.0,
+    DateTime? saleDate,
   }) async {
     if (cartItems.isEmpty) {
       throw Exception('കാർട്ടിൽ ഉൽപ്പന്നങ്ങളൊന്നുമില്ല (Cart is empty).');
@@ -249,18 +256,41 @@ class PosService {
     }
     _inFlightInvoices.add(invoiceId);
 
-    final lineMaps = cartItems
-        .map((c) => {
-              'itemId': c.item.id,
-              'name': c.item.name,
-              'sku': c.item.sku,
-              'qty': c.qty,
-              'mrp': c.item.sellingPrice,
-              'unitPrice': c.unitPrice,
-              'lineTotal': c.lineTotal,
-              'approvalId': c.approvalId,
-            })
-        .toList();
+    // Purchase cost at the moment of sale, so profit reports stay right even
+    // if the item's cost changes later. Unknown cost -> no 'unitCost'.
+    double? unitCostOf(PosItem it) {
+      if (!Db.items.isOpen) return null;
+      for (final k in Db.items.keys) {
+        final cur = tekM(Db.items.get(k));
+        if (cur['_id'] == it.id || '$k' == it.id || cur['name'] == it.name) {
+          final c = (cur['costPrice'] as num?)?.toDouble();
+          return (c != null && c > 0) ? c : null;
+        }
+      }
+      return null;
+    }
+
+    var saleCostPaise = 0;
+    var costKnownForAll = true;
+    final lineMaps = cartItems.map((c) {
+      final unitCost = unitCostOf(c.item);
+      if (unitCost == null) {
+        costKnownForAll = false;
+      } else {
+        saleCostPaise += (unitCost * 100).round() * c.qty;
+      }
+      return <String, dynamic>{
+        'itemId': c.item.id,
+        'name': c.item.name,
+        'sku': c.item.sku,
+        'qty': c.qty,
+        'mrp': c.item.sellingPrice,
+        'unitPrice': c.unitPrice,
+        'lineTotal': c.lineTotal,
+        'approvalId': c.approvalId,
+        if (unitCost != null) 'unitCost': unitCost,
+      };
+    }).toList();
 
     final todayStr =
         '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
@@ -290,7 +320,7 @@ class PosService {
 
     try {
       // 3. Firestore Atomic Transaction
-      if (shopId.isNotEmpty) {
+      if (shopId.isNotEmpty && Firebase.apps.isNotEmpty && !DefaultFirebaseOptions.isUatMode) {
         try {
           await FirebaseFirestore.instance.runTransaction((transaction) async {
             final invRef = FirebaseFirestore.instance
@@ -422,6 +452,11 @@ class PosService {
         }
       }
 
+      final effectiveSaleDate = (saleDate ?? now).toUtc();
+      final isBackdated = effectiveSaleDate.year != now.year ||
+          effectiveSaleDate.month != now.month ||
+          effectiveSaleDate.day != now.day;
+
       // 4. Update Hive local storage (instant offline sync & local sales view)
       for (final line in cartItems) {
         for (final k in Db.items.keys) {
@@ -433,7 +468,8 @@ class PosService {
             cur['stock'] = curStock - line.qty;
             await Db.items.put(k, cur);
             await Db.stockMove(
-                k, line.item.name, -line.qty, 'POS Sale $invoiceId');
+                k, line.item.name, -line.qty, 'POS Sale $invoiceId',
+                date: effectiveSaleDate.toIso8601String());
             break;
           }
         }
@@ -450,11 +486,24 @@ class PosService {
         );
       }
 
+      // Customer CRM: link / create the customer by phone (never blocks a sale)
+      CrmCustomer? crmCustomer;
+      try {
+        crmCustomer = await CustomerCrm.maybeInstance?.resolveForBill(
+            phoneRaw: customerPhone, name: customerName);
+      } catch (e) {
+        debugPrint('[PosService] CRM link skipped: $e');
+      }
+
       final billData = <String, dynamic>{
         'invoice': invoiceId,
-        'createdAt': now.toIso8601String(),
+        'saleDate': effectiveSaleDate.toIso8601String(),
+        'createdAt': now.toUtc().toIso8601String(),
+        'isBackdated': isBackdated,
         'customerName': invoice.customerName,
         'customerPhone': invoice.customerPhone,
+        if (crmCustomer != null) ...CustomerCrm.saleFields(crmCustomer),
+        '_id': CustomerCrm.newId(),
         'items': lineMaps,
         'subtotal': subtotal,
         'discount': discount,
@@ -463,6 +512,10 @@ class PosService {
         'upi': payment.upiAmount,
         'card': payment.cardAmount,
         'due': 0.0,
+        // Profit = bill total - purchase cost of the items (owner reports).
+        'cost': saleCostPaise / 100.0,
+        'profit': ((total * 100).round() - saleCostPaise) / 100.0,
+        'costComplete': costKnownForAll,
         'status': 'SOLD',
         'staffId': staffId,
         'staffName': staffName,
@@ -472,7 +525,8 @@ class PosService {
         if (serviceJobId != null) 'serviceBill': true,
       };
 
-      await Db.sales.add(billData);
+      final saleKey = await Db.sales.add(billData);
+      await CustomerCrm.maybeInstance?.indexSaleNow(saleKey, billData);
 
       // 4c. Update Service Job in Hive
       if (serviceJobId != null && serviceJobId.isNotEmpty) {
@@ -577,58 +631,40 @@ class PosService {
     String? shopName,
     required String invoiceId,
   }) {
-    final upi = upiId ?? Db.setting('shop_upi', '7034093101@okbizaxis');
+    final upi = upiId ?? Db.setting('shop_upi', 'Q085585286@ybl');
     final name = shopName ?? Db.setting('shop_name', 'TEKFIX MOBILE HUB');
     final am = amount.toStringAsFixed(2);
     final encodedName = Uri.encodeComponent(name);
     return 'upi://pay?pa=$upi&pn=$encodedName&am=$am&cu=INR&tn=Invoice%20$invoiceId';
   }
 
-  /// Generates formatted receipt text and opens WhatsApp
-  Future<void> shareReceiptWhatsApp({
+  /// Opens WhatsApp with the branded TEKFIX DIGITAL invoice message
+  /// (lib/pos/whatsapp_invoice_message.dart). [shopName] / [shopPhone] are
+  /// kept for API compatibility; the branded template carries shop details.
+  /// Without a customer number WhatsApp's chat picker opens (as before).
+  /// Returns false when WhatsApp could not be opened.
+  Future<bool> shareReceiptWhatsApp({
     required PosInvoice invoice,
     required String shopName,
     required String shopPhone,
   }) async {
-    final df = DateFormat('dd-MM-yyyy hh:mm a');
-    final buf = StringBuffer();
-    buf.writeln('===========================');
-    buf.writeln('*$shopName*');
-    buf.writeln('Phone: $shopPhone');
-    buf.writeln('===========================');
-    buf.writeln('Invoice: *#${invoice.invoiceId}*');
-    buf.writeln('Date: ${df.format(invoice.createdAt)}');
-    buf.writeln('Staff: ${invoice.staffName}');
-    buf.writeln('Customer: ${invoice.customerName}');
-    buf.writeln('---------------------------');
-    for (final it in invoice.items) {
-      final name = it['name'];
-      final qty = it['qty'];
-      final price = (it['unitPrice'] as num).toStringAsFixed(2);
-      final line = (it['lineTotal'] as num).toStringAsFixed(2);
-      buf.writeln('$name x $qty @ ₹$price = ₹$line');
-    }
-    buf.writeln('---------------------------');
-    buf.writeln('Subtotal: ₹${invoice.subtotal.toStringAsFixed(2)}');
-    if (invoice.discount > 0) {
-      buf.writeln('Discount: -₹${invoice.discount.toStringAsFixed(2)}');
-    }
-    buf.writeln('*Total: ₹${invoice.total.toStringAsFixed(2)}*');
-    buf.writeln('Payment: ${invoice.payment.mode}');
-    buf.writeln('===========================');
-    buf.writeln('Thank you for choosing $shopName!');
-
-    final text = Uri.encodeComponent(buf.toString());
-    var phone = invoice.customerPhone.replaceAll(RegExp(r'[^0-9]'), '');
-    if (phone.startsWith('0')) phone = phone.substring(1);
-    if (!phone.startsWith('91') && phone.length == 10) phone = '91$phone';
-    final url = phone.isNotEmpty
-        ? 'https://wa.me/$phone?text=$text'
-        : 'https://api.whatsapp.com/send?text=$text';
-
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+    final r = await openWhatsAppInvoice(
+      {
+        'invoice': invoice.invoiceId,
+        'customerName': invoice.customerName,
+        'customerPhone': invoice.customerPhone,
+        'items': invoice.items,
+        'total': invoice.total,
+        'cash': invoice.payment.cashAmount,
+        'upi': invoice.payment.upiAmount,
+        'card': invoice.payment.cardAmount,
+        'advanceApplied': invoice.serviceAdvanceApplied,
+        'createdAt': invoice.createdAt,
+      },
+      launcher: (u) => launchUrl(u, mode: LaunchMode.externalApplication),
+      requirePhone: false,
+      reviewUrl: Db.setting('google_review_url'),
+    );
+    return r == WhatsAppInvoiceResult.opened;
   }
 }

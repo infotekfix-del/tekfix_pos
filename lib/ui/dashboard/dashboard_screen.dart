@@ -1,10 +1,13 @@
+import '../../reports/profit_loss_view.dart';
 import 'dart:io' show Platform;
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 
+import '../../firebase_options.dart';
 import '../../attendance/attendance_service.dart';
 import '../../attendance/attendance_models.dart';
 import '../../attendance/owner_attendance_approvals_view.dart';
@@ -41,6 +44,14 @@ import '../../expenses/add_expense_dialog.dart';
 import '../../rent/daily_rent_payment_dialog.dart';
 import '../../owner/owner_withdrawal_dialog.dart';
 import '../../owner/owner_ledger_view.dart';
+import '../../owner/owner_trusted_devices_screen.dart';
+import '../../recharge/quick_recharge_screen.dart';
+import '../../recharge/quick_recharge_dialog.dart';
+import '../../returns/returns_dashboard_view.dart';
+import '../../purchases/purchase_bills_dashboard_view.dart';
+import '../../expenses/expense_management_screen.dart';
+import '../../rent/daily_rent_history_view.dart';
+import '../../pos/daily_sales_ledger_view.dart';
 import 'dashboard_tokens.dart';
 import 'sidebar.dart';
 import 'top_bar.dart';
@@ -51,7 +62,6 @@ import 'sales_chart.dart';
 import 'quick_actions.dart';
 import 'recent_activity.dart';
 import 'service_summary.dart';
-import 'weather_card.dart';
 
 /// Pixel-faithful Home / Dashboard Screen for TekFix ERP.
 /// Responsive desktop 3-area layout (Fixed Sidebar, Top Bar, Scrollable Content)
@@ -96,19 +106,45 @@ class _TekDashboardScreenState extends State<TekDashboardScreen> {
   void _handleSidebarSelect(String item) {
     setState(() => _activeMenu = item);
 
-    if (widget.onNavigateModule != null) {
-      final idx = _mapSidebarItemToIndex(item);
-      if (idx != null) {
-        widget.onNavigateModule!(idx);
-        return;
-      }
-    }
-
+    // Pages are opened directly. The old numeric index map sent several
+    // items to the wrong module (e.g. 'Customer Management' -> 6, which is
+    // 'Customer Returns' in AppShell) and some items did nothing at all.
+    final shopId = AuthController.instance.shopId;
     switch (item) {
       case 'Dashboard':
         break;
+      case 'Daily Sales & EOD':
+        _navigateTo(DailySalesLedgerView(shopId: shopId), item);
+        break;
+      case 'Customer Returns':
+        _navigateTo(const ReturnsDashboardView(), item);
+        break;
+      case 'Purchase Bills':
+        _navigateTo(const PurchaseBillsDashboardView(), item);
+        break;
+      case 'Expenses':
+        _navigateTo(ExpenseManagementScreen(shopId: shopId), item);
+        break;
+      case 'Daily Rent Ledger':
+        _navigateTo(DailyRentHistoryView(shopId: shopId), item);
+        break;
       case 'Sale / POS':
         _navigateTo(const SaleView(), item);
+        break;
+      case 'Quick Recharge':
+        // Phase 13.3.0 Owner-Only Recharge Policy enforcement
+        if (!AuthController.instance.isOwner) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                '❌ അനധികൃത പ്രവേശനം: ഉടമയ്ക്ക് മാത്രമേ റീച്ചാർജ് അക്കൗണ്ടിംഗ് ഉപയോഗിക്കാൻ അനുവാദമുള്ളൂ (Owner only).',
+              ),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+          break;
+        }
+        _navigateTo(const QuickRechargeScreen(), item);
         break;
       case 'Items / Stock':
         _navigateTo(const ItemsView(), item);
@@ -141,45 +177,29 @@ class _TekDashboardScreenState extends State<TekDashboardScreen> {
         _navigateTo(const AuditLogView(), item);
         break;
       case 'Owner Salary & Drawings':
-        _navigateTo(const OwnerLedgerView(), item);
+        _navigateTo(OwnerLedgerView(shopId: shopId), item);
+        break;
+      case 'Profit & Loss':
+        if (!AuthController.instance.isOwner) break;
+        _navigateTo(const ProfitLossView(), item);
+        break;
+      case 'Trusted Devices':
+        if (!AuthController.instance.isOwner) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('❌ ഉടമയ്ക്ക് മാത്രമേ വിശ്വസനീയ ഉപകരണങ്ങൾ കാണാൻ അനുവാദമുള്ളൂ (Owner only).'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+          break;
+        }
+        _navigateTo(const OwnerTrustedDevicesScreen(), item);
         break;
       case 'System Settings':
         _navigateTo(const SettingsView(), item);
         break;
       default:
         break;
-    }
-  }
-
-  int? _mapSidebarItemToIndex(String item) {
-    switch (item) {
-      case 'Dashboard':
-        return 0;
-      case 'Sale / POS':
-        return 1;
-      case 'Items / Stock':
-        return 2;
-      case 'Services / Repairs':
-        return 3;
-      case 'Customer Management':
-        return 5;
-      case 'Staff Management':
-        return 8;
-      case 'Payment Reminders':
-        return 14;
-      case 'After-Sales Follow-ups':
-        return 15;
-      case 'App Updates & Releases':
-        return 16;
-      case 'Backup & Sync':
-        return 17;
-      case 'Audit / Change History':
-        return 18;
-      case 'Settings & Print':
-      case 'System Settings':
-        return 19;
-      default:
-        return null;
     }
   }
 
@@ -208,8 +228,9 @@ class _TekDashboardScreenState extends State<TekDashboardScreen> {
       child: Focus(
         autofocus: true,
         child: StreamBuilder<List<AttendanceRecord>>(
-          stream:
-              AttendanceService.instance.streamPendingApprovals(auth.shopId),
+          stream: (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty)
+              ? const Stream.empty()
+              : AttendanceService.instance.streamPendingApprovals(auth.shopId),
           builder: (context, attendanceSnap) {
             final pendingAttendance = attendanceSnap.data?.length ?? 0;
 
@@ -271,7 +292,7 @@ class _TekDashboardScreenState extends State<TekDashboardScreen> {
                       drawer: isDesktop
                           ? null
                           : Drawer(
-                              backgroundColor: const Color(0xFF0C1236),
+                              backgroundColor: const Color(0xFF0E131D),
                               child: sidebar),
                       body: Container(
                         decoration: const BoxDecoration(
@@ -364,6 +385,9 @@ class TekDashboardContent extends StatelessWidget {
     final auth = context.watch<AuthController>();
     final isDesktopResolved =
         isDesktop ?? (MediaQuery.of(context).size.width >= 980);
+    // HomeView builds `const TekDashboardContent()`, so the `isOwner` field
+    // defaulted to true for staff too. Always confirm with the auth state.
+    final ownerView = isOwner && auth.isOwner;
 
     return ListenableBuilder(
       listenable: Listenable.merge([
@@ -404,28 +428,73 @@ class TekDashboardContent extends StatelessWidget {
           }
         }
 
-        // 4 Stat Cards
+        // ---- Real figures for the header + KPI cards ----
+        final now = DateTime.now();
+        final todayKey = DateTime(now.year, now.month, now.day);
+        final last7 = <DateTime, double>{
+          for (int i = 6; i >= 0; i--)
+            todayKey.subtract(Duration(days: i)): 0.0,
+        };
+        int todayBills = 0;
+        for (final v in Db.sales.values) {
+          if (v is! Map) continue;
+          final s = tekM(v);
+          if (isSaleReturned(s)) continue;
+          final day = _businessDay(s);
+          if (day == null || !last7.containsKey(day)) continue;
+          final amt = tekD(s['total']) - tekD(s['returnedAmount']);
+          last7[day] = (last7[day] ?? 0) + (amt > 0 ? amt : 0);
+          if (day == todayKey) todayBills++;
+        }
+        final todaySales = last7[todayKey] ?? 0;
+        final yesterdaySales =
+            last7[todayKey.subtract(const Duration(days: 1))] ?? 0;
+        String? salesChange;
+        if (yesterdaySales > 0) {
+          final pct = (todaySales - yesterdaySales) / yesterdaySales * 100;
+          salesChange = '${pct.abs().toStringAsFixed(0)}% vs ഇന്നലെ';
+        }
+
+        int activeJobs = 0;
+        for (final v in Db.services.values) {
+          if (v is! Map) continue;
+          final st = '${v['status'] ?? ''}';
+          if (st == 'In Progress' ||
+              st == 'Diagnosing' ||
+              st == 'Received' ||
+              st == 'Waiting for Parts') {
+            activeJobs++;
+          }
+        }
+
+        final summaryParts = <String>[
+          'ഇന്ന് ${rs(todaySales)} വിൽപ്പന ($todayBills ബിൽ)',
+          if (activeJobs > 0) '$activeJobs റിപ്പയർ നടക്കുന്നു',
+          if (dueRemindersCount > 0) '$dueRemindersCount റിമൈൻഡർ',
+        ];
+
+        // 4 KPI cards — every number here comes from real records.
         final statCards = [
           TekStatCard(
-            title: 'Cash in Hand',
-            subtitle: 'കയ്യിലുള്ള പണം',
-            amount: rs(cashInHand),
-            icon: Icons.payments_rounded,
+            title: "Today's Sales",
+            subtitle: todayBills == 1 ? '1 ബിൽ ഇന്ന്' : '$todayBills ബില്ലുകൾ ഇന്ന്',
+            amount: rs(todaySales),
+            icon: Icons.trending_up_rounded,
             accentColor: DashboardColors.neonBlue,
-            changeText: '12.5%',
-            isPositive: true,
-            sparklineData: const [25, 30, 42, 38, 55, 48, 65, 78],
-            onTap: () => _nav(context, const CashBankView()),
+            changeText: salesChange,
+            isPositive: todaySales >= yesterdaySales,
+            sparklineData: last7.values.toList(),
+            onTap: () => _nav(
+              context,
+              DailySalesLedgerView(shopId: auth.shopId),
+            ),
           ),
           TekStatCard(
-            title: 'Bank Balance',
-            subtitle: 'ബാങ്ക് അക്കൗണ്ട്',
-            amount: rs(bankBalance),
-            icon: Icons.account_balance_rounded,
+            title: 'Cash in Hand',
+            subtitle: 'Bank: ${rs(bankBalance)}',
+            amount: rs(cashInHand),
+            icon: Icons.payments_rounded,
             accentColor: DashboardColors.neonGreen,
-            changeText: '8.2%',
-            isPositive: true,
-            sparklineData: const [40, 45, 42, 50, 58, 62, 70, 85],
             onTap: () => _nav(context, const CashBankView()),
           ),
           TekStatCard(
@@ -436,9 +505,6 @@ class TekDashboardContent extends StatelessWidget {
             amount: rs(receivablesTotal),
             icon: Icons.call_received_rounded,
             accentColor: DashboardColors.neonPurple,
-            changeText: '3.1%',
-            isPositive: false,
-            sparklineData: const [70, 65, 68, 55, 52, 48, 42, 38],
             onTap: () => _nav(
               context,
               const PartiesView(initialType: 'customer', filterDueOnly: true),
@@ -446,181 +512,165 @@ class TekDashboardContent extends StatelessWidget {
           ),
           TekStatCard(
             title: 'Reminders Due',
-            subtitle: 'ഓർമ്മപ്പെടുത്തലുകൾ',
-            amount:
-                dueRemindersCount > 0 ? '$dueRemindersCount Due' : 'All Clear',
+            subtitle: dueRemindersCount > 0
+                ? 'ഓർമ്മപ്പെടുത്തേണ്ടവർ'
+                : 'എല്ലാം ക്ലിയർ',
+            amount: dueRemindersCount > 0 ? '$dueRemindersCount' : '0',
             icon: Icons.notification_important_rounded,
             accentColor: dueRemindersCount > 0
                 ? DashboardColors.neonPink
                 : DashboardColors.neonGreen,
-            changeText:
-                dueRemindersCount > 0 ? '$dueRemindersCount Due' : 'Clear',
-            isPositive: dueRemindersCount == 0,
-            sparklineData: dueRemindersCount > 0
-                ? const [10, 20, 15, 30, 25, 45, 60, 75]
-                : const [60, 50, 40, 30, 20, 15, 10, 5],
             onTap: () => _nav(context, const RemindersScreen()),
           ),
         ];
 
+        Widget quickActions() => TekQuickActionsGrid(
+              onNewSale: () => _nav(context, const SaleView()),
+              onAddItem: () => showItemForm(context),
+              onAddExpense: () => AddExpenseDialog.show(context),
+              onDailyRent: () => DailyRentPaymentDialog.show(context),
+              // Owner-only actions are hidden for staff accounts
+              // (previously shown to everyone).
+              onOwnerWithdrawal:
+                  ownerView ? () => OwnerWithdrawalDialog.show(context) : null,
+              onRecharge:
+                  ownerView ? () => QuickRechargeDialog.show(context) : null,
+              onServiceRequest: () => showServiceJobForm(context),
+              onAddCustomer: () => showPartyForm(context),
+              onViewReports: () => _nav(context, const ReportsView()),
+              onOpenSettings: () => _nav(context, const SettingsView()),
+            );
+
+        Widget kpiGrid() => LayoutBuilder(
+              builder: (context, constraints) {
+                final w = constraints.maxWidth;
+                final count = w >= 900 ? 4 : 2;
+                final gap = w < 380 ? 10.0 : 14.0;
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: statCards.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: count,
+                    crossAxisSpacing: gap,
+                    mainAxisSpacing: gap,
+                    // Fixed height instead of an aspect ratio, so cards never
+                    // clip on narrow phones or stretch on wide monitors.
+                    mainAxisExtent: w < 380 ? 148 : 144,
+                  ),
+                  itemBuilder: (_, i) => statCards[i],
+                );
+              },
+            );
+
         return StreamBuilder<List<AttendanceRecord>>(
-          stream:
-              AttendanceService.instance.streamPendingApprovals(auth.shopId),
+          stream: (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty)
+              ? const Stream.empty()
+              : AttendanceService.instance.streamPendingApprovals(auth.shopId),
           builder: (context, snap) {
             final pendingCount = pendingAttendance ?? (snap.data?.length ?? 0);
-
-            return ListView(
-              padding: EdgeInsets.fromLTRB(
-                isDesktopResolved ? 20.0 : 16.0,
-                isDesktopResolved ? 20.0 : 12.0,
-                isDesktopResolved ? 20.0 : 16.0,
-                isDesktopResolved
-                    ? 30.0
-                    : (MediaQuery.of(context).padding.bottom + 85.0),
-              ),
-              children: [
-                if (!kIsWeb && Platform.isWindows) const WindowsUpdateBanner(),
-
-                // 1. Hero Banner
-                const TekHeroBanner(
-                  title: 'TEKFIX ERP',
-                  subtitle: 'Smarter Business. Greater Growth.',
-                ),
-
-                // 2. Alert Banner (Orange gradient, attendance approvals pending)
-                if (isOwner)
-                  TekAlertBanner(
-                    pendingCount: pendingCount,
-                    onReview: () => _nav(
-                      context,
-                      OwnerAttendanceApprovalsView(shopId: auth.shopId),
-                    ),
+            return LayoutBuilder(
+              builder: (context, box) {
+                // Centre the content at max 1360px on very wide monitors while
+                // keeping the whole area scrollable.
+                final basePad = isDesktopResolved ? 28.0 : 16.0;
+                final extra = (box.maxWidth - 1360) / 2;
+                final hPad = extra > basePad ? extra : basePad;
+                return ListView(
+                  padding: EdgeInsets.fromLTRB(
+                    hPad,
+                    isDesktopResolved ? 24.0 : 14.0,
+                    hPad,
+                    isDesktopResolved
+                        ? 32.0
+                        : (MediaQuery.of(context).padding.bottom + 85.0),
                   ),
+                  children: [
+                    if (!kIsWeb && Platform.isWindows)
+                      const WindowsUpdateBanner(),
 
-                const SizedBox(height: 20),
+                    // 1. Greeting header + primary action
+                    TekHeroBanner(
+                      title: 'TekFix ERP',
+                      userName: auth.name.isNotEmpty ? auth.name : null,
+                      summary: summaryParts.join(' · '),
+                      customDateNote: Db.setting('shop_hours', ''),
+                      onPrimaryAction: () => _nav(context, const SaleView()),
+                    ),
 
-                // 3. 4 Stat Cards (Responsive Grid: 4 in row on wide, 2x2 on phone/tablet)
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final count = constraints.maxWidth >= 900 ? 4 : 2;
-                    final ratio = constraints.maxWidth >= 900
-                        ? 1.55
-                        : (constraints.maxWidth >= 600
-                            ? 1.35
-                            : (constraints.maxWidth <= 360 ? 0.84 : 0.88));
-                    return GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: statCards.length,
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: count,
-                        crossAxisSpacing: constraints.maxWidth < 380 ? 10 : 14,
-                        mainAxisSpacing: constraints.maxWidth < 380 ? 10 : 14,
-                        childAspectRatio: ratio,
-                      ),
-                      itemBuilder: (_, i) => statCards[i],
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 20),
-
-                // 4. Desktop 2-Column Split vs Mobile Vertical Stack
-                if (isDesktopResolved)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Left Column (approx 63%): Sales Overview + Quick Actions
-                      Expanded(
-                        flex: 63,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const TekSalesOverviewChart(),
-                            const SizedBox(height: 20),
-                            TekQuickActionsGrid(
-                              onNewSale: () => _nav(context, const SaleView()),
-                              onAddItem: () => showItemForm(context),
-                              onAddExpense: () =>
-                                  AddExpenseDialog.show(context),
-                              onDailyRent: () =>
-                                  DailyRentPaymentDialog.show(context),
-                              onOwnerWithdrawal: () =>
-                                  OwnerWithdrawalDialog.show(context),
-                              onServiceRequest: () =>
-                                  showServiceJobForm(context),
-                              onAddCustomer: () => showPartyForm(context),
-                              onViewReports: () =>
-                                  _nav(context, const ReportsView()),
-                              onOpenSettings: () =>
-                                  _nav(context, const SettingsView()),
-                            ),
-                          ],
+                    // 2. Attendance approvals alert (owner)
+                    if (ownerView)
+                      TekAlertBanner(
+                        pendingCount: pendingCount,
+                        onReview: () => _nav(
+                          context,
+                          OwnerAttendanceApprovalsView(shopId: auth.shopId),
                         ),
                       ),
 
-                      const SizedBox(width: 18),
+                    const SizedBox(height: 20),
 
-                      // Right Column (approx 37%): Weather Card + Service Summary + Recent Activity
-                      Expanded(
-                        flex: 37,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const TekWeatherCard(),
-                            const SizedBox(height: 18),
-                            TekServiceSummary(
+                    // 3. Quick actions — the most used things, near the top
+                    quickActions(),
+
+                    const SizedBox(height: 20),
+
+                    // 4. KPI cards
+                    kpiGrid(),
+
+                    const SizedBox(height: 20),
+
+                    // 5. Chart + service/activity
+                    if (isDesktopResolved)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Expanded(
+                            flex: 63,
+                            child: TekSalesOverviewChart(),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            flex: 37,
+                            child: TekServiceSummary(
                               onSelectFilter: (f) =>
                                   _nav(context, ServicesView(initialFilter: f)),
                             ),
-                            const SizedBox(height: 18),
-                            TekRecentActivity(
-                              onViewAll: () =>
-                                  _nav(context, const AuditLogView()),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  )
-                else
-                  // Mobile Stack Layout
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
+                          ),
+                        ],
+                      )
+                    else ...[
                       const TekSalesOverviewChart(),
-                      const SizedBox(height: 20),
-                      TekQuickActionsGrid(
-                        onNewSale: () => _nav(context, const SaleView()),
-                        onAddItem: () => showItemForm(context),
-                        onAddExpense: () => AddExpenseDialog.show(context),
-                        onDailyRent: () => DailyRentPaymentDialog.show(context),
-                        onOwnerWithdrawal: () =>
-                            OwnerWithdrawalDialog.show(context),
-                        onServiceRequest: () => showServiceJobForm(context),
-                        onAddCustomer: () => showPartyForm(context),
-                        onViewReports: () => _nav(context, const ReportsView()),
-                        onOpenSettings: () =>
-                            _nav(context, const SettingsView()),
-                      ),
-                      const SizedBox(height: 20),
-                      const TekWeatherCard(),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
                       TekServiceSummary(
                         onSelectFilter: (f) =>
                             _nav(context, ServicesView(initialFilter: f)),
                       ),
-                      const SizedBox(height: 20),
-                      TekRecentActivity(
-                        onViewAll: () => _nav(context, const AuditLogView()),
-                      ),
                     ],
-                  ),
-              ],
+
+                    const SizedBox(height: 16),
+
+                    TekRecentActivity(
+                      onViewAll: () => _nav(context, const AuditLogView()),
+                    ),
+                  ],
+                );
+              },
             );
           },
         );
       },
     );
   }
+}
+
+/// Business day of a sale in local time: backdated bills carry 'saleDate',
+/// older bills only 'createdAt'. Both are stored as ISO strings (often UTC).
+DateTime? _businessDay(Map<String, dynamic> s) {
+  final raw = s['saleDate'] ?? s['createdAt'];
+  if (raw == null) return null;
+  final parsed = DateTime.tryParse('$raw');
+  if (parsed == null) return null;
+  final l = parsed.toLocal();
+  return DateTime(l.year, l.month, l.day);
 }

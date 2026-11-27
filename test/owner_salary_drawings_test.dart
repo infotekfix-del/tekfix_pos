@@ -375,7 +375,7 @@ void main() {
         ownerExcessDrawingsToday: 3000.0,
         ownerCashSalaryDrawn: 2000.0,
         ownerCashDrawingsDrawn: 3000.0,
-        physicalCashCount: 9500.0,
+        physicalCashCount: 15000.0,
       );
 
       expect(summary.totalCash, 10000.0);
@@ -383,10 +383,12 @@ void main() {
       expect(summary.ownerCashSalaryDrawn, 2000.0);
       expect(summary.ownerCashDrawingsDrawn, 3000.0);
       expect(summary.otherCashExpenses, 200.0); // 2500 - 300 - 2000 = 200
-      expect(
-          summary.totalCashOutflows, 300.0 + 200.0 + 2000.0 + 3000.0); // 5500.0
-      expect(summary.expectedClosingCash, 9500.0);
-      expect(summary.physicalCashCount, 9500.0);
+      // Owner rule 2026-11-23: rent, salary, drawings and expenses are paid
+      // from Cash in Hand, not the drawer.
+      expect(summary.paidFromCashInHand, 300.0 + 200.0 + 2000.0 + 3000.0); // 5500.0
+      expect(summary.totalCashOutflows, 0.0);
+      expect(summary.expectedClosingCash, 15000.0);
+      expect(summary.physicalCashCount, 15000.0);
       expect(summary.cashDiscrepancy, 0.0); // Exact match!
       expect(summary.cashOverOrShort, 0.0);
     });

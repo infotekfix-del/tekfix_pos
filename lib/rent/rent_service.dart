@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 
 import '../main.dart' show Db, tekM;
 import '../expenses/expense_models.dart';
+import '../storage/storage_bridge.dart';
+import '../storage/supabase_storage_bridge_client.dart';
 import 'rent_models.dart';
 
 class DuplicateRentPaymentException implements Exception {
@@ -525,7 +527,8 @@ class RentService {
     return updatedRecord;
   }
 
-  /// Upload receipt attachment to Firebase Storage
+  /// Upload receipt attachment via StorageBridge
+  /// (Routes to Firebase Storage in Production, Supabase Storage in Staging)
   Future<String> uploadReceiptFile({
     required String shopId,
     required String dateKey,
@@ -534,14 +537,14 @@ class RentService {
     String mimeType = 'image/jpeg',
   }) async {
     final sId = shopId.isNotEmpty ? shopId : Db.setting('shop_id', 'tekfix');
-    final cleanName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
-    final ref = FirebaseStorage.instance
-        .ref()
-        .child('shops/$sId/rent_receipts/${dateKey}_$cleanName');
-
-    final task =
-        await ref.putData(bytes, SettableMetadata(contentType: mimeType));
-    return await task.ref.getDownloadURL();
+    return await StorageBridge.uploadFinancialDocument(
+      shopId: sId,
+      category: StorageCategory.rentReceipts,
+      documentId: dateKey,
+      originalFileName: fileName,
+      bytes: bytes,
+      mimeType: mimeType,
+    );
   }
 
   /// Compute date-by-date rent history for a given month or date range

@@ -1,7 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import '../firebase_options.dart';
 import '../main.dart' show Db, toast;
 import '../pos/pos_models.dart';
 import '../pos/pos_service.dart';
@@ -69,7 +71,9 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
 
   void _initStreams() {
     _catalogStream = PosService.instance.streamCatalogItems(widget.shopId);
-    final authUid = FirebaseAuth.instance.currentUser?.uid;
+    final authUid = (Firebase.apps.isNotEmpty && !DefaultFirebaseOptions.isUatMode)
+        ? FirebaseAuth.instance.currentUser?.uid
+        : null;
     final effectiveStaffId =
         (authUid != null && authUid.isNotEmpty) ? authUid : widget.staffId;
     _ordersStream = OrderService.instance
@@ -947,7 +951,9 @@ class _StaffOrdersScreenState extends State<StaffOrdersScreen>
           await OrderService.instance.generateOrderId(widget.shopId);
 
       // Resolve effective staff ID (prefer current auth UID to guarantee rule matching)
-      final authUid = FirebaseAuth.instance.currentUser?.uid;
+      final authUid = (Firebase.apps.isNotEmpty && !DefaultFirebaseOptions.isUatMode)
+          ? FirebaseAuth.instance.currentUser?.uid
+          : null;
       final effectiveStaffId = (authUid != null && authUid.isNotEmpty)
           ? authUid
           : (widget.staffId.isNotEmpty

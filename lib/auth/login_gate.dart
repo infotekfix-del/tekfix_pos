@@ -10,6 +10,8 @@ import '../main.dart' show AppShell, Db;
 import '../theme/tek_tokens.dart';
 import '../update/app_update_service.dart';
 import '../utils/tek_helpers.dart';
+import '../firebase_options.dart';
+import '../security/staging_identity_service.dart';
 import 'auth_controller.dart';
 
 Map<String, dynamic> _m(dynamic v) => tekM(v);
@@ -31,7 +33,8 @@ class _AuthGateState extends State<AuthGate> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Auto-check for updates only on Android mobile devices (Staff App).
       // On Windows Desktop ERP, cashier/owner workflow is never interrupted at login.
-      if (!kIsWeb && Platform.isAndroid) {
+      // In Staging UAT mode, remote update checks against production Firebase are strictly disabled.
+      if (!kIsWeb && Platform.isAndroid && !DefaultFirebaseOptions.isUatMode) {
         AppUpdateService.instance.checkForUpdate(context, autoShowDialog: true);
       }
     });
@@ -90,6 +93,16 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _err;
 
   @override
+  void initState() {
+    super.initState();
+    if (DefaultFirebaseOptions.isUatMode) {
+      _mode = 0; // Default to Owner Sign In for Staging UAT
+      if (_shop.text.isEmpty) _shop.text = StagingIdentityService.defaultShopId;
+      if (_email.text.isEmpty) _email.text = 'staging-owner@tekfix.internal';
+    }
+  }
+
+  @override
   void dispose() {
     for (final c in [_shop, _name, _email, _pass]) {
       c.dispose();
@@ -105,6 +118,11 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     if (_mode == 1) {
+      if (DefaultFirebaseOptions.isUatMode) {
+        setState(() => _err =
+            'സ്റ്റാഫ് പോർട്ടൽ സ്റ്റേജിംഗ് UAT മോഡിൽ ലഭ്യമല്ല. ദയവായി ഷോപ്പ് ഉടമയായി പ്രവേശിക്കുക.\n(Staff Portal is disabled in Staging UAT. Please use Owner Sign In.)');
+        return;
+      }
       // -----------------------------------------------------------------------
       // STAFF LOGIN FLOW: Firebase Auth + Trusted Firestore RBAC
       // -----------------------------------------------------------------------
@@ -585,6 +603,52 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
 
+                            // Staging UAT helper & password reset button
+                            if (_mode == 0 && DefaultFirebaseOptions.isUatMode) ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: TekColors.electricCyan.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: TekColors.electricCyan.withValues(alpha: 0.3)),
+                                ),
+                                child: const Row(
+                                  children: [
+                                    Icon(Icons.info_outline, size: 14, color: TekColors.electricCyan),
+                                    SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        'Staging UAT: Default Password is Staging@TekFix2026',
+                                        style: TextStyle(
+                                          color: TekColors.electricCyan,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton.icon(
+                                  onPressed: _showStagingPasswordResetDialog,
+                                  icon: const Icon(Icons.lock_reset_rounded, size: 16, color: TekColors.secondary),
+                                  label: const Text(
+                                    'പാസ്‌വേഡ് മാറ്റുക (Reset Staging Password)',
+                                    style: TextStyle(
+                                      color: TekColors.secondary,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600,
+                                      fontFamilyFallback: TekTypography.malayalamFallback,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+
                             // Error Message Banner
                             if (_err != null) ...[
                               const SizedBox(height: 16),
@@ -841,6 +905,215 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  void _showStagingPasswordResetDialog() {
+    final pinCtrl = TextEditingController(text: '9999');
+    final passCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    String? dialogErr;
+    bool dialogBusy = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          return AlertDialog(
+            backgroundColor: TekColors.bgCard,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: const BorderSide(color: TekColors.border, width: 1.2),
+            ),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: TekColors.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.lock_reset_rounded,
+                      color: TekColors.primary),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Staging Password Reset',
+                    style: TextStyle(
+                      color: TekColors.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'താങ്കളുടെ സ്റ്റേജിംഗ് മാസ്റ്റർ റിക്കവറി പിൻ (Default: 9999) നൽകി പുതിയ പാസ്‌വേഡ് സെറ്റ് ചെയ്യുക.\n(Enter staging master PIN and set a new password.)',
+                    style: TextStyle(
+                      color: TekColors.textSecondary,
+                      fontSize: 12.5,
+                      fontFamilyFallback: TekTypography.malayalamFallback,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildInputLabel(
+                      'Master Recovery PIN', 'റിക്കവറി പിൻ', Icons.pin_rounded),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: pinCtrl,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: TekColors.textPrimary),
+                    decoration: const InputDecoration(
+                      hintText: '9999',
+                      prefixIcon: Icon(Icons.security_rounded,
+                          color: TekColors.secondary, size: 20),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _buildInputLabel('New Password (min 6 chars)',
+                      'പുതിയ പാസ്‌വേഡ്', Icons.lock_outline_rounded),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: passCtrl,
+                    obscureText: true,
+                    style: const TextStyle(color: TekColors.textPrimary),
+                    decoration: const InputDecoration(
+                      hintText: '••••••••',
+                      prefixIcon: Icon(Icons.lock_rounded,
+                          color: TekColors.secondary, size: 20),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _buildInputLabel('Confirm New Password',
+                      'പാസ്‌വേഡ് ആവർത്തിക്കുക', Icons.lock_clock_rounded),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: confirmCtrl,
+                    obscureText: true,
+                    style: const TextStyle(color: TekColors.textPrimary),
+                    decoration: const InputDecoration(
+                      hintText: '••••••••',
+                      prefixIcon: Icon(Icons.check_circle_outline_rounded,
+                          color: TekColors.secondary, size: 20),
+                    ),
+                  ),
+                  if (dialogErr != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: TekColors.error.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: TekColors.error.withValues(alpha: 0.5)),
+                      ),
+                      child: Text(
+                        dialogErr!,
+                        style: const TextStyle(
+                          color: Color(0xFFFECDD3),
+                          fontSize: 12,
+                          fontFamilyFallback: TekTypography.malayalamFallback,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: dialogBusy ? null : () => Navigator.of(ctx).pop(),
+                child: const Text('റദ്ദാക്കുക (Cancel)',
+                    style: TextStyle(
+                      color: TekColors.textMuted,
+                      fontFamilyFallback: TekTypography.malayalamFallback,
+                    )),
+              ),
+              ElevatedButton(
+                onPressed: dialogBusy
+                    ? null
+                    : () async {
+                        final pin = pinCtrl.text.trim();
+                        final p1 = passCtrl.text;
+                        final p2 = confirmCtrl.text;
+                        if (pin.isEmpty || p1.isEmpty) {
+                          setDialogState(() => dialogErr =
+                              'എല്ലാ വിവരങ്ങളും നൽകുക (Please fill in all fields)');
+                          return;
+                        }
+                        if (p1 != p2) {
+                          setDialogState(() => dialogErr =
+                              'പാസ്‌വേഡുകൾ പൊരുത്തപ്പെടുന്നില്ല (Passwords do not match)');
+                          return;
+                        }
+                        setDialogState(() {
+                          dialogBusy = true;
+                          dialogErr = null;
+                        });
+                        final err = await AuthController.instance
+                            .resetStagingOwnerPassword(
+                          recoveryPin: pin,
+                          newPassword: p1,
+                        );
+                        if (err != null) {
+                          if (ctx.mounted) {
+                            setDialogState(() {
+                              dialogBusy = false;
+                              dialogErr = err;
+                            });
+                          }
+                        } else {
+                          if (ctx.mounted) {
+                            Navigator.of(ctx).pop();
+                          }
+                          if (mounted) {
+                            setState(() {
+                              _pass.text = p1;
+                              _err = null;
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'പാസ്‌വേഡ് വിജയകരമായി മാറ്റി! (Password reset successfully!)',
+                                  style: TextStyle(
+                                    fontFamilyFallback:
+                                        TekTypography.malayalamFallback,
+                                  ),
+                                ),
+                                backgroundColor: TekColors.success,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: TekColors.primary),
+                child: dialogBusy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text(
+                        'റീസെറ്റ് ചെയ്യുക (Reset)',
+                        style: TextStyle(
+                          fontFamilyFallback: TekTypography.malayalamFallback,
+                        ),
+                      ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }

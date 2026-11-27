@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import '../firebase_options.dart';
 import 'windows_update_models.dart';
 import 'windows_update_service.dart';
 import 'windows_update_dialog.dart';
@@ -79,6 +81,10 @@ class _AppUpdateManagementViewState extends State<AppUpdateManagementView>
   }
 
   Future<void> _fetchFirestoreConfig() async {
+    if (DefaultFirebaseOptions.isUatMode || Firebase.apps.isEmpty) {
+      setState(() => _firestoreLoading = false);
+      return;
+    }
     setState(() => _firestoreLoading = true);
     try {
       if (FirebaseAuth.instance.currentUser == null) {

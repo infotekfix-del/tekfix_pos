@@ -11,7 +11,7 @@ import 'manual_purchase_draft_service.dart';
 import 'manual_purchase_entry_screen.dart';
 import 'purchase_bill_details_screen.dart';
 import 'purchase_bill_service.dart';
-import 'purchase_bill_upload_screen.dart';
+import 'bill_import/bill_import_screen.dart';
 import 'purchase_models.dart';
 import 'vendor_ledger_screen.dart';
 
@@ -516,7 +516,7 @@ class _PurchaseBillsDashboardViewState
           ),
           icon: const Icon(Icons.document_scanner_rounded, size: 18),
           label: Text(
-            'Upload / Capture Bill',
+            'Upload Vendor Bill (ബിൽ അപ്‌ലോഡ്)',
             style: DashboardTypography.poppins(
               fontSize: 13.5,
               fontWeight: FontWeight.w700,
@@ -527,7 +527,7 @@ class _PurchaseBillsDashboardViewState
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const PurchaseBillUploadScreen(),
+                builder: (_) => const BillImportScreen(),
               ),
             );
           },
@@ -1584,13 +1584,13 @@ class _PurchaseBillsDashboardViewState
                           horizontal: 16, vertical: 12),
                     ),
                     icon: const Icon(Icons.document_scanner_rounded, size: 18),
-                    label: const Text('Upload / Capture Bill',
+                    label: const Text('Upload Vendor Bill (ബിൽ അപ്‌ലോഡ്)',
                         style: TextStyle(fontWeight: FontWeight.bold)),
                     onPressed: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const PurchaseBillUploadScreen(),
+                          builder: (_) => const BillImportScreen(),
                         ),
                       );
                     },

@@ -1,6 +1,7 @@
 {
   "projects": {
-    "default": "tekfix-45b38"
+    "default": "tekfix-45b38",
+    "staging": "tekfix-staging"
   }
 }
 

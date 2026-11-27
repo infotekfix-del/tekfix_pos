@@ -248,15 +248,17 @@ void main() {
         refunds: 0.0,
         totalCashExpenses: 50.0,
         totalBankExpenses: 100.0,
-        physicalCashCount: 1450.0,
+        physicalCashCount: 1500.0,
       );
 
-      // Formula: (Opening Cash + Cash Sales - Refunds - Cash Expenses) = 1000 + 500 - 0 - 50 = 1450
+      // Owner rule 2026-11-23: expenses are paid from Cash in Hand, not the
+      // drawer. Drawer = Opening + Cash Sales - Refunds = 1000 + 500 - 0 = 1500
       expect(summary.totalCash, 500.0);
       expect(summary.totalCashExpenses, 50.0);
       expect(summary.totalBankExpenses, 100.0);
-      expect(summary.expectedClosingCash, 1450.0);
-      expect(summary.actualCashCount, 1450.0);
+      expect(summary.expectedClosingCash, 1500.0);
+      expect(summary.paidFromCashInHand, 50.0);
+      expect(summary.actualCashCount, 1500.0);
       expect(summary.cashDiscrepancy, 0.0); // Exact match
       expect(summary.cashOverOrShort, 0.0);
 
@@ -268,7 +270,7 @@ void main() {
         refunds: 0.0,
         totalCashExpenses: 50.0,
         totalBankExpenses: 100.0,
-        physicalCashCount: 1400.0,
+        physicalCashCount: 1450.0,
       );
       expect(shortSummary.cashDiscrepancy, -50.0); // ₹50 shortage
 
@@ -280,7 +282,7 @@ void main() {
         refunds: 0.0,
         totalCashExpenses: 50.0,
         totalBankExpenses: 100.0,
-        physicalCashCount: 1500.0,
+        physicalCashCount: 1550.0,
       );
       expect(overSummary.cashDiscrepancy, 50.0); // ₹50 overage
     });
