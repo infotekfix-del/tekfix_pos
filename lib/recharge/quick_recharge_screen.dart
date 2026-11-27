@@ -457,7 +457,10 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     const Text(
                       'QUICK RECHARGE',
@@ -468,7 +471,6 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                         letterSpacing: 0.5,
                       ),
                     ),
-                    const SizedBox(width: 10),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
@@ -505,69 +507,79 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
               ],
             ),
           ),
-          // Refresh Button
-          IconButton(
-            tooltip: 'Refresh Live Balances (പുതുക്കുക)',
-            icon: const Icon(Icons.refresh_rounded, color: TekColors.electricCyan),
-            onPressed: _loadLiveDashboardData,
-          ),
-          if (auth.isOwner) ...[
-            const SizedBox(width: 4),
-            OutlinedButton.icon(
-              key: const ValueKey('qr-reset-start-new'),
-              onPressed: () => _confirmAndResetQuickRecharge(context, auth),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: TekColors.warning,
-                side: const BorderSide(color: TekColors.warning),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          const SizedBox(width: 12),
+          // Buttons wrap onto a second line on smaller windows instead of
+          // squeezing the title (no overflow stripe).
+          Flexible(
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+              // Refresh Button
+              IconButton(
+                tooltip: 'Refresh Live Balances (പുതുക്കുക)',
+                icon: const Icon(Icons.refresh_rounded, color: TekColors.electricCyan),
+                onPressed: _loadLiveDashboardData,
               ),
-              icon: const Icon(Icons.restart_alt_rounded, size: 17),
-              label: const Text('പുതിയ തുടക്കം (Reset)',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
-            ),
-          ],
-          const SizedBox(width: 8),
-          // Add Balance Button - Anytime
-          FilledButton.icon(
-            onPressed: () {
-              WalletTopUpDialog.show(
-                context,
-                shopId: auth.shopId.isNotEmpty ? auth.shopId : 'tekfix',
-                staffId: auth.uid,
-                staffName: auth.name,
-              ).then((res) {
-                if (res == true) _loadLiveDashboardData();
-              });
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF10B981),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            icon: const Icon(Icons.add_card_rounded, size: 17),
-            label: const Text(
-              'Add Balance',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
-            ),
-          ),
-          const SizedBox(width: 8),
-          // New Quick Recharge Button
-          FilledButton.icon(
-            onPressed: () {
-              QuickRechargeDialog.show(context, fundingType: _selectedFundingType).then((_) => _loadLiveDashboardData());
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: TekColors.primaryBlue,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            icon: const Icon(Icons.flash_on_rounded, size: 17),
-            label: const Text(
-              'New Recharge',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
+              if (auth.isOwner) ...[
+                OutlinedButton.icon(
+                  key: const ValueKey('qr-reset-start-new'),
+                  onPressed: () => _confirmAndResetQuickRecharge(context, auth),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: TekColors.warning,
+                    side: const BorderSide(color: TekColors.warning),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: const Icon(Icons.restart_alt_rounded, size: 17),
+                  label: const Text('പുതിയ തുടക്കം (Reset)',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                ),
+              ],
+              // Add Balance Button - Anytime
+              FilledButton.icon(
+                onPressed: () {
+                  WalletTopUpDialog.show(
+                    context,
+                    shopId: auth.shopId.isNotEmpty ? auth.shopId : 'tekfix',
+                    staffId: auth.uid,
+                    staffName: auth.name,
+                  ).then((res) {
+                    if (res == true) _loadLiveDashboardData();
+                  });
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.add_card_rounded, size: 17),
+                label: const Text(
+                  'Add Balance',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
+                ),
+              ),
+              // New Quick Recharge Button
+              FilledButton.icon(
+                onPressed: () {
+                  QuickRechargeDialog.show(context, fundingType: _selectedFundingType).then((_) => _loadLiveDashboardData());
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: TekColors.primaryBlue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.flash_on_rounded, size: 17),
+                label: const Text(
+                  'New Recharge',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
+                ),
+              ),
+              ],
             ),
           ),
         ],
