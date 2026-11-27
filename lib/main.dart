@@ -3,6 +3,7 @@
 // (Dark-theme fixed: all text/background colors now follow the active theme)
 // =============================================================================
 import 'dart:async';
+import 'dart:io' show exit;
 import 'dart:math' as math;
 import 'dart:convert';
 import 'dart:ui';
@@ -13,6 +14,8 @@ import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+
+import 'core/hive_safe_open.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -471,21 +474,58 @@ Future<bool> guardedDelete(BuildContext c, String msg,
 // -----------------------------------------------------------------------------
 // APP ENTRY
 // -----------------------------------------------------------------------------
-Future<void> _openBoxWithRecovery(String b) async {
-  try {
-    if (Hive.isBoxOpen(b)) return;
-    await Hive.openBox(b);
-  } catch (e) {
-    debugPrint(
-        '[TekFix Startup] Corrupted/unopenable Hive box detected: $b ($e). Recovering...');
-    try {
-      await Hive.deleteBoxFromDisk(b);
-      debugPrint('[TekFix Startup] Cleared corrupted box file from disk: $b');
-      await Hive.openBox(b);
-      debugPrint('[TekFix Startup] Reopened fresh box: $b');
-    } catch (e2) {
-      debugPrint('[TekFix Startup] Fatal: Unable to recreate box $b: $e2');
-    }
+/// Shown instead of the app when another TekFix already has the data open.
+/// Nothing was opened or changed by this copy.
+class TekFixAlreadyRunningApp extends StatelessWidget {
+  const TekFixAlreadyRunningApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'TekFix ERP & POS',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData.dark(),
+      home: Scaffold(
+        backgroundColor: const Color(0xFF0F172A),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.lock_clock_rounded, color: Colors.amberAccent, size: 56),
+                  const SizedBox(height: 16),
+                  const Text('TekFix ഇതിനകം തുറന്നിട്ടുണ്ട്',
+                      key: ValueKey('already-running-title'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  const Text('TekFix is already open on this computer.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white70, fontSize: 14)),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'ഒരേ സമയം രണ്ട് TekFix തുറക്കാൻ പറ്റില്ല. ഡാറ്റ സുരക്ഷിതമാണ്, ഒന്നും മാറ്റിയിട്ടില്ല.\n'
+                    'ആദ്യം തുറന്ന TekFix ഉപയോഗിക്കുക (ടാസ്ക്ബാറിലോ ക്ലോക്കിന് അടുത്തോ നോക്കുക), '
+                    'അല്ലെങ്കിൽ അത് അടച്ച ശേഷം വീണ്ടും തുറക്കുക.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5),
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton.icon(
+                    onPressed: () => exit(0),
+                    icon: const Icon(Icons.close_rounded),
+                    label: const Text('ഈ വിൻഡോ അടയ്ക്കുക (Close)'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -607,9 +647,20 @@ Future<void> main() async {
       'tek_sync_outbox',
     ];
 
-    for (final b in allTargetBoxes) {
-      await _openBoxWithRecovery(b);
+    try {
+      for (final b in allTargetBoxes) {
+        await openBoxSafely(b);
+      }
+    } on TekFixAlreadyRunningException catch (e) {
+      // Another TekFix owns the data: change nothing, just say so.
+      debugPrint('[TekFix Startup] $e');
+      try {
+        await Hive.close();
+      } catch (_) {}
+      runApp(const TekFixAlreadyRunningApp());
+      return;
     }
+
 
     try {
       await SyncEngine.instance.openBoxes();
@@ -756,6 +807,12 @@ Future<void> main() async {
     AutoLockService.instance.startMonitoring();
     runApp(const TekFixApp());
   }, (error, stack) {
+    // Hive also reports a lock failure as an uncaught error: that only means
+    // another TekFix is open. Show that, never the crash screen.
+    if (error is TekFixAlreadyRunningException || isHiveLockError(error)) {
+      debugPrint('[TekFix Startup] Another TekFix holds the data: $error');
+      return;
+    }
     debugPrint('[TekFix FATAL Uncaught Zone Error] $error');
     debugPrint('[TekFix FATAL StackTrace] $stack');
     try {

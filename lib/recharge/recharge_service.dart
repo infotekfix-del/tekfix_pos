@@ -20,6 +20,7 @@ import 'recharge_backend_bridge.dart';
 import 'recharge_recovery_engine.dart';
 import '../main.dart' show Db, boxRecharges, boxRechargeQueue, boxRechargeDeadLetter, boxRechargeReconciliation, boxRechargeWalletLedger;
 import 'recharge_models.dart';
+import 'recharge_period_accounting.dart' show rechargeFreshStartUtc;
 
 /// Master Service for Operator Wallets, Distributor Credit, and Recharge Accounting
 class RechargeService {
@@ -338,6 +339,15 @@ class RechargeService {
     _localReversals.clear();
     _localDailyReconciliations.clear();
     enforceDailyOpeningBalance = true;
+  }
+
+  /// After the owner's reset (see RechargeResetStore): drops recharges from
+  /// before the reset from the in-memory dashboard cache. Nothing is deleted
+  /// from Hive, and the offline queue is kept so unsynced recharges still post.
+  void applyResetPointToLocalCache({required String shopId}) {
+    final from = rechargeFreshStartUtc;
+    _localRecharges.removeWhere(
+        (_, r) => r.shopId == shopId && r.createdAt.toUtc().isBefore(from));
   }
 
   // ---------------------------------------------------------------------------
@@ -1141,7 +1151,7 @@ class RechargeService {
         updatedAt: DateTime.now(),
       );
 
-      final walletEntry = WalletLedgerEntry(
+      WalletLedgerEntry walletEntry = WalletLedgerEntry(
         txnId: txnId,
         shopId: shopId,
         walletId: currentWallet.walletId,
@@ -1192,7 +1202,7 @@ class RechargeService {
           final canonicalPayload = 'PROCESS_DISTRIBUTOR_LOAD:$shopId:$currentUid:$dId:${challenge.nonce}:$canonicalData';
           final sig = await sec.signRawPayload(canonicalPayload);
 
-          await RechargeBackendBridge.supabaseClient!.processDistributorLoad(
+          final res = await RechargeBackendBridge.supabaseClient!.processDistributorLoad(
             shopId: shopId,
             walletId: currentWallet.walletId,
             distributorId: distributorId,
@@ -1204,6 +1214,14 @@ class RechargeService {
             deviceSignature: sig,
             nonce: challenge.nonce,
           );
+
+          final serverEntryId = res['entry_id']?.toString();
+          if (serverEntryId != null && serverEntryId.isNotEmpty) {
+            walletEntry = walletEntry.copyWith(
+              txnId: serverEntryId,
+              referenceId: serverEntryId,
+            );
+          }
         } else if (Firebase.apps.isNotEmpty) {
           throw StateError('[RechargeService] Supabase client is not configured for Recharge Accounting.');
         }
@@ -4740,6 +4758,8 @@ class RechargeService {
     final txns = _localRecharges.values.where((r) {
       if (r.shopId != shopId) return false;
       if (r.createdAt.isBefore(start) || r.createdAt.isAfter(end)) return false;
+      // Nothing from before the fresh start / owner's reset is counted.
+      if (r.createdAt.toUtc().isBefore(rechargeFreshStartUtc)) return false;
       if (filter.operator != null && r.operator != filter.operator) return false;
       if (filter.distributorId != null && r.distributorId != filter.distributorId) return false;
       if (filter.paymentMode != null && r.paymentMode != filter.paymentMode) return false;

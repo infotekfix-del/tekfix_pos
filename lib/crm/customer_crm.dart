@@ -33,6 +33,7 @@ import 'dart:async';
 import 'package:hive/hive.dart';
 import 'package:uuid/uuid.dart';
 
+import '../core/hive_safe_open.dart' show isHiveLockError;
 import 'customer_models.dart';
 import 'customer_search.dart';
 import 'phone_utils.dart';
@@ -124,8 +125,10 @@ class CustomerCrm {
       if (Hive.isBoxOpen(n)) return Hive.box(n);
       try {
         return await Hive.openBox(n);
-      } catch (_) {
-        // derived data only: safe to drop and rebuild
+      } catch (e) {
+        // Locked by another TekFix: the data is fine, never delete it.
+        if (isHiveLockError(e)) rethrow;
+        // Unreadable: derived data only, safe to drop and rebuild.
         await Hive.deleteBoxFromDisk(n);
         return Hive.openBox(n);
       }

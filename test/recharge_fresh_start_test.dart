@@ -5,9 +5,9 @@ import 'package:tekfix_erp_pos/recharge/recharge_models.dart';
 import 'package:tekfix_erp_pos/recharge/recharge_period_accounting.dart';
 
 void main() {
-  test('fresh start is 00:00 IST on 20 Nov 2026', () {
-    expect(kRechargeFreshStartIstDate, '2026-11-20');
-    expect(rechargeFreshStartUtc, DateTime.utc(2026, 11, 19, 18, 30));
+  test('fresh start is 00:00 IST on 23 Nov 2026', () {
+    expect(kRechargeFreshStartIstDate, '2026-11-23');
+    expect(rechargeFreshStartUtc, DateTime.utc(2026, 11, 22, 18, 30));
   });
 
   test('All Time / Previous Month are limited to the fresh start', () {
@@ -90,9 +90,9 @@ void main() {
         id: id, operator: RechargeOperator.jio, faceValuePaise: 50000,
         status: RechargeStatus.success, at: at);
     final v = computeVolume([
-      tx('old', DateTime.utc(2026, 11, 19, 18, 29)), // 23:59 IST 19 Nov
-      tx('new', DateTime.utc(2026, 11, 19, 18, 31)), // 00:01 IST 20 Nov
-    ], clampToFreshStart(istRangeFor(RechargePeriodFilter.allTime, now: DateTime.utc(2026, 11, 21))));
+      tx('old', DateTime.utc(2026, 11, 22, 18, 29)), // 23:59 IST 22 Nov
+      tx('new', DateTime.utc(2026, 11, 22, 18, 31)), // 00:01 IST 23 Nov
+    ], clampToFreshStart(istRangeFor(RechargePeriodFilter.allTime, now: DateTime.utc(2026, 11, 24))));
     expect(v.grossPaise, 50000);
     expect(v.of(RechargeOperator.jio).successCount, 1);
   });

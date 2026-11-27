@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../core/device.dart';
+import '../core/hive_safe_open.dart';
 import '../firebase_options.dart';
 import '../main.dart'
     show
@@ -181,11 +182,12 @@ class SyncEngine extends ChangeNotifier {
     } catch (e) {
       debugPrint(
           '[TekFix SyncEngine] openBoxes error ($e). Auto-recovering sync boxes...');
+      // The outbox can hold changes not yet sent to the server: never drop
+      // it blindly. Locked -> another TekFix is running, leave it alone;
+      // unreadable -> back it up first (see core/hive_safe_open.dart).
       try {
-        await Hive.deleteBoxFromDisk('tek_sync_meta');
-        await Hive.deleteBoxFromDisk('tek_sync_outbox');
-        _meta = await Hive.openBox('tek_sync_meta');
-        _outbox = await Hive.openBox('tek_sync_outbox');
+        _meta = await openBoxSafely('tek_sync_meta');
+        _outbox = await openBoxSafely('tek_sync_outbox');
         _boxesOpen = true;
       } catch (e2) {
         debugPrint(

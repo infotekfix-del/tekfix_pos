@@ -62,13 +62,36 @@ DateTime istMidnightUtc(int y, int m, int d) =>
 /// The shop's fresh start for the new recharge accounting (IST date).
 /// Volume, cumulative totals and the wallet figures on the dashboard count
 /// only from here; older records stay in the database and old reports.
-const String kRechargeFreshStartIstDate = '2026-11-20';
+const String kRechargeFreshStartIstDate = '2026-11-23';
 
 /// 00:00 IST on [kRechargeFreshStartIstDate], as UTC.
-final DateTime rechargeFreshStartUtc = () {
+final DateTime _kFreshStartBaseUtc = () {
   final p = kRechargeFreshStartIstDate.split('-').map(int.parse).toList();
   return istMidnightUtc(p[0], p[1], p[2]);
 }();
+
+DateTime? _rechargeResetPointUtc;
+
+/// The owner's last "Reset / start new" (പുതിയ തുടക്കം), if any. Set by
+/// RechargeResetStore; null when the shop never reset.
+DateTime? get rechargeResetPointUtc => _rechargeResetPointUtc;
+set rechargeResetPointUtc(DateTime? t) => _rechargeResetPointUtc = t?.toUtc();
+
+/// Where counting starts: the fixed fresh start, or the owner's later reset.
+DateTime get rechargeFreshStartUtc {
+  final r = _rechargeResetPointUtc;
+  return (r != null && r.isAfter(_kFreshStartBaseUtc)) ? r : _kFreshStartBaseUtc;
+}
+
+/// Human label for [rechargeFreshStartUtc] in IST, e.g. "2026-11-23" or
+/// "2026-11-27 14:05" after a reset.
+String get rechargeFreshStartLabel {
+  final r = _rechargeResetPointUtc;
+  if (r == null || !r.isAfter(_kFreshStartBaseUtc)) return kRechargeFreshStartIstDate;
+  final t = r.add(kIstOffset);
+  String two(int v) => v.toString().padLeft(2, '0');
+  return '${t.year}-${two(t.month)}-${two(t.day)} ${two(t.hour)}:${two(t.minute)}';
+}
 
 /// [r] limited to the fresh start (nothing earlier is counted).
 IstRange clampToFreshStart(IstRange r) {

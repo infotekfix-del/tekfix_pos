@@ -3,10 +3,11 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../auth/auth_controller.dart';
-import '../main.dart' show Db;
+import '../main.dart' show Db, toast;
 import '../theme/tek_tokens.dart';
 import 'commission_dialogs.dart';
 import 'daily_reconciliation_screen.dart';
+import 'recharge_reset_point.dart';
 import 'quick_recharge_dialog.dart';
 import 'recharge_accounting_backend.dart';
 import 'recharge_accounting_service.dart';
@@ -61,6 +62,7 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
   String? _settlementError;
   ExcessSummary? _excess; // separate Excess account (morning + closing)
   TopUpCommissionSummary? _topUpCommission; // distributor refill commission (profit)
+  final Set<RechargeOperator> _closedOperatorsToday = {};
 
   @override
   void initState() {
@@ -79,7 +81,9 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
     try {
       // 0. Always re-read wallets from the server and load saved recharges from local storage
       RechargeService.instance.invalidateWalletCache(shopId: sId);
+      RechargeResetStore.current(sId); // owner's last reset, if any
       await RechargeService.instance.rehydrateFromHive(defaultShopId: sId);
+      RechargeService.instance.applyResetPointToLocalCache(shopId: sId);
 
       // 1. Generate live daily financial report (transactions, collections, commissions)
       final report = await RechargeService.instance.generateFinancialReport(
@@ -507,6 +511,22 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
             icon: const Icon(Icons.refresh_rounded, color: TekColors.electricCyan),
             onPressed: _loadLiveDashboardData,
           ),
+          if (auth.isOwner) ...[
+            const SizedBox(width: 4),
+            OutlinedButton.icon(
+              key: const ValueKey('qr-reset-start-new'),
+              onPressed: () => _confirmAndResetQuickRecharge(context, auth),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: TekColors.warning,
+                side: const BorderSide(color: TekColors.warning),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              icon: const Icon(Icons.restart_alt_rounded, size: 17),
+              label: const Text('പുതിയ തുടക്കം (Reset)',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+            ),
+          ],
           const SizedBox(width: 8),
           // Add Balance Button - Anytime
           FilledButton.icon(
@@ -553,6 +573,144 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
         ],
       ),
     );
+  }
+
+  /// Owner password (admin_pass) or, when one was set, the owner PIN.
+  static bool _ownerSecretMatches(String entered) {
+    if (entered.isEmpty) return false;
+    if (entered == Db.setting('admin_pass', 'admin123')) return true;
+    final pin = Db.setting('owner_pin', '');
+    return pin.isNotEmpty && entered == pin;
+  }
+
+  /// "Reset / start new": everything the owner pays or counts restarts from
+  /// ₹0. Nothing is deleted; see recharge_reset_point.dart.
+  Future<void> _confirmAndResetQuickRecharge(
+      BuildContext context, AuthController auth) async {
+    final shop = auth.shopId;
+    if (shop.isEmpty) {
+      toast(context, 'ഷോപ്പ് തിരഞ്ഞെടുത്തിട്ടില്ല (Shop not selected)');
+      return;
+    }
+    final pwCtrl = TextEditingController();
+    String? err;
+    void submit(BuildContext ctx, void Function(void Function()) setD) {
+      if (_ownerSecretMatches(pwCtrl.text.trim())) {
+        Navigator.pop(ctx, true);
+      } else {
+        setD(() => err = 'പാസ്‌വേഡ് തെറ്റാണ് (Wrong password)');
+      }
+    }
+
+    Widget line(IconData i, Color c, String t) => Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(i, size: 16, color: c),
+            const SizedBox(width: 8),
+            Expanded(child: Text(t, style: const TextStyle(fontSize: 12.5, color: Colors.white70))),
+          ]),
+        );
+
+    final verified = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          backgroundColor: TekColors.cardBg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.restart_alt_rounded, color: TekColors.warning, size: 22),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text('ക്വിക്ക് റീചാർജ് പുതിയതായി തുടങ്ങുക',
+                    style: TextStyle(fontSize: 15, color: Colors.white)),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('ഇത് അമർത്തിയാൽ ഇപ്പോൾ മുതൽ എല്ലാം ₹0 ൽ നിന്ന് വീണ്ടും തുടങ്ങും:',
+                    style: TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 10),
+                line(Icons.check_circle_rounded, TekColors.success,
+                    'ഷോപ്പിൽ നിന്നും എയർടെൽ, ജിയോ, വിഐ, ബിഎസ്എൻഎൽ ആളുകൾക്ക് കൊടുക്കാനുള്ള പേയ്മെൻ്റ് എല്ലാം ₹0'),
+                line(Icons.check_circle_rounded, TekColors.success,
+                    'അവർക്ക് കൊടുത്ത പേയ്മെൻ്റും അഡ്വാൻസും ₹0'),
+                line(Icons.check_circle_rounded, TekColors.success,
+                    'ഇതുവരെയുള്ള റീചാർജ് തുക, കമ്മീഷൻ, എക്സസ് എല്ലാം ₹0'),
+                line(Icons.info_outline_rounded, TekColors.electricCyan,
+                    'ഓപ്പറേറ്റർ ആപ്പിലുള്ള വാലറ്റ് ബാലൻസ് മാറില്ല (അത് ശരിക്കുമുള്ള പണം ആണ്). തെറ്റുണ്ടെങ്കിൽ "Align wallet" / Closing വഴി ശരിയാക്കുക.'),
+                line(Icons.info_outline_rounded, TekColors.electricCyan,
+                    'പഴയ കണക്കുകൾ ഡിലീറ്റ് ആവില്ല, പഴയ റിപ്പോർട്ടിൽ ഉണ്ടാകും. ഇനിയും ബാക്കി ഉണ്ടെങ്കിൽ "Opening dues" വഴി ചേർക്കാം.'),
+                const SizedBox(height: 10),
+                const Text('തുടരാൻ Owner Password / PIN നൽകുക:',
+                    style: TextStyle(fontSize: 12.5, color: Colors.white70)),
+                const SizedBox(height: 8),
+                TextField(
+                  key: const ValueKey('qr-reset-password'),
+                  controller: pwCtrl,
+                  obscureText: true,
+                  autofocus: true,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Password / PIN',
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    errorText: err,
+                    filled: true,
+                    fillColor: const Color(0x26000000),
+                    border: const OutlineInputBorder(),
+                  ),
+                  onSubmitted: (_) => submit(ctx, setD),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('വേണ്ട (Cancel)'),
+            ),
+            FilledButton.icon(
+              key: const ValueKey('qr-reset-confirm'),
+              style: FilledButton.styleFrom(backgroundColor: TekColors.error),
+              onPressed: () => submit(ctx, setD),
+              icon: const Icon(Icons.restart_alt_rounded, size: 16),
+              label: const Text('എല്ലാം ₹0 ആക്കുക (Reset)'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (verified != true || !mounted) return;
+
+    setState(() => _isLoading = true);
+    try {
+      // The dues as the server holds them now become the zero line.
+      final raw = await RechargeAccountingService.instance.rawSettlement(shop);
+      await RechargeResetStore.save(
+          shop, RechargeResetPoint.fromSettlement(raw, DateTime.now().toUtc()));
+      RechargeService.instance.applyResetPointToLocalCache(shopId: shop);
+      await Db.logAction(
+          action: 'QUICK_RECHARGE_RESET',
+          entity: 'recharge',
+          entityId: shop,
+          reason: 'Owner started a new recharge account (dues and totals from ₹0)',
+          user: auth.name);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        toast(this.context,
+            'റീസെറ്റ് നടന്നില്ല — ഇൻ്റർനെറ്റ് നോക്കി വീണ്ടും ശ്രമിക്കുക. (${accountingErrorText(e)})');
+      }
+      return;
+    }
+    await _loadLiveDashboardData();
+    if (mounted) {
+      toast(this.context, 'ക്വിക്ക് റീചാർജ് ₹0 ൽ നിന്ന് പുതിയതായി തുടങ്ങി.');
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -785,7 +943,7 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
         value: formatInrPaise(cumulative.grossPaise),
         icon: Icons.all_inclusive_rounded,
         gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF4F46E5)]),
-        subtext: 'Since $kRechargeFreshStartIstDate • Net ${formatInrPaise(cumulative.netPaise)}',
+        subtext: 'Since $rechargeFreshStartLabel • Net ${formatInrPaise(cumulative.netPaise)}',
       ),
       _buildMetricCard(
         title: 'Total Operator Wallet Balance',
@@ -1066,6 +1224,17 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
             final pst = _period?[op];
             final pClosing = pst?.closing();
             final pMorning = pst?.morning;
+            final isMorningDone = (pst != null && pst.morning != null) ||
+                (pst == null && (opRecon?.openingBalancePaise ?? 0) > 0);
+            final prevClosing = pst?.previousClosing;
+            final isClosingDone = _closedOperatorsToday.contains(op) ||
+                isClosed ||
+                (prevClosing != null &&
+                    prevClosing.at.toLocal().year == DateTime.now().year &&
+                    prevClosing.at.toLocal().month == DateTime.now().month &&
+                    prevClosing.at.toLocal().day == DateTime.now().day &&
+                    pst!.movements.isEmpty &&
+                    isMorningDone);
             final todayOpPaise = RechargeAccountingService.instance
                 .volume(AuthController.instance.shopId, istRangeFor(RechargePeriodFilter.today))
                 .of(op)
@@ -1271,19 +1440,51 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                         label: const Text('Add Balance', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                       ),
                       // Morning Entry Button (period workflow)
-                      OutlinedButton.icon(
-                        key: ValueKey('op-morning-${op.name}'),
-                        onPressed: () => _openMorning(op),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: TekColors.textPrimary,
-                          side: const BorderSide(color: TekColors.borderSubtle),
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        icon: const Icon(Icons.wb_sunny_rounded, size: 13),
-                        label: Text(pst != null && pst.previousClosing == null ? 'Reference' : 'Morning',
-                            style: const TextStyle(fontSize: 10.5)),
-                      ),
+                      isMorningDone
+                          ? FilledButton.icon(
+                              key: ValueKey('op-morning-${op.name}'),
+                              onPressed: null,
+                              style: FilledButton.styleFrom(
+                                disabledBackgroundColor:
+                                    TekColors.success.withValues(alpha: 0.15),
+                                disabledForegroundColor: TekColors.success,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 6),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  side: BorderSide(
+                                      color: TekColors.success
+                                          .withValues(alpha: 0.4)),
+                                ),
+                              ),
+                              icon: const Icon(Icons.check_circle_rounded,
+                                  size: 13, color: TekColors.success),
+                              label: const Text('Morning ✓',
+                                  style: TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: TekColors.success)),
+                            )
+                          : OutlinedButton.icon(
+                              key: ValueKey('op-morning-${op.name}'),
+                              onPressed: () => _openMorning(op),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: kPeriodOrange,
+                                side: const BorderSide(color: kPeriodOrange),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 6),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8)),
+                              ),
+                              icon: const Icon(Icons.wb_sunny_rounded, size: 13),
+                              label: Text(
+                                  pst != null && pst.previousClosing == null
+                                      ? 'Reference'
+                                      : 'Morning',
+                                  style: const TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.bold)),
+                            ),
                       // Fresh start: system wallet differs from the verified balance
                       if (freshBalancePaise != null &&
                           wallet != null &&
@@ -1301,18 +1502,49 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
                           label: const Text('Align wallet', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
                         ),
                       // Night Closing Button (period workflow)
-                      OutlinedButton.icon(
-                        key: ValueKey('op-closing-${op.name}'),
-                        onPressed: () => _openClosing(op),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: TekColors.textPrimary,
-                          side: const BorderSide(color: TekColors.borderSubtle),
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        icon: const Icon(Icons.logout_rounded, size: 13),
-                        label: const Text('Closing', style: TextStyle(fontSize: 10.5)),
-                      ),
+                      isClosingDone
+                          ? FilledButton.icon(
+                              key: ValueKey('op-closing-${op.name}'),
+                              onPressed: null,
+                              style: FilledButton.styleFrom(
+                                disabledBackgroundColor:
+                                    TekColors.success.withValues(alpha: 0.15),
+                                disabledForegroundColor: TekColors.success,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 6),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  side: BorderSide(
+                                      color: TekColors.success
+                                          .withValues(alpha: 0.4)),
+                                ),
+                              ),
+                              icon: const Icon(Icons.check_circle_rounded,
+                                  size: 13, color: TekColors.success),
+                              label: const Text('Closing ✓',
+                                  style: TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: TekColors.success)),
+                            )
+                          : OutlinedButton.icon(
+                              key: ValueKey('op-closing-${op.name}'),
+                              onPressed: () => _openClosing(op),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: TekColors.electricCyan,
+                                side: const BorderSide(
+                                    color: TekColors.electricCyan),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 6),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8)),
+                              ),
+                              icon: const Icon(Icons.logout_rounded, size: 13),
+                              label: const Text('Closing',
+                                  style: TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.bold)),
+                            ),
                       // Fix a top-up saved as own money that came from a distributor
                       IconButton(
                         key: ValueKey('op-reclass-${op.name}'),
@@ -2035,7 +2267,14 @@ class _QuickRechargeScreenState extends State<QuickRechargeScreen> {
     final changed = st.previousClosing == null
         ? await ReferenceBalanceDialog.show(context, shopId: shop, actor: _actor, operator: op)
         : await ClosingEntryDialog.show(context, shopId: shop, actor: _actor, state: st);
-    if (changed == true) _loadLiveDashboardData();
+    if (changed == true) {
+      if (mounted) {
+        setState(() {
+          _closedOperatorsToday.add(op);
+        });
+      }
+      _loadLiveDashboardData();
+    }
   }
 
   Future<void> _openDistributorPayment([SettlementAccount? account]) async {

@@ -443,6 +443,27 @@ class _QuickRechargeDialogState extends State<QuickRechargeDialog> {
     setState(() {});
   }
 
+  /// Wrong entry or starting again: the whole form goes back to empty.
+  void _clearForm() {
+    _amountController.removeListener(_onAmountChanged);
+    _mobileController.clear();
+    _amountController.clear();
+    _costController.clear();
+    _notesController.clear();
+    _amountController.addListener(_onAmountChanged);
+    _formKey.currentState?.reset();
+    setState(() {
+      _operator = 'Jio';
+      _serviceType = 'Prepaid';
+      _paymentMode = 'Cash';
+      _selectedPartyKey = null;
+      _selectedPartyName = '';
+      _isCustomCost = false;
+      _dialogError = null;
+    });
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
+  }
+
   void _onOperatorChanged(String op) {
     setState(() {
       _operator = op;
@@ -1176,6 +1197,13 @@ class _QuickRechargeDialogState extends State<QuickRechargeDialog> {
                         TextButton(
                           onPressed: _isSubmitting ? null : () => Navigator.pop(context),
                           child: const Text('റദ്ദാക്കുക (Cancel)', style: TextStyle(color: Colors.white70)),
+                        ),
+                        TextButton.icon(
+                          key: const ValueKey('qr-entry-clear'),
+                          onPressed: _isSubmitting ? null : _clearForm,
+                          icon: const Icon(Icons.backspace_outlined, size: 16, color: Colors.redAccent),
+                          label: const Text('മായ്ക്കുക (Clear)',
+                              style: TextStyle(color: Colors.redAccent)),
                         ),
                         const SizedBox(width: 8),
                         Flexible(

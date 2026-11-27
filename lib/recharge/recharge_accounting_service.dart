@@ -26,6 +26,7 @@ import 'recharge_accounting_backend.dart';
 import 'recharge_backend_bridge.dart';
 import 'recharge_models.dart';
 import 'recharge_period_accounting.dart';
+import 'recharge_reset_point.dart';
 import 'recharge_service.dart';
 
 /// Hive box holding only pending-form idempotency keys (form drafts).
@@ -165,10 +166,78 @@ class RechargeAccountingService {
   }
 
   // ------------------------------------------------------------------ reads
-  Future<Map<RechargeOperator, OperatorPeriodState>> periodState(String shopId) =>
-      backend.periodState(shopId);
+  Future<Map<RechargeOperator, OperatorPeriodState>> periodState(String shopId) async {
+    final raw = await backend.periodState(shopId);
+    return mergeWithLocalMovements(raw);
+  }
 
-  Future<SettlementSummary> settlement(String shopId) => backend.settlement(shopId);
+  /// Merges local wallet ledger movements into server period state so
+  /// [OperatorPeriodState.closing().expectedClosingPaise] reflects real-time local debits.
+  /// Prevents double-counting by matching both exact reference ID and proximity (operator, kind, amount, time).
+  static Map<RechargeOperator, OperatorPeriodState> mergeWithLocalMovements(
+      Map<RechargeOperator, OperatorPeriodState> state) {
+    final localLogs = RechargeService.instance.getLocalWalletLedger();
+    final localMoves = legacyMovements(localLogs);
+
+    final out = <RechargeOperator, OperatorPeriodState>{};
+    for (final entry in state.entries) {
+      final op = entry.key;
+      final st = entry.value;
+      final serverMoves = st.movements;
+      final seenRefs = <String>{
+        for (final m in serverMoves)
+          if (m.referenceId.isNotEmpty) m.referenceId
+      };
+
+      // Server movements pool available for fuzzy matching (same operator, kind, amountPaise, within 15 mins)
+      final unmatchedServerMoves = List<WalletMovement>.from(serverMoves);
+
+      final mergedMoves = List<WalletMovement>.from(serverMoves);
+      final periodStart = st.previousClosing?.at ?? DateTime(2000);
+
+      for (final lm in localMoves) {
+        if (lm.operator != op) continue;
+        if (!lm.at.isAfter(periodStart)) continue;
+
+        // 1. Direct referenceId match
+        if (lm.referenceId.isNotEmpty && seenRefs.contains(lm.referenceId)) {
+          unmatchedServerMoves
+              .removeWhere((sm) => sm.referenceId == lm.referenceId);
+          continue;
+        }
+
+        // 2. Fuzzy match: same operator, kind, amountPaise, within 15 minutes of server movement
+        final fuzzyMatchIdx = unmatchedServerMoves.indexWhere((sm) =>
+            sm.operator == lm.operator &&
+            sm.kind == lm.kind &&
+            sm.amountPaise == lm.amountPaise &&
+            sm.at.difference(lm.at).abs().inMinutes <= 15);
+
+        if (fuzzyMatchIdx != -1) {
+          unmatchedServerMoves.removeAt(fuzzyMatchIdx);
+          continue;
+        }
+
+        // Truly local un-posted movement: add it
+        mergedMoves.add(lm);
+      }
+
+      out[op] = OperatorPeriodState(
+        operator: op,
+        previousClosing: st.previousClosing,
+        movements: mergedMoves,
+        morning: st.morning,
+      );
+    }
+    return out;
+  }
+
+  /// Operator-wise dues, counted from the owner's last reset (if any).
+  Future<SettlementSummary> settlement(String shopId) async =>
+      applySettlementReset(await backend.settlement(shopId), RechargeResetStore.current(shopId));
+
+  /// Distributor dues exactly as the server holds them (no reset applied).
+  Future<SettlementSummary> rawSettlement(String shopId) => backend.settlement(shopId);
 
   /// Recharge volume from the authoritative recharge records already held
   /// on this device (no extra history download).
@@ -319,10 +388,12 @@ class RechargeAccountingService {
   Future<Map<String, int>> agentPendingReturns(String shopId) =>
       backend.agentPendingReturns(shopId);
 
-  Future<ExcessSummary> excessSummary(String shopId) => backend.excessSummary(shopId);
+  Future<ExcessSummary> excessSummary(String shopId) async =>
+      applyExcessReset(await backend.excessSummary(shopId), RechargeResetStore.current(shopId));
 
-  Future<TopUpCommissionSummary> topUpCommissionSummary(String shopId) =>
-      backend.topUpCommissionSummary(shopId);
+  Future<TopUpCommissionSummary> topUpCommissionSummary(String shopId) async =>
+      applyTopUpCommissionReset(
+          await backend.topUpCommissionSummary(shopId), RechargeResetStore.current(shopId));
 
   Future<int> distributorCashForDate(String shopId, String dateString) =>
       backend.distributorCashForDate(shopId, dateString);

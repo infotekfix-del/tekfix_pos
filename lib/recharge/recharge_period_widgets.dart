@@ -673,6 +673,19 @@ class _ReferenceBalanceDialogState extends State<ReferenceBalanceDialog> {
           operator: widget.operator,
           balancePaise: p,
           reason: _reason.text.trim());
+      // Seamlessly sync the POS execution wallet to the entered reference balance
+      try {
+        await RechargeAccountingService.instance.alignWallet(
+          shopId: widget.shopId,
+          actor: widget.actor,
+          operator: widget.operator,
+          ownPaise: p,
+          creditPaise: 0,
+          reason: 'Initial setup: wallet auto-aligned to verified reference balance',
+        );
+      } catch (e) {
+        debugPrint('[ReferenceBalanceDialog] Auto-align notice: $e');
+      }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       setState(() => _error = accountingErrorText(e));
@@ -1141,6 +1154,7 @@ class _DistributorPaymentV2DialogState extends State<DistributorPaymentV2Dialog>
   bool _confirmed = false;
   bool _busy = false;
   String? _error;
+  int _formGen = 0; // rebuilds the dropdowns after Clear
 
   @override
   void initState() {
@@ -1155,6 +1169,22 @@ class _DistributorPaymentV2DialogState extends State<DistributorPaymentV2Dialog>
     _ref.dispose();
     _notes.dispose();
     super.dispose();
+  }
+
+  /// Wrong entry or starting again: everything typed goes back to empty.
+  void _clearForm() {
+    _amount.clear();
+    _ref.clear();
+    _notes.clear();
+    setState(() {
+      _distributorId = widget.initialDistributorId;
+      _operator = widget.initialOperator;
+      _mode = 'UPI';
+      _date = DateTime.now();
+      _confirmed = false;
+      _error = null;
+      _formGen++;
+    });
   }
 
   int get _beforePaise {
@@ -1220,11 +1250,17 @@ class _DistributorPaymentV2DialogState extends State<DistributorPaymentV2Dialog>
     final after = before - p;
     return _PeriodDialog(
       title: 'Distributor Payment (operator-wise)',
-      malayalam: 'ഡിസ്ട്രിബ്യൂട്ടർ പേയ്‌മെന്റ് – ഓരോ ഓപ്പറേറ്ററിനും വേറെ',
+      malayalam: 'ഷോപ്പിൽ നിന്നും ഓപ്പറേറ്ററുടെ ആൾക്ക് പേയ്മെൻ്റ് കൊടുക്കുക',
       actions: [
         TextButton(
             onPressed: _busy ? null : () => Navigator.of(context).pop(false),
             child: const Text('Cancel (വേണ്ട)')),
+        TextButton.icon(
+          key: const ValueKey('pay-clear'),
+          onPressed: _busy ? null : _clearForm,
+          icon: const Icon(Icons.backspace_outlined, size: 16, color: kPeriodRed),
+          label: const Text('എല്ലാം മായ്ക്കുക (Clear)', style: TextStyle(color: kPeriodRed)),
+        ),
         FilledButton(
           key: const ValueKey('pay-submit'),
           style: _primaryButton(kPeriodOrange),
@@ -1237,7 +1273,7 @@ class _DistributorPaymentV2DialogState extends State<DistributorPaymentV2Dialog>
         children: [
           DropdownButtonFormField<String>(
             isExpanded: true,
-            key: const ValueKey('pay-distributor'),
+            key: ValueKey('pay-distributor-$_formGen'),
             initialValue: _distributorId,
             dropdownColor: TekColors.elevatedSurface,
             style: const TextStyle(color: TekColors.textPrimary),
@@ -1251,7 +1287,7 @@ class _DistributorPaymentV2DialogState extends State<DistributorPaymentV2Dialog>
           const SizedBox(height: 10),
           DropdownButtonFormField<RechargeOperator>(
             isExpanded: true,
-            key: const ValueKey('pay-operator'),
+            key: ValueKey('pay-operator-$_formGen'),
             initialValue: _operator,
             dropdownColor: TekColors.elevatedSurface,
             style: const TextStyle(color: TekColors.textPrimary),
@@ -1276,6 +1312,7 @@ class _DistributorPaymentV2DialogState extends State<DistributorPaymentV2Dialog>
             children: [
               Expanded(
                 child: DropdownButtonFormField<String>(
+                  key: ValueKey('pay-mode-$_formGen'),
                   isExpanded: true,
                   initialValue: _mode,
                   dropdownColor: TekColors.elevatedSurface,
@@ -1308,14 +1345,28 @@ class _DistributorPaymentV2DialogState extends State<DistributorPaymentV2Dialog>
               decoration: _input('Notes')),
           if (_distributorId != null && _operator != null) ...[
             const SizedBox(height: 12),
+            Text('ഇപ്പോൾ: ${shopPaymentLineMalayalam(_operator!, before)}',
+                key: const ValueKey('pay-before-ml'),
+                style: TextStyle(
+                    color: before > 0 ? kPeriodOrange : (before < 0 ? kPeriodBlue : kPeriodGreen),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700)),
             _row('${operatorShortName(_operator!)} account before',
                 before >= 0 ? '${formatInrPaise(before)} outstanding' : '${formatInrPaise(-before)} advance',
                 color: before >= 0 ? kPeriodOrange : kPeriodBlue),
-            if (p > 0)
+            if (p > 0) ...[
               _row('After this payment',
                   after >= 0 ? '${formatInrPaise(after)} outstanding' : '${formatInrPaise(-after)} ADVANCE / EXCESS',
                   color: after > 0 ? kPeriodOrange : (after == 0 ? kPeriodGreen : kPeriodBlue),
                   bold: true),
+              Text('ഈ പേയ്മെൻ്റിന് ശേഷം: ${shopPaymentLineMalayalam(_operator!, after)}',
+                  key: const ValueKey('pay-after-ml'),
+                  style: TextStyle(
+                      color: after > 0 ? kPeriodOrange : (after == 0 ? kPeriodGreen : kPeriodBlue),
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+            ],
             const Text(
               'Only this operator\'s account changes. An advance is never moved to another operator. Recharge totals and wallet balances do not change.',
               style: TextStyle(color: TekColors.textMuted, fontSize: 11),
@@ -1721,6 +1772,36 @@ class _OperatorDetailState extends State<_OperatorDetail> {
 }
 
 /// Operator-wise distributor settlement table.
+/// "Airtel's" etc. in plain Malayalam, for the payment lines.
+String operatorPersonMalayalam(RechargeOperator op) {
+  switch (op) {
+    case RechargeOperator.airtel:
+      return 'എയർടെലിൻ്റെ';
+    case RechargeOperator.jio:
+      return 'ജിയോയുടെ';
+    case RechargeOperator.vi:
+      return 'വിഐയുടെ';
+    case RechargeOperator.bsnl:
+      return 'ബിഎസ്എൻഎലിൻ്റെ';
+    case RechargeOperator.other:
+      return 'ഡിസ്ട്രിബ്യൂട്ടറുടെ';
+  }
+}
+
+/// One account's position as the owner says it, e.g.
+/// "ഷോപ്പിൽ നിന്നും എയർടെലിൻ്റെ ആൾക്ക് കൊടുക്കാനുള്ള പേയ്മെൻ്റ്: ₹1,000.00".
+/// [balancePaise] > 0: shop still owes; < 0: shop paid extra (advance).
+String shopPaymentLineMalayalam(RechargeOperator op, int balancePaise) {
+  final who = '${operatorPersonMalayalam(op)} ആൾക്ക്';
+  if (balancePaise > 0) {
+    return 'ഷോപ്പിൽ നിന്നും $who കൊടുക്കാനുള്ള പേയ്മെൻ്റ്: ${formatInrPaise(balancePaise)}';
+  }
+  if (balancePaise < 0) {
+    return 'ഷോപ്പിൽ നിന്നും $who കൂടുതൽ കൊടുത്തത് (അഡ്വാൻസ്): ${formatInrPaise(-balancePaise)}';
+  }
+  return '$who കൊടുക്കാൻ ഒന്നും ബാക്കിയില്ല ✓';
+}
+
 class DistributorSettlementTable extends StatelessWidget {
   final SettlementSummary? summary;
   final String? error;
@@ -1765,8 +1846,8 @@ class DistributorSettlementTable extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Wrap(spacing: 18, runSpacing: 6, children: [
-                        _total('Outstanding', s.outstandingPaise, kPeriodOrange),
-                        _total('Advance / Excess', s.advancePaise, kPeriodBlue),
+                        _total('ഷോപ്പിൽ നിന്നും ആകെ കൊടുക്കാനുള്ളത് (Outstanding)', s.outstandingPaise, kPeriodOrange),
+                        _total('കൂടുതൽ കൊടുത്തത് / അഡ്വാൻസ് (Advance)', s.advancePaise, kPeriodBlue),
                         _total('Net position (info)', s.netPositionPaise, TekColors.textSecondary),
                       ]),
                       const SizedBox(height: 10),
@@ -1786,6 +1867,20 @@ class DistributorSettlementTable extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 narrow ? _narrowRow(a, df) : _wideRow(a, df),
+                                if (a.operator != RechargeOperator.other)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 3),
+                                    child: Text(
+                                      shopPaymentLineMalayalam(a.operator, a.balancePaise),
+                                      key: ValueKey('pay-line-${a.distributorId}-${a.operator.name}'),
+                                      style: TextStyle(
+                                          color: a.balancePaise > 0
+                                              ? kPeriodOrange
+                                              : (a.balancePaise < 0 ? kPeriodBlue : kPeriodGreen),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700),
+                                    ),
+                                  ),
                                 if (a.operator != RechargeOperator.other &&
                                     (onOpeningDues != null ||
                                         (onClearOld != null && a.outstandingPaise > 0)))
