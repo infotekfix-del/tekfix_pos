@@ -902,6 +902,21 @@ class ReturnService {
       updatedAt: now,
     );
 
+    // RMA-01: Post vendorCreditRefund to Db.adjustParty and log action
+    if (vendorCreditRefund > 0 && current.originalVendorKey != null) {
+      await Db.adjustParty(current.originalVendorKey, vendorCreditRefund);
+      await Db.logAction(
+        action: 'Vendor Warranty Credit Received',
+        entity: 'VendorCredit',
+        entityId: current.returnId,
+        newValue: {
+          'amount': vendorCreditRefund,
+          'vendorKey': current.originalVendorKey,
+          'returnKey': returnKey,
+        },
+      );
+    }
+
     await _box.put(returnKey, updated.toMap());
     return updated;
   }

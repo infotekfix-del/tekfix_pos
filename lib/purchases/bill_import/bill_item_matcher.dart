@@ -189,6 +189,30 @@ class BillItemMatcher {
         scored.add(MatchCandidate(p.item, 1.0, 'Same name'));
         continue;
       }
+      // Fast candidate pre-filter: candidate must share at least 1 trigram OR at least 1 token prefix
+      bool hasPossibleOverlap = false;
+      for (final t in qTri) {
+        if (p.tri.contains(t)) {
+          hasPossibleOverlap = true;
+          break;
+        }
+      }
+      if (!hasPossibleOverlap) {
+        for (final qt in qTokens) {
+          if (qt.length >= 3) {
+            for (final pt in p.tokens) {
+              if (pt.length >= 3 &&
+                  (qt.startsWith(pt) || pt.startsWith(qt))) {
+                hasPossibleOverlap = true;
+                break;
+              }
+            }
+          }
+          if (hasPossibleOverlap) break;
+        }
+      }
+      if (!hasPossibleOverlap) continue;
+
       final s = _score(qTokens, qTri, p, hsn);
       if (s >= 0.35) scored.add(MatchCandidate(p.item, s, 'Similar name'));
     }
@@ -296,12 +320,14 @@ class BillItemMatcher {
   static int _levenshtein(String a, String b) {
     if (a.isEmpty) return b.length;
     if (b.isEmpty) return a.length;
-    var prev = List<int>.generate(b.length + 1, (i) => i);
-    var cur = List<int>.filled(b.length + 1, 0);
+    final bLen = b.length;
+    var prev = List<int>.generate(bLen + 1, (i) => i);
+    var cur = List<int>.filled(bLen + 1, 0);
     for (var i = 1; i <= a.length; i++) {
       cur[0] = i;
-      for (var j = 1; j <= b.length; j++) {
-        final cost = a.codeUnitAt(i - 1) == b.codeUnitAt(j - 1) ? 0 : 1;
+      final aCode = a.codeUnitAt(i - 1);
+      for (var j = 1; j <= bLen; j++) {
+        final cost = aCode == b.codeUnitAt(j - 1) ? 0 : 1;
         cur[j] = math.min(math.min(cur[j - 1] + 1, prev[j] + 1),
             prev[j - 1] + cost);
       }
@@ -309,7 +335,7 @@ class BillItemMatcher {
       prev = cur;
       cur = t;
     }
-    return prev[b.length];
+    return prev[bLen];
   }
 
   static double _softCover(List<String> a, List<String> b) {
@@ -318,9 +344,13 @@ class BillItemMatcher {
     for (final x in a) {
       var best = 0.0;
       for (final y in b) {
+        if (x == y) {
+          best = 1.0;
+          break;
+        }
         final s = _tokenSim(x, y);
         if (s > best) best = s;
-        if (best == 1) break;
+        if (best >= 0.85) break;
       }
       sum += best;
     }

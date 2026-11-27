@@ -274,7 +274,8 @@ class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
           matchStatus: it.matchStatusOverride ?? ProductMatchStatus.matched,
           category: it.category,
           serialNumbers: List<String>.from(it.serialNumbers),
-          imeiRequired: it.imeiRequired,
+          imeiRequired: it.imeiRequired &&
+              !ImeiValidator.isAccessoryOrSpare(it.name, it.category),
           warrantyDuration: it.warrantyDuration.isNotEmpty
               ? it.warrantyDuration
               : ItemWarrantyDuration.noWarranty,
@@ -412,7 +413,8 @@ class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
           matchedProductName: item.matchedProductName,
           matchStatus: item.matchStatusOverride,
           matchNotes: item.matchNotes,
-          imeiRequired: item.imeiRequired,
+          imeiRequired: item.imeiRequired &&
+              !ImeiValidator.isAccessoryOrSpare(item.name, item.category),
           warrantyDuration: item.warrantyDuration,
         ));
       }
@@ -627,7 +629,8 @@ class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
           matchNotes: it.matchNotes,
           category: it.category,
           serialNumbers: it.serialNumbers,
-          imeiRequired: it.imeiRequired,
+          imeiRequired: it.imeiRequired &&
+              !ImeiValidator.isAccessoryOrSpare(it.name, it.category),
           warrantyDuration: it.warrantyDuration,
         ));
       }
@@ -718,7 +721,8 @@ class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
         warrantyDuration: item.warranty.isNotEmpty
             ? item.warranty
             : ItemWarrantyDuration.noWarranty,
-        imeiRequired: item.trackImei,
+        imeiRequired: item.trackImei &&
+            !ImeiValidator.isAccessoryOrSpare(item.name, item.category),
         isNewProduct: false,
         isStagedReady: true,
         matchedProductId: item.productId,
@@ -953,6 +957,27 @@ class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
               ),
             ),
             actions: [
+              TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    item.imeiRequired = false;
+                    item.serialNumbers.clear();
+                    _validationErrors.removeWhere(
+                      (e) =>
+                          e.contains('Row ${index + 1}') &&
+                          e.contains('IMEI/Serial'),
+                    );
+                  });
+                  _scheduleDraftSave();
+                  Navigator.pop(ctx);
+                },
+                icon: const Icon(Icons.block_rounded,
+                    size: 14, color: DashboardColors.alertRed),
+                label: const Text("Don't Track IMEI (ആവശ്യമില്ല)",
+                    style: TextStyle(
+                        color: DashboardColors.alertRed, fontSize: 12)),
+              ),
+              const Spacer(),
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
                 child: const Text('Cancel',
@@ -1668,13 +1693,37 @@ class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
       if (it.purchaseRate < 0)
         errors.add('Row ${i + 1}: Purchase rate cannot be negative.');
       if (it.imeiRequired && it.serialNumbers.length != it.quantity) {
-        errors.add(
-            'Row ${i + 1} ("${it.name}"): Requires ${it.quantity} IMEI/Serial numbers, but ${it.serialNumbers.length} entered.');
+        if (ImeiValidator.isAccessoryOrSpare(it.name, it.category)) {
+          // Auto-resolve accessories and spare parts so they never block purchase entry
+          it.imeiRequired = false;
+        } else {
+          errors.add(
+              'Row ${i + 1} ("${it.name}"): Requires ${it.quantity} IMEI/Serial numbers, but ${it.serialNumbers.length} entered.');
+        }
       }
     }
     final paid = double.tryParse(_paidCtrl.text) ?? 0.0;
     if (paid < 0) errors.add('Paid amount cannot be negative.');
     return errors;
+  }
+
+  void _solveAutomaticImeiErrors() {
+    int count = 0;
+    setState(() {
+      for (final it in _items) {
+        if (it.imeiRequired && it.serialNumbers.length != it.quantity) {
+          it.imeiRequired = false;
+          it.serialNumbers.clear();
+          count++;
+        }
+      }
+      _validationErrors.removeWhere(
+          (e) => e.contains('Requires') && e.contains('IMEI/Serial'));
+    });
+    _scheduleDraftSave();
+    TekFeedback.toast(
+      '$count items auto-resolved (IMEI tracking removed). Click Review & Save.',
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -2302,6 +2351,9 @@ class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
 
   Widget _buildValidationErrors() {
     if (!_saveAttempted || _validationErrors.isEmpty) return const SizedBox();
+    final hasImeiErrors = _validationErrors.any(
+        (e) => e.contains('Requires') && e.contains('IMEI/Serial numbers'));
+
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(14),
@@ -2314,15 +2366,37 @@ class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(children: [
-            Icon(Icons.error_outline_rounded,
-                color: DashboardColors.alertRed, size: 18),
-            SizedBox(width: 8),
-            Text('Please fix the following:',
-                style: TextStyle(
-                    color: DashboardColors.alertRed,
-                    fontWeight: FontWeight.w700)),
-          ]),
+          Row(
+            children: [
+              const Icon(Icons.error_outline_rounded,
+                  color: DashboardColors.alertRed, size: 18),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('Please fix the following:',
+                    style: TextStyle(
+                        color: DashboardColors.alertRed,
+                        fontWeight: FontWeight.w700)),
+              ),
+              if (hasImeiErrors) ...[
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  onPressed: _solveAutomaticImeiErrors,
+                  icon: const Icon(Icons.auto_fix_high_rounded, size: 16),
+                  label: const Text(
+                    'Solve Automatic (ഓട്ടോ-ഫിക്സ്)',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: DashboardColors.neonGreen,
+                    foregroundColor: Colors.black,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ],
+            ],
+          ),
           const SizedBox(height: 8),
           ..._validationErrors.map((e) => Padding(
                 padding: const EdgeInsets.only(top: 4),
@@ -2834,57 +2908,106 @@ class _ManualPurchaseEntryScreenState extends State<ManualPurchaseEntryScreen> {
               // IMEI / Serial Number Action Button
               if (row.imeiRequired) ...[
                 const SizedBox(height: 8),
-                InkWell(
-                  onTap: () => _showImeiSerialEntryDialog(i),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: row.serialNumbers.length == row.quantity
-                          ? DashboardColors.neonGreen.withValues(alpha: 0.12)
-                          : DashboardColors.neonOrange.withValues(alpha: 0.15),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    InkWell(
+                      onTap: () => _showImeiSerialEntryDialog(i),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: row.serialNumbers.length == row.quantity
-                            ? DashboardColors.neonGreen.withValues(alpha: 0.4)
-                            : DashboardColors.neonOrange.withValues(alpha: 0.5),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.qr_code_2_rounded,
-                          size: 14,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
                           color: row.serialNumbers.length == row.quantity
-                              ? DashboardColors.neonGreen
-                              : DashboardColors.neonOrange,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          row.serialNumbers.isEmpty
-                              ? '[ ENTER IMEI / SERIAL ]'
-                              : 'IMEI: ${row.serialNumbers.length} / ${row.quantity} entered',
-                          style: TextStyle(
+                              ? DashboardColors.neonGreen.withValues(alpha: 0.12)
+                              : DashboardColors.neonOrange.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
                             color: row.serialNumbers.length == row.quantity
-                                ? DashboardColors.neonGreen
-                                : DashboardColors.neonOrange,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                                ? DashboardColors.neonGreen.withValues(alpha: 0.4)
+                                : DashboardColors.neonOrange.withValues(alpha: 0.5),
                           ),
                         ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.edit_rounded,
-                          size: 12,
-                          color: row.serialNumbers.length == row.quantity
-                              ? DashboardColors.neonGreen
-                              : DashboardColors.neonOrange,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.qr_code_2_rounded,
+                              size: 14,
+                              color: row.serialNumbers.length == row.quantity
+                                  ? DashboardColors.neonGreen
+                                  : DashboardColors.neonOrange,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              row.serialNumbers.isEmpty
+                                  ? '[ ENTER IMEI / SERIAL ]'
+                                  : 'IMEI: ${row.serialNumbers.length} / ${row.quantity} entered',
+                              style: TextStyle(
+                                color: row.serialNumbers.length == row.quantity
+                                    ? DashboardColors.neonGreen
+                                    : DashboardColors.neonOrange,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.edit_rounded,
+                              size: 12,
+                              color: row.serialNumbers.length == row.quantity
+                                  ? DashboardColors.neonGreen
+                                  : DashboardColors.neonOrange,
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
+                    InkWell(
+                      onTap: () {
+                        setState(() {
+                          row.imeiRequired = false;
+                          row.serialNumbers.clear();
+                          _validationErrors.removeWhere(
+                            (e) =>
+                                e.contains('Row ${i + 1}') &&
+                                e.contains('IMEI/Serial'),
+                          );
+                        });
+                        _scheduleDraftSave();
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.close_rounded,
+                                size: 13, color: DashboardColors.textMuted),
+                            SizedBox(width: 4),
+                            Text(
+                              "Don't Track IMEI (IMEI ഒഴിവാക്കുക)",
+                              style: TextStyle(
+                                color: DashboardColors.textLight,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
 

@@ -4,6 +4,7 @@
 // =============================================================================
 
 import 'package:flutter/material.dart';
+import 'imei_validator.dart';
 
 /// Lightweight in-memory representation of an inventory item for fast search.
 class InventorySearchItem {
@@ -102,14 +103,21 @@ class InventorySearchItem {
 
     final catLower = category.toLowerCase();
     final nameLower = name.toLowerCase();
-    final trackImei = map['trackImei'] == true ||
-        map['imeiRequired'] == true ||
-        catLower.contains('phone') ||
-        catLower.contains('mobile') ||
-        catLower.contains('tablet') ||
-        nameLower.contains('iphone') ||
-        nameLower.contains('samsung galaxy') ||
-        nameLower.contains('pixel');
+    final isAccessory = ImeiValidator.isAccessoryOrSpare(name, category);
+    final trackImei = !isAccessory &&
+        (map['trackImei'] == true ||
+            map['imeiRequired'] == true ||
+            ((catLower.contains('phone') ||
+                    catLower.contains('mobile') ||
+                    catLower.contains('tablet')) &&
+                !catLower.contains('accessories') &&
+                !catLower.contains('accessory') &&
+                !catLower.contains('spare') &&
+                !catLower.contains('glass') &&
+                !catLower.contains('cover')) ||
+            (nameLower.contains('iphone') && !isAccessory) ||
+            (nameLower.contains('samsung galaxy') && !isAccessory) ||
+            (nameLower.contains('pixel') && !isAccessory));
 
     final isActive = map['active'] != false && map['isActive'] != false;
     final isDeleted = map['deleted'] == true || map['isDeleted'] == true;

@@ -197,7 +197,16 @@ ProfitReport computeProfitReport({
     if (!_in(when, start, end)) continue;
     final amt = e['amountPaise'] != null ? (e['amountPaise'] as num).toInt() : _p(e['amount']);
     if (e['isOwnerWithdrawal'] == true) {
-      r.ownerSalaryPaise += amt;
+      final drawings = e['drawingsPortionPaise'] != null
+          ? (e['drawingsPortionPaise'] as num).toInt()
+          : (e['drawingsPortion'] != null ? _p(e['drawingsPortion']) : 0);
+      final salary = e['salaryPortionPaise'] != null
+          ? (e['salaryPortionPaise'] as num).toInt()
+          : (e['salaryPortion'] != null ? _p(e['salaryPortion']) : (amt - drawings));
+      r.ownerSalaryPaise += salary;
+      if (drawings > 0 && r.ownerDrawingsPaise == 0) {
+        r.ownerDrawingsPaise += drawings;
+      }
       continue;
     }
     final cat = e['isDailyRent'] == true

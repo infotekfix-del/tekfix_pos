@@ -334,15 +334,6 @@ class PurchaseCalculationEngine {
       ));
     }
 
-    // ---- Bill-level GST split ----
-    int cgstPaise = 0, sgstPaise = 0, igstPaise = 0;
-    if (isInterState) {
-      igstPaise = totalGstPaise;
-    } else {
-      sgstPaise = totalGstPaise ~/ 2;
-      cgstPaise = totalGstPaise - sgstPaise;
-    }
-
     // ---- Charges ----
     int chargesGrossPaise = 0;
     int chargesGstPaise = 0;
@@ -351,6 +342,16 @@ class PurchaseCalculationEngine {
       chargesGstPaise += c.gstOnChargePaise;
     }
     final int chargesTotalPaise = chargesGrossPaise + chargesGstPaise;
+
+    // ---- Bill-level GST split (TAX-01: include chargesGstPaise) ----
+    final int combinedGstPaise = totalGstPaise + chargesGstPaise;
+    int cgstPaise = 0, sgstPaise = 0, igstPaise = 0;
+    if (isInterState) {
+      igstPaise = combinedGstPaise;
+    } else {
+      sgstPaise = combinedGstPaise ~/ 2;
+      cgstPaise = combinedGstPaise - sgstPaise;
+    }
 
     // ---- Grand total ----
     final int rawGrandTotalPaise =
@@ -386,7 +387,7 @@ class PurchaseCalculationEngine {
       subtotalPaise: subtotalPaise,
       totalDiscountPaise: totalDiscountPaise,
       taxableValuePaise: taxableValuePaise,
-      totalGstPaise: totalGstPaise,
+      totalGstPaise: combinedGstPaise,
       cgstPaise: cgstPaise,
       sgstPaise: sgstPaise,
       igstPaise: igstPaise,

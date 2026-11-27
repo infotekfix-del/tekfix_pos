@@ -85,7 +85,7 @@ class BillOcrService {
     }
     final out = <TextRun>[];
     var page = 0;
-    await for (final raster in Printing.raster(pdfBytes, dpi: 220)) {
+    await for (final raster in Printing.raster(pdfBytes, dpi: 150)) {
       final png = await raster.toPng();
       out.addAll(await ocrImageBytes(png, extension: 'png', page: page));
       page++;

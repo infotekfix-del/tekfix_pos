@@ -292,11 +292,16 @@ class _BillImportScreenState extends State<BillImportScreen> {
       final ts = DateTime.now().microsecondsSinceEpoch;
       for (var i = 0; i < bill.lines.length; i++) {
         final src = bill.lines[i];
+        final match = matcher.match(src.description, hsn: src.hsn);
         _lines.add(_ReviewLine(
           rowId: 'IMP_${ts}_$i',
           src: src,
-          match: matcher.match(src.description, hsn: src.hsn),
+          match: match,
         ));
+        // Yield periodically to event loop to keep the UI at 60 FPS
+        if (i > 0 && i % 5 == 0) {
+          await Future.delayed(Duration.zero);
+        }
       }
       final vendor = BillImportService.instance.matchVendor(bill);
       setState(() {

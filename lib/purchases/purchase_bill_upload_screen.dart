@@ -333,12 +333,13 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                 );
 
                 final descLower = pItem.description.toLowerCase();
-                final isPhone = descLower.contains('phone') ||
-                    descLower.contains('iphone') ||
-                    descLower.contains('samsung') ||
-                    descLower.contains('mobile') ||
-                    descLower.contains('pixel') ||
-                    descLower.contains('oneplus');
+                final isAccessory = ImeiValidator.isAccessoryOrSpare(pItem.description);
+                final isPhone = !isAccessory &&
+                    (descLower.contains('smartphone') ||
+                        (descLower.contains('iphone') && !isAccessory) ||
+                        (descLower.contains('samsung galaxy') && !isAccessory) ||
+                        (descLower.contains('pixel') && !isAccessory) ||
+                        (descLower.contains('oneplus') && !isAccessory));
 
                 if (match != null) {
                   final data = match['data'] as Map?;
@@ -354,7 +355,8 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
                               ? (data?['sellingPricePaise'] as num).toDouble() /
                                   100.0
                               : 0.0);
-                  final requiresImei = data?['imeiRequired'] == true || isPhone;
+                  final requiresImei =
+                      !isAccessory && (data?['imeiRequired'] == true || isPhone);
                   final status =
                       match['status']?.toString() ?? ProductMatchStatus.matched;
                   final notes = match['notes']?.toString();
@@ -1004,11 +1006,12 @@ class _PurchaseBillUploadScreenState extends State<PurchaseBillUploadScreen> {
 
     double selectedGstRate = item.taxPercent > 0 ? item.taxPercent : 18.0;
 
-    bool imeiRequired = item.imeiRequired ||
-        item.category.toLowerCase().contains('mobile') ||
-        item.category.toLowerCase().contains('phone') ||
-        item.name.toLowerCase().contains('phone') ||
-        item.name.toLowerCase().contains('smartphone');
+    final isAccessory =
+        ImeiValidator.isAccessoryOrSpare(item.name, item.category);
+    bool imeiRequired = !isAccessory &&
+        (item.imeiRequired ||
+            item.category.toLowerCase().contains('smartphone') ||
+            item.name.toLowerCase().contains('smartphone'));
 
     final enteredImeis = List<String>.from(item.serialNumbers);
     String selectedWarranty = item.warrantyDuration.isNotEmpty &&

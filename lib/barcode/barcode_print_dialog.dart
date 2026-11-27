@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../main.dart' show Db;
 import '../purchases/purchase_models.dart';
@@ -26,6 +26,7 @@ class BarcodePrintDialog extends StatefulWidget {
   ) async {
     final service = BarcodeLabelService.instance;
     final labelItems = <BarcodeLabelItem>[];
+    final existingBarcodes = service.getAllExistingBarcodes();
 
     for (final it in bill.items) {
       // 1. Look up item in Db.items to find existing barcode, selling price and MRP
@@ -52,6 +53,7 @@ class BarcodePrintDialog extends StatefulWidget {
           defaultBarcode: it.sku.isNotEmpty ? it.sku : null,
           sellingPrice: sellingPrice,
           mrp: mrp,
+          existingBarcodes: existingBarcodes,
         );
       }
 

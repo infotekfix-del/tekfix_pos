@@ -372,8 +372,9 @@ void main() {
       expect(result.chargesGross, equals(100.0));
       expect(result.chargesGst, equals(18.0));
 
-      // Items Tax = 360
-      expect(result.totalGst, equals(360.0));
+      // Total GST = items 360 + charges 18 (TAX-01: bill-level CGST/SGST
+      // split includes the GST on charges)
+      expect(result.totalGst, equals(378.0));
 
       // Grand Total = 2000 + 360 + 100 + 18 = 2478.0
       expect(result.grandTotal, equals(2478.0));

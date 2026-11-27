@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -110,6 +112,11 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  String _hashStaffPassword(String pass, String email) {
+    final salt = 'tekfix_staff_salt_${email.trim().toLowerCase()}';
+    return sha256.convert(utf8.encode('$salt:$pass')).toString();
+  }
+
   Future<void> _go() async {
     final shopId = _shop.text.trim().toLowerCase();
     if (shopId.isEmpty) {
@@ -212,6 +219,36 @@ class _LoginScreenState extends State<LoginScreen> {
           await Db.settings.put('staff_logged_email', email);
           await Db.settings.put('auth_role', 'staff');
 
+          // Compute salted SHA-256 password hash for offline verification
+          final pwdHash = _hashStaffPassword(pass, email);
+
+          // Cache verified hash & email in Db.staff
+          dynamic matchedStaffKey;
+          Map<String, dynamic>? staffRecord;
+          for (final k in Db.staff.keys) {
+            final m = _m(Db.staff.get(k));
+            if ('${m['email']}'.trim().toLowerCase() == email) {
+              matchedStaffKey = k;
+              staffRecord = m;
+              break;
+            }
+          }
+          if (staffRecord != null && matchedStaffKey != null) {
+            staffRecord['offlinePwdHash'] = pwdHash;
+            await Db.staff.put(matchedStaffKey, staffRecord);
+          } else {
+            await Db.staff.add({
+              '_id': uid,
+              'email': email,
+              'name': '${userData['name'] ?? email}',
+              'role': 'staff',
+              'approved': true,
+              'active': true,
+              'offlinePwdHash': pwdHash,
+              'lastUpdated': DateTime.now().toIso8601String(),
+            });
+          }
+
           // Cache verified email to local owner-approved staff list
           final approvedList = List<String>.from(Db.settings
               .get('approved_staff_emails', defaultValue: <String>[]));
@@ -231,15 +268,23 @@ class _LoginScreenState extends State<LoginScreen> {
           await Db.settings.put('staff_logged_name', email);
           await Db.settings.put('staff_logged_email', email);
           await Db.settings.put('auth_role', 'staff');
+
+          final pwdHash = _hashStaffPassword(pass, email);
+          for (final k in Db.staff.keys) {
+            final m = _m(Db.staff.get(k));
+            if ('${m['email']}'.trim().toLowerCase() == email) {
+              m['offlinePwdHash'] = pwdHash;
+              await Db.staff.put(k, m);
+              break;
+            }
+          }
+
           if (mounted) context.read<AuthController>().notify();
           return;
         }
       }
 
-      // 3. Offline Verification: Validate against cached owner-approved staff records
-      final approvedList = List<String>.from(
-          Db.settings.get('approved_staff_emails', defaultValue: <String>[]));
-
+      // 3. Offline Verification: Validate against cached owner-approved staff records AND verify password hash
       Map<String, dynamic>? localStaff;
       for (final v in Db.staff.values) {
         final m = _m(v);
@@ -249,29 +294,52 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
+      final approvedList = List<String>.from(
+          Db.settings.get('approved_staff_emails', defaultValue: <String>[]));
+
       final isLocallyApproved = approvedList.contains(email) ||
           (localStaff != null &&
               localStaff['approved'] != false &&
               localStaff['active'] != false);
 
-      if (isLocallyApproved) {
-        await Db.settings.put('shop_id', shopId);
-        await Db.settings.put('staff_logged_in', 'true');
-        await Db.settings.put('staff_logged_id',
-            localStaff != null ? '${localStaff['_id'] ?? email}' : email);
-        await Db.settings.put('staff_logged_name',
-            localStaff != null ? '${localStaff['name'] ?? 'Staff'}' : email);
-        await Db.settings.put('staff_logged_email', email);
-        await Db.settings.put('auth_role', 'staff');
-        if (mounted) context.read<AuthController>().notify();
+      if (!isLocallyApproved) {
+        setState(() {
+          _busy = false;
+          _err =
+              'ഈ ഇമെയിലിന് ഉടമസ്ഥന്റെ അനുമതിയില്ല അല്ലെങ്കിൽ ഇന്റർനെറ്റ് ഇല്ല.\n(Email is not approved by Shop Owner or device is offline)';
+        });
         return;
       }
 
-      setState(() {
-        _busy = false;
-        _err =
-            'ഈ ഇമെയിലിന് ഉടമസ്ഥന്റെ അനുമതിയില്ല അല്ലെങ്കിൽ ഇന്റർനെറ്റ് ഇല്ല.\n(Email is not approved by Shop Owner or device is offline)';
-      });
+      // SEC-01: Mandatory offline password verification against salted SHA-256 hash
+      final expectedHash = localStaff?['offlinePwdHash']?.toString();
+      if (expectedHash == null || expectedHash.isEmpty) {
+        setState(() {
+          _busy = false;
+          _err =
+              'ഓഫ്‌ലൈൻ ലോഗിൻ ചെയ്യുന്നതിന് മുമ്പ് ഒരു തവണയെങ്കിലും ഇന്റർനെറ്റ് ഉപയോഗിച്ച് ലോഗിൻ ചെയ്യണം.\n(First-time login must be performed online to cache security credentials)';
+        });
+        return;
+      }
+
+      final enteredHash = _hashStaffPassword(pass, email);
+      if (enteredHash != expectedHash) {
+        setState(() {
+          _busy = false;
+          _err = 'പാസ്‌വേഡ് തെറ്റാണ് (Invalid password)';
+        });
+        return;
+      }
+
+      await Db.settings.put('shop_id', shopId);
+      await Db.settings.put('staff_logged_in', 'true');
+      await Db.settings.put('staff_logged_id',
+          localStaff != null ? '${localStaff['_id'] ?? email}' : email);
+      await Db.settings.put('staff_logged_name',
+          localStaff != null ? '${localStaff['name'] ?? 'Staff'}' : email);
+      await Db.settings.put('staff_logged_email', email);
+      await Db.settings.put('auth_role', 'staff');
+      if (mounted) context.read<AuthController>().notify();
       return;
     }
 

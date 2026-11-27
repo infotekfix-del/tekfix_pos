@@ -20,7 +20,8 @@ class SalaryCalculator {
     final monthly = (staff['monthlySalary'] as num?)?.toDouble();
     if (monthly != null && monthly > 0) {
       final days = getDaysInMonth(date ?? DateTime.now());
-      return double.parse((monthly / days).toStringAsFixed(2));
+      // PAY-01: Retain full double precision during daily rate division; round only the final calculated salary.
+      return monthly / days;
     }
 
     return 350.0;

@@ -88,4 +88,69 @@ class ImeiValidator {
     }
     return p1;
   }
+
+  /// Returns `true` if an item description or category indicates it is an accessory,
+  /// spare part, glass, cable, adapter, dongle, or non-phone consumable that should
+  /// NOT require an IMEI or device serial number.
+  static bool isAccessoryOrSpare(String name, [String? category]) {
+    final n = name.toLowerCase();
+    final c = (category ?? '').toLowerCase();
+    const keywords = [
+      'adapter',
+      'glass',
+      'screen protector',
+      'esd',
+      'case',
+      'cover',
+      'pouch',
+      'dongle',
+      'cable',
+      'charger',
+      'hf',
+      'earphone',
+      'headphone',
+      'headset',
+      'airpod',
+      'buds',
+      'tws',
+      'combo',
+      'display',
+      'touch',
+      'battery',
+      'lens',
+      'holder',
+      'stand',
+      'skin',
+      'guard',
+      'film',
+      'tempered',
+      'connector',
+      'converter',
+      'pin',
+      'plug',
+      'aux',
+      'otg',
+      'strap',
+      'band',
+      'bluetooth dongle',
+      'wifi dongle',
+      'accessories',
+      'accessory',
+      'spare',
+      'spares',
+      'silicon',
+      'speaker',
+      'mic',
+      'screen',
+      'membrane',
+      'd+',
+      '5d',
+      '9d',
+      '11d',
+      'wrnty',
+      'warranty',
+      'handsfree',
+    ];
+    return keywords.any((k) => n.contains(k) || c.contains(k));
+  }
 }

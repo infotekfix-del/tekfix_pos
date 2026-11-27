@@ -56,6 +56,7 @@ import 'utils/timestamp_adapter.dart';
 import 'theme/tek_tokens.dart';
 import 'orders/order_service.dart';
 import 'orders/order_models.dart';
+import 'pos/invoice_pdf.dart';
 import 'ui/tek_feedback.dart';
 import 'ui/tek_global_search_dialog.dart';
 import 'ui/dashboard/dashboard_tokens.dart';
@@ -70,6 +71,7 @@ import 'purchases/purchase_bills_dashboard_view.dart';
 import 'purchases/purchase_bill_service.dart' show PurchaseBillService;
 import 'pos/daily_sales_ledger_view.dart';
 import 'pos/daily_register_service.dart';
+import 'pos/shift_sales_date_dialog.dart';
 import 'staff/salary_calculator.dart';
 import 'staff/staff_board.dart';
 import 'expenses/expense_management_screen.dart';
@@ -660,7 +662,6 @@ Future<void> main() async {
       runApp(const TekFixAlreadyRunningApp());
       return;
     }
-
 
     try {
       await SyncEngine.instance.openBoxes();
@@ -2530,8 +2531,10 @@ class _SaleViewState extends State<SaleView> {
 
       for (final line in _cart) {
         final it = _m(Db.items.get(line['key']));
-        it['stock'] = _i(it['stock']) - _i(line['qty']);
+        it['stock'] = math.max(0, _i(it['stock']) - _i(line['qty']));
         await Db.items.put(line['key'], it);
+        final lsKey = 'ls:items|${line['key']}';
+        await SyncEngine.instance.setCounterBaseline(lsKey, it['stock']);
         await Db.stockMove(
             line['key'], '${it['name']}', -_i(line['qty']), 'Sale $invoice',
             date: saleDateUtc.toIso8601String());
@@ -7233,6 +7236,31 @@ class _SettingsViewState extends State<SettingsView> {
               },
             ),
           ),
+          AppCard(
+            child: ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.edit_calendar_rounded,
+                    color: Colors.amber, size: 20),
+              ),
+              title: const Text(
+                  'Move Sales to Another Date (സെയിൽ തീയതി മാറ്റുക)',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              subtitle: const Text(
+                  'Shift mistakenly entered sales from today to yesterday (Owner Only)',
+                  style: TextStyle(fontSize: 12)),
+              trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+              onTap: () {
+                ShiftSalesDateDialog.show(context, onComplete: () {
+                  if (mounted) setState(() {});
+                });
+              },
+            ),
+          ),
           const SizedBox(height: 12),
           const SectionTitle('അക്കൗണ്ട് & സെഷൻ (Account & Session)'),
           AppCard(
@@ -7285,6 +7313,25 @@ Future<void> printInvoice(BuildContext context, Map invoice,
     final shopEmail = Db.setting('shop_email');
     final gstin = Db.setting('gstin');
     final footer = Db.setting('invoice_footer', 'Thank you for your business!');
+
+    if (a4) {
+      try {
+        final invData = InvoiceData.fromMap(invoice);
+        final shop = ShopInfo(
+          name: shopName.isNotEmpty ? shopName : 'TEKFIX DIGITAL',
+          tagline: 'SALES · SERVICE · ACCESSORIES',
+          address: shopAddress.isNotEmpty ? shopAddress : 'Trumbuzhi, Kerala 676509',
+          phone: shopPhone.isNotEmpty ? shopPhone : '+91 70340 93101',
+          email: shopEmail.isNotEmpty ? shopEmail : 'info@tekfixdigital.com',
+          whatsapp: (shopPhone.isNotEmpty ? shopPhone : '917034093101').replaceAll(RegExp(r'\D'), ''),
+          gstin: gstin.isNotEmpty ? gstin : null,
+        );
+        await printA4Invoice(invData, shop: shop);
+        return;
+      } catch (e) {
+        debugPrint('[printInvoice] Premium A4 generator notice: $e');
+      }
+    }
 
     final items = ((invoice['items'] as List?) ?? [])
         .map((e) => Map<String, dynamic>.from(e as Map))

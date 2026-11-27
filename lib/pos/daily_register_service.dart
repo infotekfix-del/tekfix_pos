@@ -360,16 +360,14 @@ class DailyRegisterService {
       );
     });
 
-    final expectedClosingCash = (openingCash +
-            totalCash +
-            rechargeCashCollection -
-            distributorCashPaid +
-            otherCash.net -
-            calculatedRefunds)
-        // Expenses, rent, owner withdrawals, vendor payments and manual Money
-        // In/Out come from Cash in Hand, not the drawer (owner rule 2026-11-23).
-        .clamp(0.0, double.infinity);
-    final discrepancy = physicalCashCount - expectedClosingCash;
+    // FIN-04: Calculate discrepancy using unclamped rawExpectedClosingCash so drawer shortages are accurately reported
+    final rawExpectedClosingCash = openingCash +
+        totalCash +
+        rechargeCashCollection -
+        distributorCashPaid +
+        otherCash.net -
+        calculatedRefunds;
+    final discrepancy = physicalCashCount - rawExpectedClosingCash;
 
     return DailyRegisterSummary(
       dateString: dStr,

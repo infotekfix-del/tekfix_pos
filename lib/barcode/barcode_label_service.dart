@@ -203,33 +203,39 @@ class BarcodeLabelService extends ChangeNotifier {
   // 2. UNIQUE BARCODE GENERATION & PERMANENT DB STORAGE
   // ---------------------------------------------------------------------------
 
+  /// Pre-scans and caches all existing barcodes in an in-memory Set for O(1) checks.
+  Set<String> getAllExistingBarcodes() {
+    final set = <String>{};
+    if (Db.items.isOpen) {
+      for (final k in Db.items.keys) {
+        final m = tekM(Db.items.get(k));
+        final b =
+            '${m['barcode'] ?? m['code'] ?? m['sku'] ?? ''}'.trim().toLowerCase();
+        if (b.isNotEmpty) set.add(b);
+      }
+    }
+    return set;
+  }
+
   /// Generates a clean, unique Code 128 scannable barcode string.
   /// Format: TF followed by 6 numeric digits (e.g. TF894218).
-  String generateUniqueBarcode({String prefix = 'TF'}) {
+  /// Uses in-memory Set lookup for instant O(1) uniqueness validation.
+  String generateUniqueBarcode(
+      {String prefix = 'TF', Set<String>? existingBarcodes}) {
     final now = DateTime.now();
     final millisPart = now.millisecondsSinceEpoch.toString();
     final suffix = millisPart.substring(millisPart.length - 6);
     var candidate = '$prefix$suffix';
 
+    final existing = existingBarcodes ?? getAllExistingBarcodes();
     int attempts = 0;
-    while (_isBarcodeInUse(candidate) && attempts < 100) {
+    while (existing.contains(candidate.toLowerCase()) && attempts < 100) {
       attempts++;
       final alt = (int.parse(suffix) + attempts) % 1000000;
       candidate = '$prefix${alt.toString().padLeft(6, '0')}';
     }
-
+    existing.add(candidate.toLowerCase());
     return candidate;
-  }
-
-  bool _isBarcodeInUse(String code) {
-    if (code.isEmpty) return false;
-    final lower = code.toLowerCase();
-    for (final k in Db.items.keys) {
-      final m = tekM(Db.items.get(k));
-      final b = '${m['barcode'] ?? m['code'] ?? m['sku'] ?? ''}'.toLowerCase();
-      if (b == lower) return true;
-    }
-    return false;
   }
 
   /// Ensures that an item has a barcode. If missing, generates a unique barcode
@@ -239,11 +245,12 @@ class BarcodeLabelService extends ChangeNotifier {
     String? defaultBarcode,
     double? sellingPrice,
     double? mrp,
+    Set<String>? existingBarcodes,
   }) async {
     if (itemKey == null || !Db.items.containsKey(itemKey)) {
       return defaultBarcode?.trim().isNotEmpty == true
           ? defaultBarcode!.trim()
-          : generateUniqueBarcode();
+          : generateUniqueBarcode(existingBarcodes: existingBarcodes);
     }
 
     final raw = tekM(Db.items.get(itemKey));
@@ -256,7 +263,7 @@ class BarcodeLabelService extends ChangeNotifier {
 
     final newBarcode = defaultBarcode?.trim().isNotEmpty == true
         ? defaultBarcode!.trim()
-        : generateUniqueBarcode();
+        : generateUniqueBarcode(existingBarcodes: existingBarcodes);
 
     final updated = Map<String, dynamic>.from(raw);
     updated['barcode'] = newBarcode;

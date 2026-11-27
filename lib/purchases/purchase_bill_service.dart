@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import '../main.dart'
@@ -933,7 +932,7 @@ class PurchaseBillService {
             final pRef = firestore
                 .collection('shops')
                 .doc(sId)
-                .collection('products')
+                .collection('items')
                 .doc(it.matchedProductId);
             existingProductRefs[it.matchedProductId!] = pRef;
           }
@@ -976,7 +975,7 @@ class PurchaseBillService {
               final newProdRef = firestore
                   .collection('shops')
                   .doc(sId)
-                  .collection('products')
+                  .collection('items')
                   .doc();
               final newProdId = newProdRef.id;
               resolvedItemMap[it] = newProdId;
@@ -994,6 +993,7 @@ class PurchaseBillService {
                 'category': it.category.isNotEmpty ? it.category : 'General',
                 'sku': autoBarcode,
                 'barcode': autoBarcode,
+                'stock': it.quantity,
                 'currentStock': it.quantity,
                 'lastPurchaseRatePaise': it.purchaseRatePaise,
                 'sellingPricePaise': it.sellingPricePaise,

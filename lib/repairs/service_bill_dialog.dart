@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -10,6 +11,7 @@ import '../main.dart'
 import '../pos/pos_models.dart';
 import '../pos/pos_service.dart';
 import '../staff/activity_log.dart';
+import '../sync/sync_engine.dart';
 import '../theme/tek_tokens.dart';
 import '../ui/dashboard/dashboard_tokens.dart';
 import '../ui/tek_feedback.dart';
@@ -767,7 +769,8 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                               snap.data()?['stockCount'] as num?)
                           ?.toInt() ??
                       0;
-                  final newStock = curStock - part.quantity;
+                  final newStock =
+                      math.max<int>(0, curStock - (part.quantity as num).toInt());
 
                   transaction.update(ref, {
                     'stock': newStock,
@@ -1013,8 +1016,14 @@ class _ServiceBillDialogState extends State<ServiceBillDialog> {
                 '$k' == part.itemId ||
                 cur['name'] == part.name) {
               final curStock = (cur['stock'] as num?)?.toInt() ?? 0;
-              cur['stock'] = curStock - part.quantity;
+              final newStock =
+                  math.max<int>(0, curStock - (part.quantity as num).toInt());
+              cur['stock'] = newStock;
               await Db.items.put(k, cur);
+              if (part.itemId != null && part.itemId!.isNotEmpty) {
+                final lsKey = 'ls:items|${part.itemId}';
+                await SyncEngine.instance.setCounterBaseline(lsKey, newStock);
+              }
               await Db.stockMove(
                   k, part.name, -part.quantity, 'Service $_jobId Consumption');
               break;

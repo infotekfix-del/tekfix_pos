@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -8,6 +9,7 @@ import '../firebase_options.dart';
 import '../main.dart' show Db;
 import '../utils/tek_helpers.dart';
 import '../inventory/consumables_service.dart';
+import '../sync/sync_engine.dart';
 import 'pos_models.dart';
 import '../crm/customer_crm.dart';
 import '../crm/customer_models.dart';
@@ -385,8 +387,9 @@ class PosService {
               final snap = itemSnapshots[line.item.id];
               if (snap != null && snap.exists) {
                 final curStock = (snap.data()?['stock'] as num?)?.toInt() ?? 0;
+                final newStock = math.max(0, curStock - line.qty);
                 transaction.update(itemRef, {
-                  'stock': curStock - line.qty,
+                  'stock': newStock,
                   'updatedAt': FieldValue.serverTimestamp(),
                 });
 
@@ -465,8 +468,12 @@ class PosService {
               '$k' == line.item.id ||
               cur['name'] == line.item.name) {
             final curStock = (cur['stock'] as num?)?.toInt() ?? 0;
-            cur['stock'] = curStock - line.qty;
+            final newStock = math.max(0, curStock - line.qty);
+            cur['stock'] = newStock;
             await Db.items.put(k, cur);
+            // Sync baseline so SyncEngine does not send a duplicate decrement
+            final lsKey = 'ls:items|${line.item.id}';
+            await SyncEngine.instance.setCounterBaseline(lsKey, newStock);
             await Db.stockMove(
                 k, line.item.name, -line.qty, 'POS Sale $invoiceId',
                 date: effectiveSaleDate.toIso8601String());
@@ -495,6 +502,11 @@ class PosService {
         debugPrint('[PosService] CRM link skipped: $e');
       }
 
+      final paidPaise = ((payment.cashAmount + payment.upiAmount + payment.cardAmount) * 100).round();
+      final totalPaise = (total * 100).round();
+      final duePaise = math.max(0, totalPaise - paidPaise);
+      final due = duePaise / 100.0;
+
       final billData = <String, dynamic>{
         'invoice': invoiceId,
         'saleDate': effectiveSaleDate.toIso8601String(),
@@ -511,7 +523,7 @@ class PosService {
         'cash': payment.cashAmount,
         'upi': payment.upiAmount,
         'card': payment.cardAmount,
-        'due': 0.0,
+        'due': due,
         // Profit = bill total - purchase cost of the items (owner reports).
         'cost': saleCostPaise / 100.0,
         'profit': ((total * 100).round() - saleCostPaise) / 100.0,
@@ -527,6 +539,9 @@ class PosService {
 
       final saleKey = await Db.sales.add(billData);
       await CustomerCrm.maybeInstance?.indexSaleNow(saleKey, billData);
+      if (due > 0 && crmCustomer?.key != null) {
+        await Db.adjustParty(crmCustomer!.key, due);
+      }
 
       // 4c. Update Service Job in Hive
       if (serviceJobId != null && serviceJobId.isNotEmpty) {

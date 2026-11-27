@@ -15,6 +15,7 @@ import '../owner/owner_finance_service.dart';
 import 'cash_denomination_calculator.dart';
 import 'daily_register_models.dart';
 import 'daily_register_service.dart';
+import 'shift_sales_date_dialog.dart';
 import '../auth/auth_controller.dart';
 import '../reports/profit_report.dart';
 
@@ -115,30 +116,43 @@ class DailySalesLedgerView extends StatefulWidget {
     );
     final isBackdated = !DateUtils.isSameDay(targetDate, DateTime.now());
 
-    final summary = closed ??
-        DailyRegisterService.instance.computeDailySummary(
-          sales: s,
-          date: targetDate,
-          openingCash: openCash,
-          totalCashExpenses: cExp,
-          totalBankExpenses: bExp,
-          cashRentPaid: cashRent,
-          bankRentPaid: bankRent,
-          rentPendingWarning: rentPending,
-          ownerSalaryDrawnToday: ownerWth.totalSalary,
-          ownerExcessDrawingsToday: ownerWth.totalDrawings,
-          ownerCashSalaryDrawn: ownerWth.cashSalary,
-          ownerCashDrawingsDrawn: ownerWth.cashDrawings,
-          ownerBankSalaryDrawn: ownerWth.bankSalary,
-          ownerBankDrawingsDrawn: ownerWth.bankDrawings,
-          rechargeCashCollection: rechargeCash,
-          distributorCashPaid: agentCash,
-          otherCash: DailyRegisterService.instance.otherCashForDate(targetDate),
-          closedByStaffId: currentStaffId ?? '',
-          closedByStaffName: currentStaffName ?? '',
-          isBackdated: isBackdated,
-          closingStatus: isBackdated ? 'BACKDATED' : 'PENDING',
-        );
+    final computed = DailyRegisterService.instance.computeDailySummary(
+      sales: s,
+      date: targetDate,
+      openingCash: openCash,
+      totalCashExpenses: cExp,
+      totalBankExpenses: bExp,
+      cashRentPaid: cashRent,
+      bankRentPaid: bankRent,
+      rentPendingWarning: rentPending,
+      ownerSalaryDrawnToday: ownerWth.totalSalary,
+      ownerExcessDrawingsToday: ownerWth.totalDrawings,
+      ownerCashSalaryDrawn: ownerWth.cashSalary,
+      ownerCashDrawingsDrawn: ownerWth.cashDrawings,
+      ownerBankSalaryDrawn: ownerWth.bankSalary,
+      ownerBankDrawingsDrawn: ownerWth.bankDrawings,
+      rechargeCashCollection: rechargeCash,
+      distributorCashPaid: agentCash,
+      otherCash: DailyRegisterService.instance.otherCashForDate(targetDate),
+      closedByStaffId: currentStaffId ?? '',
+      closedByStaffName: currentStaffName ?? '',
+      isBackdated: isBackdated,
+      closingStatus: isBackdated ? 'BACKDATED' : 'PENDING',
+    );
+
+    final summary = closed == null
+        ? computed
+        : computed.copyWith(
+            closedByStaffId: closed.closedByStaffId,
+            closedByStaffName: closed.closedByStaffName,
+            closedAt: closed.closedAt,
+            isClosed: true,
+            closingStatus: closed.closingStatus,
+            physicalCashCount: closed.physicalCashCount,
+            notes: closed.notes,
+            denominations: closed.denominations,
+            handoverSplit: closed.handoverSplit,
+          );
 
     if (!context.mounted) return;
     showModalBottomSheet(
@@ -292,9 +306,8 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
   }
 
   DailyRegisterSummary get _currentSummary {
-    if (_closedRegister != null) return _closedRegister!;
     final isBackdated = !_isToday;
-    return DailyRegisterService.instance.computeDailySummary(
+    final computed = DailyRegisterService.instance.computeDailySummary(
       sales: _sales,
       date: _selectedDate,
       openingCash: _openingCashForDate,
@@ -317,6 +330,20 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
       isBackdated: isBackdated,
       closingStatus: isBackdated ? 'BACKDATED' : 'PENDING',
     );
+    if (_closedRegister != null) {
+      return computed.copyWith(
+        closedByStaffId: _closedRegister!.closedByStaffId,
+        closedByStaffName: _closedRegister!.closedByStaffName,
+        closedAt: _closedRegister!.closedAt,
+        isClosed: true,
+        closingStatus: _closedRegister!.closingStatus,
+        physicalCashCount: _closedRegister!.physicalCashCount,
+        notes: _closedRegister!.notes,
+        denominations: _closedRegister!.denominations,
+        handoverSplit: _closedRegister!.handoverSplit,
+      );
+    }
+    return computed;
   }
 
   List<Map<String, dynamic>> get _filteredSales {
@@ -509,6 +536,38 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
         final titleSection = Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (Navigator.canPop(context)) ...[
+              InkWell(
+                onTap: () => Navigator.pop(context),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: TekColors.bgSecondary,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: TekColors.border),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.arrow_back_rounded,
+                          color: Colors.white, size: 18),
+                      SizedBox(width: 4),
+                      Text(
+                        'Back (മടങ്ങുക)',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+            ],
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
@@ -546,6 +605,7 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
         );
 
         final actionButtons = Wrap(
+          alignment: WrapAlignment.end,
           spacing: 8,
           runSpacing: 8,
           crossAxisAlignment: WrapCrossAlignment.center,
@@ -575,6 +635,43 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                         color: TekColors.secondary,
+                        fontFamilyFallback: TekTypography.malayalamFallback,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Shift Sales Date (തീയതി മാറ്റുക)
+            InkWell(
+              onTap: () => ShiftSalesDateDialog.show(
+                context,
+                initialDate: _selectedDate,
+                onComplete: _loadData,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: Colors.amber.withValues(alpha: 0.5)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.edit_calendar_rounded,
+                        size: 16, color: Colors.amber),
+                    SizedBox(width: 6),
+                    Text(
+                      'Shift Sales Date (തീയതി മാറ്റുക)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.amber,
                         fontFamilyFallback: TekTypography.malayalamFallback,
                       ),
                     ),
@@ -637,11 +734,20 @@ class _DailySalesLedgerViewState extends State<DailySalesLedgerView> {
           );
         }
 
+        // The buttons wrap onto a second line instead of overflowing when
+        // the window is not wide enough for all of them.
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             titleSection,
-            actionButtons,
+            const SizedBox(width: 12),
+            Flexible(
+              child: Align(
+                alignment: Alignment.topRight,
+                child: actionButtons,
+              ),
+            ),
           ],
         );
       },

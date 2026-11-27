@@ -167,6 +167,14 @@ class SyncEngine extends ChangeNotifier {
   SyncState get state => _state;
   int get pending => _boxesOpen ? _outbox.length : 0;
 
+  /// Sets the optimistic baseline for a counter field (e.g. stock) when it was
+  /// already updated in a direct Firestore transaction, preventing double decrement.
+  Future<void> setCounterBaseline(String key, dynamic value) async {
+    if (_boxesOpen && Hive.isBoxOpen('tek_sync_meta')) {
+      await _meta.put(key, value);
+    }
+  }
+
   /// Call in main() right after Hive.initFlutter(). Separate boxes, so the
   /// existing backup/restore (allBoxes) is untouched.
   Future<void> openBoxes() async {
@@ -937,7 +945,9 @@ class SyncEngine extends ChangeNotifier {
       final merged = local == null
           ? remote
           : _r(remote + (_num(local[c.counter]) - _num(_meta.get(lsKey))));
-      rec[c.counter!] = c.counter == 'stock' ? merged.round() : merged;
+      rec[c.counter!] = c.counter == 'stock'
+          ? (merged.round() < 0 ? 0 : merged.round())
+          : merged;
       await _meta.put(lsKey, remote);
     }
     rec['_id'] = uid;

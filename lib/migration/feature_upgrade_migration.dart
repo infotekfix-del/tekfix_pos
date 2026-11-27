@@ -46,17 +46,36 @@ class FeatureUpgradeMigration {
         }
       }
 
-      // 3. Mark migration complete
+      // 3. Auto-heal any legacy negative stocks in Db.items
+      int healedItemsCount = 0;
+      for (final key in Db.items.keys) {
+        final raw = Db.items.get(key);
+        if (raw is Map) {
+          final it = Map<String, dynamic>.from(raw);
+          final stock = (it['stock'] as num?)?.toInt() ?? 0;
+          if (stock < 0) {
+            it['stock'] = 0;
+            await Db.items.put(key, it);
+            healedItemsCount++;
+          }
+        }
+      }
+      if (healedItemsCount > 0) {
+        debugPrint('[Migration] Auto-healed $healedItemsCount item(s) with negative stock back to 0.');
+      }
+
+      // 4. Mark migration complete
       await Db.settings.put(_keyMigrationDone, 'true');
       debugPrint('[Migration] Backdated sales migration complete. Migrated $migratedSalesCount sale(s).');
 
-      // 4. Log migration to audit box
+      // 5. Log migration to audit box
       await Db.logAction(
         action: 'Migration Completed',
         entity: 'System',
         entityId: 'BackdatedSales_v1',
         newValue: {
           'migratedSalesCount': migratedSalesCount,
+          'healedItemsCount': healedItemsCount,
           'timestamp': DateTime.now().toIso8601String(),
         },
       );

@@ -509,15 +509,17 @@ class DailyRegisterSummary {
   /// Paid from Cash in Hand that day (shown for information only).
   double get paidFromCashInHand =>
       cashRentPaid + otherCashExpenses + ownerCashSalaryDrawn + ownerCashDrawingsDrawn;
-  double get expectedClosingCash => (openingCash +
-          totalCash +
-          rechargeCashCollection -
-          distributorCashPaid +
-          otherCash.net -
-          refunds)
-      .clamp(0.0, double.infinity);
+  double get rawExpectedClosingCash => (openingCash +
+      totalCash +
+      rechargeCashCollection -
+      distributorCashPaid +
+      otherCash.net -
+      refunds);
+  double get expectedClosingCash =>
+      rawExpectedClosingCash.clamp(0.0, double.infinity);
   double get expectedCashInRegister => expectedClosingCash;
-  double get cashOverOrShort => physicalCashCount - expectedClosingCash;
+  // FIN-04: Unclamped so shortages are not masked as 0
+  double get cashOverOrShort => physicalCashCount - rawExpectedClosingCash;
 
   /// Positive difference = Excess (kept as Excess), negative = Shortage (only shown).
   double get cashExcess => cashDiscrepancy > 0 ? cashDiscrepancy : 0.0;
